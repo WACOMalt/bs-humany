@@ -10,6 +10,12 @@
     },
     {
       "path": "./packages/kernel"
+    },
+    {
+      "path": "./packages/skeleton"
+    },
+    {
+      "path": "./packages/anthropometry"
     }
   ]
 }

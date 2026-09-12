@@ -88,6 +88,23 @@ if (bibliographyKeys.size === 0) {
   process.exit(2);
 }
 
+/**
+ * A file carrying a table-level provenance declaration cites its whole table at once.
+ *
+ * Parameter tables transcribed from a single publication -- de Leva's 99 values, ANSUR II's
+ * reference statistics -- have one citation covering every entry. Repeating `source:
+ * cite('deleva1996')` on all 22 segment records would be noise that nobody reads, and noise in a
+ * citation is worse than none: it trains the reader to skip them.
+ *
+ * So a `TableProvenance` object satisfies the proximity check for its file. Its own key is still
+ * validated against the bibliography, and it must additionally declare a verification status, so
+ * the exemption cannot be claimed by writing the word "source" somewhere.
+ */
+function tableProvenanceKey(text) {
+  const match = text.match(/source:\s*'([^']+)',[\s\S]{0,600}?locator:[\s\S]{0,600}?status:/);
+  return match?.[1];
+}
+
 const files = SCAN_ROOTS.flatMap((r) => collectSourceFiles(join(ROOT, r)));
 const problems = [];
 
@@ -95,6 +112,18 @@ for (const file of files) {
   const text = readFileSync(file, 'utf8');
   const display = relative(ROOT, file);
   const lines = text.split('\n');
+  const tableKey = tableProvenanceKey(text);
+
+  if (tableKey !== undefined && !bibliographyKeys.has(tableKey)) {
+    const line = text.slice(0, text.indexOf(tableKey)).split('\n').length;
+    problems.push({
+      file: display,
+      line,
+      message:
+        `table provenance names unknown citation key '${tableKey}'. Add an entry to ` +
+        'docs/sources/bibliography.md, or fix the spelling.',
+    });
+  }
 
   // Check 1 -- every cited key exists.
   for (const match of text.matchAll(/\bcite\(\s*'([^']+)'/g)) {
@@ -110,7 +139,25 @@ for (const file of files) {
     });
   }
 
-  // Check 2 -- a parameter field needs a citation in the same object literal.
+  // Check 1b -- a citation written as a bare string literal must also resolve.
+  //
+  // Without this, `source: 'whatever I like'` satisfies the proximity check below while naming
+  // nothing, which is worse than an uncited value: it looks sourced.
+  for (const match of text.matchAll(/\b(?:romSource|source|citation):\s*'([^']+)'/g)) {
+    const key = match[1];
+    if (!key || bibliographyKeys.has(key)) continue;
+    const line = text.slice(0, match.index ?? 0).split('\n').length;
+    problems.push({
+      file: display,
+      line,
+      message:
+        `citation '${key}' does not resolve to a bibliography entry. Add one to ` +
+        'docs/sources/bibliography.md, or fix the spelling.',
+    });
+  }
+
+  // Check 2 -- a parameter field needs a citation in the same object literal, unless the file
+  // carries a table-level provenance declaration covering all of them.
   //
   // The signal we want is a *hardcoded number*, so the test is that the field's value contains a
   // numeric literal. That distinguishes the two things which look alike on a line:
@@ -121,6 +168,8 @@ for (const file of files) {
   //
   // Checking for a numeric literal cannot be satisfied by renaming a variable, which is what
   // keeps the rule from being trivially worked around.
+  if (tableKey !== undefined) continue;
+
   lines.forEach((lineText, index) => {
     const fieldMatch = lineText.match(/^\s*(?:readonly\s+)?([A-Za-z][A-Za-z0-9]*)\??\s*:(.*)$/);
     const field = fieldMatch?.[1];

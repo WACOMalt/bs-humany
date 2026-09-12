@@ -72,6 +72,22 @@ dimensional backbone for the morphology system and the source of the percentile 
 *Population limitation, to be surfaced in the UI:* sampled US military personnel, who are not
 representative of the general population in body composition or age distribution.
 
+### `drillis1966` — T1
+Drillis, R., & Contini, R. (1966). *Body Segment Parameters*. Report 1166-03, Office of Vocational
+Rehabilitation, Department of Health, Education and Welfare, New York.
+
+The origin of the widely-reproduced table of segment lengths as fractions of standing height. Used
+here for the segment-length proportions that ANSUR II does not measure directly.
+
+*Limitation, to be surfaced in the UI:* **not sex-separated.** Applying one set of proportions to
+both endpoint tables understates real dimorphism in limb proportion. Tracked as OQ-003.
+
+### `winter2009` — T1
+Winter, D. A. (2009). *Biomechanics and Motor Control of Human Movement* (4th ed.). Wiley.
+
+The standard modern reproduction of `drillis1966`'s proportion table, and the form in which those
+fractions are usually cited. Cite alongside `drillis1966` rather than instead of it.
+
 ---
 
 ## Joint coordinate conventions

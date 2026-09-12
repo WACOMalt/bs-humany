@@ -24,7 +24,14 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.2)
 
-  packages/anthropometry: {}
+  packages/anthropometry:
+    dependencies:
+      '@bs-humany/frames':
+        specifier: workspace:^
+        version: link:../frames
+      '@bs-humany/hsdl':
+        specifier: workspace:^
+        version: link:../hsdl
 
   packages/backend-mujoco: {}
 
@@ -61,7 +68,14 @@ importers:
 
   packages/scenarios: {}
 
-  packages/skeleton: {}
+  packages/skeleton:
+    dependencies:
+      '@bs-humany/frames':
+        specifier: workspace:^
+        version: link:../frames
+      '@bs-humany/hsdl':
+        specifier: workspace:^
+        version: link:../hsdl
 
   packages/testkit: {}
 
