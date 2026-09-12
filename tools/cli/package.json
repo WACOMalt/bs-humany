@@ -1,0 +1,11 @@
+{
+  "name": "@bs-humany/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Headless scenario runner and repository lints.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "cite-lint": "./bin/cite-lint.mjs"
+  }
+}

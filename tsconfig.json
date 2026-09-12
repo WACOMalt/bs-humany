@@ -1,0 +1,5 @@
+{
+  "files": [],
+  "//": "Project references are added here as each package gains sources. `tsc --build` walks them in dependency order.",
+  "references": [{ "path": "./packages/frames" }]
+}

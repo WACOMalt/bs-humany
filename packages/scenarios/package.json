@@ -1,0 +1,19 @@
+{
+  "name": "@bs-humany/scenarios",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Scenario definitions and golden trajectory fixtures.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run"
+  }
+}

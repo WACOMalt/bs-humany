@@ -1,0 +1,27 @@
+{
+  "name": "bs-humany",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Modular simulation framework for the human body. Phase 1: parametric articulated skeleton.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.2",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --build --force",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "cite:lint": "node tools/cli/bin/cite-lint.mjs",
+    "dev": "pnpm --filter @bs-humany/studio dev",
+    "build:studio": "pnpm --filter @bs-humany/studio build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

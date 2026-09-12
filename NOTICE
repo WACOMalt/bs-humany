@@ -1,0 +1,28 @@
+bs-humany
+Copyright 2026 bsums.xyz
+
+This product includes software developed at bsums.xyz.
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+---
+
+Parameter data used by the core packages is drawn from published sources with no redistribution
+restrictions. Values are transcribed with citations recorded in docs/sources/bibliography.md:
+
+  - de Leva, P. (1996). Adjustments to Zatsiorsky-Seluyanov's segment inertia parameters.
+    Journal of Biomechanics 29(9), 1223-1230.
+  - Gordon, C. C., et al. (2014). 2012 Anthropometric Survey of U.S. Army Personnel (ANSUR II).
+    US Army Natick Soldier RD&E Center. US federal government work.
+  - Wu, G., et al. (2002, 2005). ISB recommendations on joint coordinate system definitions.
+    Journal of Biomechanics 35(4) and 38(5).
+  - Rajagopal, A., et al. (2016). Full-body musculoskeletal model for muscle-driven simulation of
+    human gait. IEEE TBME 63(10), 2068-2079. Model freely distributed via SimTK.
+
+Third-party software dependencies:
+
+  - Rapier (dimforge) - Apache-2.0
+  - MuJoCo (Google DeepMind) - Apache-2.0
+  - three.js - MIT
+
+No copyleft or non-commercially-licensed material enters the core packages. See ADR-009.
