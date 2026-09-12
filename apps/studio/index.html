@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>bs-humany studio</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="viewport"></div>
+
+    <aside id="panel" aria-label="Model controls">
+      <header>
+        <h1>bs-humany</h1>
+        <p class="subtitle">Phase 1 — anatomical skeleton</p>
+      </header>
+
+      <section>
+        <h2>Morphology</h2>
+
+        <div class="control">
+          <label for="sex">
+            Skeletal proportions
+            <output id="sex-value">0.50</output>
+          </label>
+          <input type="range" id="sex" min="0" max="1" step="0.01" value="0.5" />
+          <div class="endpoints"><span>female-typical</span><span>male-typical</span></div>
+          <p class="note" id="sex-note"></p>
+        </div>
+
+        <div class="control">
+          <label for="stature">Stature <output id="stature-value">1.70 m</output></label>
+          <input type="range" id="stature" min="1.40" max="2.05" step="0.005" value="1.70" />
+        </div>
+
+        <div class="control">
+          <label for="mass">Body mass <output id="mass-value">70.0 kg</output></label>
+          <input type="range" id="mass" min="35" max="150" step="0.5" value="70" />
+        </div>
+
+        <div class="control">
+          <label for="percentile">
+            ANSUR II percentile
+            <output id="percentile-value">50th</output>
+          </label>
+          <input type="range" id="percentile" min="0.01" max="0.99" step="0.01" value="0.5" />
+          <p class="note">Sets stature and mass together from the distribution for the current blend.</p>
+        </div>
+
+        <details>
+          <summary>Proportions</summary>
+          <div class="control">
+            <label for="crural">Crural index <output id="crural-value">1.00</output></label>
+            <input type="range" id="crural" min="0.85" max="1.15" step="0.005" value="1.004" />
+            <p class="note">Shank length relative to thigh.</p>
+          </div>
+          <div class="control">
+            <label for="brachial">Brachial index <output id="brachial-value">0.78</output></label>
+            <input type="range" id="brachial" min="0.68" max="0.9" step="0.005" value="0.785" />
+            <p class="note">Forearm length relative to upper arm.</p>
+          </div>
+          <div class="control">
+            <label for="legLength">Relative leg length <output id="legLength-value">1.00</output></label>
+            <input type="range" id="legLength" min="0.9" max="1.1" step="0.005" value="1" />
+          </div>
+        </details>
+      </section>
+
+      <section>
+        <h2>Display</h2>
+        <div class="control">
+          <label for="quality">Tessellation</label>
+          <select id="quality">
+            <option value="low">Low — mobile budget</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="control">
+          <label>View</label>
+          <div class="buttons">
+            <button type="button" data-view="front">Front</button>
+            <button type="button" data-view="left">Left</button>
+            <button type="button" data-view="back">Back</button>
+            <button type="button" data-view="three-quarter">¾</button>
+          </div>
+        </div>
+        <label class="checkbox"><input type="checkbox" id="showGrid" checked /> Ground grid</label>
+        <label class="checkbox"><input type="checkbox" id="spin" /> Turntable</label>
+      </section>
+
+      <section>
+        <h2>Measured cost</h2>
+        <dl class="readout">
+          <dt>Bones</dt><dd id="stat-bones">—</dd>
+          <dt>Triangles</dt><dd id="stat-tris">—</dd>
+          <dt>Rebuild</dt><dd id="stat-build">—</dd>
+          <dt>Frame</dt><dd id="stat-frame">—</dd>
+          <dt>Draw calls</dt><dd id="stat-draws">—</dd>
+        </dl>
+      </section>
+
+      <section>
+        <h2>Inspector</h2>
+        <div id="inspector" class="inspector">
+          <p class="note">Click a bone.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Known limitations</h2>
+        <ul id="limitations" class="limitations"></ul>
+      </section>
+    </aside>
+
+    <div id="hint">drag to orbit · scroll to zoom · click a bone</div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

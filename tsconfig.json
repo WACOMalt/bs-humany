@@ -16,6 +16,12 @@
     },
     {
       "path": "./packages/anthropometry"
+    },
+    {
+      "path": "./packages/render-three"
+    },
+    {
+      "path": "./apps/studio"
     }
   ]
 }

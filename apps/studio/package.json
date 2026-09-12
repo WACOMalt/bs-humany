@@ -1,0 +1,26 @@
+{
+  "name": "@bs-humany/studio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The bs-humany demo and development application.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@bs-humany/anthropometry": "workspace:*",
+    "@bs-humany/frames": "workspace:*",
+    "@bs-humany/hsdl": "workspace:*",
+    "@bs-humany/kernel": "workspace:*",
+    "@bs-humany/render-three": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "vite": "^6.0.7"
+  }
+}

@@ -16,7 +16,7 @@ import { CitationSchema } from './citation.js';
 import { ScalarExprSchema } from './expr.js';
 import { ExtensionsSchema } from './extensions.js';
 import { GeometryRecipeSchema } from './geometry.js';
-import { DensitySchema, IdSchema, TransformSchema } from './primitives.js';
+import { DensitySchema, IdSchema, TransformExprSchema } from './primitives.js';
 
 /**
  * How a bone's local frame is built from landmarks.
@@ -101,8 +101,15 @@ export const BoneDefSchema = z
       'leg',
       'foot',
     ]),
-    /** Rest transform relative to the anatomical parent, in the anatomical neutral pose. */
-    restTransform: TransformSchema,
+    /**
+     * Rest transform relative to the anatomical parent, in the anatomical neutral pose.
+     *
+     * The translation is expressed as expressions over morphology parameters, not as fixed
+     * numbers. Spec section 6.4 step 3: joint centres follow from bone geometry, so a transform
+     * pinned to absolute offsets would leave the skeleton coming apart at the joints the moment a
+     * morphology slider moved.
+     */
+    restTransform: TransformExprSchema,
     frame: FrameDefSchema.optional(),
     /**
      * Named dimensions, as expressions over morphology parameters. Referenced by the geometry

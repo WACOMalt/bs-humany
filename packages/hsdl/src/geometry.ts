@@ -20,7 +20,7 @@
 
 import { z } from 'zod';
 import { type ScalarExpr, ScalarExprSchema } from './expr.js';
-import { TransformSchema } from './primitives.js';
+import { TransformExprSchema } from './primitives.js';
 
 /** Which local axis a recipe extrudes or revolves along. Defaults to the bone's long axis, `y`. */
 export const AxisSchema = z.enum(['x', 'y', 'z']);
@@ -98,7 +98,7 @@ export type GeometryRecipe =
       readonly kind: 'composite';
       readonly parts: readonly {
         readonly recipe: GeometryRecipe;
-        readonly transform?: z.infer<typeof TransformSchema> | undefined;
+        readonly transform?: z.infer<typeof TransformExprSchema> | undefined;
         readonly name?: string | undefined;
       }[];
     };
@@ -153,7 +153,14 @@ export const GeometryRecipeSchema: z.ZodType<GeometryRecipe> = z.lazy(() =>
             z
               .object({
                 recipe: GeometryRecipeSchema,
-                transform: TransformSchema.optional(),
+                /**
+                 * Placement of this part in the composite's local frame.
+                 *
+                 * Expression-valued for the same reason a bone's rest transform is: a spinous
+                 * process pinned to an absolute offset would detach from its vertebral body as
+                 * soon as stature changed.
+                 */
+                transform: TransformExprSchema.optional(),
                 /** Human-readable part name, shown in the inspector. E.g. `spinous_process`. */
                 name: z.string().min(1).optional(),
               })

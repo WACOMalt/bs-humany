@@ -292,7 +292,7 @@
           ]
         },
         "restTransform": {
-          "$ref": "#/$defs/Transform"
+          "$ref": "#/$defs/TransformExpr"
         },
         "frame": {
           "$ref": "#/$defs/FrameDef"
@@ -352,11 +352,11 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*$"
     },
-    "Transform": {
+    "TransformExpr": {
       "type": "object",
       "properties": {
         "translation": {
-          "$ref": "#/$defs/Vec3"
+          "$ref": "#/$defs/Vec3Expr"
         },
         "rotation": {
           "$ref": "#/$defs/Quat"
@@ -365,109 +365,21 @@
       "required": ["translation", "rotation"],
       "additionalProperties": false
     },
-    "Vec3": {
+    "Vec3Expr": {
       "type": "object",
       "properties": {
         "x": {
-          "$ref": "#/$defs/__schema0"
+          "$ref": "#/$defs/ScalarExpr"
         },
         "y": {
-          "$ref": "#/$defs/__schema1"
+          "$ref": "#/$defs/ScalarExpr"
         },
         "z": {
-          "$ref": "#/$defs/__schema2"
+          "$ref": "#/$defs/ScalarExpr"
         }
       },
       "required": ["x", "y", "z"],
       "additionalProperties": false
-    },
-    "__schema0": {
-      "type": "number"
-    },
-    "__schema1": {
-      "type": "number"
-    },
-    "__schema2": {
-      "type": "number"
-    },
-    "Quat": {
-      "type": "object",
-      "properties": {
-        "x": {
-          "$ref": "#/$defs/__schema3"
-        },
-        "y": {
-          "$ref": "#/$defs/__schema4"
-        },
-        "z": {
-          "$ref": "#/$defs/__schema5"
-        },
-        "w": {
-          "$ref": "#/$defs/__schema6"
-        }
-      },
-      "required": ["x", "y", "z", "w"],
-      "additionalProperties": false
-    },
-    "__schema3": {
-      "type": "number"
-    },
-    "__schema4": {
-      "type": "number"
-    },
-    "__schema5": {
-      "type": "number"
-    },
-    "__schema6": {
-      "type": "number"
-    },
-    "FrameDef": {
-      "type": "object",
-      "properties": {
-        "origin": {
-          "$ref": "#/$defs/Id"
-        },
-        "primaryFrom": {
-          "$ref": "#/$defs/Id"
-        },
-        "primaryTo": {
-          "$ref": "#/$defs/Id"
-        },
-        "primaryAxis": {
-          "$ref": "#/$defs/__schema7"
-        },
-        "secondaryFrom": {
-          "$ref": "#/$defs/Id"
-        },
-        "secondaryTo": {
-          "$ref": "#/$defs/Id"
-        },
-        "secondaryAxis": {
-          "$ref": "#/$defs/__schema8"
-        },
-        "source": {
-          "$ref": "#/$defs/Citation"
-        }
-      },
-      "required": [
-        "origin",
-        "primaryFrom",
-        "primaryTo",
-        "primaryAxis",
-        "secondaryFrom",
-        "secondaryTo",
-        "secondaryAxis",
-        "source"
-      ],
-      "additionalProperties": false
-    },
-    "__schema7": {
-      "type": "string",
-      "enum": ["x", "y", "z"]
-    },
-    "__schema8": {
-      "type": "string",
-      "enum": ["x", "y", "z"]
     },
     "ScalarExpr": {
       "anyOf": [
@@ -686,6 +598,85 @@
         }
       ]
     },
+    "Quat": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "y": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "z": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "w": {
+          "$ref": "#/$defs/__schema3"
+        }
+      },
+      "required": ["x", "y", "z", "w"],
+      "additionalProperties": false
+    },
+    "__schema0": {
+      "type": "number"
+    },
+    "__schema1": {
+      "type": "number"
+    },
+    "__schema2": {
+      "type": "number"
+    },
+    "__schema3": {
+      "type": "number"
+    },
+    "FrameDef": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/Id"
+        },
+        "primaryFrom": {
+          "$ref": "#/$defs/Id"
+        },
+        "primaryTo": {
+          "$ref": "#/$defs/Id"
+        },
+        "primaryAxis": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "secondaryFrom": {
+          "$ref": "#/$defs/Id"
+        },
+        "secondaryTo": {
+          "$ref": "#/$defs/Id"
+        },
+        "secondaryAxis": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "source": {
+          "$ref": "#/$defs/Citation"
+        }
+      },
+      "required": [
+        "origin",
+        "primaryFrom",
+        "primaryTo",
+        "primaryAxis",
+        "secondaryFrom",
+        "secondaryTo",
+        "secondaryAxis",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "__schema4": {
+      "type": "string",
+      "enum": ["x", "y", "z"]
+    },
+    "__schema5": {
+      "type": "string",
+      "enum": ["x", "y", "z"]
+    },
     "GeometryRecipe": {
       "oneOf": [
         {
@@ -705,7 +696,7 @@
               "$ref": "#/$defs/ScalarExpr"
             },
             "axis": {
-              "$ref": "#/$defs/__schema9"
+              "$ref": "#/$defs/__schema6"
             }
           },
           "required": ["kind", "length", "radiusProximal"],
@@ -767,7 +758,7 @@
               }
             },
             "axis": {
-              "$ref": "#/$defs/__schema9"
+              "$ref": "#/$defs/__schema6"
             },
             "capped": {
               "type": "boolean"
@@ -787,11 +778,11 @@
               "minItems": 2,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema11"
+                "$ref": "#/$defs/__schema8"
               }
             },
             "axis": {
-              "$ref": "#/$defs/__schema9"
+              "$ref": "#/$defs/__schema6"
             },
             "segments": {
               "type": "integer",
@@ -813,7 +804,7 @@
               "minItems": 1,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema12"
+                "$ref": "#/$defs/__schema9"
               }
             }
           },
@@ -822,7 +813,7 @@
         }
       ]
     },
-    "__schema9": {
+    "__schema6": {
       "type": "string",
       "enum": ["x", "y", "z"]
     },
@@ -885,7 +876,7 @@
               "minItems": 3,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema10"
+                "$ref": "#/$defs/__schema7"
               }
             }
           },
@@ -894,7 +885,7 @@
         }
       ]
     },
-    "__schema10": {
+    "__schema7": {
       "type": "object",
       "properties": {
         "u": {
@@ -907,7 +898,7 @@
       "required": ["u", "v"],
       "additionalProperties": false
     },
-    "__schema11": {
+    "__schema8": {
       "type": "object",
       "properties": {
         "at": {
@@ -920,7 +911,7 @@
       "required": ["at", "radius"],
       "additionalProperties": false
     },
-    "__schema12": {
+    "__schema9": {
       "type": "object",
       "properties": {
         "recipe": {
@@ -936,6 +927,44 @@
       },
       "required": ["recipe"],
       "additionalProperties": false
+    },
+    "Transform": {
+      "type": "object",
+      "properties": {
+        "translation": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "rotation": {
+          "$ref": "#/$defs/Quat"
+        }
+      },
+      "required": ["translation", "rotation"],
+      "additionalProperties": false
+    },
+    "Vec3": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/__schema10"
+        },
+        "y": {
+          "$ref": "#/$defs/__schema11"
+        },
+        "z": {
+          "$ref": "#/$defs/__schema12"
+        }
+      },
+      "required": ["x", "y", "z"],
+      "additionalProperties": false
+    },
+    "__schema10": {
+      "type": "number"
+    },
+    "__schema11": {
+      "type": "number"
+    },
+    "__schema12": {
+      "type": "number"
     },
     "__schema13": {
       "type": "object",

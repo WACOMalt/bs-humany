@@ -7,3 +7,7 @@
 
 export * from './taxonomy-types.js';
 export * from './taxonomy.js';
+export * from './segmentation.js';
+export * from './document.js';
+export * from './geometry/layout.js';
+export * from './geometry/shapes.js';

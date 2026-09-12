@@ -12,5 +12,15 @@
     }
   },
   "main": "./src/index.ts",
-  "types": "./src/index.ts"
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@bs-humany/anthropometry": "workspace:^",
+    "@bs-humany/frames": "workspace:^",
+    "@bs-humany/hsdl": "workspace:^",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@bs-humany/skeleton": "workspace:^",
+    "@types/three": "^0.186.0"
+  }
 }

@@ -13,7 +13,7 @@ import { provisional } from './citation.js';
 import type { HsdlDocument } from './document.js';
 import { mul, param } from './expr.js';
 import { HSDL_VERSION } from './namespace.js';
-import { IDENTITY_TRANSFORM_DATA } from './primitives.js';
+import { IDENTITY_TRANSFORM_EXPR } from './primitives.js';
 
 const testValue = (what: string) =>
   provisional(
@@ -42,7 +42,7 @@ export function makeMinimalDocument(): HsdlDocument {
         displayName: 'Pelvis',
         parent: null,
         region: 'pelvis',
-        restTransform: IDENTITY_TRANSFORM_DATA,
+        restTransform: IDENTITY_TRANSFORM_EXPR,
         dimensions: { width: mul(0.16, param('stature')) },
         geometry: { kind: 'box', size: { x: 0.28, y: 0.18, z: 0.16 } },
       },

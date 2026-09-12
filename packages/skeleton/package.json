@@ -16,5 +16,8 @@
   "dependencies": {
     "@bs-humany/frames": "workspace:^",
     "@bs-humany/hsdl": "workspace:^"
+  },
+  "devDependencies": {
+    "@bs-humany/anthropometry": "workspace:^"
   }
 }
