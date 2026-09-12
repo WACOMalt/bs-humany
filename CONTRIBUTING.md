@@ -105,6 +105,12 @@ failure, not just the fact of it, so they routinely run past one line and are wr
 string concatenations. Folding each into a single template literal would push those lines well past
 the 100-column limit. The message text is worth more than the idiom.
 
+`style/noNonNullAssertion` is on for production code and off for tests, fixtures and test
+helpers. In production, under `noUncheckedIndexedAccess`, a non-null assertion is a claim the
+compiler cannot check and is exactly what the rule should catch. In a test indexing a fixture whose
+shape is written three lines above, the assertion is documentation rather than a risk, and
+threading optional chaining through every assertion would obscure what is being tested.
+
 If you disable another rule, record why here. A rule turned off without a reason gets turned back
 on by the next person, and then turned off again.
 

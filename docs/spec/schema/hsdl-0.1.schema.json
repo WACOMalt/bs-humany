@@ -1,0 +1,1765 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bsums.xyz/bs-humany/schema/hsdl-0.1.json",
+  "title": "HSDL 0.1",
+  "description": "HumanSim Description Language: the canonical body model for bs-humany. Generated from the Zod schemas in @bs-humany/hsdl. Do not edit by hand -- regenerate with `pnpm --filter @bs-humany/hsdl generate:schema`.",
+  "type": "object",
+  "properties": {
+    "hsdlVersion": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sources": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        },
+        "convention": {
+          "default": "world",
+          "type": "string",
+          "enum": ["world", "isb", "z_up"]
+        }
+      },
+      "required": ["name", "sources"],
+      "additionalProperties": false
+    },
+    "units": {
+      "type": "object",
+      "properties": {
+        "length": {
+          "type": "string",
+          "const": "m"
+        },
+        "mass": {
+          "type": "string",
+          "const": "kg"
+        },
+        "angle": {
+          "type": "string",
+          "const": "rad"
+        },
+        "time": {
+          "type": "string",
+          "const": "s"
+        },
+        "force": {
+          "type": "string",
+          "const": "N"
+        }
+      },
+      "required": ["length", "mass", "angle", "time", "force"],
+      "additionalProperties": false
+    },
+    "bones": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/BoneDef"
+      }
+    },
+    "landmarks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/LandmarkDef"
+      }
+    },
+    "joints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/JointDef"
+      }
+    },
+    "segmentation": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SegmentationDef"
+      }
+    },
+    "collisionProxies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CollisionProxy"
+      }
+    },
+    "contactRules": {
+      "$ref": "#/$defs/ContactRuleDef"
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ConstraintDef"
+      }
+    },
+    "morphology": {
+      "$ref": "#/$defs/MorphologySpec"
+    },
+    "attachmentSites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AttachmentSiteDef"
+      }
+    },
+    "wrappingSurfaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/Id"
+          },
+          "bone": {
+            "$ref": "#/$defs/Id"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "transform": {
+            "$ref": "#/$defs/Transform"
+          },
+          "shape": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "cylinder"
+                  },
+                  "radius": {
+                    "$ref": "#/$defs/ScalarExpr"
+                  },
+                  "length": {
+                    "$ref": "#/$defs/ScalarExpr"
+                  }
+                },
+                "required": ["kind", "radius", "length"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "ellipsoid"
+                  },
+                  "radii": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "$ref": "#/$defs/ScalarExpr"
+                      },
+                      "y": {
+                        "$ref": "#/$defs/ScalarExpr"
+                      },
+                      "z": {
+                        "$ref": "#/$defs/ScalarExpr"
+                      }
+                    },
+                    "required": ["x", "y", "z"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["kind", "radii"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "source": {
+            "$ref": "#/$defs/Citation"
+          },
+          "ext": {
+            "$ref": "#/$defs/__schema13"
+          }
+        },
+        "required": ["id", "bone", "displayName", "transform", "shape"],
+        "additionalProperties": false
+      }
+    },
+    "ext": {
+      "$ref": "#/$defs/__schema13"
+    }
+  },
+  "required": [
+    "hsdlVersion",
+    "id",
+    "meta",
+    "units",
+    "bones",
+    "landmarks",
+    "joints",
+    "segmentation",
+    "collisionProxies",
+    "contactRules",
+    "constraints",
+    "morphology",
+    "attachmentSites"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Citation": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*\\d{4}[a-z]?$"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provisional": {
+          "type": "object",
+          "properties": {
+            "openQuestion": {
+              "type": "string",
+              "pattern": "^OQ-\\d{3,}$"
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["openQuestion", "rationale"]
+        }
+      },
+      "required": ["key"],
+      "additionalProperties": false
+    },
+    "BoneDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "ta": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "side": {
+          "type": "string",
+          "enum": ["left", "right"]
+        },
+        "region": {
+          "type": "string",
+          "enum": [
+            "skull",
+            "cervical",
+            "thoracic",
+            "lumbar",
+            "sacral",
+            "thorax",
+            "shoulder_girdle",
+            "arm",
+            "forearm",
+            "hand",
+            "pelvis",
+            "thigh",
+            "leg",
+            "foot"
+          ]
+        },
+        "restTransform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "frame": {
+          "$ref": "#/$defs/FrameDef"
+        },
+        "dimensions": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ScalarExpr"
+          }
+        },
+        "geometry": {
+          "$ref": "#/$defs/GeometryRecipe"
+        },
+        "density": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "redistribution": {
+          "type": "object",
+          "properties": {
+            "flexion": {
+              "type": "number",
+              "minimum": 0
+            },
+            "lateralBending": {
+              "type": "number",
+              "minimum": 0
+            },
+            "axialRotation": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": [
+        "id",
+        "ta",
+        "displayName",
+        "parent",
+        "region",
+        "restTransform",
+        "dimensions",
+        "geometry"
+      ],
+      "additionalProperties": false
+    },
+    "Id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "Transform": {
+      "type": "object",
+      "properties": {
+        "translation": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "rotation": {
+          "$ref": "#/$defs/Quat"
+        }
+      },
+      "required": ["translation", "rotation"],
+      "additionalProperties": false
+    },
+    "Vec3": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "y": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "z": {
+          "$ref": "#/$defs/__schema2"
+        }
+      },
+      "required": ["x", "y", "z"],
+      "additionalProperties": false
+    },
+    "__schema0": {
+      "type": "number"
+    },
+    "__schema1": {
+      "type": "number"
+    },
+    "__schema2": {
+      "type": "number"
+    },
+    "Quat": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "y": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "z": {
+          "$ref": "#/$defs/__schema5"
+        },
+        "w": {
+          "$ref": "#/$defs/__schema6"
+        }
+      },
+      "required": ["x", "y", "z", "w"],
+      "additionalProperties": false
+    },
+    "__schema3": {
+      "type": "number"
+    },
+    "__schema4": {
+      "type": "number"
+    },
+    "__schema5": {
+      "type": "number"
+    },
+    "__schema6": {
+      "type": "number"
+    },
+    "FrameDef": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/Id"
+        },
+        "primaryFrom": {
+          "$ref": "#/$defs/Id"
+        },
+        "primaryTo": {
+          "$ref": "#/$defs/Id"
+        },
+        "primaryAxis": {
+          "$ref": "#/$defs/__schema7"
+        },
+        "secondaryFrom": {
+          "$ref": "#/$defs/Id"
+        },
+        "secondaryTo": {
+          "$ref": "#/$defs/Id"
+        },
+        "secondaryAxis": {
+          "$ref": "#/$defs/__schema8"
+        },
+        "source": {
+          "$ref": "#/$defs/Citation"
+        }
+      },
+      "required": [
+        "origin",
+        "primaryFrom",
+        "primaryTo",
+        "primaryAxis",
+        "secondaryFrom",
+        "secondaryTo",
+        "secondaryAxis",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "__schema7": {
+      "type": "string",
+      "enum": ["x", "y", "z"]
+    },
+    "__schema8": {
+      "type": "string",
+      "enum": ["x", "y", "z"]
+    },
+    "ScalarExpr": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "param": {
+              "type": "string",
+              "enum": [
+                "sex",
+                "stature",
+                "mass",
+                "percentile",
+                "biiliacBreadth",
+                "biacromialBreadth",
+                "crural",
+                "brachial",
+                "relativeLegLength",
+                "asymmetry"
+              ]
+            }
+          },
+          "required": ["param"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "add": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScalarExpr"
+              }
+            }
+          },
+          "required": ["add"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mul": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScalarExpr"
+              }
+            }
+          },
+          "required": ["mul"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "sub": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": ["sub"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "div": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": ["div"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "pow": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": ["pow"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScalarExpr"
+              }
+            }
+          },
+          "required": ["min"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "max": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScalarExpr"
+              }
+            }
+          },
+          "required": ["max"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clamp": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              ],
+              "items": false,
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": ["clamp"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "lerp": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              ],
+              "items": false,
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": ["lerp"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "blend": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": ["blend"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "GeometryRecipe": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "capsule"
+            },
+            "length": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "radiusProximal": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "radiusDistal": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "axis": {
+              "$ref": "#/$defs/__schema9"
+            }
+          },
+          "required": ["kind", "length", "radiusProximal"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "box"
+            },
+            "size": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              },
+              "required": ["x", "y", "z"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["kind", "size"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "sphere"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarExpr"
+            }
+          },
+          "required": ["kind", "radius"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "loft"
+            },
+            "sections": {
+              "minItems": 2,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LoftSection"
+              }
+            },
+            "axis": {
+              "$ref": "#/$defs/__schema9"
+            },
+            "capped": {
+              "type": "boolean"
+            }
+          },
+          "required": ["kind", "sections"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "revolve"
+            },
+            "profile": {
+              "minItems": 2,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema11"
+              }
+            },
+            "axis": {
+              "$ref": "#/$defs/__schema9"
+            },
+            "segments": {
+              "type": "integer",
+              "minimum": 3,
+              "maximum": 256
+            }
+          },
+          "required": ["kind", "profile"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "composite"
+            },
+            "parts": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema12"
+              }
+            }
+          },
+          "required": ["kind", "parts"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema9": {
+      "type": "string",
+      "enum": ["x", "y", "z"]
+    },
+    "LoftSection": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/ScalarExpr"
+        },
+        "profile": {
+          "$ref": "#/$defs/Profile"
+        },
+        "offset": {
+          "type": "object",
+          "properties": {
+            "u": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "v": {
+              "$ref": "#/$defs/ScalarExpr"
+            }
+          },
+          "required": ["u", "v"],
+          "additionalProperties": false
+        },
+        "twist": {
+          "$ref": "#/$defs/ScalarExpr"
+        }
+      },
+      "required": ["at", "profile"],
+      "additionalProperties": false
+    },
+    "Profile": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ellipse"
+            },
+            "radiusA": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "radiusB": {
+              "$ref": "#/$defs/ScalarExpr"
+            }
+          },
+          "required": ["kind", "radiusA", "radiusB"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "polygon"
+            },
+            "points": {
+              "minItems": 3,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema10"
+              }
+            }
+          },
+          "required": ["kind", "points"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema10": {
+      "type": "object",
+      "properties": {
+        "u": {
+          "$ref": "#/$defs/ScalarExpr"
+        },
+        "v": {
+          "$ref": "#/$defs/ScalarExpr"
+        }
+      },
+      "required": ["u", "v"],
+      "additionalProperties": false
+    },
+    "__schema11": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/ScalarExpr"
+        },
+        "radius": {
+          "$ref": "#/$defs/ScalarExpr"
+        }
+      },
+      "required": ["at", "radius"],
+      "additionalProperties": false
+    },
+    "__schema12": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/GeometryRecipe"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["recipe"],
+      "additionalProperties": false
+    },
+    "__schema13": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+      },
+      "additionalProperties": {}
+    },
+    "LandmarkDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "bone": {
+          "$ref": "#/$defs/Id"
+        },
+        "ta": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "position": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarExpr"
+            }
+          },
+          "required": ["x", "y", "z"],
+          "additionalProperties": false
+        },
+        "source": {
+          "$ref": "#/$defs/Citation"
+        },
+        "palpable": {
+          "type": "boolean"
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["id", "bone", "displayName", "position", "source"],
+      "additionalProperties": false
+    },
+    "JointDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "displayName": {
+          "$ref": "#/$defs/__schema14"
+        },
+        "parentBone": {
+          "$ref": "#/$defs/Id"
+        },
+        "childBone": {
+          "$ref": "#/$defs/Id"
+        },
+        "type": {
+          "$ref": "#/$defs/__schema15"
+        },
+        "frame": {
+          "$ref": "#/$defs/Transform"
+        },
+        "childFrame": {
+          "$ref": "#/$defs/__schema16"
+        },
+        "dofs": {
+          "$ref": "#/$defs/__schema17"
+        },
+        "reportingOrder": {
+          "$ref": "#/$defs/__schema27"
+        },
+        "limitations": {
+          "$ref": "#/$defs/__schema28"
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["id", "displayName", "parentBone", "childBone", "type", "frame", "dofs"],
+      "additionalProperties": false
+    },
+    "__schema14": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema15": {
+      "type": "string",
+      "enum": ["spherical", "revolute", "universal", "saddle", "free", "fixed", "custom"]
+    },
+    "__schema16": {
+      "$ref": "#/$defs/Transform"
+    },
+    "__schema17": {
+      "minItems": 0,
+      "maxItems": 6,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DofDef"
+      }
+    },
+    "DofDef": {
+      "type": "object",
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/__schema18"
+        },
+        "kind": {
+          "$ref": "#/$defs/__schema19"
+        },
+        "vector": {
+          "$ref": "#/$defs/__schema20"
+        },
+        "range": {
+          "$ref": "#/$defs/__schema21"
+        },
+        "neutral": {
+          "$ref": "#/$defs/__schema22"
+        },
+        "passiveStiffness": {
+          "$ref": "#/$defs/__schema23"
+        },
+        "passiveDamping": {
+          "$ref": "#/$defs/__schema24"
+        },
+        "armature": {
+          "$ref": "#/$defs/__schema25"
+        },
+        "frictionLoss": {
+          "$ref": "#/$defs/__schema26"
+        },
+        "romSource": {
+          "$ref": "#/$defs/Citation"
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["axis", "kind", "vector", "range", "neutral", "romSource"],
+      "additionalProperties": false
+    },
+    "__schema18": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema19": {
+      "type": "string",
+      "enum": ["hinge", "slide"]
+    },
+    "__schema20": {
+      "$ref": "#/$defs/Vec3"
+    },
+    "__schema21": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "__schema22": {
+      "type": "number"
+    },
+    "__schema23": {
+      "$ref": "#/$defs/StiffnessCurve"
+    },
+    "StiffnessCurve": {
+      "type": "object",
+      "properties": {
+        "lowerGain": {
+          "type": "number",
+          "minimum": 0
+        },
+        "lowerRate": {
+          "type": "number",
+          "minimum": 0
+        },
+        "upperGain": {
+          "type": "number",
+          "minimum": 0
+        },
+        "upperRate": {
+          "type": "number",
+          "minimum": 0
+        },
+        "linear": {
+          "type": "number",
+          "minimum": 0
+        },
+        "linearNeutral": {
+          "type": "number"
+        },
+        "source": {
+          "$ref": "#/$defs/Citation"
+        }
+      },
+      "required": ["lowerGain", "lowerRate", "upperGain", "upperRate", "source"],
+      "additionalProperties": false
+    },
+    "__schema24": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema25": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema26": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema27": {
+      "type": "string",
+      "enum": ["xyz", "xzy", "yxz", "yzx", "zxy", "zyx", "xyx", "xzx", "yxy", "yzy", "zxz", "zyz"]
+    },
+    "__schema28": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "SegmentationDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "segments": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SegmentDef"
+          }
+        },
+        "joints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "defaultBackend": {
+          "type": "string",
+          "enum": ["rapier", "mujoco"]
+        },
+        "solver": {
+          "type": "object",
+          "properties": {
+            "rate": {
+              "type": "integer",
+              "minimum": 30,
+              "maximum": 4000
+            },
+            "iterations": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 255
+            },
+            "equalityConstraints": {
+              "type": "boolean"
+            },
+            "selfCollision": {
+              "type": "string",
+              "enum": ["none", "coarse", "full"]
+            }
+          },
+          "required": ["rate"],
+          "additionalProperties": false
+        },
+        "limitations": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema32"
+          }
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["id", "displayName", "description", "segments", "limitations"],
+      "additionalProperties": false
+    },
+    "SegmentDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "displayName": {
+          "$ref": "#/$defs/__schema29"
+        },
+        "anchor": {
+          "$ref": "#/$defs/Id"
+        },
+        "bones": {
+          "$ref": "#/$defs/__schema30"
+        },
+        "proxies": {
+          "$ref": "#/$defs/__schema31"
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["id", "displayName", "anchor", "bones"],
+      "additionalProperties": false
+    },
+    "__schema29": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema30": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Id"
+      }
+    },
+    "__schema31": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Id"
+      }
+    },
+    "__schema32": {
+      "type": "string",
+      "minLength": 1
+    },
+    "CollisionProxy": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "shape": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "capsule"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarExpr"
+                },
+                "length": {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              },
+              "required": ["kind", "radius", "length"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "sphere"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarExpr"
+                }
+              },
+              "required": ["kind", "radius"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "box"
+                },
+                "halfExtents": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "$ref": "#/$defs/ScalarExpr"
+                    },
+                    "y": {
+                      "$ref": "#/$defs/ScalarExpr"
+                    },
+                    "z": {
+                      "$ref": "#/$defs/ScalarExpr"
+                    }
+                  },
+                  "required": ["x", "y", "z"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["kind", "halfExtents"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "convexHull"
+                },
+                "vertices": {
+                  "minItems": 4,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Vec3"
+                  }
+                }
+              },
+              "required": ["kind", "vertices"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "group": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "mask": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["id", "transform", "shape"],
+      "additionalProperties": false
+    },
+    "ContactRuleDef": {
+      "type": "object",
+      "properties": {
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/Id"
+              },
+              {
+                "$ref": "#/$defs/Id"
+              }
+            ],
+            "items": false,
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "classes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "friction": {
+                "type": "number",
+                "minimum": 0
+              },
+              "restitution": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "softness": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": ["friction", "restitution"],
+            "additionalProperties": false
+          }
+        },
+        "assign": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pair": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "$ref": "#/$defs/Id"
+                  },
+                  {
+                    "$ref": "#/$defs/Id"
+                  }
+                ],
+                "items": false,
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "class": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["pair", "class"],
+            "additionalProperties": false
+          }
+        },
+        "defaultClass": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConstraintDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "jointCoupling"
+                },
+                "dependent": {
+                  "$ref": "#/$defs/__schema33"
+                },
+                "drivers": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema34"
+                  }
+                },
+                "offset": {
+                  "type": "number"
+                }
+              },
+              "required": ["type", "dependent", "drivers"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "weld"
+                },
+                "bodyA": {
+                  "$ref": "#/$defs/Id"
+                },
+                "bodyB": {
+                  "$ref": "#/$defs/Id"
+                }
+              },
+              "required": ["type", "bodyA", "bodyB"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "soft": {
+          "type": "boolean"
+        },
+        "source": {
+          "$ref": "#/$defs/Citation"
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["id", "kind"],
+      "additionalProperties": false
+    },
+    "__schema33": {
+      "type": "object",
+      "properties": {
+        "joint": {
+          "$ref": "#/$defs/Id"
+        },
+        "dof": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["joint", "dof"],
+      "additionalProperties": false
+    },
+    "__schema34": {
+      "type": "object",
+      "properties": {
+        "dof": {
+          "$ref": "#/$defs/__schema33"
+        },
+        "coefficient": {
+          "type": "number"
+        }
+      },
+      "required": ["dof", "coefficient"],
+      "additionalProperties": false
+    },
+    "MorphologySpec": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/Morphology"
+        },
+        "statureRange": {
+          "$ref": "#/$defs/__schema35"
+        },
+        "massRange": {
+          "$ref": "#/$defs/__schema36"
+        },
+        "populations": {
+          "$ref": "#/$defs/__schema37"
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["default", "statureRange", "massRange", "populations"],
+      "additionalProperties": false
+    },
+    "Morphology": {
+      "type": "object",
+      "properties": {
+        "sex": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "stature": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "mass": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "percentile": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "proportions": {
+          "type": "object",
+          "properties": {
+            "biiliacBreadth": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "biacromialBreadth": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "crural": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "brachial": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "relativeLegLength": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "asymmetry": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": ["sex", "stature", "mass"],
+      "additionalProperties": false
+    },
+    "__schema35": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "__schema36": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "__schema37": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema38"
+      }
+    },
+    "__schema38": {
+      "type": "object",
+      "properties": {
+        "describes": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limitation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/Citation"
+        }
+      },
+      "required": ["describes", "limitation", "source"],
+      "additionalProperties": false
+    },
+    "AttachmentSiteDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "bone": {
+          "$ref": "#/$defs/Id"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["muscle_origin", "muscle_insertion", "ligament", "tendon_via_point"]
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "position": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarExpr"
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarExpr"
+            }
+          },
+          "required": ["x", "y", "z"],
+          "additionalProperties": false
+        },
+        "structure": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "$ref": "#/$defs/Citation"
+        },
+        "ext": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["id", "bone", "kind", "displayName", "position", "source"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -111,12 +111,28 @@ for (const file of files) {
   }
 
   // Check 2 -- a parameter field needs a citation in the same object literal.
+  //
+  // The signal we want is a *hardcoded number*, so the test is that the field's value contains a
+  // numeric literal. That distinguishes the two things which look alike on a line:
+  //
+  //   range: [-2.0, 0],                                   <- data. needs a citation.
+  //   range: z.tuple([z.number(), z.number()]),           <- a schema declaration. does not.
+  //   range: readonly [number, number];                   <- a type annotation. does not.
+  //
+  // Checking for a numeric literal cannot be satisfied by renaming a variable, which is what
+  // keeps the rule from being trivially worked around.
   lines.forEach((lineText, index) => {
-    const fieldMatch = lineText.match(/^\s*([A-Za-z][A-Za-z0-9]*)\s*:/);
+    const fieldMatch = lineText.match(/^\s*(?:readonly\s+)?([A-Za-z][A-Za-z0-9]*)\??\s*:(.*)$/);
     const field = fieldMatch?.[1];
+    const value = fieldMatch?.[2] ?? '';
     if (!field || !PARAMETER_FIELDS.has(field)) return;
-    // Ignore type declarations and interface members -- they carry no value to cite.
-    if (/^\s*(readonly\s+)?[A-Za-z][A-Za-z0-9]*\??\s*:\s*[A-Z[]/.test(lineText)) return;
+
+    // Zod builder chains declare shape, not values.
+    if (/^\s*z\./.test(value)) return;
+    // No number on the line means nothing to cite here.
+    if (!/-?\d/.test(value)) return;
+    // A trailing `;` with no `,` reads as a type member rather than an object property.
+    if (/;\s*$/.test(value) && !/,\s*$/.test(value)) return;
 
     const windowText = lines.slice(Math.max(0, index - 12), index + 13).join('\n');
     const hasCitation =
