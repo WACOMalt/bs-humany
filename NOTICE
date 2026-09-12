@@ -25,4 +25,13 @@ Third-party software dependencies:
   - MuJoCo (Google DeepMind) - Apache-2.0
   - three.js - MIT
 
-No copyleft or non-commercially-licensed material enters the core packages. See ADR-009.
+Skeleton data -- bone geometry, placement, landmarks, joint centres, and everything derived from
+them in packages/skeleton and packages/assets-anatomical -- is licensed CC BY-SA 4.0 and derives
+from:
+
+  - Z-Anatomy (z-anatomy.com, github.com/Z-Anatomy) - CC BY-SA 4.0
+  - BodyParts3D, Database Center for Life Science, Japan - CC BY-SA 2.1 JP
+
+Code packages remain Apache-2.0: they are not derivatives of the data they load. See ADR-009 and
+ADR-011. No non-commercially-licensed material enters distributed data, because a non-commercial
+licence cannot be combined with CC BY-SA in one work.

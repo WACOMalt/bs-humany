@@ -6,7 +6,8 @@
 | | |
 |---|---|
 | Document | `humansim-spec` |
-| Version | 0.4 (draft for implementation handoff) |
+| Version | 0.5 |
+| Changes in 0.5 | **Provenance posture reversed by the owner (2026-09-12): commercial viability is not a goal at all.** Anatomical mesh datasets are now the primary source of bone geometry *and* of placement, landmarks and joint centres. ADR-005 and ADR-009 rewritten, ADR-011 added, §13.6, §15.3, M1.2, M1.8, M5.8 and §17.1 revised. Skeleton data becomes CC BY-SA 4.0. |
 | Changes in 0.4 | ASD-STE100 (Issue 9) lint pass: semicolons removed, banned words replaced. Score 3.97 → 2.91 per 100 words (flavored target: under 2.50) |
 | Changes in 0.3 | Share-Alike compatibility analysis and the measurement-provenance rule added to ADR-009. Guards added to M1.2 and M5.8 |
 | Changes in 0.2 | Licensing posture resolved (ADR-009). ADR-005 revised. ANSUR II adopted for dimensional anthropometry. External validation added (§13.6). Write-vs-adopt boundary recorded (§15.4) |
@@ -82,8 +83,8 @@ Conducted before drafting. These findings drive §3.
 |---|---|---|---|
 | **OpenSim / Rajagopal 2016 full-body gait model** | 22 rigid bodies, 37 DoF, 80 Hill-type lower-limb muscle-tendon units, 17 upper-body torque actuators. Parameters derived from 21 cadaver specimens and MRI of 24 subjects. Body coordinate frames documented relative to bony landmarks. | Open, freely distributed via SimTK | **Adopt as the reference for joint definitions, DoF allocation, and body frames** in the lower limb and general body plan. Does not articulate the cervical spine. Known limitation, has published augmentations adding cervical and sternoclavicular joints. |
 | **MyoSuite / MyoSim models** (`myoLeg`, `myoArm`, `myoHand`, `myoTorso`) | MuJoCo conversions of OpenSim models. e.g. `myoHand`: 29 bones, 23 joints, 39 muscle-tendon units. `myoLeg` tracks Rajagopal closely. | Apache 2.0 | **Adopt as reference** for how OpenSim biomechanics maps onto MJCF, and for future muscle work. |
-| **MyoSkeleton** (`myolab/myo_model`) | Full-body: 152 DoF, all spinal levels articulated, fully articulated hand, articulated patella, governed by 66 equality constraints coupling adjacent vertebral levels. | Non-commercial scientific research license. Distributed separately, gated behind an init/acceptance step, not part of the Apache-licensed MyoSuite core. Shipped as a single generic MJCF file resolved via `get_model_xml_path()`. | **Use as a validation oracle. Do not vendor.** See ADR-009. The disqualifying issue is not the license — it is that MyoSkeleton is a *fixed generic model.* Scaling in this ecosystem is an external step (OpenSim's Scale Tool, anisotropic scaling driven by motion-capture markers), not a property of the model. A fixed-anthropometry MJCF file cannot be the canonical model for a parametric morphology system (§6), so it could never have been the foundation regardless of licensing. It remains extremely valuable as an independent cross-check on our derived joint structure. |
-| **Z-Anatomy** | Open 3D anatomy atlas, Blender-based, derived from Japan's BodyParts3D dataset, organized by Terminologia Anatomica. Hundreds of individually named structures including full skeleton, muscles, nerves, vessels. | CC BY-SA 4.0 (BodyParts3D upstream: CC BY-SA 2.1 JP) | **Best available source for anatomical mesh geometry and the naming taxonomy. Adopted as the planned default asset pack** (ADR-009). Share-Alike is viral for the assets *and anything derived from them* — retopologized meshes, decimated LODs, and convex hulls generated from them all inherit the obligation. Attribution and license notices travel with the pack. |
+| **MyoSkeleton** (`myolab/myo_model`) | Full-body: 152 DoF, all spinal levels articulated, fully articulated hand, articulated patella, governed by 66 equality constraints coupling adjacent vertebral levels. | Non-commercial scientific research license. Distributed separately, gated behind an init/acceptance step, not part of the Apache-licensed MyoSuite core. Shipped as a single generic MJCF file resolved via `get_model_xml_path()`. | **Use as a validation oracle. Do not vendor and do not transcribe values.** See ADR-011: the reason is no longer commercial. A non-commercial licence cannot be combined with CC BY-SA material in one derivative work, since Share-Alike requires the derivative to permit commercial use and the NC licence forbids it. The second issue is that MyoSkeleton is a *fixed generic model.* Scaling in this ecosystem is an external step (OpenSim's Scale Tool, anisotropic scaling driven by motion-capture markers), not a property of the model. A fixed-anthropometry MJCF file cannot be the canonical model for a parametric morphology system (§6), so it could never have been the foundation regardless of licensing. It remains extremely valuable as an independent cross-check on our derived joint structure. |
+| **Z-Anatomy** | Open 3D anatomy atlas, Blender-based, derived from Japan's BodyParts3D dataset, organized by Terminologia Anatomica. Hundreds of individually named structures including full skeleton, muscles, nerves, vessels. | CC BY-SA 4.0 (BodyParts3D upstream: CC BY-SA 2.1 JP) | **Adopted as the primary source of bone geometry, bone placement, landmarks and joint centres** (ADR-011). Share-Alike is viral for the assets *and anything derived from them*, including measurements taken from them. This is accepted: the skeleton data is published CC BY-SA 4.0 and the owner has no commercial goal. Attribution and license notices travel with the data. |
 | **AnatomyTOOL / Open 3D Anatomical Model** (Leiden/Utrecht/Maastricht/Leuven consortium) | Successor effort building on BodyParts3D and Z-Anatomy, with institutional anatomist review. Currently male-model-focused. | CC BY-SA | Watch. Potentially a better-curated mesh source than raw Z-Anatomy. Same Share-Alike constraint. |
 
 ### 2.3 Anthropometry and inertial parameters
@@ -166,17 +167,19 @@ Fixed timestep is non-negotiable for reproducibility, which is non-negotiable fo
 
 ---
 
-### ADR-005 — Phase 1 geometry is procedurally generated. Anatomical meshes are a separate asset pack
+### ADR-005 — Bone geometry comes from an anatomical mesh dataset, fitted per bone to the parametric skeleton. Procedural geometry is the fallback and the low-detail LOD
 
-**Decision.** Phase 1 renders bones as procedurally generated geometry (tapered capsules, lofted profiles, primitive composites) built from a **landmark and dimension table** in HSDL. No third-party mesh assets are vendored into the core repository. A `@humansim/assets-anatomical` package loads real anatomical meshes, resolved against the same bone IDs, and is a planned Phase 2 deliverable (ADR-009).
+**Status.** Rewritten in 0.5. The 0.4 decision — procedural geometry as the source of truth, meshes as a later cosmetic pack — was implemented through M1.8 and produced a skeleton that was complete but visibly mis-placed: 206 hand-authored rest transforms, each checked by eye, is not a reliable way to position a body. ADR-011 records the owner's decision that allowed the reversal.
 
-**Rationale.** Two reasons, both independent of licensing. (1) The owner explicitly said no mesh is needed yet, and procedural geometry gets to a visible skeleton far faster. (2) Procedural geometry is *parametric*, so the proportions controls in §6 reshape bones for free. A fixed mesh set requires either blend shapes between a male and female base or a rigged deformation cage, which is real work and should be scheduled as such rather than assumed.
+**Decision.** Bone shape and rest placement come from a curated anatomical mesh dataset (Z-Anatomy, derived from BodyParts3D), ingested offline into per-bone meshes keyed by the HSDL bone `id`. Each bone's mesh carries its own local frame, and the dataset's relative placements give the rest transforms directly. Morphology acts on this through **per-bone rigid placement at parametric joint centres plus per-bone scaling driven by the dimension expressions**, so the sliders still reshape the body: bones move to where the parametric layout puts their joints and scale along their own axes, but their *shape* is measured, not invented.
 
-The asset-pack boundary survives the licensing decision because it is load-time modularity that is worth having anyway: it keeps a large binary payload out of the critical path, lets the render module work with either geometry source, and confines Share-Alike obligations to one package.
+Procedural recipes (§5.4) are retained for two roles: a fallback for any bone the dataset lacks, and a low-triangle LOD for the mobile `L0` budget where a decimated mesh would still be too heavy.
 
-**Consequence.** The mesh pack, when built, MUST NOT become the geometry source of truth. Procedural geometry remains the reference, because it is what responds to morphology parameters. Meshes are fitted *to* the parametric skeleton (per-bone rigid placement first, deformation later), never the reverse.
+**Rationale.** Anatomical credibility was the primary near-term deliverable (§1.3 priority 2) and procedural geometry did not reach it. A measured dataset fixes shape and placement wholesale, where the procedural path fixes them one bone at a time by inspection. The parametric requirement is met by scaling rigid meshes, which is exactly the rigid-placement-first path the 0.4 text already anticipated — only the direction of authority is reversed.
 
-**Revisit if.** A permissively-licensed, well-topologized, sex-dimorphic anatomical mesh set appears — it would simplify the pack's licensing but not change the architecture.
+**Consequence.** Meshes are now a *measurement* source. Landmarks, local frames and joint centres MAY be derived from them (ADR-011). The skeleton data package is CC BY-SA 4.0. The `assets-anatomical` boundary remains as load-time modularity: the ingested per-bone meshes are a separate package so the core kernel and backends stay free of binary payload.
+
+**Revisit if.** A better-curated dataset appears (AnatomyTOOL's Open 3D Anatomical Model is the candidate), or if per-bone rigid scaling proves visibly wrong at extreme morphology and a deformation cage is needed.
 
 ---
 
@@ -204,44 +207,34 @@ The asset-pack boundary survives the licensing decision because it is load-time 
 
 ---
 
-### ADR-009 — Licensing: quality first. Core stays permissive by structure, not by sacrifice
+### ADR-009 — Licensing: the skeleton data is CC BY-SA 4.0. Code stays Apache-2.0. Nothing is done for commercial reasons
 
-**Context.** The project owner has stated that commercial viability is subordinate to result quality: restrictive licenses are acceptable if they produce a better simulator, and unnecessary if they do not.
+**Status.** Rewritten in 0.5. The 0.4 version drew a hard line between a permissive core and a Share-Alike asset pack, and forbade taking any measurement from a licensed mesh, on the reasoning that a cheap commercial exit was worth retaining for free. The owner has since stated that commercial viability is not a goal at all, so the reasoning no longer applies and the line has been removed. See ADR-011 for the decision record.
 
-**Decision.** Three tiers, with the boundary drawn by *technical* role rather than by license anxiety:
+**Decision.** Two tiers:
 
-1. **Core packages** (`kernel`, `hsdl`, `frames`, `anthropometry`, `skeleton`, `compiler`, both backends, `modules-*`, `render-three`) depend only on permissively-licensed software — MuJoCo and Rapier are Apache 2.0, three.js is MIT — and on data sources with no redistribution restrictions: de Leva (1996), ANSUR II, the ISB recommendations, Rajagopal 2016, MyoSuite's Apache-licensed models. **No copyleft and no non-commercial material enters these packages.**
-2. **Asset packs** (`assets-anatomical`) MAY carry CC BY-SA content, with its attribution and Share-Alike obligations documented in the package and propagated to derivatives (retopology, LODs, generated hulls).
-3. **Validation tooling** (`tools/validate-external`, developer-local, never published) MAY use non-commercially-licensed models such as MyoSkeleton as reference oracles. See §13.7.
+1. **Code** (`kernel`, `hsdl`, `frames`, `anthropometry`, `compiler`, both backends, `modules-*`, `render-three`, `testkit`, `tools`) is Apache-2.0 and depends only on permissively-licensed software. This is not a commercial hedge. It is because code is not a derivative of the mesh data it loads, so there is no obligation to relicense it, and Apache-2.0 is the least surprising licence for the engines it sits between.
+2. **Data** (`skeleton`, `assets-anatomical`, `scenarios`' fixtures and every value derived from Z-Anatomy or BodyParts3D geometry) is **CC BY-SA 4.0**, with attribution to BodyParts3D and Z-Anatomy carried in `NOTICE` and in the package. Landmarks, local frames, joint centres, rest transforms, convex hulls, decimated LODs and procedural profile curves traced from the meshes are all derivatives and all carry the licence. This is accepted and is the point of the decision.
 
-**Rationale.** Investigating what the permissive constraint was actually costing turned up very little. The two best non-permissive candidates fail on technical grounds before licensing becomes relevant:
+**What is still excluded, and why.** MyoSkeleton (`myolab/myo_model`) stays a behavioural oracle in developer-local tooling and is never transcribed. The reason is not commercial. Its non-commercial research licence is **incompatible with CC BY-SA**: Share-Alike requires every derivative to permit commercial use, and the NC licence forbids it, so the two cannot be combined in one work. A value copied from MyoSkeleton into the BY-SA skeleton data would make the data undistributable under either licence. §13.6's rule for oracles therefore stands, with that justification.
 
-- *MyoSkeleton* is a fixed generic model with external scaling. It cannot serve a parametric morphology system (§6), which is a stated core requirement. Its license is the second reason to exclude it, not the first.
-- *Z-Anatomy meshes* are static geometry, which per ADR-005 cannot be the source of truth for a parametric skeleton regardless of license, and which the owner has deferred anyway.
+**Verification chain.** BodyParts3D is CC BY-SA 2.1 JP; Z-Anatomy redistributes as CC BY-SA 4.0. Confirm the relicensing chain when the dataset is ingested (M1.11) and record the finding in `docs/sources/`.
 
-Meanwhile the things that genuinely determine quality here — joint definitions, degrees-of-freedom allocation, body frames, inertial parameters, dimensional percentiles, the solver itself — are **all available permissively**. Rajagopal 2016 is freely distributed, MyoSuite's MuJoCo conversions are Apache 2.0, de Leva and ANSUR II are published data, MuJoCo is Apache 2.0. There is no accuracy tax being paid.
+**Revisit if.** Never for commercial reasons. Revisit only if a dataset with a more permissive licence proves better.
 
-So: keep the core permissive, because it happens to cost nothing, and take the benefits of a relaxed posture in the two places they actually exist — an anatomical mesh pack that is planned rather than hedged, and unrestricted use of external models as validation oracles.
+### ADR-010 — Project naming and platform floor
 
-**Legal care required in tier 3.** Use external non-commercial models as *behavioral* oracles — simulate both and compare joint axes, ranges of motion, and coupling behavior — rather than transcribing their parameter values. Copied values plausibly carry the source license and would contaminate tier 1. This distinction MUST be stated in `CONTRIBUTING.md`. An agent "helpfully" copying numbers out of a reference model to fill a gap is a realistic and damaging failure mode. When a validation run reveals a discrepancy, the fix is to find a citable published source, not to adopt the oracle's number.
+Recorded in `docs/adr/adr-010-naming-and-platform-floor.md`. Project is `bs-humany`, reverse-DNS namespace `bsums.xyz.bs-humany`, and `L0` must run on mobile.
 
-**Share-Alike compatibility analysis.** Adopting CC BY-SA assets (tier 2) does not conflict with any other selection in this spec:
+### ADR-011 — Commercial viability is not a goal. Measurement from licensed meshes is permitted
 
-- **Software licenses are unaffected.** Apache 2.0 and MIT impose no constraints on what they are combined with. Compatibility is one-directional — permissive material may flow into a Share-Alike work but not back out — and since meshes are data loaded at runtime rather than code linked into a combined work, the code and the assets remain separate works.
-- **BY-SA is not NonCommercial.** Share-Alike permits commercial use. It requires only that derivatives of the licensed material remain under the same license with attribution. Commercialization is foreclosed by MyoSkeleton's NC license, not by BY-SA. Do not conflate these.
-- **Version chain.** BodyParts3D is CC BY-SA 2.1 JP. Z-Anatomy redistributes as CC BY-SA 4.0. Verify the relicensing chain before relying on the 4.0 terms rather than assuming them.
+**Context.** During M1.9, the first rendered skeleton showed that hand-authored placement of 206 bones does not reach the visual-credibility bar. The owner reviewed the result and directed that the prohibition on measuring from licensed mesh datasets be removed, stating that commercial viability is of no concern at all.
 
-**The real risk is derivative-work creep into tier 1, and it has one specific vector: measurement.** Obvious derivatives — retopologized meshes, decimated LODs, generated convex hulls — all live inside the asset pack and are contained. The dangerous case is different:
+**Decision.** Anatomical mesh datasets MAY be used as the source of bone geometry, placement, landmarks, local frames and joint centres. The skeleton data is published CC BY-SA 4.0. ADR-005 and ADR-009 are rewritten accordingly; §15.3 rules 4 and 5, §13.6 and the M1.2/M5.8 acceptance criteria are revised. Non-commercially-licensed material remains excluded from distributed data because of licence incompatibility with Share-Alike, not because of commerce.
 
-> **Landmark coordinates picked by clicking on CC BY-SA mesh geometry are arguably a derivative of that geometry.** Landmarks are not a leaf node: they determine bone local frames, which determine joint frames and joint centers, which is effectively all of `skeleton`, `frames`, and every joint definition. One afternoon of convenient landmark-picking would propagate a Share-Alike obligation through the entire core.
+**Consequences.** M1.8's procedural recipes become the fallback and the low-detail LOD. A new milestone M1.11 ingests the dataset. The ISB textual landmark definitions remain the *definition* of each landmark; the mesh is now a legitimate place to *locate* it.
 
-The same applies to procedural geometry recipes whose profile curves are traced from licensed meshes.
-
-**Therefore: licensed meshes are a rendering asset only, never a measurement source.** Landmarks and frames MUST be derived from sources without redistribution obligations — the ISB recommendations define their landmarks textually as palpable bony features. Rajagopal 2016 documents its body coordinate systems relative to bony landmarks. MyoSuite's models are Apache 2.0. These are also better provenance than a click position. Where a landmark cannot be derived from a citable source, record it as an open question rather than reaching for the mesh.
-
-This rule is non-obvious and is exactly the kind of shortcut an implementing agent takes without considering provenance. It belongs in `CONTRIBUTING.md` and in the acceptance criteria for M1.2 and M5.8.
-
-**Revisit if.** The owner later wants to commercialize. Under this structure that requires dropping or replacing one asset pack and deleting a dev tool — a deliberately cheap exit, retained for free.
+**Revisit if.** The owner's position on commercial use changes. The 0.4 text of ADR-009 is preserved in git history and describes the structure that would be needed.
 
 ---
 
@@ -759,7 +752,7 @@ Per ADR-009 tier 3. A developer-local tool, never published, that cross-checks o
 
 **Output** is a discrepancy report with per-joint deltas and a pass/investigate flag, committed to `docs/validation/` so drift is visible over time.
 
-**The critical rule, restated because it matters:** when a discrepancy appears, the resolution is to find a citable published source and record it as the `romSource`. It is *not* to adopt the reference model's number. Copied values carry the source license and would contaminate the permissive core. If no citable source can be found, record the discrepancy as an open question rather than silently closing it.
+**The rule for non-commercial oracles, restated because it matters:** when a discrepancy against MyoSkeleton appears, the resolution is to find a citable published source or a CC BY-SA / permissively-licensed model and record it as the `romSource`. It is *not* to adopt MyoSkeleton's number. Its non-commercial licence is incompatible with the CC BY-SA skeleton data (ADR-009), so a copied value would make the data undistributable. If no compatible source can be found, record the discrepancy as an open question rather than silently closing it. Values from Rajagopal 2016, MyoSuite (Apache-2.0) and Z-Anatomy (CC BY-SA) MAY be adopted directly, with citation.
 
 ### 13.7 Snapshots
 
@@ -886,8 +879,8 @@ Put these in `CONTRIBUTING.md`, prominently:
 1. Do not add a dependency without a ticket noting why.
 2. Do not change a golden hash to make a test pass. Escalate instead.
 3. Do not introduce a joint range, mass, or dimension without a `romSource` citation.
-4. Do not copy parameter values out of a non-permissively-licensed reference model to fill a gap, even when validation shows a discrepancy. Find a citable published source, or record the discrepancy as open. See ADR-009 and §13.6. This rule exists because violating it is easy, tempting, and contaminates the permissive core.
-5. Do not take measurements off licensed mesh geometry. Landmarks, frames, joint centers, and geometry profiles come from cited sources, never from clicking on an asset-pack mesh. Meshes render. They do not measure. See ADR-009.
+4. Do not copy parameter values out of a **non-commercially-licensed** reference model (MyoSkeleton) to fill a gap, even when validation shows a discrepancy. Its licence is incompatible with the CC BY-SA skeleton data, so a copied value makes the data undistributable. Find a citable published source or a compatibly-licensed model, or record the discrepancy as open. See ADR-009 and §13.6.
+5. Measurements taken from the anatomical mesh dataset are legitimate and are the preferred source for placement, landmarks and joint centres (ADR-011). Record which dataset, version and structure each value came from, so it can be re-derived when the dataset is updated. The ISB textual definition of a landmark is still what defines it; the mesh is where it is located.
 6. Do not write to a channel you have not declared.
 7. Do not use `Math.random`, `Date.now`, or `performance.now` in simulation code.
 8. Do not put three.js or React types in `kernel`, `hsdl`, `frames`, `anthropometry`, or any backend.
@@ -939,14 +932,15 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 
 ### M1 — Anatomy and morphology (no physics)
 `M1.1` Bone taxonomy: all ~206 bones with IDs, TA terms, display names, anatomical parents. Data-entry heavy. Tedious. Foundational.
-`M1.2` Landmark definitions per bone, ISB-conformant where a standard exists. **Every landmark MUST cite a textual or permissively-licensed source. Landmarks MUST NOT be picked off CC BY-SA mesh geometry — see ADR-009.**
+`M1.2` Landmark definitions per bone, ISB-conformant where a standard exists. Each landmark cites its ISB or literature *definition* and records the dataset structure it was *located* on (ADR-011).
 `M1.3` Bone local frames from landmarks.
 `M1.4` de Leva male and female inertial tables transcribed, with source verification and unit tests against published values.
 `M1.4b` ANSUR II dimensional tables: 50th-percentile female and male reference measurements plus percentile scaling relations.
 `M1.5` Morphology solver: `Morphology` → bone dimensions and rest transforms, blending the two endpoint parameter sets.
 `M1.6` Inertia computation incl. parallel-axis combination + physical-validity assertions (§6.4 step 5).
 `M1.7` `GeometryRecipe` evaluator → `BufferGeometry`.
-`M1.8` Per-bone geometry recipes. Large. Split by region (skull / spine / thorax / shoulder girdle / arm / hand / pelvis / leg / foot).
+`M1.8` Per-bone procedural geometry recipes. *Delivered in 0.4 form; now the fallback and low-detail LOD per ADR-005.*
+`M1.11` **Anatomical dataset ingestion.** Offline tool that reads Z-Anatomy, maps each structure to an HSDL bone `id`, exports per-bone meshes with a local frame, and emits rest transforms, joint centres and landmark positions into the skeleton data. Verifies the CC BY-SA relicensing chain. Replaces the hand-authored placements from M1.8. *Blocking for visual credibility.*
 `M1.9` Minimal three.js viewer: static skeleton, orbit camera, morphology sliders live-updating. **First visible milestone — prioritize reaching it.**
 `M1.10` Bone picking + inspector panel.
 
@@ -1000,7 +994,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M5.5` Realized per-DoF force reporting verified on both backends (§14.5 item 4).
 `M5.6` Runtime articulation recompile-and-restore, benchmarked (§14.5 item 9).
 `M5.7` External validation tool (§13.6): comparison harness vs. Rajagopal/MyoSuite in CI, vs. MyoSkeleton locally, producing a committed discrepancy report.
-`M5.8` `assets-anatomical` pack: bone-ID-keyed mesh loading, rigid per-bone placement against the parametric skeleton, license notices and attribution propagated (ADR-005, ADR-009). **Acceptance criterion: the pack is a one-way consumer of the skeleton. No value in `hsdl`, `skeleton`, or `frames` may come from pack geometry.**
+`M5.8` `assets-anatomical` pack hardening: decimated LODs, convex hulls for collision proxies, streaming, attribution and CC BY-SA notices propagated (ADR-005, ADR-009). *The pack is a measurement source as of ADR-011; the 0.4 one-way-consumer criterion is withdrawn.*
 `M5.9` Module authoring guide + a worked example module.
 `M5.10` §14.5 audit: verify all ten obligations, with evidence, as a documented gate.
 `M5.11` Performance pass against M3.19 baselines.
@@ -1018,7 +1012,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 
 Blocking or near-blocking. Flagged for the human.
 
-1. ~~**Does the project need to permit commercial use?**~~ **Resolved.** Commercial viability is subordinate to result quality. See ADR-009 — investigation found the permissive constraint was costing essentially nothing, so the core stays permissive by structure while the asset pack and validation tooling take the benefits of the relaxed posture.
+1. ~~**Does the project need to permit commercial use?**~~ **Resolved twice.** In 0.2 the owner said commercial viability was subordinate to quality and a permissive core was kept because it seemed free. In 0.5 the owner stated commercial viability is not a goal at all, after the permissive posture proved to have a real cost in placement quality. See ADR-011. Skeleton data is CC BY-SA 4.0.
 2. **Is a Python/MuJoCo-MJX backend actually wanted, or does browser MuJoCo cover the accuracy case?** `IPhysicsBackend` accommodates a remote backend, but building one is significant work that the research findings suggest may be unnecessary. Recommend deferring until M3.19 benchmarks exist.
 3. **Target platform floor.** Desktop-only, or must `L0` run on mobile? Affects WASM budget, worker strategy, and whether cross-origin isolation can be assumed.
 4. **Should Phase 2 be nerves or muscles?** The original sketch said nerves first. Physiologically, nerves without muscles means reflex loops that act on abstract joint torques rather than on muscle activation — workable, and honestly a good way to validate the delay-line and afferent machinery cheaply, but slightly backwards. Muscles first gives nerves something real to drive. Worth a decision before M5.

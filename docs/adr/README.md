@@ -11,9 +11,10 @@ to be revisited, so future contributors do not re-open settled questions blindly
 | [002](adr-002-hsdl-canonical-format.md) | Canonical model format is a project-owned declarative schema, shaped as an MJCF superset | Accepted |
 | [003](adr-003-two-backends.md) | Two backends in Phase 1: Rapier as default, MuJoCo as the accuracy backend | Accepted |
 | [004](adr-004-module-kernel.md) | Fixed-timestep, phase-ordered, single-writer module kernel | Accepted |
-| [005](adr-005-procedural-geometry.md) | Phase 1 geometry is procedurally generated; anatomical meshes are a separate asset pack | Accepted |
+| [005](adr-005-procedural-geometry.md) | Bone geometry comes from an anatomical mesh dataset; procedural geometry is the fallback and low-detail LOD | Rewritten in 0.5 |
 | [006](adr-006-collision-proxies.md) | Collision geometry is never anatomical geometry | Accepted |
 | [007](adr-007-typescript-monorepo.md) | TypeScript monorepo, no UI framework in the core | Accepted |
 | [008](adr-008-web-worker.md) | Simulation runs in a Web Worker from day one | Accepted |
-| [009](adr-009-licensing.md) | Licensing: quality first; core stays permissive by structure, not by sacrifice | Accepted |
+| [009](adr-009-licensing.md) | Licensing: skeleton data is CC BY-SA 4.0, code is Apache-2.0, nothing is done for commercial reasons | Rewritten in 0.5 |
 | [010](adr-010-naming-and-platform-floor.md) | Project naming and platform floor | Accepted |
+| [011](adr-011-measurement-from-datasets.md) | Commercial viability is not a goal; measurement from licensed meshes is permitted | Accepted |

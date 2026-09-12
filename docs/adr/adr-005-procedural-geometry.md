@@ -1,35 +1,42 @@
-# ADR-005 — Phase 1 geometry is procedurally generated; anatomical meshes are a separate asset pack
+# ADR-005 — Bone geometry comes from an anatomical mesh dataset; procedural geometry is the fallback and the low-detail LOD
 
-**Status:** Accepted
+**Status:** Rewritten 2026-09-12 (spec 0.5). See ADR-011 for why.
 
 ## Decision
 
-Phase 1 renders bones as procedurally generated geometry — tapered capsules, lofted profiles,
-primitive composites — built from a landmark and dimension table in HSDL. No third-party mesh
-assets are vendored into the core repository. An `assets-anatomical` package loads real anatomical
-meshes, resolved against the same bone IDs, and is a planned Phase 2 deliverable.
+Bone shape and rest placement come from a curated anatomical mesh dataset -- Z-Anatomy, derived
+from BodyParts3D -- ingested offline into per-bone meshes keyed by HSDL bone `id`. Each mesh carries
+its own local frame, and the dataset's relative placements supply the rest transforms.
+
+Morphology acts through **per-bone rigid placement at parametric joint centres plus per-bone
+scaling driven by the dimension expressions**. The sliders still reshape the body: bones move to
+where the parametric layout puts their joints and scale along their own axes. Their *shape* is
+measured, not invented.
+
+Procedural recipes are retained for two roles: a fallback for any bone the dataset lacks, and a
+low-triangle LOD for the mobile `L0` budget.
 
 ## Rationale
 
-Two reasons, both independent of licensing.
+The original decision -- procedural geometry as the source of truth, meshes as a later cosmetic
+pack -- was implemented through M1.8. It produced a skeleton that was complete and passed every
+structural test, and was visibly mis-placed. Hand-authoring 206 rest transforms and checking each
+by eye is not a reliable way to position a body. A measured dataset fixes shape and placement
+wholesale.
 
-1. The owner explicitly said no mesh is needed yet, and procedural geometry gets to a visible
-   skeleton far faster.
-2. Procedural geometry is **parametric**, so the morphology controls reshape bones for free. A
-   fixed mesh set requires either blend shapes between a male and female base or a rigged
-   deformation cage, which is real work and should be scheduled as such rather than assumed.
-
-The asset-pack boundary survives the licensing decision because it is load-time modularity worth
-having anyway: it keeps a large binary payload out of the critical path, lets the render module
-work with either geometry source, and confines Share-Alike obligations to one package.
+The parametric requirement is met by rigid scaling, which is the rigid-placement-first path the
+original text already anticipated. Only the direction of authority is reversed.
 
 ## Consequences
 
-The mesh pack, when built, **MUST NOT become the geometry source of truth.** Procedural geometry
-remains the reference, because it is what responds to morphology parameters. Meshes are fitted *to*
-the parametric skeleton — per-bone rigid placement first, deformation later — never the reverse.
+- Meshes are now a *measurement* source. Landmarks, local frames and joint centres may be derived
+  from them.
+- The skeleton data package is CC BY-SA 4.0 (ADR-009).
+- The `assets-anatomical` boundary remains as load-time modularity: binary payload stays out of
+  the kernel and backends.
+- M1.11 (dataset ingestion) is added and is blocking for visual credibility.
 
 ## Revisit if
 
-A permissively-licensed, well-topologized, sex-dimorphic anatomical mesh set appears. It would
-simplify the pack's licensing but not change the architecture.
+A better-curated dataset appears -- AnatomyTOOL's Open 3D Anatomical Model is the candidate -- or
+per-bone rigid scaling proves visibly wrong at extreme morphology and a deformation cage is needed.

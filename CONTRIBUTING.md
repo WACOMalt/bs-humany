@@ -18,12 +18,15 @@ Read this file before your first change. It is short on purpose.
    change. Editing a golden to get green is a serious process failure.
 3. **Do not introduce a joint range, mass, or dimension without a citation.** A number without a
    source is a bug. `pnpm cite:lint` enforces this.
-4. **Do not copy parameter values out of a non-permissively-licensed reference model** to fill a
-   gap, even when validation shows a discrepancy. Find a citable published source, or record the
-   discrepancy as open. See rule 11 below for why this one is load-bearing.
-5. **Do not take measurements off licensed mesh geometry.** Landmarks, frames, joint centers and
-   geometry profiles come from cited sources, never from clicking on an asset-pack mesh.
-   **Meshes render. They do not measure.**
+4. **Do not copy parameter values out of a non-commercially-licensed reference model**
+   (MyoSkeleton) to fill a gap, even when validation shows a discrepancy. Its licence is
+   incompatible with the CC BY-SA skeleton data, so a single copied value makes the data
+   undistributable. Find a citable published source or a compatibly-licensed model, or record the
+   discrepancy as open. See §11 below.
+5. **Measurements from the anatomical mesh dataset are legitimate and preferred** for placement,
+   landmarks and joint centres (ADR-011). Record which dataset, version and structure each value
+   came from so it can be re-derived. The ISB textual definition of a landmark still defines it;
+   the mesh is where it is located.
 6. **Do not write to a channel you have not declared.** Declared `reads`/`writes` are enforced at
    runtime in development builds, not documentary.
 7. **Do not use `Math.random`, `Date.now`, or `performance.now` in simulation code.** A seeded PRNG
@@ -37,41 +40,29 @@ Read this file before your first change. It is short on purpose.
 
 ---
 
-## 11. Why rules 4 and 5 matter more than they look
+## 11. Why rule 4 is about licence compatibility, not commerce
 
-This is the one piece of process here that is non-obvious, so it gets its own section.
+Until spec 0.5 this section argued for keeping the core free of any mesh-derived measurement so a
+commercial exit stayed cheap. The owner has stated commercial viability is not a goal at all, and
+that reasoning is gone (ADR-011). Measuring from Z-Anatomy is now the *preferred* way to place
+bones and locate landmarks.
 
-The core packages are permissively licensed **by structure**, not by sacrifice. Investigation
-(ADR-009) found that everything which actually determines quality — joint definitions, DoF
-allocation, body frames, inertial parameters, dimensional percentiles, the solver — is available
-permissively. There is no accuracy tax being paid, so there is no reason to accept contamination.
+One exclusion survives, for a different reason. **MyoSkeleton is licensed non-commercial. The
+skeleton data is CC BY-SA.** Share-Alike requires every derivative to permit commercial use; the NC
+licence forbids it. The two cannot coexist in one work, so a value copied from MyoSkeleton would
+make the skeleton data undistributable under either licence. Use MyoSkeleton to *compare*
+behaviour -- joint axes, ranges, coupling -- never to *supply* a number.
 
-The realistic contamination vector is **measurement**, and it is not a leaf node:
+Where a value cannot be found in a compatible source, record it in
+`docs/sources/open-questions.md` rather than reaching for the incompatible one.
 
-> Landmark coordinates picked by clicking on CC BY-SA mesh geometry are arguably a derivative of
-> that geometry. Landmarks determine bone local frames, which determine joint frames and joint
-> centers — which is effectively all of `skeleton`, `frames`, and every joint definition.
+## Licensing tiers
 
-One afternoon of convenient landmark-picking would propagate a Share-Alike obligation through the
-entire core. The same applies to procedural geometry recipes whose profile curves are traced from
-licensed meshes.
-
-Textual sources are also *better provenance* than a click position. The ISB recommendations define
-their landmarks as palpable bony features in prose. Rajagopal 2016 documents its body coordinate
-systems relative to bony landmarks. MyoSuite's models are Apache 2.0. Use those.
-
-Where a landmark cannot be derived from a citable source, **record it as an open question in
-`docs/sources/open-questions.md` rather than reaching for the mesh.**
-
----
-
-## Provenance tiers
-
-| Tier | Packages | May depend on |
-|---|---|---|
-| 1 — Core | `hsdl`, `frames`, `anthropometry`, `kernel`, `skeleton`, `compiler`, `backend-*`, `modules-*`, `render-three`, `scenarios`, `testkit` | Permissive software only (Apache-2.0, MIT, BSD). Data sources with no redistribution restrictions: de Leva 1996, ANSUR II, ISB recommendations, Rajagopal 2016, MyoSuite. **No copyleft. No non-commercial.** |
-| 2 — Asset packs | `assets-anatomical` (not yet built) | MAY carry CC BY-SA content. Attribution and Share-Alike obligations documented in the package and propagated to derivatives — retopology, LODs, generated hulls. |
-| 3 — Validation tooling | `tools/validate-external` (developer-local, **never published**) | MAY use non-commercially-licensed models such as MyoSkeleton as **behavioral oracles**. Simulate and compare. Never transcribe values. |
+| Tier | Packages | Licence | May draw on |
+|---|---|---|---|
+| Code | `hsdl`, `frames`, `anthropometry`, `kernel`, `compiler`, `backend-*`, `modules-*`, `render-three`, `testkit`, `tools` | Apache-2.0 | Permissive software only. Not a derivative of the data it loads. |
+| Data | `skeleton`, `assets-anatomical`, scenario fixtures | **CC BY-SA 4.0** | Z-Anatomy / BodyParts3D (BY-SA), Rajagopal 2016, MyoSuite (Apache-2.0), de Leva, ANSUR II, ISB. **Not MyoSkeleton** -- licence incompatibility, see §11. |
+| Validation tooling | `tools/validate-external`, developer-local, never published | n/a | MyoSkeleton as a behavioural oracle. Compare; never transcribe. |
 
 ## Citations
 
