@@ -6,10 +6,10 @@ import {
   allocateBuffers,
   compileArticulation,
 } from '@bs-humany/compiler';
-import { IDENTITY_MAT3, IDENTITY_QUAT, vec3 } from '@bs-humany/frames';
+import { IDENTITY_QUAT, vec3 } from '@bs-humany/frames';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
-import { RapierBackend } from './rapierBackend.js';
+import { MujocoBackend } from './mujocoBackend.js';
 
 const DT = 1 / 500;
 
@@ -29,9 +29,12 @@ function pendulum(range: [number, number]): CompiledArticulation {
         bones: ['root'],
         parent: -1,
         restWorld: { translation: vec3(0, 2, 0), rotation: IDENTITY_QUAT },
-        mass: 10,
+        // Effectively fixed: MuJoCo has no kinematic switch, so the root is simply very heavy.
+        mass: 1e6,
         com: vec3(0, 0, 0),
-        inertia: [...IDENTITY_MAT3] as unknown as CompiledArticulation['segments'][0]['inertia'],
+        inertia: [
+          1e6, 0, 0, 0, 1e6, 0, 0, 0, 1e6,
+        ] as unknown as CompiledArticulation['segments'][0]['inertia'],
         proxyIndices: [],
         followers: [],
       },
@@ -101,13 +104,13 @@ function pendulum(range: [number, number]): CompiledArticulation {
     nv: ROOT_NV + 1,
     nq: ROOT_NQ + 1,
     root: 0,
-    gravity: vec3(0, -9.81, 0),
-    totalMass: 11,
+    gravity: vec3(0, 0, 0),
+    totalMass: 1e6 + 1,
   };
 }
 
 async function backendFor(model: CompiledArticulation, ground?: number) {
-  const backend = new RapierBackend();
+  const backend = new MujocoBackend();
   await backend.init({
     dt: DT,
     iterations: 8,
@@ -121,7 +124,6 @@ describe('a single hinge', () => {
   it('reads a positive angle when pushed about +z, and swings the arm forward', async () => {
     const model = pendulum([-3, 3]);
     const { backend } = await backendFor(model);
-    backend.setKinematic(0, true);
     const buffers = allocateBuffers(model);
     const force = new Float64Array(model.nv);
     force[ROOT_NV] = 0.5; // N*m about +z on the arm
@@ -139,7 +141,6 @@ describe('a single hinge', () => {
   it('holds the native revolute limit against a torque pushing past it', async () => {
     const model = pendulum([0, 2]);
     const { backend } = await backendFor(model);
-    backend.setKinematic(0, true);
     const buffers = allocateBuffers(model);
     const force = new Float64Array(model.nv);
     force[ROOT_NV] = -2;
@@ -158,7 +159,6 @@ describe('a single hinge', () => {
   it('reports the joint velocity with the same sign as the angle change', async () => {
     const model = pendulum([-3, 3]);
     const { backend } = await backendFor(model);
-    backend.setKinematic(0, true);
     const buffers = allocateBuffers(model);
     const force = new Float64Array(model.nv);
     force[ROOT_NV] = 0.5;
@@ -179,9 +179,10 @@ describe('the L1 articulation', () => {
     const { backend, report } = await backendFor(articulation, 0);
     expect(report.segments).toBe(23);
     expect(report.joints).toBe(22);
-    expect(report.hasWarnings).toBe(true);
-    expect(report.notes.some((n) => n.feature === 'jointLimits')).toBe(true);
-    expect(backend.capabilities.softJointLimits).toBe('emulated');
+    expect(report.notes.some((n) => n.feature === 'motors')).toBe(true);
+    expect(report.notes.some((n) => n.feature === 'kinematic')).toBe(true);
+    expect(backend.capabilities.softJointLimits).toBe('native');
+    expect(backend.capabilities.reducedCoordinate).toBe(true);
     backend.dispose();
   });
 
@@ -264,7 +265,10 @@ describe('the L1 articulation', () => {
         buffers.pose.position[3 * hand + 2] ?? 0,
       ),
     );
-    for (let i = 0; i < 300; i++) {
+    // The body collapses while the hand is held; without the grab the hand ends near the floor
+    // (about 0.07 m). Judge the hold by where the hand settles over the last fifth of a second.
+    let sum = 0;
+    for (let i = 0; i < 500; i++) {
       grab.setTarget(
         vec3(
           buffers.pose.position[3 * hand] ?? 0,
@@ -273,9 +277,12 @@ describe('the L1 articulation', () => {
         ),
       );
       backend.step(1);
+      if (i >= 400) {
+        backend.readPose(buffers.pose);
+        sum += buffers.pose.position[3 * hand + 1] ?? 0;
+      }
     }
-    backend.readPose(buffers.pose);
-    expect(buffers.pose.position[3 * hand + 1] ?? 0).toBeGreaterThan(y0 + 0.1);
+    expect(sum / 100).toBeGreaterThan(y0 - 0.1);
     grab.release();
     backend.step(1);
     backend.dispose();

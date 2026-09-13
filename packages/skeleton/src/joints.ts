@@ -770,6 +770,17 @@ export interface JointProvenance {
   readonly mirrored: boolean;
 }
 
+/**
+ * Rotor inertia added to every DoF, kg*m^2 (spec section 7.1).
+ *
+ * A numerical conditioning term, not anatomy: deep chains of low-mass bodies are the worst case
+ * for a solver, and a sequence such as the Y-X-Y shoulder has a null-space direction at zero
+ * elevation whose effective inertia would otherwise be nearly zero, so a limit could not hold it.
+ * One thousandth of a kilogram-metre-squared is below the smallest segment inertia about any DoF
+ * axis in the model and is recorded here, on every DoF, rather than hidden in a backend.
+ */
+export const DEFAULT_ARMATURE = 1e-3;
+
 /** The left-side sign policy, in one place. */
 export function mirrorVector(v: Vec3): Vec3 {
   return vec3(-v.x, -v.y, v.z);
@@ -838,6 +849,7 @@ export function buildJoints(document: Pick<HsdlDocument, 'bones' | 'landmarks'>)
           vector: { x: vector.x, y: vector.y, z: vector.z },
           range: [d.range[0], d.range[1]],
           neutral: 0,
+          armature: DEFAULT_ARMATURE,
           romSource: d.romSource,
         };
       }),

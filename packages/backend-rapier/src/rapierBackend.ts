@@ -373,6 +373,15 @@ export class RapierBackend implements IPhysicsBackend {
           'decomposition. They yield under sufficient load; one-DoF joints use native limits.',
       });
     }
+    if (model.dofs.some((d) => d.armature > 0)) {
+      notes.push({
+        severity: 'info',
+        feature: 'armature',
+        message:
+          'Per-DoF armature does not apply to impulse joints and is ignored; the joint solver ' +
+          'regularises singular sequences toward neutral instead.',
+      });
+    }
     if (model.dofs.some((d) => d.passiveStiffness || d.passiveDamping > 0)) {
       notes.push({
         severity: 'warning',

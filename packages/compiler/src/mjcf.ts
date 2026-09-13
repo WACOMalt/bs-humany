@@ -42,6 +42,12 @@ export interface MjcfOptions {
   readonly timestep?: number | undefined;
   /** Model name attribute. */
   readonly name?: string | undefined;
+  /**
+   * Where per-DoF damping, armature, friction loss and linear stiffness are applied. `module`
+   * (default) leaves them out so the PassiveJointModule supplies them identically on every
+   * backend (spec section 7.3); `native` writes them into the joints for standalone MJCF use.
+   */
+  readonly passive?: 'module' | 'native' | undefined;
 }
 
 export interface MjcfResult {
@@ -64,7 +70,7 @@ const Y_TO_Z: Quat = fromAxisAngle({ x: 1, y: 0, z: 0 }, -Math.PI / 2);
 
 export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {}): MjcfResult {
   const notes: CompileNote[] = [];
-  const jointNames: string[] = [];
+  const jointNames: string[] = new Array<string>(model.dofs.length).fill('');
   const bodyNames = model.segments.map((s) => s.id);
   const children = new Map<number, CompiledJoint[]>();
   for (const joint of model.joints) {
@@ -73,13 +79,21 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
   const proxiesOf = (segment: CompiledSegment) =>
     segment.proxyIndices.map((i) => model.proxies[i]).filter((p): p is CompiledProxy => !!p);
 
-  if (model.dofs.some((d) => d.passiveStiffness)) {
+  if (options.passive !== 'native') {
+    notes.push({
+      severity: 'info',
+      feature: 'passiveStiffness',
+      message:
+        'Per-DoF passive terms are left to the PassiveJointModule so both backends apply the ' +
+        'same model; the emitted joints carry ranges only.',
+    });
+  } else if (model.dofs.some((d) => d.passiveStiffness)) {
     notes.push({
       severity: 'warning',
       feature: 'passiveStiffness',
       message:
         'The double-exponential passive curve has no MJCF equivalent; only linear damping, ' +
-        'armature and friction loss are emitted. The PassiveJointModule supplies the rest.',
+        'armature and friction loss are emitted natively.',
     });
   }
   for (const c of model.constraints) {
@@ -115,11 +129,12 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
 
   push(1, '<worldbody>');
   if (options.ground) {
+    // A plane collides from its local +Z side; rotating Z onto world +Y makes it a floor.
     const cls = options.ground.contactClass ?? model.proxies[0]?.contactClass;
     push(
       2,
       `<geom name="ground" type="plane" size="20 20 0.1" pos="0 ${f(options.ground.height)} 0" ` +
-        `quat="${q4(fromAxisAngle({ x: 1, y: 0, z: 0 }, Math.PI / 2))}"${cls ? ` class="${esc(cls)}"` : ''}/>`,
+        `quat="${q4(fromAxisAngle({ x: 1, y: 0, z: 0 }, -Math.PI / 2))}"${cls ? ` class="${esc(cls)}"` : ''}/>`,
     );
   }
 
@@ -185,7 +200,7 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
       );
       for (const dof of joint.dofs) {
         const name = `${joint.id}/${dof.axisName}`;
-        jointNames.push(name);
+        jointNames[dof.index] = name;
         const attrs = [
           `name="${esc(name)}"`,
           `type="${dof.kind === 'hinge' ? 'hinge' : 'slide'}"`,
@@ -194,12 +209,15 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
           'limited="true"',
           `ref="${f(dof.neutral)}"`,
         ];
-        if (dof.passiveDamping > 0) attrs.push(`damping="${f(dof.passiveDamping)}"`);
+        // Armature is conditioning, not a passive force, so it is emitted in either mode.
         if (dof.armature > 0) attrs.push(`armature="${f(dof.armature)}"`);
-        if (dof.frictionLoss > 0) attrs.push(`frictionloss="${f(dof.frictionLoss)}"`);
-        if (dof.passiveStiffness?.linear) {
-          attrs.push(`stiffness="${f(dof.passiveStiffness.linear)}"`);
-          attrs.push(`springref="${f(dof.passiveStiffness.linearNeutral ?? dof.neutral)}"`);
+        if (options.passive === 'native') {
+          if (dof.passiveDamping > 0) attrs.push(`damping="${f(dof.passiveDamping)}"`);
+          if (dof.frictionLoss > 0) attrs.push(`frictionloss="${f(dof.frictionLoss)}"`);
+          if (dof.passiveStiffness?.linear) {
+            attrs.push(`stiffness="${f(dof.passiveStiffness.linear)}"`);
+            attrs.push(`springref="${f(dof.passiveStiffness.linearNeutral ?? dof.neutral)}"`);
+          }
         }
         push(depth + 2, `<joint ${attrs.join(' ')}/>`);
       }
