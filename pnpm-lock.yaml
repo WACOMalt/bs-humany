@@ -82,7 +82,24 @@ importers:
         specifier: workspace:*
         version: link:../frames
 
-  packages/backend-mujoco: {}
+  packages/backend-mujoco:
+    dependencies:
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../frames
+      '@mujoco/mujoco':
+        specifier: ^3.13.0
+        version: 3.13.0
+    devDependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../anthropometry
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
 
   packages/backend-rapier:
     dependencies:
@@ -592,6 +609,9 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
+
+  '@mujoco/mujoco@3.13.0':
+    resolution: {integrity: sha512-9OAp3i2pR9U8SnJfr+/UcmxpbIOcUUSBjNGY79XS4NYcyYjztqHmx1kl/83yoEpxDd40WBcDOKZqNhEmhN1+Sg==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -1249,6 +1269,8 @@ snapshots:
     optional: true
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
+
+  '@mujoco/mujoco@3.13.0': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
