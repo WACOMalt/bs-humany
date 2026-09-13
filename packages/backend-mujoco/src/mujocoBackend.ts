@@ -141,6 +141,7 @@ export class MujocoBackend implements IPhysicsBackend {
     const notes: CompileNote[] = [];
     const emitted = emitMjcf(model, {
       ground: config.ground,
+      staticBoxes: config.staticBoxes,
       timestep: config.dt,
       passive: 'module',
     });

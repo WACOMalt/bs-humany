@@ -1,0 +1,72 @@
+{
+  "drop-prone/l1_standard/mujoco": {
+    "hash": "ed605a8e7d98e847",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "drop-prone/l1_standard/rapier": {
+    "hash": "5f97ff26b3397298",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "drop-standing-collapse/l1_standard/mujoco": {
+    "hash": "74bed014db922f33",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "drop-standing-collapse/l1_standard/rapier": {
+    "hash": "2ceca74142facedf",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "drop-supine/l1_standard/mujoco": {
+    "hash": "318e1c46c74422b1",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "drop-supine/l1_standard/rapier": {
+    "hash": "9cd55ba96e5fcb81",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "grab-and-swing/l1_standard/mujoco": {
+    "hash": "1aab73232df299eb",
+    "ticks": 2000,
+    "platform": "linux-x64"
+  },
+  "grab-and-swing/l1_standard/rapier": {
+    "hash": "b39603fccc8cf62b",
+    "ticks": 2000,
+    "platform": "linux-x64"
+  },
+  "hang-from-wrist/l1_standard/mujoco": {
+    "hash": "ea1e8dbbb05d8759",
+    "ticks": 3000,
+    "platform": "linux-x64"
+  },
+  "hang-from-wrist/l1_standard/rapier": {
+    "hash": "c8ef0159ce5af55f",
+    "ticks": 3000,
+    "platform": "linux-x64"
+  },
+  "seated-on-box/l1_standard/mujoco": {
+    "hash": "e12eee05244c92e3",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "seated-on-box/l1_standard/rapier": {
+    "hash": "be67d0937919016b",
+    "ticks": 1500,
+    "platform": "linux-x64"
+  },
+  "stairs-tumble/l1_standard/mujoco": {
+    "hash": "e74a832a104254cf",
+    "ticks": 2000,
+    "platform": "linux-x64"
+  },
+  "stairs-tumble/l1_standard/rapier": {
+    "hash": "442522201844694c",
+    "ticks": 2000,
+    "platform": "linux-x64"
+  }
+}

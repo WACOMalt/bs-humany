@@ -129,3 +129,15 @@ not measured, and the module and the UI say so.
 **Closes when:** Riener & Edrich (1999) hip, knee and ankle coefficients are transcribed with
 their knee-angle coupling, and an upper-limb and spinal source is found for the rest.
 **Status:** open
+
+### OQ-009 — Native range limits for oblique axes on the Rapier backend
+**Needed for:** `packages/backend-rapier/src/rapierBackend.ts`, `packages/testkit/src/plausibility.ts`
+**Provisional value:** two-DoF joints get an explicit Rapier frame with the first DoF on its Z,
+so that DoF has a native limit; a second DoF gets one only when it lies on the frame's Y. The
+subtalar inversion axis is oblique and is held by the emulated torsional stop alone, which yields
+by up to about 0.4 rad when the whole body's weight bears on an ankle. The plausibility tolerance
+for Rapier range violation is 0.45 rad for that reason.
+**Closes when:** oblique-axis limits are expressed natively (chained revolute joints through a
+light intermediate body, or a per-axis limit in a frame Rapier lets us choose freely), and the
+tolerance can drop to what the axis-aligned DoFs already achieve.
+**Status:** open

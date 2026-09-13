@@ -18,11 +18,13 @@
     "cite:lint": "node tools/cli/bin/cite-lint.mjs",
     "dev": "pnpm --filter @bs-humany/studio dev",
     "build:studio": "pnpm --filter @bs-humany/studio build",
-    "module:lint": "node tools/cli/bin/module-lint.mjs"
+    "module:lint": "node tools/cli/bin/module-lint.mjs",
+    "bench": "node tools/cli/bin/bench.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.10.5",
+    "jiti": "^2.4.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
     "vitest": "^2.1.8"

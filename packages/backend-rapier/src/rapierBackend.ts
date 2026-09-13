@@ -27,6 +27,7 @@ import type {
   CompileNote,
   CompileReport,
   CompiledArticulation,
+  CompiledDof,
   CompiledJoint,
   ContactBuffer,
   GrabHandle,
@@ -37,7 +38,18 @@ import type {
   VelocityBuffer,
 } from '@bs-humany/compiler';
 import { ROOT_NQ, ROOT_NV, dofAxisInertia } from '@bs-humany/compiler';
-import { type Transform, type Vec3, cross, normalize, rotate, vec3 } from '@bs-humany/frames';
+import {
+  type Transform,
+  type Vec3,
+  cross,
+  dot,
+  fromColumns,
+  multiplyQuat,
+  normalize,
+  quatFromMat3,
+  rotate,
+  vec3,
+} from '@bs-humany/frames';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type {
   Collider,
@@ -270,6 +282,7 @@ export class RapierBackend implements IPhysicsBackend {
       const a2 = joint.frameInChild.translation;
       const n = joint.dofs.length;
       let data: JointData;
+      let lockedInParent: Vec3 | undefined;
       if (n === 0) {
         data = RAPIER.JointData.fixed(
           a1,
@@ -289,10 +302,11 @@ export class RapierBackend implements IPhysicsBackend {
         const [d0, d1] = joint.dofs;
         if (!d0 || !d1) throw new Error('unreachable');
         const lockedAxis = normalize(cross(d0.vector, d1.vector));
+        lockedInParent = rotate(joint.frameInParent.rotation, lockedAxis);
         data = RAPIER.JointData.generic(
           a1,
           a2,
-          rotate(joint.frameInParent.rotation, lockedAxis),
+          lockedInParent,
           RAPIER.JointAxesMask.LinX |
             RAPIER.JointAxesMask.LinY |
             RAPIER.JointAxesMask.LinZ |
@@ -321,6 +335,34 @@ export class RapierBackend implements IPhysicsBackend {
             dof.range[1] - dof.neutral,
           );
         }
+      } else if (n === 2 && lockedInParent) {
+        // Give the generic joint an explicit frame: X on the locked axis, Z on the first DoF, Y
+        // completing it. Rapier's own frame would have an arbitrary roll about the locked axis,
+        // which is what made the ankle's dorsiflexion axis oblique to it. With the frame fixed,
+        // the first DoF always has a native limit; the second does when it is Y (the wrist), and
+        // only the emulated stop when it is oblique (the subtalar axis).
+        const [d0, d1] = joint.dofs;
+        if (!d0 || !d1) throw new Error('unreachable');
+        const x = normalize(cross(d0.vector, d1.vector));
+        const z = normalize(d0.vector);
+        const y = cross(z, x);
+        const local = quatFromMat3(fromColumns(x, y, z));
+        impulseJoint.setFrameX1(multiplyQuat(joint.frameInParent.rotation, local));
+        impulseJoint.setFrameX2(multiplyQuat(joint.frameInChild.rotation, local));
+        const backstop = (dof: CompiledDof, rawAxis: RawAxis, sign: 1 | -1) => {
+          const lo = (dof.range[0] - dof.neutral) * sign;
+          const hi = (dof.range[1] - dof.neutral) * sign;
+          world.impulseJoints.raw.jointSetLimits(
+            impulseJoint.handle,
+            rawAxis,
+            Math.min(lo, hi),
+            Math.max(lo, hi),
+          );
+          nativeBackstops += 1;
+        };
+        backstop(d0, ANG_Z, 1);
+        const dy = dot(normalize(d1.vector), y);
+        if (Math.abs(Math.abs(dy) - 1) < 1e-6) backstop(d1, ANG_Y, dy > 0 ? 1 : -1);
       } else if (n === 3) {
         // Rapier's spherical joint can limit rotation about each of the parent body's axes. Where
         // a DoF vector lands on one of them at rest, that native limit backs up the emulated
@@ -413,6 +455,22 @@ export class RapierBackend implements IPhysicsBackend {
         ground,
       );
       this.segmentOfBody.set(ground.handle, -1);
+    }
+
+    for (const box of config.staticBoxes ?? []) {
+      const cls = model.contactClasses[box.contactClass ?? 'bone_on_ground'];
+      const body = world.createRigidBody(
+        RAPIER.RigidBodyDesc.fixed()
+          .setTranslation(box.position.x, box.position.y, box.position.z)
+          .setRotation(box.rotation ?? { x: 0, y: 0, z: 0, w: 1 }),
+      );
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z)
+          .setFriction(cls?.friction ?? 0.8)
+          .setRestitution(cls?.restitution ?? 0),
+        body,
+      );
+      this.segmentOfBody.set(body.handle, -1);
     }
 
     // State.

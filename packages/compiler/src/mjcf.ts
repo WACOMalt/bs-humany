@@ -32,7 +32,7 @@ import type {
   CompiledProxy,
   CompiledSegment,
 } from './articulation.js';
-import type { CompileNote } from './backend.js';
+import type { CompileNote, StaticBox } from './backend.js';
 
 export interface MjcfOptions {
   /** Ground plane height; omit for none. */
@@ -48,6 +48,7 @@ export interface MjcfOptions {
    * backend (spec section 7.3); `native` writes them into the joints for standalone MJCF use.
    */
   readonly passive?: 'module' | 'native' | undefined;
+  readonly staticBoxes?: readonly StaticBox[] | undefined;
 }
 
 export interface MjcfResult {
@@ -118,11 +119,14 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
   );
 
   // Contact classes as geom defaults.
+  // Limits and contacts stiffer than MuJoCo's defaults: a 10 ms time constant instead of 20,
+  // so a body's weight against ground friction bends a stop by a few degrees, not twenty.
   push(1, '<default>');
-  push(2, '<geom condim="3"/>');
+  push(2, '<joint solreflimit="0.01 1" solimplimit="0.95 0.99 0.001 0.5 2"/>');
+  push(2, '<geom condim="3" solref="0.01 1" solimp="0.95 0.99 0.001 0.5 2"/>');
   for (const [name, cls] of Object.entries(model.contactClasses)) {
     push(2, `<default class="${esc(name)}">`);
-    push(3, `<geom friction="${f(cls.friction)} 0.005 0.0001" solref="0.02 1"/>`);
+    push(3, `<geom friction="${f(cls.friction)} 0.005 0.0001"/>`);
     push(2, '</default>');
   }
   push(1, '</default>');
@@ -135,6 +139,16 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
       2,
       `<geom name="ground" type="plane" size="20 20 0.1" pos="0 ${f(options.ground.height)} 0" ` +
         `quat="${q4(fromAxisAngle({ x: 1, y: 0, z: 0 }, -Math.PI / 2))}"${cls ? ` class="${esc(cls)}"` : ''}/>`,
+    );
+  }
+
+  for (const box of options.staticBoxes ?? []) {
+    const cls = box.contactClass ?? model.proxies[0]?.contactClass;
+    const rot = box.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
+    push(
+      2,
+      `<geom name="${esc(box.id)}" type="box" size="${v3(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z)}" ` +
+        `pos="${v3(box.position.x, box.position.y, box.position.z)}" quat="${q4(rot)}"${cls ? ` class="${esc(cls)}"` : ''}/>`,
     );
   }
 

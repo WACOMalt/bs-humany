@@ -4,5 +4,16 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../compiler" },
+    { "path": "../frames" },
+    { "path": "../kernel" },
+    { "path": "../modules-mechanics" },
+    { "path": "../scenarios" },
+    { "path": "../anthropometry" },
+    { "path": "../skeleton" },
+    { "path": "../backend-rapier" },
+    { "path": "../backend-mujoco" }
+  ]
 }

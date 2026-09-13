@@ -70,6 +70,16 @@ export interface BackendConfig {
   readonly ground?:
     | { readonly height: number; readonly contactClass?: string | undefined }
     | undefined;
+  /** Fixed boxes in the world: stairs, a seat. Half extents and centre in metres, world frame. */
+  readonly staticBoxes?: readonly StaticBox[] | undefined;
+}
+
+export interface StaticBox {
+  readonly id: string;
+  readonly halfExtents: Vec3;
+  readonly position: Vec3;
+  readonly rotation?: { x: number; y: number; z: number; w: number } | undefined;
+  readonly contactClass?: string | undefined;
 }
 
 /** SoA output buffers. All `Float64Array`, all preallocated by the caller, all written in place. */

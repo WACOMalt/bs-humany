@@ -13,6 +13,7 @@
  */
 
 import type {
+  BackendConfig,
   CompileReport,
   CompiledArticulation,
   ContactBuffer,
@@ -59,6 +60,7 @@ export interface PhysicsModuleOptions {
     | undefined;
   readonly gravity?: Vec3 | undefined;
   readonly contactCapacity?: number | undefined;
+  readonly staticBoxes?: BackendConfig['staticBoxes'];
 }
 
 export class PhysicsModule implements SimModule, Stateful {
@@ -120,6 +122,7 @@ export class PhysicsModule implements SimModule, Stateful {
       iterations: this.options.iterations,
       gravity: this.options.gravity,
       ground: this.options.ground,
+      staticBoxes: this.options.staticBoxes,
     });
     this.report = await this.backend.compile(this.articulation);
     this.bind(ctx);
