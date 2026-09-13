@@ -21,7 +21,7 @@ import type {
   PoseBuffer,
   VelocityBuffer,
 } from '@bs-humany/compiler';
-import { type Vec3, vec3 } from '@bs-humany/frames';
+import type { Vec3 } from '@bs-humany/frames';
 import type {
   ChannelView,
   ModuleInitContext,
@@ -77,8 +77,8 @@ export class PhysicsModule implements SimModule, Stateful {
   private wrenchForce: Float64Array | undefined;
   private wrenchTorque: Float64Array | undefined;
   private readonly substeps: number;
-  private readonly force = vec3(0, 0, 0);
-  private readonly moment = vec3(0, 0, 0);
+  private readonly force: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
+  private readonly moment: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
 
   constructor(
     readonly backend: IPhysicsBackend,

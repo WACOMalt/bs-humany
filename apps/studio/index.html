@@ -90,6 +90,34 @@
       </section>
 
       <section>
+        <h2>Simulation</h2>
+        <div class="control">
+          <label for="profile">Fidelity profile</label>
+          <select id="profile">
+            <option value="l1_standard" selected>L1 — Standard (23 bodies, 500 Hz)</option>
+            <option value="l0_ragdoll">L0 — Ragdoll (15 bodies, 240 Hz)</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="dropHeight">Drop height <output id="dropHeight-value">0.30 m</output></label>
+          <input type="range" id="dropHeight" min="0" max="1.5" step="0.05" value="0.3" />
+        </div>
+        <label class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
+        <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
+        <div class="control">
+          <div class="buttons">
+            <button type="button" id="drop">Drop</button>
+            <button type="button" id="reset">Reset</button>
+          </div>
+        </div>
+        <p class="note" id="sim-status">At rest.</p>
+        <details>
+          <summary>Compile report <span id="sim-report-summary"></span></summary>
+          <ul id="sim-report" class="limitations"></ul>
+        </details>
+      </section>
+
+      <section>
         <h2>Measured cost</h2>
         <dl class="readout">
           <dt>Bones</dt><dd id="stat-bones">—</dd>

@@ -15,7 +15,7 @@
  * recorded gap (OQ-008), not a hidden one: the module lists which DoFs run on the default.
  */
 
-import type { CompiledArticulation, CompiledDof } from '@bs-humany/compiler';
+import type { CompiledArticulation } from '@bs-humany/compiler';
 import { ROOT_NQ, ROOT_NV, dofAxisInertia } from '@bs-humany/compiler';
 import { type StiffnessCurve, passiveMoment, provisional } from '@bs-humany/hsdl';
 import type {
@@ -46,8 +46,8 @@ export const DEFAULT_PASSIVE = {
   ),
 } as const;
 
-/** Build the default curve for a DoF from its range and axis inertia. */
-export function defaultPassiveCurve(dof: CompiledDof, inertia: number): StiffnessCurve {
+/** Build the default curve for a DoF from its axis inertia; the range enters at evaluation. */
+export function defaultPassiveCurve(inertia: number): StiffnessCurve {
   const rate = 3 / DEFAULT_PASSIVE.softZone;
   const omega = 2 * Math.PI * DEFAULT_PASSIVE.wallFrequencyHz;
   // Wall stiffness d(tau)/dq at the limit is rate * gain; set it to inertia * omega^2.
@@ -88,7 +88,7 @@ export class PassiveJointModule implements SimModule {
     this.curves = articulation.dofs.map((dof) => {
       if (dof.passiveStiffness) return dof.passiveStiffness;
       defaulted.push(dof.index);
-      return defaultPassiveCurve(dof, dofAxisInertia(articulation, dof));
+      return defaultPassiveCurve(dofAxisInertia(articulation, dof));
     });
     this.defaulted = defaulted;
     this.damping = Float64Array.from(

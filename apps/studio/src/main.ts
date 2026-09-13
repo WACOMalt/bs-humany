@@ -46,6 +46,8 @@ import {
   WebGLRenderer,
 } from 'three';
 import { createOrbitControls } from './orbit.js';
+import { Simulation } from './simulation.js';
+import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
 
 // The document is built once. Only the morphology context changes as the sliders move, which is
 // exactly the separation ADR-005 is for: anatomy is fixed, geometry is parametric.
@@ -130,9 +132,11 @@ const selectedMaterial = new MeshStandardMaterial({
 });
 
 let skeletonMesh: SkeletonMesh | null = null;
-let boneObject: Mesh | null = null;
+let skinned: SkinnedSkeleton | null = null;
 let selectedObject: Mesh | null = null;
 let selectedBoneId: string | null = null;
+let simulation: Simulation | null = null;
+let groundY = 0;
 
 // ---------------------------------------------------------------------------------------------
 // Controls
@@ -149,6 +153,12 @@ const ui = {
   quality: must<HTMLSelectElement>('#quality'),
   showGrid: must<HTMLInputElement>('#showGrid'),
   spin: must<HTMLInputElement>('#spin'),
+  profile: must<HTMLSelectElement>('#profile'),
+  passive: must<HTMLInputElement>('#passive'),
+  redistribute: must<HTMLInputElement>('#redistribute'),
+  dropHeight: must<HTMLInputElement>('#dropHeight'),
+  drop: must<HTMLButtonElement>('#drop'),
+  reset: must<HTMLButtonElement>('#reset'),
 };
 
 function currentMorphology(): Morphology {
@@ -183,17 +193,19 @@ function rebuild(): void {
   const quality = QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM;
   skeletonMesh = buildSkeletonMesh(document_, resolved.context, { quality, assets });
 
-  if (boneObject) {
-    boneObject.geometry.dispose();
-    scene.remove(boneObject);
+  stopSimulation();
+  if (skinned) {
+    scene.remove(skinned.mesh);
+    skinned.dispose();
   }
-  boneObject = new Mesh(toSkeletonGeometry(skeletonMesh), boneMaterial);
-  scene.add(boneObject);
+  skinned = createSkinnedSkeleton(skeletonMesh, toSkeletonGeometry(skeletonMesh), boneMaterial);
+  scene.add(skinned.mesh);
 
-  // Sit the skeleton on the grid: the feet land a little above the origin because the layout is
-  // built from joint centres rather than from the sole.
+  // The ground sits under the soles: the dataset places them at y = 0 and stature scales about
+  // the origin, so this is close to zero, but it is measured rather than assumed.
   const { min } = skeletonBounds(skeletonMesh);
-  boneObject.position.y = -min[1];
+  groundY = min[1];
+  grid.position.y = groundY;
 
   buildMs = performance.now() - started;
   refreshSelection();
@@ -267,13 +279,13 @@ const pointer = new Vector2();
 
 renderer.domElement.addEventListener('click', (event) => {
   if (controls.wasDragging()) return;
-  if (!boneObject || !skeletonMesh) return;
+  if (!skinned || !skeletonMesh) return;
 
   pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
 
-  const hits = raycaster.intersectObject(boneObject, false);
+  const hits = raycaster.intersectObject(skinned.mesh, false);
   const hit = hits[0];
   if (!hit || hit.face === undefined || hit.face === null) {
     selectedBoneId = null;
@@ -283,7 +295,7 @@ renderer.domElement.addEventListener('click', (event) => {
 
   // The merge into one draw call keeps per-bone identity as a vertex attribute, so a face index
   // still resolves to a bone id.
-  const attribute = boneObject.geometry.getAttribute('boneIndex');
+  const attribute = skinned.mesh.geometry.getAttribute('boneIndex');
   const index = attribute.getX(hit.face.a);
   selectedBoneId = skeletonMesh.bones[index]?.id ?? null;
   refreshSelection();
@@ -309,14 +321,16 @@ function refreshSelection(): void {
     return;
   }
 
-  // Highlight by rebuilding just this bone's slice of the merged buffer.
-  const highlight = buildSkeletonMesh(document_, resolveMorphology(currentMorphology()).context, {
-    quality: QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM,
-    include: new Set([bone.id]),
-  });
-  selectedObject = new Mesh(toSkeletonGeometry(highlight), selectedMaterial);
-  selectedObject.position.y = boneObject?.position.y ?? 0;
-  scene.add(selectedObject);
+  // Highlight by rebuilding just this bone's slice of the merged buffer. The highlight is a rest
+  // pose object, so it is not shown while the body is moving.
+  if (!simulation) {
+    const highlight = buildSkeletonMesh(document_, resolveMorphology(currentMorphology()).context, {
+      quality: QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM,
+      include: new Set([bone.id]),
+    });
+    selectedObject = new Mesh(toSkeletonGeometry(highlight), selectedMaterial);
+    scene.add(selectedObject);
+  }
 
   const parent = definition.parent
     ? (document_.bones.find((b) => b.id === definition.parent)?.displayName ?? definition.parent)
@@ -339,6 +353,89 @@ function refreshSelection(): void {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Simulation
+// ---------------------------------------------------------------------------------------------
+
+function setSimulationStatus(text: string, error = false): void {
+  const status = must<HTMLElement>('#sim-status');
+  status.textContent = text;
+  status.classList.toggle('error', error);
+}
+
+/** Surface every warning from the compiler and the backend (spec section 9.3). */
+function showReports(sim: Simulation): void {
+  const list = must<HTMLUListElement>('#sim-report');
+  list.innerHTML = '';
+  const notes = [
+    ...sim.compileReport.notes.map((n) => ({ ...n, from: 'compiler' })),
+    ...(sim.backendReport?.notes ?? []).map((n) => ({
+      ...n,
+      from: sim.backendReport?.backend ?? 'backend',
+    })),
+  ].filter((n) => n.severity !== 'info');
+  const info = [...sim.compileReport.notes, ...(sim.backendReport?.notes ?? [])].filter(
+    (n) => n.severity === 'info',
+  ).length;
+  must<HTMLElement>('#sim-report-summary').textContent =
+    `${notes.length} warning${notes.length === 1 ? '' : 's'}, ${info} note${info === 1 ? '' : 's'}`;
+  for (const note of notes) {
+    const item = window.document.createElement('li');
+    item.textContent = `[${note.from}] ${note.message}`;
+    list.appendChild(item);
+  }
+  if (sim.passive && sim.passive.defaulted.length > 0) {
+    const item = window.document.createElement('li');
+    item.textContent =
+      `[passive joints] ${sim.passive.defaulted.length} of ${sim.articulation.dofs.length} DoFs ` +
+      'run on the default curve derived from range and inertia (OQ-008).';
+    list.appendChild(item);
+  }
+}
+
+function stopSimulation(): void {
+  if (!simulation) return;
+  simulation.dispose();
+  simulation = null;
+  skinned?.rest();
+  ui.drop.disabled = false;
+  setSimulationStatus('At rest.');
+}
+
+async function startSimulation(): Promise<void> {
+  if (!skeletonMesh || !skinned) return;
+  stopSimulation();
+  ui.drop.disabled = true;
+  setSimulationStatus('Compiling…');
+  try {
+    const sim = new Simulation(document_, resolveMorphology(currentMorphology()), {
+      profileId: ui.profile.value,
+      passiveJoints: ui.passive.checked,
+      redistribute: ui.redistribute.checked,
+      dropHeight: Number(ui.dropHeight.value),
+      groundHeight: groundY,
+    });
+    await sim.start();
+    simulation = sim;
+    showReports(sim);
+    refreshSelection();
+    setSimulationStatus('Running.');
+  } catch (error) {
+    console.error('The simulation failed to start.', error);
+    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+    ui.drop.disabled = false;
+  }
+}
+
+ui.drop.addEventListener('click', () => {
+  void startSimulation();
+});
+ui.reset.addEventListener('click', stopSimulation);
+ui.dropHeight.addEventListener('input', () => {
+  must<HTMLOutputElement>('#dropHeight-value').textContent =
+    `${Number(ui.dropHeight.value).toFixed(2)} m`;
+});
+
+// ---------------------------------------------------------------------------------------------
 // Frame loop
 // ---------------------------------------------------------------------------------------------
 
@@ -356,6 +453,19 @@ function animate(): void {
 
   if (ui.spin.checked) controls.orbit(0.0032);
   controls.update();
+
+  if (simulation && skinned) {
+    const plan = simulation.advance(Math.min(elapsed, 250) / 1000);
+    const transforms = simulation.boneTransforms();
+    skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
+    const seconds = (simulation.ticks * simulation.dt).toFixed(2);
+    setSimulationStatus(
+      plan.clamped
+        ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
+        : `Running, ${seconds} s simulated.`,
+      plan.clamped,
+    );
+  }
 
   renderer.render(scene, camera);
 

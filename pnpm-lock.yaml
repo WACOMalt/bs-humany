@@ -32,6 +32,12 @@ importers:
       '@bs-humany/assets-anatomical':
         specifier: workspace:*
         version: link:../../packages/assets-anatomical
+      '@bs-humany/backend-rapier':
+        specifier: workspace:*
+        version: link:../../packages/backend-rapier
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
       '@bs-humany/frames':
         specifier: workspace:*
         version: link:../../packages/frames
@@ -41,6 +47,9 @@ importers:
       '@bs-humany/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@bs-humany/modules-mechanics':
+        specifier: workspace:*
+        version: link:../../packages/modules-mechanics
       '@bs-humany/render-three':
         specifier: workspace:*
         version: link:../../packages/render-three

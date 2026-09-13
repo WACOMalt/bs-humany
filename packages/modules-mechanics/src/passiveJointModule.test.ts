@@ -19,7 +19,7 @@ describe('the default passive curve', () => {
   );
   if (!hipFlexion) throw new Error('no hip flexion');
   const inertia = dofAxisInertia(articulation, hipFlexion);
-  const curve = defaultPassiveCurve(hipFlexion, inertia);
+  const curve = defaultPassiveCurve(inertia);
 
   it('is nearly silent mid-range and resists toward both limits', () => {
     const [lo, hi] = hipFlexion.range;
@@ -33,7 +33,7 @@ describe('the default passive curve', () => {
   });
 
   it('scales with the inertia it is built for and carries a provisional citation', () => {
-    const heavier = defaultPassiveCurve(hipFlexion, inertia * 2);
+    const heavier = defaultPassiveCurve(inertia * 2);
     expect(heavier.upperGain / curve.upperGain).toBeCloseTo(2, 9);
     expect(curve.source.key).toBe('riener1999');
     expect(curve.source.provisional?.openQuestion).toBe('OQ-008');

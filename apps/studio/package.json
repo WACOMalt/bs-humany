@@ -18,7 +18,10 @@
     "@bs-humany/render-three": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
     "three": "^0.186.0",
-    "@bs-humany/assets-anatomical": "workspace:*"
+    "@bs-humany/assets-anatomical": "workspace:*",
+    "@bs-humany/compiler": "workspace:*",
+    "@bs-humany/modules-mechanics": "workspace:*",
+    "@bs-humany/backend-rapier": "workspace:*"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",
