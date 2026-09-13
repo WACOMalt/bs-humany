@@ -22,6 +22,7 @@ import { mul, param } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
 import { buildFrameDefs, buildVirtualLandmarks } from './frames.js';
 import { BONE_SHAPES, FALLBACK_BONES, fallbackShape } from './geometry/shapes.js';
+import { buildJoints } from './joints.js';
 import { buildLandmarks } from './landmarks.js';
 import { SEGMENTATION_PROFILES } from './segmentation.js';
 import { BONES } from './taxonomy.js';
@@ -109,6 +110,14 @@ export function unmodelledBones(): string[] {
  * ordinary starting point rather than either endpoint, so nothing about the default implies a norm.
  */
 export function buildDocument(options: BuildOptions = {}): HsdlDocument {
+  const bones = buildBones(options);
+  const landmarks = [
+    ...buildLandmarks(),
+    ...(options.placement === 'procedural' ? [] : buildVirtualLandmarks()),
+  ];
+  // Joints are located from landmarks and oriented by ISB frames, neither of which the procedural
+  // layout carries, so that layout stays a bare, unjointed skeleton.
+  const joints = options.placement === 'procedural' ? [] : buildJoints({ bones, landmarks });
   const document: HsdlDocument = {
     hsdlVersion: HSDL_VERSION,
     id: 'bs-humany.reference-skeleton',
@@ -125,17 +134,27 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
         cite('winter2009', 'Reproduction of the Drillis and Contini proportion table'),
         cite('wu2002', 'ISB joint coordinate systems: ankle, hip, spine'),
         cite('wu2005', 'ISB joint coordinate systems: shoulder, elbow, wrist, hand'),
+        cite(
+          'caggiano2022',
+          'Joint ranges of motion from the MyoSuite leg, arm, torso and head models',
+        ),
+        cite(
+          'kervyn2021',
+          'Bone geometry, placement and landmarks from the Z-Anatomy skeletal system',
+        ),
       ],
     },
     units: { length: 'm', mass: 'kg', angle: 'rad', time: 's', force: 'N' },
 
-    bones: buildBones(options),
-    landmarks: [
-      ...buildLandmarks(),
-      ...(options.placement === 'procedural' ? [] : buildVirtualLandmarks()),
-    ],
-    joints: [],
-    segmentation: [...SEGMENTATION_PROFILES],
+    bones,
+    landmarks,
+    joints,
+    // The procedural layout has no joints to activate, so its profiles carry no joint lists.
+    segmentation: SEGMENTATION_PROFILES.map((profile) => {
+      if (options.placement !== 'procedural') return profile;
+      const { joints: _joints, ...rest } = profile;
+      return rest;
+    }),
     collisionProxies: [],
     contactRules: {
       classes: {
@@ -197,8 +216,12 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
 export function modelLimitations(): string[] {
   const unmodelled = unmodelledBones();
   const limitations = [
-    'Joint definitions are not yet present. This document carries anatomy and geometry only, so ' +
-      'the skeleton is posable but not yet simulable.',
+    'Joint ranges are fixed values from the MyoSuite reference models. Several are ' +
+      'posture-dependent in reality (hip flexion with knee angle, glenohumeral range with scapular ' +
+      'position); each joint records its own simplifications.',
+    'The L1 spine moves at two lumbar and two neck region joints, each carrying half of a lumped ' +
+      'source range. Per-level lumbar joints exist for L2; two of the six levels are provisional ' +
+      '(OQ-007). No cervical lateral bending is defined yet.',
     'Bone placement comes from the Z-Anatomy dataset (one male subject, 1.70 m) scaled uniformly ' +
       'by stature. Pelvic and shoulder breadth, and the sex blend, do not yet move the measured ' +
       'bones; that needs the landmark-derived joint frames of M1.2/M1.3.',

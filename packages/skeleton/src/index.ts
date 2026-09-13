@@ -12,6 +12,7 @@ export * from './dataset.js';
 export * from './document.js';
 export * from './landmarks.js';
 export * from './frames.js';
+export * from './joints.js';
 export * from './pose.js';
 export * from './geometry/layout.js';
 export * from './geometry/shapes.js';

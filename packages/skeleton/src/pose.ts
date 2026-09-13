@@ -11,7 +11,7 @@ import type { BoneDef, ExprContext, HsdlDocument } from '@bs-humany/hsdl';
 import { evaluate } from '@bs-humany/hsdl';
 
 export function computeWorldTransforms(
-  document: HsdlDocument,
+  document: Pick<HsdlDocument, 'bones'>,
   context: ExprContext,
 ): Map<string, Transform> {
   const byId = new Map(document.bones.map((b) => [b.id, b]));

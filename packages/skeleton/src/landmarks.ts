@@ -409,6 +409,13 @@ export function buildLandmarks(): LandmarkDef[] {
   return out;
 }
 
+/** World position of a raw dataset marker at the dataset stature, or throw naming the gap. */
+export function markerWorld(bone: string, feature: string): readonly [number, number, number] {
+  const p = RAW[bone]?.[feature];
+  if (!p) throw new Error(`The dataset has no marker '${feature}' on '${bone}'.`);
+  return p;
+}
+
 /** Look up an ISB landmark's world position at the dataset stature, or throw naming the gap. */
 export function isbLandmarkWorld(
   bone: string,

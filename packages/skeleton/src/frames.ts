@@ -46,6 +46,7 @@ import {
   moduleNamespace,
   mul,
   param,
+  provisional,
   writeExtension,
 } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
@@ -108,6 +109,30 @@ export const VIRTUAL_LANDMARKS: readonly VirtualLandmark[] = [
     a: [`humerus_${s}`, 'EL'],
     b: [`humerus_${s}`, 'EM'],
     source: wu2005('2.3.4, Yh1: midpoint of EL and EM'),
+  })),
+  ...bothSides((s) => ({
+    id: `radius_${s}__mid_rs_us`,
+    bone: `radius_${s}`,
+    displayName: `Midpoint of the styloid processes, ${s === 'r' ? 'right' : 'left'}`,
+    a: [`radius_${s}`, 'RS'],
+    b: [`ulna_${s}`, 'US'],
+    source: provisional(
+      'wu2005',
+      'OQ-005',
+      'Wrist centre taken as the midpoint of RS and US until the hand sections are verified.',
+      '3.3, wrist',
+    ),
+  })),
+  ...bothSides((s) => ({
+    id: `metatarsal_1_${s}__mid_mt_heads`,
+    bone: `metatarsal_1_${s}`,
+    displayName: `Midpoint of the first and fifth metatarsal heads, ${s === 'r' ? 'right' : 'left'}`,
+    a: [`metatarsal_1_${s}`, 'MT1'],
+    b: [`metatarsal_5_${s}`, 'MT5'],
+    source: cite(
+      'caggiano2022',
+      'myo_sim/models/leg/assets/myolegs_chain.xml, body toes: origin at the metatarsal heads',
+    ),
   })),
   {
     id: 'sternum__mid_px_t8',
@@ -503,7 +528,7 @@ export function buildFrameDefs(): Map<string, FrameDef> {
  * pair rather than returning a silently wrong roll.
  */
 export function computeBoneFrames(
-  document: HsdlDocument,
+  document: Pick<HsdlDocument, 'bones' | 'landmarks'>,
   context: ExprContext,
 ): Map<string, Transform> {
   const world = computeWorldTransforms(document, context);

@@ -18,7 +18,7 @@
 import { z } from 'zod';
 import { CitationSchema } from './citation.js';
 import { ExtensionsSchema } from './extensions.js';
-import { AngleSchema, IdSchema, TransformSchema, Vec3Schema } from './primitives.js';
+import { AngleSchema, IdSchema, TransformExprSchema, Vec3Schema } from './primitives.js';
 
 /**
  * Passive resistance through the range of motion.
@@ -141,10 +141,16 @@ export const JointDefSchema = z
      * sanity checks, such as warning when a joint labelled `revolute` carries three DoFs.
      */
     type: JointTypeSchema,
-    /** Joint coordinate system, expressed in the parent bone's local frame. */
-    frame: TransformSchema,
+    /**
+     * Joint coordinate system, expressed in the parent bone's local frame.
+     *
+     * The translation is expression-valued, like a bone's rest transform: a joint centre pinned to
+     * fixed metres would detach from the bones it connects as soon as stature changed (spec 6.4
+     * step 3). The rotation is a plain quaternion -- a joint axis's orientation does not scale.
+     */
+    frame: TransformExprSchema,
     /** Child-side frame, where it differs. Defaults to coincident with `frame` at neutral. */
-    childFrame: TransformSchema.optional(),
+    childFrame: TransformExprSchema.optional(),
     /**
      * Ordered. **Order is semantically significant** -- it is the rotation sequence, and it fixes
      * each DoF's index in the actuation channel.

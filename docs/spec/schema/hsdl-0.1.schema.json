@@ -187,7 +187,7 @@
             "$ref": "#/$defs/Citation"
           },
           "ext": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema10"
           }
         },
         "required": ["id", "bone", "displayName", "transform", "shape"],
@@ -195,7 +195,7 @@
       }
     },
     "ext": {
-      "$ref": "#/$defs/__schema13"
+      "$ref": "#/$defs/__schema10"
     }
   },
   "required": [
@@ -333,7 +333,7 @@
           "additionalProperties": false
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": [
@@ -918,7 +918,7 @@
           "$ref": "#/$defs/GeometryRecipe"
         },
         "transform": {
-          "$ref": "#/$defs/Transform"
+          "$ref": "#/$defs/TransformExpr"
         },
         "name": {
           "type": "string",
@@ -928,45 +928,7 @@
       "required": ["recipe"],
       "additionalProperties": false
     },
-    "Transform": {
-      "type": "object",
-      "properties": {
-        "translation": {
-          "$ref": "#/$defs/Vec3"
-        },
-        "rotation": {
-          "$ref": "#/$defs/Quat"
-        }
-      },
-      "required": ["translation", "rotation"],
-      "additionalProperties": false
-    },
-    "Vec3": {
-      "type": "object",
-      "properties": {
-        "x": {
-          "$ref": "#/$defs/__schema10"
-        },
-        "y": {
-          "$ref": "#/$defs/__schema11"
-        },
-        "z": {
-          "$ref": "#/$defs/__schema12"
-        }
-      },
-      "required": ["x", "y", "z"],
-      "additionalProperties": false
-    },
     "__schema10": {
-      "type": "number"
-    },
-    "__schema11": {
-      "type": "number"
-    },
-    "__schema12": {
-      "type": "number"
-    },
-    "__schema13": {
       "type": "object",
       "propertyNames": {
         "type": "string",
@@ -1014,7 +976,7 @@
           "type": "boolean"
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["id", "bone", "displayName", "position", "source"],
@@ -1027,7 +989,7 @@
           "$ref": "#/$defs/Id"
         },
         "displayName": {
-          "$ref": "#/$defs/__schema14"
+          "$ref": "#/$defs/__schema11"
         },
         "parentBone": {
           "$ref": "#/$defs/Id"
@@ -1036,16 +998,16 @@
           "$ref": "#/$defs/Id"
         },
         "type": {
-          "$ref": "#/$defs/__schema15"
+          "$ref": "#/$defs/__schema12"
         },
         "frame": {
-          "$ref": "#/$defs/Transform"
+          "$ref": "#/$defs/TransformExpr"
         },
         "childFrame": {
-          "$ref": "#/$defs/__schema16"
+          "$ref": "#/$defs/__schema13"
         },
         "dofs": {
-          "$ref": "#/$defs/__schema17"
+          "$ref": "#/$defs/__schema14"
         },
         "reportingOrder": {
           "$ref": "#/$defs/__schema27"
@@ -1054,24 +1016,24 @@
           "$ref": "#/$defs/__schema28"
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["id", "displayName", "parentBone", "childBone", "type", "frame", "dofs"],
       "additionalProperties": false
     },
-    "__schema14": {
+    "__schema11": {
       "type": "string",
       "minLength": 1
     },
-    "__schema15": {
+    "__schema12": {
       "type": "string",
       "enum": ["spherical", "revolute", "universal", "saddle", "free", "fixed", "custom"]
     },
-    "__schema16": {
-      "$ref": "#/$defs/Transform"
+    "__schema13": {
+      "$ref": "#/$defs/TransformExpr"
     },
-    "__schema17": {
+    "__schema14": {
       "minItems": 0,
       "maxItems": 6,
       "type": "array",
@@ -1083,13 +1045,13 @@
       "type": "object",
       "properties": {
         "axis": {
-          "$ref": "#/$defs/__schema18"
+          "$ref": "#/$defs/__schema15"
         },
         "kind": {
-          "$ref": "#/$defs/__schema19"
+          "$ref": "#/$defs/__schema16"
         },
         "vector": {
-          "$ref": "#/$defs/__schema20"
+          "$ref": "#/$defs/__schema17"
         },
         "range": {
           "$ref": "#/$defs/__schema21"
@@ -1113,22 +1075,47 @@
           "$ref": "#/$defs/Citation"
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["axis", "kind", "vector", "range", "neutral", "romSource"],
       "additionalProperties": false
     },
-    "__schema18": {
+    "__schema15": {
       "type": "string",
       "minLength": 1
     },
-    "__schema19": {
+    "__schema16": {
       "type": "string",
       "enum": ["hinge", "slide"]
     },
-    "__schema20": {
+    "__schema17": {
       "$ref": "#/$defs/Vec3"
+    },
+    "__schema18": {
+      "type": "number"
+    },
+    "__schema19": {
+      "type": "number"
+    },
+    "__schema20": {
+      "type": "number"
+    },
+    "Vec3": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/__schema18"
+        },
+        "y": {
+          "$ref": "#/$defs/__schema19"
+        },
+        "z": {
+          "$ref": "#/$defs/__schema20"
+        }
+      },
+      "required": ["x", "y", "z"],
+      "additionalProperties": false
     },
     "__schema21": {
       "type": "array",
@@ -1269,7 +1256,7 @@
           }
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["id", "displayName", "description", "segments", "limitations"],
@@ -1294,7 +1281,7 @@
           "$ref": "#/$defs/__schema31"
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["id", "displayName", "anchor", "bones"],
@@ -1421,10 +1408,23 @@
           "maximum": 9007199254740991
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["id", "transform", "shape"],
+      "additionalProperties": false
+    },
+    "Transform": {
+      "type": "object",
+      "properties": {
+        "translation": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "rotation": {
+          "$ref": "#/$defs/Quat"
+        }
+      },
+      "required": ["translation", "rotation"],
       "additionalProperties": false
     },
     "ContactRuleDef": {
@@ -1507,7 +1507,7 @@
           "minLength": 1
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "additionalProperties": false
@@ -1574,7 +1574,7 @@
           "$ref": "#/$defs/Citation"
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["id", "kind"],
@@ -1624,7 +1624,7 @@
           "$ref": "#/$defs/__schema37"
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["default", "statureRange", "massRange", "populations"],
@@ -1784,7 +1784,7 @@
           "$ref": "#/$defs/Citation"
         },
         "ext": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["id", "bone", "kind", "displayName", "position", "source"],

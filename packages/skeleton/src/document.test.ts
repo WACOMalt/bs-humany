@@ -54,7 +54,7 @@ describe('the assembled document', () => {
 
   it('lists its own limitations, including the fallback-shaped bones', () => {
     const limitations = modelLimitations().join(' ');
-    expect(limitations).toMatch(/Joint definitions are not yet present/);
+    expect(limitations).toMatch(/Joint ranges are fixed values/);
     expect(limitations).toMatch(/Z-Anatomy dataset/);
     expect(limitations).toMatch(/OQ-00/);
     if (unmodelledBones().length > 0) {

@@ -9,6 +9,7 @@
  */
 
 import type { SegmentationDef } from '@bs-humany/hsdl';
+import { L0_JOINTS, L1_JOINTS, L2_JOINTS } from './joints.js';
 import { BONES } from './taxonomy.js';
 
 const idsIn = (predicate: (id: string) => boolean): string[] =>
@@ -28,9 +29,6 @@ const SKULL = byRegion('skull');
 
 const HAND = byRegion('hand');
 const FOOT = byRegion('foot');
-
-const HINDFOOT_PREFIXES = ['talus', 'calcaneus', 'navicular', 'cuboid', 'cuneiform'];
-const isHindfoot = (id: string) => HINDFOOT_PREFIXES.some((p) => id.startsWith(p));
 
 /**
  * `L0-ragdoll`: 15 segments.
@@ -53,8 +51,11 @@ export const L0_RAGDOLL: SegmentationDef = {
       'the vertebrae comes from kinematic redistribution after the solve, not from the solver.',
     'The shoulder girdle does not articulate: clavicle and scapula are welded to the trunk.',
     'Hands and feet are single rigid bodies. Individual digits do not move.',
+    'The pelvis-trunk joint carries half of the lumped lumbar range, since the upper lumbar ' +
+      'region joint falls inside the trunk segment.',
     'Not suitable for any measurement run.',
   ],
+  joints: [...L0_JOINTS],
   segments: [
     {
       id: 'pelvis',
@@ -128,14 +129,14 @@ export const L0_RAGDOLL: SegmentationDef = {
  * `L1-standard`: 23 segments.
  *
  * The desktop default. Lumbar and thoracic spine separate, the neck articulates, the shoulder
- * girdle gets its own body, and the foot splits at the midtarsal joint.
+ * girdle gets its own body, and the toes articulate at the metatarsophalangeal joints.
  */
 export const L1_STANDARD: SegmentationDef = {
   id: 'l1_standard',
   displayName: 'L1 — Standard',
   description:
     'Twenty-three rigid bodies. The spine articulates in three regions, the shoulder girdle moves, ' +
-    'and the foot splits at the midtarsal joint. Targets 60 fps on desktop.',
+    'and the toes articulate at the metatarsophalangeal joints. Targets 60 fps on desktop.',
   defaultBackend: 'rapier',
   solver: { rate: 500, iterations: 12, equalityConstraints: false, selfCollision: 'coarse' },
   limitations: [
@@ -145,7 +146,9 @@ export const L1_STANDARD: SegmentationDef = {
       'approximated by the acromioclavicular joint.',
     'Hands do not articulate. Individual digits are rigid with the hand.',
     'Knee translation is not modelled; the knee is flexion only.',
+    'The foot is rigid from the ankle to the metatarsal heads; the midtarsal joint does not move.',
   ],
+  joints: [...L1_JOINTS],
   segments: [
     {
       id: 'pelvis',
@@ -205,17 +208,19 @@ export const L1_STANDARD: SegmentationDef = {
         anchor: `tibia_${s}`,
         bones: [`tibia_${s}`, `fibula_${s}`],
       },
+      // Foot and toes, split at the metatarsophalangeal joints: the articulation a ragdoll needs
+      // for the foot to fold on landing, and the one the MyoSuite leg models carry (mtp_angle).
       {
-        id: `hindfoot_${s}`,
-        displayName: `${label(s)} hindfoot`,
+        id: `foot_${s}`,
+        displayName: `${label(s)} foot`,
         anchor: `talus_${s}`,
-        bones: sided(FOOT, s).filter(isHindfoot),
+        bones: sided(FOOT, s).filter((id) => !id.startsWith('phalanx_pedis_')),
       },
       {
-        id: `forefoot_${s}`,
-        displayName: `${label(s)} forefoot`,
-        anchor: `metatarsal_2_${s}`,
-        bones: sided(FOOT, s).filter((id) => !isHindfoot(id)),
+        id: `toes_${s}`,
+        displayName: `${label(s)} toes`,
+        anchor: `phalanx_pedis_proximal_1_${s}`,
+        bones: sided(FOOT, s).filter((id) => id.startsWith('phalanx_pedis_')),
       },
     ]),
   ],
@@ -244,7 +249,11 @@ export const L2_BIOMECHANICAL: SegmentationDef = {
     'Carpals and metacarpals are one body per hand; fingers articulate at the metacarpophalangeal ' +
       'joint only, as one segment each.',
     'Toes are one segment per foot.',
+    'Joint definitions are incomplete for this profile: the acromioclavicular, atlanto-axial, ' +
+      'C2/C3, patellofemoral, midtarsal, tarsometatarsal and finger joints are not yet defined, so ' +
+      'those segments are not connected. The cervical spine uses the L1 region joints.',
   ],
+  joints: [...L2_JOINTS],
   segments: [
     {
       id: 'pelvis',

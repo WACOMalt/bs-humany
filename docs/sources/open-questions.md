@@ -103,3 +103,16 @@ literature that follows the literal ISB wording.
 **Closes when:** the project owner confirms the policy, or joint-angle comparison against
 published left-side data shows a sign discrepancy that requires the literal convention.
 **Status:** open
+
+### OQ-007 — Per-level ranges for L5/S1 and T12/L1
+**Needed for:** `packages/skeleton/src/joints.ts`, joints `l5_s1` and `t12_l1` (L2 profile)
+**Provisional value:** the mean of the four per-level lumbar ranges the MyoSuite torso model
+carries (L1/L2 through L4/L5), for each of flexion, lateral bending and axial rotation. The source
+has no joint of its own at either level: its lumped pelvis-to-thorax joint covers them, and the
+per-level sum of lateral bending already exceeds that lumped value, so no remainder can be
+assigned. The mean keeps the two levels in the same family as their neighbours without inventing a
+gradient.
+**Closes when:** a per-level source for L5/S1 and T12/L1 is cited (White & Panjabi's segmental
+tables are the usual one; the licence question for transcribing them is open), or the torso model
+gains those levels.
+**Status:** open
