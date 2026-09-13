@@ -13,10 +13,13 @@ import {
   type CompiledArticulation,
   compileArticulation,
 } from '@bs-humany/compiler';
+import type { Vec3 } from '@bs-humany/frames';
 import type { HsdlDocument } from '@bs-humany/hsdl';
 import { type FrameStepPlan, Kernel, accumulateFrame } from '@bs-humany/kernel';
 import {
   BODY_BONE_TRANSFORMS,
+  BODY_POSE,
+  GrabModule,
   PassiveJointModule,
   PhysicsModule,
   SkeletonPoseModule,
@@ -64,6 +67,7 @@ export class Simulation {
   readonly physics: PhysicsModule;
   readonly pose: SkeletonPoseModule;
   readonly passive: PassiveJointModule | undefined;
+  readonly grab: GrabModule;
   readonly dt: number;
   private accumulator = 0;
   private started = false;
@@ -87,8 +91,10 @@ export class Simulation {
     this.pose = new SkeletonPoseModule(document.bones, this.articulation, {
       redistribute: options.redistribute,
     });
+    this.grab = new GrabModule(this.physics.backend, this.articulation);
     this.kernel.register(this.physics);
     this.kernel.register(this.pose);
+    this.kernel.register(this.grab);
     if (options.passiveJoints) {
       this.passive = new PassiveJointModule(this.articulation);
       this.kernel.register(this.passive);
@@ -126,6 +132,31 @@ export class Simulation {
 
   boneOrder(): readonly string[] {
     return this.pose.plan.bones;
+  }
+
+  /** Segment index owning a bone, or -1. */
+  segmentOfBone(boneId: string): number {
+    const b = this.pose.plan.bones.indexOf(boneId);
+    return b < 0 ? -1 : (this.pose.plan.segmentOf[b] ?? -1);
+  }
+
+  /** Current world pose of a segment, from `body.pose`. */
+  segmentPose(index: number): {
+    position: Vec3;
+    rotation: { x: number; y: number; z: number; w: number };
+  } {
+    const storage = this.kernel.channels.storage(BODY_POSE);
+    const p = storage.fields.position as Float64Array;
+    const o = storage.fields.orientation as Float64Array;
+    return {
+      position: { x: p[3 * index] ?? 0, y: p[3 * index + 1] ?? 0, z: p[3 * index + 2] ?? 0 },
+      rotation: {
+        x: o[4 * index] ?? 0,
+        y: o[4 * index + 1] ?? 0,
+        z: o[4 * index + 2] ?? 0,
+        w: o[4 * index + 3] ?? 1,
+      },
+    };
   }
 
   dispose(): void {

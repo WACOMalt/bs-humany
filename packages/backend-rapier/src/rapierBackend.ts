@@ -61,8 +61,15 @@ import {
 
 /** Natural frequency of the emulated range stop, Hz. Stiff enough to hold, soft enough to solve. */
 export const LIMIT_STOP_FREQUENCY_HZ = 30;
-/** Natural frequency of the grab spring, Hz. */
-const GRAB_FREQUENCY_HZ = 4;
+/**
+ * A grab is a spring that can pull with at most `GRAB_FORCE_FRACTION` of the body's weight when
+ * stretched by `GRAB_LEASH` metres. The GrabModule keeps the target within the leash, so that is
+ * the largest force a grab ever applies -- enough to drag the whole body about, not enough to
+ * tear an impulse joint apart.
+ */
+export const GRAB_LEASH = 0.3;
+export const GRAB_FORCE_FRACTION = 0.8;
+const STANDARD_GRAVITY_MAGNITUDE = 9.80665;
 const DEFAULT_ITERATIONS = 4;
 
 const CAPABILITIES: BackendCapabilities = {
@@ -764,12 +771,10 @@ export class RapierBackend implements IPhysicsBackend {
         worldTarget.z,
       ),
     );
-    // Sized to move a quarter of the body, not just the grabbed segment: a hand pulled up
-    // brings the arm and shoulder with it.
-    const mass = Math.max(body.mass(), (this.model?.totalMass ?? 0) / 4);
-    const omega = 2 * Math.PI * GRAB_FREQUENCY_HZ;
-    const stiffness = mass * omega * omega;
-    const damping = 2 * Math.sqrt(stiffness * mass);
+    const total = this.model?.totalMass ?? body.mass();
+    const stiffness = (GRAB_FORCE_FRACTION * total * STANDARD_GRAVITY_MAGNITUDE) / GRAB_LEASH;
+    // Critically damped for an eighth of the body, which is about what a limb chain weighs.
+    const damping = 2 * Math.sqrt(stiffness * Math.max(body.mass(), total / 8));
     const joint = world.createImpulseJoint(
       RAPIER.JointData.spring(0, stiffness, damping, localPoint, vec3(0, 0, 0)),
       body,

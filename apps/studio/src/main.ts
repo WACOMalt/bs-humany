@@ -39,6 +39,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
+  Quaternion,
   Raycaster,
   Scene,
   Vector2,
@@ -97,7 +98,9 @@ const camera = new PerspectiveCamera(38, window.innerWidth / window.innerHeight,
  */
 camera.position.set(1.5, 1.1, -2.6);
 
-const controls = createOrbitControls(camera, renderer.domElement, new Vector3(0, 0.9, 0));
+const controls = createOrbitControls(camera, renderer.domElement, new Vector3(0, 0.9, 0), {
+  claimPointer: (event) => beginGrab(event),
+});
 
 scene.add(new HemisphereLight(0xb8c6e0, 0x2a2118, 0.55));
 scene.add(new AmbientLight(0xffffff, 0.18));
@@ -394,6 +397,7 @@ function showReports(sim: Simulation): void {
 
 function stopSimulation(): void {
   if (!simulation) return;
+  grabState = null;
   simulation.dispose();
   simulation = null;
   skinned?.rest();
@@ -434,6 +438,80 @@ ui.dropHeight.addEventListener('input', () => {
   must<HTMLOutputElement>('#dropHeight-value').textContent =
     `${Number(ui.dropHeight.value).toFixed(2)} m`;
 });
+
+// ---------------------------------------------------------------------------------------------
+// Grabbing
+// ---------------------------------------------------------------------------------------------
+
+let grabState: { pointerId: number; depth: number } | null = null;
+
+/** Pick a bone under the pointer; returns the hit point and bone id, or null. */
+function pickBone(clientX: number, clientY: number): { boneId: string; point: Vector3 } | null {
+  if (!skinned || !skeletonMesh) return null;
+  pointer.x = (clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObject(skinned.mesh, false)[0];
+  if (!hit || hit.face === undefined || hit.face === null) return null;
+  const index = skinned.mesh.geometry.getAttribute('boneIndex').getX(hit.face.a);
+  const boneId = skeletonMesh.bones[index]?.id;
+  return boneId ? { boneId, point: hit.point } : null;
+}
+
+/** Start holding the segment under the pointer while the body is simulating. */
+function beginGrab(event: PointerEvent): boolean {
+  if (!simulation) return false;
+  const picked = pickBone(event.clientX, event.clientY);
+  if (!picked) return false;
+  const segment = simulation.segmentOfBone(picked.boneId);
+  if (segment < 0) return false;
+  const pose = simulation.segmentPose(segment);
+  // Hit point in the segment's own frame: rotate the offset back by the inverse orientation.
+  const offset = new Vector3().copy(picked.point).sub(pose.position as Vector3);
+  const inverse = new Quaternion(
+    pose.rotation.x,
+    pose.rotation.y,
+    pose.rotation.z,
+    pose.rotation.w,
+  ).invert();
+  offset.applyQuaternion(inverse);
+  simulation.grab.grab(
+    segment,
+    { x: offset.x, y: offset.y, z: offset.z },
+    {
+      x: picked.point.x,
+      y: picked.point.y,
+      z: picked.point.z,
+    },
+  );
+  grabState = { pointerId: event.pointerId, depth: picked.point.distanceTo(camera.position) };
+  try {
+    renderer.domElement.setPointerCapture(event.pointerId);
+  } catch {
+    // A synthetic pointer has no capture; the drag still works while it stays over the canvas.
+  }
+  selectedBoneId = picked.boneId;
+  refreshSelection();
+  return true;
+}
+
+renderer.domElement.addEventListener('pointermove', (event) => {
+  if (!grabState || !simulation || event.pointerId !== grabState.pointerId) return;
+  // Keep the target at the depth the grab started at, on the ray under the pointer.
+  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const target = raycaster.ray.at(grabState.depth, new Vector3());
+  simulation.grab.moveTo({ x: target.x, y: target.y, z: target.z });
+});
+
+const endGrab = (event: PointerEvent) => {
+  if (!grabState || event.pointerId !== grabState.pointerId) return;
+  simulation?.grab.release();
+  grabState = null;
+};
+renderer.domElement.addEventListener('pointerup', endGrab);
+renderer.domElement.addEventListener('pointercancel', endGrab);
 
 // ---------------------------------------------------------------------------------------------
 // Frame loop
@@ -493,6 +571,17 @@ for (const limitation of modelLimitations()) {
 }
 
 animate();
+
+// A handle for scripted checks of the running page; never used by the page itself.
+Object.assign(window, {
+  __studio: {
+    simulation: () => simulation,
+    pick: (x: number, y: number) => pickBone(x, y)?.boneId,
+    skinned: () => skinned,
+    camera,
+    raycaster,
+  },
+});
 
 loadAssets()
   .then((loaded) => {

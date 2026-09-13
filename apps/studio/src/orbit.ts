@@ -37,10 +37,19 @@ const MAX_POLAR = Math.PI - 0.08;
 const MIN_DISTANCE = 0.35;
 const MAX_DISTANCE = 12;
 
+export interface OrbitOptions {
+  /**
+   * Called on every primary pointer press before the orbit claims it. Return true to take the
+   * pointer for something else -- grabbing a bone -- and the orbit leaves it alone.
+   */
+  readonly claimPointer?: (event: PointerEvent) => boolean;
+}
+
 export function createOrbitControls(
   camera: PerspectiveCamera,
   element: HTMLElement,
   target: Vector3,
+  options: OrbitOptions = {},
 ): OrbitControls {
   const spherical = new Spherical();
   const offset = new Vector3().copy(camera.position).sub(target);
@@ -62,6 +71,7 @@ export function createOrbitControls(
   element.style.touchAction = 'none';
 
   element.addEventListener('pointerdown', (event) => {
+    if (event.button === 0 && !event.shiftKey && options.claimPointer?.(event)) return;
     element.setPointerCapture(event.pointerId);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 

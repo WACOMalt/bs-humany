@@ -18,6 +18,7 @@ import {
   Quaternion,
   Skeleton,
   SkinnedMesh,
+  Sphere,
   Uint16BufferAttribute,
   Vector3,
 } from 'three';
@@ -70,6 +71,10 @@ export function createSkinnedSkeleton(
   const three = new Skeleton(bones, inverses);
   mesh.bind(three, new Matrix4());
   mesh.frustumCulled = false;
+  // Raycasting rejects against the geometry's rest-pose bounding sphere before it ever looks at
+  // a skinned vertex, so a body that has fallen over would be unpickable. A sphere that covers
+  // anywhere the body can plausibly be keeps picking honest at the cost of the early-out.
+  geometry.boundingSphere = new Sphere(new Vector3(0, 1, 0), 25);
 
   const rests = bones.map((b) => b.matrixWorld.clone());
   return {
