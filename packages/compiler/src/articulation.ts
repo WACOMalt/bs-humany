@@ -42,7 +42,11 @@ export interface CompiledSegment {
 }
 
 export interface CompiledDof {
-  /** Global DoF index: position in q for a hinge/slide, contiguous across joints. */
+  /**
+   * Global DoF index among the hinge and slide DoFs, contiguous across joints in joint order.
+   * The root's free joint comes first in the state vectors, so this DoF's slot in `q` is
+   * `ROOT_NQ + index` and its slot in `qdot` and `force` is `ROOT_NV + index`.
+   */
   readonly index: number;
   readonly joint: number;
   readonly axisName: string;
@@ -132,6 +136,11 @@ export interface CompiledArticulation {
   readonly gravity: Vec3;
   readonly totalMass: number;
 }
+
+/** Generalized positions used by the root's free joint: translation plus a unit quaternion. */
+export const ROOT_NQ = 7;
+/** Generalized velocities used by the root's free joint. */
+export const ROOT_NV = 6;
 
 /** Identity orientation, for readability at call sites. */
 export const IDENTITY_QUAT: Quat = { x: 0, y: 0, z: 0, w: 1 };
