@@ -21,9 +21,8 @@ const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropomet
 const { compileArticulation } = await jiti.import(join(ROOT, 'packages/compiler/src/index.ts'));
 const { buildDocument } = await jiti.import(join(ROOT, 'packages/skeleton/src/index.ts'));
 const { Kernel } = await jiti.import(join(ROOT, 'packages/kernel/src/index.ts'));
-const { PhysicsModule, PassiveJointModule, SkeletonPoseModule, MetricsModule } = await jiti.import(
-  join(ROOT, 'packages/modules-mechanics/src/index.ts'),
-);
+const { PhysicsModule, PassiveJointModule, SkeletonPoseModule, MetricsModule, CouplingModule } =
+  await jiti.import(join(ROOT, 'packages/modules-mechanics/src/index.ts'));
 const { RapierBackend } = await jiti.import(join(ROOT, 'packages/backend-rapier/src/index.ts'));
 const { MujocoBackend } = await jiti.import(join(ROOT, 'packages/backend-mujoco/src/index.ts'));
 
@@ -56,6 +55,7 @@ for (const profileId of PROFILES) {
       kernel.register(new PassiveJointModule(lifted));
       kernel.register(new SkeletonPoseModule(document.bones, lifted));
       kernel.register(new MetricsModule(lifted));
+      kernel.register(new CouplingModule(lifted, physics.backend.capabilities));
       await kernel.init();
       const ticks = SECONDS * rate;
       // Warm up, then time.

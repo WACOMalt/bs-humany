@@ -275,9 +275,12 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
         continue;
       }
       const driven = jointNames[driver.dof];
+      const [c2, c3, c4] = driver.higher ?? [0, 0, 0];
       push(
         2,
-        `<joint name="${esc(c.id)}" joint1="${esc(dependent)}" joint2="${esc(driven ?? '')}" polycoef="${f(c.kind.offset)} ${f(driver.coefficient)} 0 0 0"${c.soft ? '' : ' solref="0.001 1"'}/>`,
+        `<joint name="${esc(c.id)}" joint1="${esc(dependent)}" joint2="${esc(driven ?? '')}" ` +
+          `polycoef="${f(c.kind.offset)} ${f(driver.coefficient)} ${f(c2)} ${f(c3)} ${f(c4)}"` +
+          `${c.soft ? '' : ' solimp="0.9999 0.9999 0.001 0.5 2"'}/>`,
       );
     }
     push(1, '</equality>');

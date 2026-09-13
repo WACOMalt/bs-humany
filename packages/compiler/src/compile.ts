@@ -355,15 +355,16 @@ export function compileArticulation(
       const drivers = c.kind.drivers.map((d) => ({
         dof: dofIndexOf.get(`${d.dof.joint}/${d.dof.dof}`),
         coefficient: d.coefficient,
+        higher: d.higher,
       }));
       if (dependent === undefined || drivers.some((d) => d.dof === undefined)) {
+        // A document carries couplings for every profile; a profile that lumps the joints a
+        // coupling ties together has nothing to couple, which is expected rather than a loss.
         notes.push({
-          severity: 'warning',
+          severity: 'info',
           feature: 'constraint',
           element: c.id,
-          message:
-            `Constraint '${c.id}' couples a DoF of a joint this profile does not activate, and ` +
-            'is dropped.',
+          message: `Constraint '${c.id}' couples joints this profile does not activate; not compiled.`,
         });
         continue;
       }
@@ -373,7 +374,11 @@ export function compileArticulation(
         kind: {
           type: 'jointCoupling',
           dependent,
-          drivers: drivers.map((d) => ({ dof: d.dof as number, coefficient: d.coefficient })),
+          drivers: drivers.map((d) => ({
+            dof: d.dof as number,
+            coefficient: d.coefficient,
+            ...(d.higher ? { higher: d.higher } : {}),
+          })),
           offset: c.kind.offset ?? 0,
         },
         soft: c.soft ?? false,

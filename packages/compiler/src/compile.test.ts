@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { ROOT_NQ, ROOT_NV } from './articulation.js';
 import { CompileError, compileArticulation, morphologyKey } from './compile.js';
 import { DE_LEVA_MAPPINGS } from './massMapping.js';
+import { emitMjcf } from './mjcf.js';
 
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
@@ -163,6 +164,21 @@ describe('mass properties', () => {
 });
 
 describe('failure modes', () => {
+  it('compiles the couplings each profile can express, and emits them as MJCF equalities', () => {
+    const l1 = compileArticulation(document, 'l1_standard', morphology).articulation;
+    const l2 = compileArticulation(document, 'l2_biomechanical', morphology).articulation;
+    // L1 has sternoclavicular joints but no per-level lumbar, patella or acromioclavicular.
+    expect(l1.constraints.length).toBe(4);
+    expect(l2.constraints.length).toBe(9 + 2 * 6);
+    const patella = l2.constraints.find((c) => c.id === 'patellofemoral_r_follows_knee');
+    expect(patella?.kind.type === 'jointCoupling' && patella.kind.drivers[0]?.higher?.length).toBe(
+      3,
+    );
+    const xml = emitMjcf(l2, {}).xml;
+    expect(xml).toContain('<equality>');
+    expect(xml).toMatch(/polycoef="0.010506 0.0247615 -1.31647 0.716337 -0.138302"/);
+  });
+
   it('compiles every committed profile, including L2 and L3', () => {
     for (const profile of document.segmentation) {
       const { articulation } = compileArticulation(document, profile.id, morphology);

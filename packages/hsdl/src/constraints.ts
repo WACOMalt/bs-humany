@@ -40,7 +40,22 @@ export const ConstraintDefSchema = z
           type: z.literal('jointCoupling'),
           dependent: DofRefSchema,
           drivers: z
-            .array(z.object({ dof: DofRefSchema, coefficient: z.number().finite() }).strict())
+            .array(
+              z
+                .object({
+                  dof: DofRefSchema,
+                  coefficient: z.number().finite(),
+                  /**
+                   * Coefficients of the driver's second, third and fourth powers, for the
+                   * polynomial couplings MJCF's `polycoef` expresses (a patella tracking knee
+                   * flexion is a quartic). Meaningful only with a single driver.
+                   */
+                  higher: z
+                    .tuple([z.number().finite(), z.number().finite(), z.number().finite()])
+                    .optional(),
+                })
+                .strict(),
+            )
             .min(1),
           offset: z.number().finite().optional(),
         })

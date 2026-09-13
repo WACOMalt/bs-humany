@@ -19,6 +19,7 @@ import {
   provisional,
 } from '@bs-humany/hsdl';
 import { mul, param } from '@bs-humany/hsdl';
+import { buildConstraints } from './constraints.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { buildFrameDefs, buildVirtualLandmarks } from './frames.js';
 import { BONE_SHAPES, FALLBACK_BONES, fallbackShape } from './geometry/shapes.js';
@@ -170,7 +171,7 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
           },
           defaultClass: 'bone_on_ground',
         },
-    constraints: [],
+    constraints: options.placement === 'procedural' ? [] : buildConstraints(),
 
     morphology: {
       default: { sex: 0.5, stature: 1.7, mass: 70 },
@@ -229,6 +230,9 @@ export function modelLimitations(): string[] {
     'Collision proxies are one capsule or box per segment, fitted to the measured bounds of ' +
       'its bones at the dataset pose. Pairs of unjoined segments whose proxies overlap at rest ' +
       'are excluded from self-collision, so those regions pass through each other.',
+    'Joint couplings (lumbar level shares, the patella tracking the knee, the shoulder girdle ' +
+      'following elevation) are transcribed from MyoSuite. MuJoCo solves them exactly; Rapier ' +
+      'enforces them as soft corrective torques, so under load they can be violated.',
     'The L1 spine moves at two lumbar and two neck region joints, each carrying half of a lumped ' +
       'source range. Per-level lumbar joints exist for L2; two of the six levels are provisional ' +
       '(OQ-007). No cervical lateral bending is defined yet.',

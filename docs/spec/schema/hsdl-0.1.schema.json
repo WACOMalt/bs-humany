@@ -1590,6 +1590,23 @@
         },
         "coefficient": {
           "type": "number"
+        },
+        "higher": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
         }
       },
       "required": ["dof", "coefficient"],

@@ -24,6 +24,7 @@ import {
   BODY_POSE,
   BODY_VELOCITY,
   CONTACT_MANIFOLDS,
+  CouplingModule,
   DIAGNOSTICS_ENERGY,
   DIAGNOSTICS_LIMITS,
   GrabModule,
@@ -101,6 +102,7 @@ export async function runScenario(
   kernel.register(physics);
   kernel.register(grab);
   kernel.register(metrics);
+  kernel.register(new CouplingModule(articulation, backend.capabilities));
   if (scenario.passiveJoints) kernel.register(new PassiveJointModule(articulation));
   await kernel.init();
 

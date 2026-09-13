@@ -108,7 +108,12 @@ export interface CompiledConstraint {
     | {
         readonly type: 'jointCoupling';
         readonly dependent: number;
-        readonly drivers: readonly { readonly dof: number; readonly coefficient: number }[];
+        readonly drivers: readonly {
+          readonly dof: number;
+          readonly coefficient: number;
+          /** Second, third and fourth powers of the driver, when the coupling is polynomial. */
+          readonly higher?: readonly [number, number, number] | undefined;
+        }[];
         readonly offset: number;
       }
     | { readonly type: 'weld'; readonly segmentA: number; readonly segmentB: number };

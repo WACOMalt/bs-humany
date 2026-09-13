@@ -482,8 +482,9 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       centreSource: dataset(`centroid of patella_${s}`),
       dofs: [
         {
-          axis: 'flexion',
-          vector: [0, 0, -1],
+          // About +z as in the source, so its coupling polynomial applies as written.
+          axis: 'rotation',
+          vector: [0, 0, 1],
           range: [-1.79241, 0.010506],
           romSource: myo(LEG, `knee_angle_beta_rotation1_${s}`),
         },

@@ -442,7 +442,18 @@ export class RapierBackend implements IPhysicsBackend {
           'PassiveJointModule must supply them through actuation.jointTorque.',
       });
     }
+    const couplings = model.constraints.filter((c) => c.kind.type === 'jointCoupling').length;
+    if (couplings > 0) {
+      notes.push({
+        severity: 'warning',
+        feature: 'constraint',
+        message:
+          `${couplings} joint coupling(s) are not solved by Rapier; the CouplingModule enforces ` +
+          'them as soft corrective torques (spec 7.4), so they can be violated under load.',
+      });
+    }
     for (const c of model.constraints) {
+      if (c.kind.type === 'jointCoupling') continue;
       notes.push({
         severity: 'warning',
         feature: 'constraint',

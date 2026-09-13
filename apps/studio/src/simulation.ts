@@ -30,6 +30,7 @@ import {
   BODY_BONE_TRANSFORMS,
   BODY_JOINT_STATE,
   BODY_POSE,
+  CouplingModule,
   DIAGNOSTICS_ENERGY,
   GrabModule,
   MetricsModule,
@@ -154,6 +155,7 @@ export class Simulation {
     this.kernel.register(this.pose);
     this.kernel.register(this.grab);
     this.kernel.register(this.metrics);
+    this.kernel.register(new CouplingModule(this.articulation, backend.capabilities));
     const passive = options.scenario ? options.scenario.passiveJoints : options.passiveJoints;
     if (passive) {
       this.passive = new PassiveJointModule(this.articulation);
