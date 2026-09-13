@@ -10,4 +10,5 @@
 export * from './articulation.js';
 export * from './backend.js';
 export * from './compile.js';
+export * from './dofInertia.js';
 export * from './massMapping.js';

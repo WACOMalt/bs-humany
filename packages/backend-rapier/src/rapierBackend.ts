@@ -36,7 +36,7 @@ import type {
   PoseBuffer,
   VelocityBuffer,
 } from '@bs-humany/compiler';
-import { ROOT_NQ, ROOT_NV } from '@bs-humany/compiler';
+import { ROOT_NQ, ROOT_NV, dofAxisInertia } from '@bs-humany/compiler';
 import { type Transform, type Vec3, cross, normalize, rotate, vec3 } from '@bs-humany/frames';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type {
@@ -336,18 +336,16 @@ export class RapierBackend implements IPhysicsBackend {
         }
       }
 
-      const childSegment = model.segments[joint.childSegment];
       const stopStiffness = new Float64Array(n);
       const stopDamping = new Float64Array(n);
       const omega = 2 * Math.PI * LIMIT_STOP_FREQUENCY_HZ;
       joint.dofs.forEach((dof, i) => {
-        // Inertia of the child about the DoF axis, taken at rest: axis^T I axis in the child
-        // segment frame. Sets the stop stiffness so every joint stops at the same frequency.
-        const axisInChild = rotate(joint.frameInChild.rotation, dof.vector);
-        const inertia = childSegment ? axisInertia(childSegment.inertia, axisInChild) : 1;
-        const k = Math.max(inertia, 1e-6) * omega * omega;
+        // Child inertia about the DoF axis at rest sets the stop stiffness, so every joint stops
+        // at the same frequency.
+        const inertia = Math.max(dofAxisInertia(model, dof), 1e-6);
+        const k = inertia * omega * omega;
         stopStiffness[i] = k;
-        stopDamping[i] = 2 * Math.sqrt(k * Math.max(inertia, 1e-6));
+        stopDamping[i] = 2 * Math.sqrt(k * inertia);
       });
       this.joints.push({
         compiled: joint,
@@ -910,21 +908,4 @@ function canonicalAxis(v: Vec3): [RawAxis, 1 | -1] | undefined {
 
 function pairKey(a: number, b: number): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
-}
-
-/** axis^T I axis for a unit axis. */
-function axisInertia(inertia: readonly number[], axis: Vec3): number {
-  const ix =
-    (inertia[0] as number) * axis.x +
-    (inertia[1] as number) * axis.y +
-    (inertia[2] as number) * axis.z;
-  const iy =
-    (inertia[3] as number) * axis.x +
-    (inertia[4] as number) * axis.y +
-    (inertia[5] as number) * axis.z;
-  const iz =
-    (inertia[6] as number) * axis.x +
-    (inertia[7] as number) * axis.y +
-    (inertia[8] as number) * axis.z;
-  return ix * axis.x + iy * axis.y + iz * axis.z;
 }

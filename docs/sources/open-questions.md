@@ -116,3 +116,16 @@ gradient.
 tables are the usual one; the licence question for transcribing them is open), or the torso model
 gains those levels.
 **Status:** open
+
+### OQ-008 — Passive joint moment curves are not yet sourced per joint
+**Needed for:** `packages/modules-mechanics/src/passiveJointModule.ts`
+**Provisional value:** where a DoF carries no `passiveStiffness`, the module derives a
+double-exponential end-range curve from the DoF's range and the child segment's inertia about the
+axis: resistance rising over the last 0.2 rad before each limit, reaching a moment at the limit
+that makes the effective wall stiffness a 6 Hz spring for that inertia, plus viscous damping
+equal to the axis inertia times 4 per second. Defensible in form (Riener & Edrich 1999) and in
+scale (tens of newton-metres at the hip, a few at the wrist), but the coefficients are chosen,
+not measured, and the module and the UI say so.
+**Closes when:** Riener & Edrich (1999) hip, knee and ankle coefficients are transcribed with
+their knee-angle coupling, and an upper-limb and spinal source is found for the rest.
+**Status:** open

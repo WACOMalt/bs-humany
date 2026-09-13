@@ -8,3 +8,4 @@ export * from './physicsModule.js';
 export * from './redistribution.js';
 export * from './skeletonPoseModule.js';
 export * from './qmath.js';
+export * from './passiveJointModule.js';
