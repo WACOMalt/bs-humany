@@ -63,6 +63,13 @@ export interface BackendConfig {
   readonly gravity?: Vec3 | undefined;
   /** Rapier's deterministic mode, where offered. */
   readonly deterministic?: boolean | undefined;
+  /**
+   * A fixed horizontal ground plane at `height` metres, with the named contact class. Absent
+   * means no ground: the articulation falls forever, which is what a free-fall scenario wants.
+   */
+  readonly ground?:
+    | { readonly height: number; readonly contactClass?: string | undefined }
+    | undefined;
 }
 
 /** SoA output buffers. All `Float64Array`, all preallocated by the caller, all written in place. */

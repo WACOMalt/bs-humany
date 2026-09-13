@@ -75,7 +75,24 @@ importers:
 
   packages/backend-mujoco: {}
 
-  packages/backend-rapier: {}
+  packages/backend-rapier:
+    dependencies:
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../frames
+      '@dimforge/rapier3d-compat':
+        specifier: ^0.20.0
+        version: 0.20.0
+    devDependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../anthropometry
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
 
   packages/compiler:
     dependencies:
@@ -243,6 +260,9 @@ packages:
 
   '@dimforge/rapier3d-compat@0.12.0':
     resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
+
+  '@dimforge/rapier3d-compat@0.20.0':
+    resolution: {integrity: sha512-X4W9pJBdGRX5CO3c/gUNjBFEFG2fn4nYxp9k8STdBDaLa0/w5XTW2ArpayS+9jGFojTi3uFSOWAElCd4rkpekA==}
 
   '@esbuild/aix-ppc64@0.21.5':
     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
@@ -1046,6 +1066,8 @@ snapshots:
     optional: true
 
   '@dimforge/rapier3d-compat@0.12.0': {}
+
+  '@dimforge/rapier3d-compat@0.20.0': {}
 
   '@esbuild/aix-ppc64@0.21.5':
     optional: true

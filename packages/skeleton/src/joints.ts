@@ -345,6 +345,10 @@ function limbJoints(s: Side): JointSpec[] {
         'The source orders these as plane of elevation, elevation, axial rotation in nested ' +
           'frames. Here they are three hinges in the ISB Y-X-Y sequence; the axial rotation ' +
           'sign is taken as internal-positive, which the source does not state.',
+        'Gimbal lock: the Y-X-Y sequence is singular at zero elevation, the rest pose, where ' +
+          'plane of elevation and axial rotation share an axis and only their sum is ' +
+          'determined. Kept because it is the ISB convention the ranges are stated in; a ' +
+          'backend recovering angles from poses must resolve the split, and does so toward neutral.',
         'The source arm model is right-sided only; the left mirrors it.',
       ],
     },
