@@ -218,10 +218,33 @@ export const Z_UP: AxisConvention = defineConvention({
   z: 'superior',
 });
 
+/**
+ * The frame of the Z-Anatomy FBX export (ADR-011's primary mesh dataset).
+ *
+ *  - `+X` is the subject's **left**
+ *  - `+Y` is **superior**
+ *  - `+Z` is **anterior**
+ *
+ * Established empirically from the data rather than from documentation: the sternum sits at
+ * positive Z and the sacrum at negative Z, and the left-side teeth sit at positive X. Converting
+ * to `WORLD` is a half turn about Y -- a proper rotation, not a reflection -- and `defineConvention`
+ * verifies that at module load. Lengths in that file are centimetres; scaling is the caller's job.
+ */
+export const Z_ANATOMY_FBX: AxisConvention = defineConvention({
+  id: 'z_anatomy_fbx',
+  description:
+    'Z-Anatomy SkeletalSystem FBX export. X left, Y superior, Z anterior. Right-handed, ' +
+    'centimetres.',
+  x: 'left',
+  y: 'superior',
+  z: 'anterior',
+});
+
 export const CONVENTIONS: Readonly<Record<string, AxisConvention>> = Object.freeze({
   world: WORLD,
   isb: ISB,
   z_up: Z_UP,
+  z_anatomy_fbx: Z_ANATOMY_FBX,
 });
 
 // ---------------------------------------------------------------------------------------------

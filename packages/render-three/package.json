@@ -17,7 +17,8 @@
     "@bs-humany/anthropometry": "workspace:^",
     "@bs-humany/frames": "workspace:^",
     "@bs-humany/hsdl": "workspace:^",
-    "three": "^0.186.0"
+    "three": "^0.186.0",
+    "@bs-humany/assets-anatomical": "workspace:*"
   },
   "devDependencies": {
     "@bs-humany/skeleton": "workspace:^",

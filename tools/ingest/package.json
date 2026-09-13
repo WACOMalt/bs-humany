@@ -1,0 +1,22 @@
+{
+  "name": "@bs-humany/ingest",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Offline ingestion of anatomical mesh datasets into the skeleton data package (M1.11).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@bs-humany/frames": "workspace:*",
+    "@bs-humany/hsdl": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "jiti": "^2.4.2"
+  },
+  "scripts": {
+    "ingest": "jiti src/ingest.ts",
+    "inspect": "node scripts/inspect-fbx.mjs"
+  }
+}

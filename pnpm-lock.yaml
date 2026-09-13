@@ -29,6 +29,9 @@ importers:
       '@bs-humany/anthropometry':
         specifier: workspace:*
         version: link:../../packages/anthropometry
+      '@bs-humany/assets-anatomical':
+        specifier: workspace:*
+        version: link:../../packages/assets-anatomical
       '@bs-humany/frames':
         specifier: workspace:*
         version: link:../../packages/frames
@@ -63,6 +66,12 @@ importers:
       '@bs-humany/hsdl':
         specifier: workspace:^
         version: link:../hsdl
+
+  packages/assets-anatomical:
+    dependencies:
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../frames
 
   packages/backend-mujoco: {}
 
@@ -100,6 +109,9 @@ importers:
       '@bs-humany/anthropometry':
         specifier: workspace:^
         version: link:../anthropometry
+      '@bs-humany/assets-anatomical':
+        specifier: workspace:*
+        version: link:../assets-anatomical
       '@bs-humany/frames':
         specifier: workspace:^
         version: link:../frames
@@ -121,6 +133,9 @@ importers:
 
   packages/skeleton:
     dependencies:
+      '@bs-humany/assets-anatomical':
+        specifier: workspace:*
+        version: link:../assets-anatomical
       '@bs-humany/frames':
         specifier: workspace:^
         version: link:../frames
@@ -135,6 +150,28 @@ importers:
   packages/testkit: {}
 
   tools/cli: {}
+
+  tools/ingest:
+    dependencies:
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../../packages/frames
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../../packages/hsdl
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../../packages/skeleton
+      three:
+        specifier: ^0.186.0
+        version: 0.186.0
+    devDependencies:
+      '@types/three':
+        specifier: ^0.186.0
+        version: 0.186.0
+      jiti:
+        specifier: ^2.4.2
+        version: 2.7.0
 
 packages:
 

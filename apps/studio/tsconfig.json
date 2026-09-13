@@ -9,11 +9,26 @@
   },
   "include": ["src/**/*"],
   "references": [
-    { "path": "../../packages/frames" },
-    { "path": "../../packages/hsdl" },
-    { "path": "../../packages/kernel" },
-    { "path": "../../packages/skeleton" },
-    { "path": "../../packages/anthropometry" },
-    { "path": "../../packages/render-three" }
+    {
+      "path": "../../packages/frames"
+    },
+    {
+      "path": "../../packages/hsdl"
+    },
+    {
+      "path": "../../packages/kernel"
+    },
+    {
+      "path": "../../packages/skeleton"
+    },
+    {
+      "path": "../../packages/anthropometry"
+    },
+    {
+      "path": "../../packages/render-three"
+    },
+    {
+      "path": "../../packages/assets-anatomical"
+    }
   ]
 }

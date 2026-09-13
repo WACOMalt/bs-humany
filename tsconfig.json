@@ -21,6 +21,12 @@
       "path": "./packages/render-three"
     },
     {
+      "path": "./packages/assets-anatomical"
+    },
+    {
+      "path": "./tools/ingest"
+    },
+    {
       "path": "./apps/studio"
     }
   ]

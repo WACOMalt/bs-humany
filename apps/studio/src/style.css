@@ -304,6 +304,17 @@ summary:hover {
   letter-spacing: 0.03em;
 }
 
+#attribution {
+  position: fixed;
+  right: 326px;
+  bottom: 14px;
+  max-width: 46vw;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  pointer-events: none;
+  text-align: right;
+}
+
 @media (max-width: 760px) {
   #panel {
     top: auto;

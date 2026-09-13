@@ -495,3 +495,17 @@ export function recomputeSmoothNormals(builder: MeshBuilder): void {
     builder.normals[i * 3 + 2] = nz;
   }
 }
+
+/**
+ * Smooth normals for finished mesh data, e.g. a dataset bone whose pack stores no normals.
+ *
+ * Same area-weighted averaging as the builder variant above; this one allocates the output.
+ */
+export function computeSmoothNormals(positions: Float32Array, indices: Uint32Array): Float32Array {
+  const builder = createBuilder();
+  builder.positions = Array.from(positions);
+  builder.indices = Array.from(indices);
+  builder.normals = new Array<number>(positions.length).fill(0);
+  recomputeSmoothNormals(builder);
+  return new Float32Array(builder.normals);
+}

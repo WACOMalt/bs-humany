@@ -9,6 +9,8 @@
  * them into one 206-entry literal would make all three move together.
  */
 
+import type { PackedBone, SkeletonManifest } from '@bs-humany/assets-anatomical';
+import manifestJson from '@bs-humany/assets-anatomical/data/manifest.json' with { type: 'json' };
 import {
   type BoneDef,
   HSDL_VERSION,
@@ -17,14 +19,62 @@ import {
   cite,
   provisional,
 } from '@bs-humany/hsdl';
+import { mul, param } from '@bs-humany/hsdl';
 import { BONE_SHAPES, FALLBACK_BONES, fallbackShape } from './geometry/shapes.js';
 import { SEGMENTATION_PROFILES } from './segmentation.js';
 import { BONES } from './taxonomy.js';
 
 /** Build the bone definitions by joining taxonomy entries with their shapes. */
-export function buildBones(): BoneDef[] {
+/**
+ * Rest transform of a bone relative to its anatomical parent, from the dataset.
+ *
+ * The dataset gives every bone's centroid in one world frame. The parent-relative translation is
+ * the difference of centroids, expressed as a fraction of the dataset subject's stature so it
+ * scales with the `stature` parameter -- centroid deltas telescope down the tree, so composing them
+ * reproduces each bone's measured position exactly. Rotation is identity: the meshes are stored in
+ * their world orientation.
+ *
+ * A bone the dataset lacks (the ossicles, OQ-004) keeps its hand-authored transform, which is
+ * relative to a parent that is now dataset-placed; the two agree to within the fallback's own
+ * size. This is the interim placement model until landmark-derived frames land (M1.2/M1.3).
+ */
+function datasetRestTransform(entry: { id: string; parent: string | null }) {
+  const own = packedById.get(entry.id);
+  if (!own) return undefined;
+  const parent = entry.parent === null ? undefined : packedById.get(entry.parent);
+  const base = parent?.centroid ?? [0, 0, 0];
+  const fraction = (i: 0 | 1 | 2) => (own.centroid[i] - base[i]) / DATASET_MANIFEST.subjectStature;
+  return {
+    translation: {
+      x: mul(fraction(0), param('stature')),
+      y: mul(fraction(1), param('stature')),
+      z: mul(fraction(2), param('stature')),
+    },
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+  };
+}
+
+/**
+ * Where bones are placed.
+ *
+ * `dataset` (default): measured centroids from the Z-Anatomy pack, scaled to stature. Pair it
+ * with the mesh pack. `procedural`: the hand-authored layout the procedural recipes were written
+ * against, whose origins sit at joint centres with the bone extending along +Y -- the recipes only
+ * make sense in that layout, so the two must travel together. The studio's geometry toggle
+ * switches documents, not just meshes.
+ */
+export type Placement = 'dataset' | 'procedural';
+
+export interface BuildOptions {
+  readonly placement?: Placement;
+}
+
+export function buildBones(options: BuildOptions = {}): BoneDef[] {
+  const placement = options.placement ?? 'dataset';
   return BONES.map((entry): BoneDef => {
     const shape = BONE_SHAPES.get(entry.id) ?? fallbackShape(entry.region);
+    const restTransform =
+      (placement === 'dataset' ? datasetRestTransform(entry) : undefined) ?? shape.restTransform;
     return {
       id: entry.id,
       ta: entry.ta,
@@ -32,7 +82,7 @@ export function buildBones(): BoneDef[] {
       parent: entry.parent,
       region: entry.region,
       ...(entry.side ? { side: entry.side } : {}),
-      restTransform: shape.restTransform,
+      restTransform,
       dimensions: shape.dimensions,
       geometry: shape.geometry,
     };
@@ -40,6 +90,13 @@ export function buildBones(): BoneDef[] {
 }
 
 /** Bones rendered with the generic fallback rather than a modelled shape. */
+/**
+ * The measured skeleton's manifest. Bundled as JSON (no geometry) so the document can place bones
+ * where the dataset measured them without loading the mesh pack.
+ */
+export const DATASET_MANIFEST: SkeletonManifest = manifestJson as unknown as SkeletonManifest;
+const packedById = new Map<string, PackedBone>(DATASET_MANIFEST.bones.map((b) => [b.id, b]));
+
 export function unmodelledBones(): string[] {
   return BONES.filter((b) => !BONE_SHAPES.has(b.id)).map((b) => b.id);
 }
@@ -50,7 +107,7 @@ export function unmodelledBones(): string[] {
  * Morphology defaults to the midpoint of the sex blend at a 1.70 m, 70 kg body -- a deliberately
  * ordinary starting point rather than either endpoint, so nothing about the default implies a norm.
  */
-export function buildDocument(): HsdlDocument {
+export function buildDocument(options: BuildOptions = {}): HsdlDocument {
   const document: HsdlDocument = {
     hsdlVersion: HSDL_VERSION,
     id: 'bs-humany.reference-skeleton',
@@ -71,7 +128,7 @@ export function buildDocument(): HsdlDocument {
     },
     units: { length: 'm', mass: 'kg', angle: 'rad', time: 's', force: 'N' },
 
-    bones: buildBones(),
+    bones: buildBones(options),
     landmarks: [],
     joints: [],
     segmentation: [...SEGMENTATION_PROFILES],
@@ -138,8 +195,11 @@ export function modelLimitations(): string[] {
   const limitations = [
     'Joint definitions are not yet present. This document carries anatomy and geometry only, so ' +
       'the skeleton is posable but not yet simulable.',
-    'Landmarks and bone local frames are not yet defined, so joint centres are implied by the ' +
-      'rest transforms rather than derived from landmarks.',
+    'Bone placement comes from the Z-Anatomy dataset (one male subject, 1.70 m) scaled uniformly ' +
+      'by stature. Pelvic and shoulder breadth, and the sex blend, do not yet move the measured ' +
+      'bones; that needs the landmark-derived joint frames of M1.2/M1.3.',
+    'Bone local frames are not yet derived from landmarks, so joint centres are implied by mesh ' +
+      'centroids rather than by ISB definitions.',
     'Limb proportions are sex-neutral: the underlying table is not sex-separated. See OQ-003.',
     'Parameter tables are consistency-checked but not yet verified line by line against their ' +
       'source publications. See OQ-001 and OQ-002.',

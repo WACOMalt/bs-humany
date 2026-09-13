@@ -57,3 +57,17 @@ implying a dimorphism it does not have.
 **Closes when:** sex-separated segment-length proportions are derived from a citable published
 source, or from ANSUR II's own 3D scan data.
 **Status:** open
+
+### OQ-004 — Provenance of the auditory ossicle meshes
+**Needed for:** `@bs-humany/assets-anatomical`, `tools/ingest/src/mapping.ts`
+**Provisional value:** the six ossicles (`malleus`, `incus`, `stapes`, both sides) are mapped in the
+ingestion tool but **excluded from the packed data** and drawn from the procedural fallback.
+Z-Anatomy's attributions credit "Anatomy of the Inner Ear" (University of Dundee, CC-BY-NC-SA 4.0)
+among its sources. The ossicles are middle-ear structures, adjacent to but not part of the inner
+ear, and the export carries no per-structure provenance, so it cannot be determined from the data
+whether they derive from that source. A non-commercial licence cannot be combined with CC BY-SA in
+one distributed work (ADR-009), so the safe default is exclusion.
+**Closes when:** the Z-Anatomy maintainers confirm the ossicle meshes derive from BodyParts3D (which
+does model them, as FMA52751-3), or the meshes are replaced from BodyParts3D directly. Then remove
+`excluded` from the three mapping entries and re-run ingestion.
+**Status:** open

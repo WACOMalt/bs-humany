@@ -69,6 +69,14 @@
       <section>
         <h2>Display</h2>
         <div class="control">
+          <label for="geometry">Geometry</label>
+          <select id="geometry">
+            <option value="dataset" selected>Measured — Z-Anatomy dataset</option>
+            <option value="procedural">Procedural — parametric recipes</option>
+          </select>
+          <p class="note">Measured bones scale uniformly with stature for now. The procedural set is the fallback and the mobile LOD.</p>
+        </div>
+        <div class="control">
           <label for="quality">Tessellation</label>
           <select id="quality">
             <option value="low">Low — mobile budget</option>
@@ -114,6 +122,7 @@
     </aside>
 
     <div id="hint">drag to orbit · scroll to zoom · click a bone</div>
+    <div id="attribution" hidden></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

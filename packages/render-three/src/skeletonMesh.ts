@@ -12,6 +12,7 @@
  * resolve to a bone `id` (spec section 11, bone picking and inspector).
  */
 
+import type { SkeletonAssets } from '@bs-humany/assets-anatomical';
 import {
   IDENTITY_TRANSFORM,
   type Transform,
@@ -23,6 +24,7 @@ import {
 import type { BoneDef, ExprContext, HsdlDocument } from '@bs-humany/hsdl';
 import { evaluate } from '@bs-humany/hsdl';
 import { evaluateRecipe } from './mesh/evaluate.js';
+import { computeSmoothNormals } from './mesh/primitives.js';
 import { type MeshData, QUALITY_MEDIUM, type TessellationQuality } from './mesh/types.js';
 
 export interface BoneInstance {
@@ -37,6 +39,7 @@ export interface BoneInstance {
   /** First vertex and vertex count within the merged buffer, for highlighting. */
   readonly vertexStart: number;
   readonly vertexCount: number;
+  readonly geometrySource: GeometrySource;
 }
 
 export interface SkeletonMesh {
@@ -53,7 +56,22 @@ export interface BuildOptions {
   readonly quality?: TessellationQuality;
   /** Restrict to these bone IDs. Used by the region filters in the viewer. */
   readonly include?: ReadonlySet<string>;
+  /**
+   * Measured bone meshes (ADR-005, ADR-011). A bone present here is drawn from the dataset; any
+   * bone absent -- the ossicles, or everything when no assets are loaded -- falls back to its
+   * procedural recipe.
+   *
+   * Dataset meshes are stored in world space at the dataset subject's stature. For now they are
+   * scaled uniformly by `stature / subjectStature`, which keeps every bone where the dataset put
+   * it and makes the whole skeleton follow the stature slider. Per-bone placement at parametric
+   * joint centres, so that pelvic and shoulder breadth act on the measured skeleton too, comes
+   * with the landmark-derived frames of M1.2/M1.3.
+   */
+  readonly assets?: SkeletonAssets;
 }
+
+/** Which source a bone's geometry came from, surfaced in the inspector. */
+export type GeometrySource = 'dataset' | 'procedural';
 
 /**
  * World transforms for every bone, in the rest pose.
@@ -100,6 +118,9 @@ export function buildSkeletonMesh(
 ): SkeletonMesh {
   const quality = options.quality ?? QUALITY_MEDIUM;
   const worldTransforms = computeWorldTransforms(document, context);
+  const assets = options.assets;
+  const stature = evaluate({ param: 'stature' }, context);
+  const datasetScale = assets ? stature / assets.manifest.subjectStature : 1;
 
   const positions: number[] = [];
   const normals: number[] = [];
@@ -112,6 +133,41 @@ export function buildSkeletonMesh(
     if (options.include && !options.include.has(bone.id)) continue;
 
     const transform = worldTransforms.get(bone.id) ?? IDENTITY_TRANSFORM;
+    const datasetBone = assets?.bones.get(bone.id);
+
+    if (datasetBone) {
+      // Already in world space: scale about the origin and skip the rest-transform chain.
+      const vertexStart = positions.length / 3;
+      const count = datasetBone.positions.length / 3;
+      const normalsOut = computeSmoothNormals(datasetBone.positions, datasetBone.indices);
+      for (let i = 0; i < count; i++) {
+        positions.push(
+          (datasetBone.positions[i * 3] ?? 0) * datasetScale,
+          (datasetBone.positions[i * 3 + 1] ?? 0) * datasetScale,
+          (datasetBone.positions[i * 3 + 2] ?? 0) * datasetScale,
+        );
+        normals.push(
+          normalsOut[i * 3] ?? 0,
+          normalsOut[i * 3 + 1] ?? 0,
+          normalsOut[i * 3 + 2] ?? 0,
+        );
+        boneIndex.push(index);
+      }
+      for (const i of datasetBone.indices) indices.push(vertexStart + i);
+      bones.push({
+        id: bone.id,
+        displayName: bone.displayName,
+        ta: bone.ta,
+        region: bone.region,
+        worldTransform: transform,
+        index,
+        vertexStart,
+        vertexCount: count,
+        geometrySource: 'dataset',
+      });
+      index++;
+      continue;
+    }
 
     let mesh: MeshData;
     try {
@@ -161,6 +217,7 @@ export function buildSkeletonMesh(
       index,
       vertexStart,
       vertexCount: count,
+      geometrySource: 'procedural',
     });
     index++;
   }

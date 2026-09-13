@@ -16,6 +16,7 @@ import {
   ISB,
   OPENSIM,
   WORLD,
+  Z_ANATOMY_FBX,
   Z_UP,
   anatomicalAxis,
   axisDirection,
@@ -156,6 +157,37 @@ describe('the ISB frame', () => {
     for (let i = 0; i < 100; i++) {
       const v = randomVec3(next, 3);
       expect(approxEquals(convertVec3(v, ISB, WORLD), rotate(plusNinetyAboutY, v), 1e-12)).toBe(
+        true,
+      );
+    }
+  });
+});
+
+describe('the Z-Anatomy FBX frame', () => {
+  it('is X left, Y superior, Z anterior', () => {
+    expect(axisDirection(Z_ANATOMY_FBX, 'x')).toBe('left');
+    expect(axisDirection(Z_ANATOMY_FBX, 'y')).toBe('superior');
+    expect(axisDirection(Z_ANATOMY_FBX, 'z')).toBe('anterior');
+  });
+
+  it('converts to world by a half turn about Y, not a reflection', () => {
+    // A sternum at +Z and left teeth at +X in the FBX must land at -Z and -X in world. If this
+    // were mistaken for a handedness flip the whole skeleton would be mirrored.
+    expect(
+      approxEquals(convertVec3(vec3(1, 0, 0), Z_ANATOMY_FBX, WORLD), vec3(-1, 0, 0), 1e-15),
+    ).toBe(true);
+    expect(
+      approxEquals(convertVec3(vec3(0, 1, 0), Z_ANATOMY_FBX, WORLD), vec3(0, 1, 0), 1e-15),
+    ).toBe(true);
+    expect(
+      approxEquals(convertVec3(vec3(0, 0, 1), Z_ANATOMY_FBX, WORLD), vec3(0, 0, -1), 1e-15),
+    ).toBe(true);
+    expect(determinant(conversionMatrix(Z_ANATOMY_FBX, WORLD))).toBeCloseTo(1, 15);
+    const halfTurn = fromAxisAngle(UNIT_Y, Math.PI);
+    const next = makeTestRandom(4321);
+    for (let i = 0; i < 50; i++) {
+      const v = randomVec3(next, 3);
+      expect(approxEquals(convertVec3(v, Z_ANATOMY_FBX, WORLD), rotate(halfTurn, v), 1e-12)).toBe(
         true,
       );
     }

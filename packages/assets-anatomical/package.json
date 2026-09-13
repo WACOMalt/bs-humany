@@ -1,0 +1,15 @@
+{
+  "name": "@bs-humany/assets-anatomical",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Anatomical bone meshes and landmarks derived from Z-Anatomy / BodyParts3D. CC BY-SA 4.0 data.",
+  "license": "CC-BY-SA-4.0",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./data/*": "./data/*"
+  },
+  "dependencies": {
+    "@bs-humany/frames": "workspace:*"
+  }
+}

@@ -18,6 +18,9 @@
     },
     {
       "path": "../anthropometry"
+    },
+    {
+      "path": "../assets-anatomical"
     }
   ]
 }

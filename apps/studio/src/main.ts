@@ -10,6 +10,14 @@
  */
 
 import { resolveMorphology, validateResolvedBody } from '@bs-humany/anthropometry';
+import {
+  type SkeletonAssets,
+  attributionText,
+  parseSkeletonAssets,
+} from '@bs-humany/assets-anatomical';
+import landmarksUrl from '@bs-humany/assets-anatomical/data/landmarks.json?url';
+import manifestUrl from '@bs-humany/assets-anatomical/data/manifest.json?url';
+import skeletonBinUrl from '@bs-humany/assets-anatomical/data/skeleton.bin?url';
 import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
 import {
   QUALITY_HIGH,
@@ -41,7 +49,25 @@ import { createOrbitControls } from './orbit.js';
 
 // The document is built once. Only the morphology context changes as the sliders move, which is
 // exactly the separation ADR-005 is for: anatomy is fixed, geometry is parametric.
-const document_ = buildDocument();
+const datasetDocument = buildDocument();
+const proceduralDocument = buildDocument({ placement: 'procedural' });
+/** The document in use: measured placement with the mesh pack, or the hand-authored layout. */
+let document_ = datasetDocument;
+
+/**
+ * The measured mesh pack (ADR-005, ADR-011). Loaded once; `null` until it arrives, during which
+ * the procedural skeleton renders so the page is never blank.
+ */
+let assets: SkeletonAssets | null = null;
+
+async function loadAssets(): Promise<SkeletonAssets> {
+  const [manifest, bin, landmarks] = await Promise.all([
+    fetch(manifestUrl).then((r) => r.json()),
+    fetch(skeletonBinUrl).then((r) => r.arrayBuffer()),
+    fetch(landmarksUrl).then((r) => r.json()),
+  ]);
+  return parseSkeletonAssets(manifest, bin, landmarks);
+}
 
 const QUALITIES: Record<string, TessellationQuality> = {
   low: QUALITY_LOW,
@@ -125,6 +151,7 @@ const ui = {
   brachial: must<HTMLInputElement>('#brachial'),
   legLength: must<HTMLInputElement>('#legLength'),
   quality: must<HTMLSelectElement>('#quality'),
+  geometry: must<HTMLSelectElement>('#geometry'),
   showGrid: must<HTMLInputElement>('#showGrid'),
   spin: must<HTMLInputElement>('#spin'),
 };
@@ -158,7 +185,12 @@ function rebuild(): void {
   }
 
   const quality = QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM;
-  skeletonMesh = buildSkeletonMesh(document_, resolved.context, { quality });
+  const useDataset = ui.geometry.value === 'dataset' && assets !== null;
+  document_ = useDataset ? datasetDocument : proceduralDocument;
+  skeletonMesh = buildSkeletonMesh(document_, resolved.context, {
+    quality,
+    ...(useDataset && assets ? { assets } : {}),
+  });
 
   if (boneObject) {
     boneObject.geometry.dispose();
@@ -197,6 +229,7 @@ for (const input of [ui.sex, ui.stature, ui.mass, ui.crural, ui.brachial, ui.leg
   input.addEventListener('input', rebuild);
 }
 ui.quality.addEventListener('change', rebuild);
+ui.geometry.addEventListener('change', rebuild);
 /**
  * View presets.
  *
@@ -309,6 +342,8 @@ function refreshSelection(): void {
       <dt>Parent</dt><dd>${escapeHtml(parent)}</dd>
       <dt>Position</dt><dd>${position.x.toFixed(3)}, ${position.y.toFixed(3)}, ${position.z.toFixed(3)}</dd>
       <dt>Vertices</dt><dd>${bone.vertexCount.toLocaleString()}</dd>
+      <dt>Geometry</dt><dd>${bone.geometrySource}</dd>
+      <dt>Landmarks</dt><dd>${Object.keys(assets?.landmarks[bone.id] ?? {}).length}</dd>
     </dl>
   `;
 }
@@ -359,6 +394,19 @@ for (const limitation of modelLimitations()) {
 
 rebuild();
 animate();
+
+loadAssets()
+  .then((loaded) => {
+    assets = loaded;
+    must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
+    must<HTMLElement>('#attribution').hidden = false;
+    rebuild();
+  })
+  .catch((error: unknown) => {
+    console.error('Mesh pack failed to load; staying on procedural geometry.', error);
+    ui.geometry.value = 'procedural';
+    ui.geometry.disabled = true;
+  });
 
 function must<T extends Element>(selector: string): T {
   const element = window.document.querySelector<T>(selector);

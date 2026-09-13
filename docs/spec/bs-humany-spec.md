@@ -940,7 +940,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M1.6` Inertia computation incl. parallel-axis combination + physical-validity assertions (§6.4 step 5).
 `M1.7` `GeometryRecipe` evaluator → `BufferGeometry`.
 `M1.8` Per-bone procedural geometry recipes. *Delivered in 0.4 form; now the fallback and low-detail LOD per ADR-005.*
-`M1.11` **Anatomical dataset ingestion.** Offline tool that reads Z-Anatomy, maps each structure to an HSDL bone `id`, exports per-bone meshes with a local frame, and emits rest transforms, joint centres and landmark positions into the skeleton data. Verifies the CC BY-SA relicensing chain. Replaces the hand-authored placements from M1.8. *Blocking for visual credibility.*
+`M1.11` **Anatomical dataset ingestion.** *Delivered 2026-09-13.* `tools/ingest` reads the Z-Anatomy FBX export headless, maps 206 structures to bone `id`s, welds and packs 200 bones (the ossicles held on OQ-004) into `@bs-humany/assets-anatomical` with 814 named landmarks, and the skeleton document takes its rest transforms from the measured centroids. Licence chain verified (BodyParts3D CC BY-SA 2.1 JP → Z-Anatomy CC BY-SA 4.0). Remaining: per-bone parametric placement from landmark-derived joint frames (M1.2/M1.3) so breadth and the sex blend act on the measured skeleton.
 `M1.9` Minimal three.js viewer: static skeleton, orbit camera, morphology sliders live-updating. **First visible milestone — prioritize reaching it.**
 `M1.10` Bone picking + inspector panel.
 

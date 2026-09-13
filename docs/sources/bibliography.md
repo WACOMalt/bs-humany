@@ -184,7 +184,31 @@ question — see `open-questions.md`.
 | three.js | `threejs.org` | MIT |
 | OpenSim | `opensim.stanford.edu` | Apache-2.0 |
 
-## Mesh sources — **T2, asset pack only**
+## Anatomical mesh datasets — data tier, CC BY-SA (ADR-009 as revised, ADR-011)
+
+### `mitsuhashi2009` — data tier
+Mitsuhashi, N., Fujieda, K., Tamura, T., Kawamoto, S., Takagi, T., & Okubo, K. (2009). BodyParts3D:
+3D structure database for anatomical concepts. *Nucleic Acids Research*, 37(suppl_1), D782–D785.
+Dataset: Database Center for Life Science, `dbarchive.biosciencedbc.jp/en/bodyparts3d`. **CC BY-SA
+2.1 JP.** Required attribution: "BodyParts3D, (c) The Database Center for Life Science licensed
+under CC Attribution-Share Alike 2.1 Japan".
+
+The upstream of Z-Anatomy. One male subject, segmented from MRI, in the anatomical position. Ships
+per-structure OBJ (millimetres, Z-up) keyed by FMA concept id.
+
+### `kervyn2021` — data tier
+Kervyn, G., Zielinski, M., Vinent, L., et al. (2021–). Z-Anatomy: the libre 3D atlas of anatomy.
+`z-anatomy.com`; models at `github.com/Z-Anatomy/Models-of-human-anatomy`; the FBX export used here
+at `github.com/LluisV/Z-Anatomy` (`Resources/Models/FBX/SkeletalSystem100.fbx`). **CC BY-SA 4.0.**
+Required attribution: "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0".
+
+Cleaned and re-named BodyParts3D geometry, in the FBX frame `x: left, y: superior, z: anterior`,
+centimetres. Carries 36-vertex marker primitives at named anatomical features on each bone, which
+is the source of the landmark table. **Primary source of bone shape, placement and landmarks as of
+spec 0.5.** Includes NC-licensed inner-ear material from Dundee that must not be ingested — see
+OQ-004.
+
+## Legacy note
 
 | Project | URL | License |
 |---|---|---|
@@ -192,4 +216,5 @@ question — see `open-questions.md`.
 | BodyParts3D | Database Center for Life Science | CC BY-SA 2.1 JP |
 | AnatomyTOOL Open 3D Anatomical Model | `anatomytool.org/open3dmodel` | CC BY-SA |
 
-**These render. They do not measure.** See ADR-009.
+The 0.4 rule that meshes may render but not measure was withdrawn in spec 0.5 (ADR-011). The table
+above is retained for the URLs.

@@ -5,6 +5,8 @@ import { QUALITY_LOW, QUALITY_MEDIUM } from './mesh/types.js';
 import { buildSkeletonMesh, computeWorldTransforms, skeletonBounds } from './skeletonMesh.js';
 
 const document = buildDocument();
+// The procedural recipes were authored against the hand-authored layout; see `Placement`.
+const proceduralDocument = buildDocument({ placement: 'procedural' });
 const context = (stature = 1.7, sex = 0.5) => resolveMorphology({ sex, stature, mass: 70 }).context;
 
 describe('world transforms', () => {
@@ -22,21 +24,17 @@ describe('world transforms', () => {
     }
   });
 
-  it('stands the skeleton the right way up, with joint centres at plausible heights', () => {
-    // The layout numbers are fractions of stature from Drillis & Contini. This checks the tree
-    // composition actually lands them where the table says, which is a real end-to-end assertion
-    // over ~25 chained transforms.
+  it('stands the skeleton the right way up, with bones at plausible heights', () => {
+    // Rest positions are measured centroids scaled to 1.70 m. The femur's centroid sits at
+    // mid-thigh, roughly 0.39 of stature, and the chain is ordered bottom to top.
     const y = (id: string) => world.get(id)?.translation.y ?? Number.NaN;
-
-    // Femur origin is the knee joint centre; tibia origin is the ankle.
-    expect(y('femur_r')).toBeCloseTo(1.7 * 0.285, 2);
-    expect(y('tibia_r')).toBeCloseTo(1.7 * 0.039, 2);
-    expect(y('hip_r')).toBeCloseTo(1.7 * 0.53, 2);
-
-    // Ordered bottom to top.
+    expect(y('femur_r')).toBeGreaterThan(1.7 * 0.33);
+    expect(y('femur_r')).toBeLessThan(1.7 * 0.45);
+    expect(y('tibia_r')).toBeGreaterThan(1.7 * 0.12);
+    expect(y('tibia_r')).toBeLessThan(1.7 * 0.24);
     expect(y('tibia_r')).toBeLessThan(y('femur_r'));
     expect(y('femur_r')).toBeLessThan(y('hip_r'));
-    expect(y('hip_r')).toBeLessThan(y('sacrum'));
+    expect(y('hip_r')).toBeLessThan(y('vertebra_l1'));
     expect(y('sacrum')).toBeLessThan(y('vertebra_t1'));
     expect(y('vertebra_t1')).toBeLessThan(y('vertebra_c1'));
     expect(y('vertebra_c1')).toBeLessThan(y('frontal'));
@@ -60,9 +58,10 @@ describe('world transforms', () => {
       expect(right, base).toBeDefined();
       expect(left, base).toBeDefined();
       if (!right || !left) continue;
-      expect(right.translation.x + left.translation.x, `${base} X`).toBeCloseTo(0, 6);
-      expect(right.translation.y, `${base} Y`).toBeCloseTo(left.translation.y, 6);
-      expect(right.translation.z, `${base} Z`).toBeCloseTo(left.translation.z, 6);
+      // Measured, so mirror-symmetric only to within the subject's own asymmetry.
+      expect(Math.abs(right.translation.x + left.translation.x), `${base} X`).toBeLessThan(0.006);
+      expect(Math.abs(right.translation.y - left.translation.y), `${base} Y`).toBeLessThan(0.006);
+      expect(Math.abs(right.translation.z - left.translation.z), `${base} Z`).toBeLessThan(0.006);
     }
   });
 
@@ -76,7 +75,11 @@ describe('world transforms', () => {
     expect(unpaired.length).toBeGreaterThan(25);
     for (const bone of unpaired) {
       const x = world.get(bone.id)?.translation.x ?? Number.NaN;
-      expect(Math.abs(x), `${bone.id} (${bone.displayName}) is off the midline`).toBeLessThan(1e-6);
+      // Measured centroids of midline bones sit within a few millimetres of x = 0; the hand-
+      // authored sign error this test was written for was 40 mm.
+      expect(Math.abs(x), `${bone.id} (${bone.displayName}) is off the midline`).toBeLessThan(
+        0.012,
+      );
     }
   });
 
@@ -91,7 +94,7 @@ describe('world transforms', () => {
 });
 
 describe('skeleton mesh', () => {
-  const mesh = buildSkeletonMesh(document, context(), { quality: QUALITY_LOW });
+  const mesh = buildSkeletonMesh(proceduralDocument, context(), { quality: QUALITY_LOW });
 
   it('includes every bone', () => {
     expect(mesh.bones.length).toBe(206);
@@ -153,12 +156,12 @@ describe('skeleton mesh', () => {
   });
 
   it('gets denser at higher quality', () => {
-    const better = buildSkeletonMesh(document, context(), { quality: QUALITY_MEDIUM });
+    const better = buildSkeletonMesh(proceduralDocument, context(), { quality: QUALITY_MEDIUM });
     expect(better.triangleCount).toBeGreaterThan(mesh.triangleCount);
   });
 
   it('honours an include filter', () => {
-    const filtered = buildSkeletonMesh(document, context(), {
+    const filtered = buildSkeletonMesh(proceduralDocument, context(), {
       quality: QUALITY_LOW,
       include: new Set(['femur_l', 'femur_r']),
     });
@@ -175,9 +178,11 @@ describe('skeleton mesh', () => {
     expect(tall.max[1] / short.max[1]).toBeCloseTo(2.0 / 1.5, 1);
   });
 
-  it('widens the pelvis at the female-typical endpoint', () => {
+  it('widens the pelvis at the female-typical endpoint in the procedural layout', () => {
+    // Dataset placement is a uniform stature scaling of one subject for now, so the sex blend
+    // moves only the procedural layout. The model's limitations list states this.
     const hipSpan = (sex: number) => {
-      const world = computeWorldTransforms(document, context(1.7, sex));
+      const world = computeWorldTransforms(proceduralDocument, context(1.7, sex));
       return (world.get('hip_r')?.translation.x ?? 0) - (world.get('hip_l')?.translation.x ?? 0);
     };
     expect(hipSpan(0)).toBeGreaterThan(hipSpan(1));
@@ -189,8 +194,8 @@ describe('skeleton mesh', () => {
     // Division by zero throws whatever the context, so this isolates the error-reporting path
     // rather than tripping over an unrelated bone that needs a parameter the context lacks.
     const broken = {
-      ...document,
-      bones: document.bones.map((b) =>
+      ...proceduralDocument,
+      bones: proceduralDocument.bones.map((b) =>
         b.id === 'femur_r'
           ? { ...b, geometry: { kind: 'sphere' as const, radius: { div: [1, 0] as const } } }
           : b,
@@ -200,5 +205,52 @@ describe('skeleton mesh', () => {
     expect(() => buildSkeletonMesh(broken, context(), { quality: QUALITY_LOW })).toThrow(
       /Right femur/,
     );
+  });
+});
+
+describe('dataset meshes', async () => {
+  const { loadSkeletonAssetsFromDisk } = await import('@bs-humany/assets-anatomical');
+  const { fileURLToPath } = await import('node:url');
+  const { dirname, join } = await import('node:path');
+  const assets = await loadSkeletonAssetsFromDisk(
+    join(dirname(fileURLToPath(import.meta.url)), '../../assets-anatomical/data'),
+  );
+
+  it('draws every packed bone from the dataset and the rest procedurally', () => {
+    const mesh = buildSkeletonMesh(document, context(), { quality: QUALITY_LOW, assets });
+    expect(mesh.bones.length).toBe(206);
+    const bySource = { dataset: 0, procedural: 0 };
+    for (const b of mesh.bones) bySource[b.geometrySource]++;
+    expect(bySource.dataset).toBe(200);
+    expect(bySource.procedural).toBe(6);
+    expect(
+      mesh.bones
+        .filter((b) => b.geometrySource === 'procedural')
+        .map((b) => b.id)
+        .sort(),
+    ).toEqual(['incus_l', 'incus_r', 'malleus_l', 'malleus_r', 'stapes_l', 'stapes_r']);
+  });
+
+  it('scales the measured skeleton to the requested stature', () => {
+    const at = (stature: number) =>
+      skeletonBounds(
+        buildSkeletonMesh(document, context(stature), { quality: QUALITY_LOW, assets }),
+      );
+    expect(at(1.7).max[1]).toBeCloseTo(1.7, 2);
+    expect(at(2.0).max[1]).toBeCloseTo(2.0, 2);
+    expect(at(1.5).min[1]).toBeCloseTo(0, 2);
+  });
+
+  it('keeps normals unit length on dataset bones', () => {
+    const mesh = buildSkeletonMesh(document, context(), {
+      quality: QUALITY_LOW,
+      assets,
+      include: new Set(['femur_r']),
+    });
+    for (let i = 0; i < mesh.normals.length; i += 3 * 97) {
+      expect(
+        Math.hypot(mesh.normals[i] ?? 0, mesh.normals[i + 1] ?? 0, mesh.normals[i + 2] ?? 0),
+      ).toBeCloseTo(1, 4);
+    }
   });
 });

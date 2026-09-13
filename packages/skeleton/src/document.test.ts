@@ -1,7 +1,13 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { evaluate, validateDocument } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
-import { buildBones, buildDocument, modelLimitations, unmodelledBones } from './document.js';
+import {
+  DATASET_MANIFEST,
+  buildBones,
+  buildDocument,
+  modelLimitations,
+  unmodelledBones,
+} from './document.js';
 import { HEIGHT, VERTEBRA_COUNT, VERTEBRA_HEIGHT, columnSpan } from './geometry/layout.js';
 import { L0_RAGDOLL, L1_STANDARD, SEGMENTATION_PROFILES } from './segmentation.js';
 import { BONES, EXPECTED_BONE_COUNT, getBone } from './taxonomy.js';
@@ -44,6 +50,7 @@ describe('the assembled document', () => {
   it('lists its own limitations, including the fallback-shaped bones', () => {
     const limitations = modelLimitations().join(' ');
     expect(limitations).toMatch(/Joint definitions are not yet present/);
+    expect(limitations).toMatch(/Z-Anatomy dataset/);
     expect(limitations).toMatch(/OQ-00/);
     if (unmodelledBones().length > 0) {
       expect(limitations).toMatch(/generic fallback shape/);
@@ -99,26 +106,27 @@ describe('bone definitions', () => {
     }
   });
 
-  it('mirrors paired bones across the midline', () => {
-    // Left/right sign errors are the likeliest data-entry bug across 206 entries, so the mirror is
-    // asserted rather than assumed.
+  it("mirrors paired bones across the midline, to within the dataset's own asymmetry", () => {
+    // Rest transforms now come from measured centroids. A real subject is not mirror-perfect --
+    // the export's two parietals differ by about 3 mm -- so the tolerance is physical rather than
+    // numerical. A sign error in a hand-authored offset would still fail this by centimetres.
     const byId = new Map(bones.map((b) => [b.id, b]));
     for (const bone of bones) {
       if (bone.side !== 'right') continue;
       const mirror = byId.get(`${bone.id.slice(0, -2)}_l`);
       expect(mirror, `${bone.id} has no mirror`).toBeDefined();
       if (!mirror) continue;
-
       const right = evaluate(bone.restTransform.translation.x, context);
       const left = evaluate(mirror.restTransform.translation.x, context);
-      // Either mirrored, or both on the midline.
-      expect(Math.abs(right + left), `${bone.id} X mirror`).toBeLessThan(1e-9);
-
+      expect(Math.abs(right + left), `${bone.id} X mirror`).toBeLessThan(0.006);
       for (const axis of ['y', 'z'] as const) {
         expect(
-          evaluate(bone.restTransform.translation[axis], context),
+          Math.abs(
+            evaluate(bone.restTransform.translation[axis], context) -
+              evaluate(mirror.restTransform.translation[axis], context),
+          ),
           `${bone.id} ${axis} should match its mirror`,
-        ).toBeCloseTo(evaluate(mirror.restTransform.translation[axis], context), 9);
+        ).toBeLessThan(0.006);
       }
     }
   });
@@ -136,16 +144,36 @@ describe('bone definitions', () => {
     expect(tallLength / shortLength).toBeCloseTo(2.0 / 1.5, 6);
   });
 
-  it('responds to the sex blend where the feature is dimorphic', () => {
-    // Pelvic width drives the hip joint centre separation, which is the most consequential
-    // skeletal dimorphism for gait and for the Q-angle.
+  it('responds to the sex blend in dimensions, though not yet in dataset placement', () => {
+    // Placement of the 200 measured bones is a uniform stature scaling of one subject for now;
+    // pelvic breadth will move them once landmark-derived joint frames exist (M1.2/M1.3). The
+    // procedural dimensions still blend, and the model's limitations list says so.
     const female = resolveMorphology({ sex: 0, stature: 1.7, mass: 70 }).context;
     const male = resolveMorphology({ sex: 1, stature: 1.7, mass: 70 }).context;
     const hip = bones.find((b) => b.id === 'hip_r');
     expect(hip).toBeDefined();
-    const femaleOffset = evaluate(hip?.restTransform.translation.x ?? 0, female);
-    const maleOffset = evaluate(hip?.restTransform.translation.x ?? 0, male);
-    expect(femaleOffset).toBeGreaterThan(maleOffset);
+    expect(evaluate(hip?.dimensions.iliacBreadth ?? 0, female)).toBeGreaterThan(
+      evaluate(hip?.dimensions.iliacBreadth ?? 0, male),
+    );
+    expect(modelLimitations().join(' ')).toMatch(/do not yet move the measured bones/);
+  });
+
+  it('places measured bones at the dataset centroids, scaled to stature', () => {
+    // Centroid deltas telescope down the tree, so composing them must reproduce the manifest.
+    const femur = bones.find((b) => b.id === 'femur_r');
+    const packed = DATASET_MANIFEST.bones.find((b) => b.id === 'femur_r');
+    const parent = DATASET_MANIFEST.bones.find((b) => b.id === 'hip_r');
+    expect(femur && packed && parent).toBeTruthy();
+    if (!femur || !packed || !parent) return;
+    const atDataset = resolveMorphology({
+      sex: 0.5,
+      stature: DATASET_MANIFEST.subjectStature,
+      mass: 70,
+    }).context;
+    expect(evaluate(femur.restTransform.translation.y, atDataset)).toBeCloseTo(
+      packed.centroid[1] - parent.centroid[1],
+      9,
+    );
   });
 });
 

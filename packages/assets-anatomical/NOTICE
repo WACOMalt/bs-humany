@@ -1,0 +1,20 @@
+@bs-humany/assets-anatomical
+
+The data in this package (data/skeleton.bin, data/manifest.json, data/landmarks.json) is a
+derivative work of the following, and is distributed under the same licence,
+Creative Commons Attribution-ShareAlike 4.0 International (see LICENSE):
+
+  "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"
+  "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+
+Z-Anatomy authors: Kousaku Okubo (original BodyParts3D model), Gauthier Kervyn (design, 3D,
+anatomy), Marcin Zielinski (Blender add-on), Lluis Vinent (Unity development).
+Source: https://github.com/LluisV/Z-Anatomy (Resources/Models/FBX/SkeletalSystem100.fbx) and
+https://github.com/Z-Anatomy/Models-of-human-anatomy.
+
+The code in src/ is Apache-2.0 like the rest of bs-humany; it is not a derivative of the data it
+loads. See ADR-009 and ADR-011.
+
+Excluded pending provenance confirmation (OQ-004): the auditory ossicles. Z-Anatomy credits
+"Anatomy of the Inner Ear" (University of Dundee, CC-BY-NC-SA 4.0) among its sources, and a
+non-commercial licence cannot be combined with Share-Alike.
