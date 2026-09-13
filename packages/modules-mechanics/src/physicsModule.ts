@@ -203,6 +203,12 @@ export class PhysicsModule implements SimModule, Stateful {
     this.contactView.count = Math.min(this.contactsSeen, this.contacts.capacity);
   }
 
+  /** Place the backend at a generalized state and republish; a recompile-and-restore ends here. */
+  writeJointState(q: Float64Array, qdot: Float64Array): void {
+    this.backend.writeJointState(q, qdot);
+    this.publish();
+  }
+
   getState(): unknown {
     return this.backend.snapshot();
   }

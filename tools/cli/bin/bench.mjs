@@ -81,6 +81,43 @@ for (const profileId of PROFILES) {
   }
 }
 
+// Recompile-and-restore (M5.6): compile the same profile at a new stature, place a fresh backend
+// at the running one's joint state.
+const { transferJointState, allocateBuffers } = await jiti.import(
+  join(ROOT, 'packages/compiler/src/index.ts'),
+);
+const restoreRows = [];
+for (const profileId of ['l1_standard', 'l2_biomechanical']) {
+  const from = compileArticulation(document, profileId, morphology).articulation;
+  const to = compileArticulation(
+    document,
+    profileId,
+    resolveMorphology({ sex: 0.5, stature: 1.8, mass: 75 }),
+  ).articulation;
+  for (const [name, make] of Object.entries(BACKENDS)) {
+    const running = make();
+    await running.init({ dt: 1 / 500, iterations: 8, ground: { height: 0 } });
+    await running.compile(from);
+    for (let i = 0; i < 200; i++) running.step(1);
+    const buffers = allocateBuffers(from);
+    running.readJointState(buffers.jointState);
+    const started = performance.now();
+    const fresh = make();
+    await fresh.init({ dt: 1 / 500, iterations: 8, ground: { height: 0 } });
+    await fresh.compile(to);
+    const { q, qdot } = transferJointState(
+      { model: from, q: buffers.jointState.q, qdot: buffers.jointState.qdot },
+      to,
+    );
+    fresh.writeJointState(q, qdot);
+    const ms = performance.now() - started;
+    running.dispose();
+    fresh.dispose();
+    restoreRows.push({ profile: profileId, backend: name, ms });
+    console.log(`recompile-and-restore ${profileId} ${name}: ${ms.toFixed(1)} ms`);
+  }
+}
+
 const lines = [
   '# Benchmarks',
   '',
@@ -98,6 +135,16 @@ const lines = [
     (r) =>
       `| ${r.profile} | ${r.backend} | ${r.rate} | ${r.segments} | ${r.nv} | ${r.perStep.toFixed(3)} | ${r.realtime.toFixed(1)}x |`,
   ),
+  '',
+  '## Recompile and restore',
+  '',
+  'Spec 14.5 item 9. Milliseconds to compile the same profile at a new morphology, build a fresh',
+  'backend, transfer the running joint state by joint id and place the new body there (M5.6).',
+  'Excludes the WASM module load, which happens once per session.',
+  '',
+  '| Profile | Backend | ms |',
+  '|---|---|---|',
+  ...restoreRows.map((r) => `| ${r.profile} | ${r.backend} | ${r.ms.toFixed(1)} |`),
   '',
 ];
 writeFileSync(join(ROOT, 'docs/validation/benchmarks.md'), `${lines.join('\n')}`);

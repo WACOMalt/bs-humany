@@ -17,6 +17,7 @@ import {
   type IPhysicsBackend,
   type StaticBox,
   compileArticulation,
+  transferJointState,
 } from '@bs-humany/compiler';
 import type { Quat, Vec3 } from '@bs-humany/frames';
 import type { HsdlDocument } from '@bs-humany/hsdl';
@@ -275,6 +276,34 @@ export class Simulation {
   /** The recording as a JSON string for export. */
   exportRecording(): string {
     return JSON.stringify(this.recording);
+  }
+
+  /** The generalized state, for carrying across a recompile (M5.6). */
+  jointState(): { model: CompiledArticulation; q: Float64Array; qdot: Float64Array } {
+    const fields = this.channel(BODY_JOINT_STATE).fields;
+    return {
+      model: this.articulation,
+      q: Float64Array.from(fields.q as Float64Array),
+      qdot: Float64Array.from(fields.qdot as Float64Array),
+    };
+  }
+
+  /** Place this (fresh) simulation at another articulation's joint state, joint by joint. */
+  carryFrom(
+    state: { model: CompiledArticulation; q: Float64Array; qdot: Float64Array },
+    ticks: number,
+  ): string[] {
+    const { q, qdot, unmatched } = transferJointState(state, this.articulation);
+    this.physics.writeJointState(q, qdot);
+    this.pose.step();
+    this.metrics.step();
+    this.ticks = ticks;
+    this.timeline.splice(0, this.timeline.length, {
+      tick: ticks,
+      snapshot: this.kernel.snapshot(),
+    });
+    this.recording.samples.length = 0;
+    return unmatched;
   }
 
   /** Kernel snapshot of the present moment, for session save. */

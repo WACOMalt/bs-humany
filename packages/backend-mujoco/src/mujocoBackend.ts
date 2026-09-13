@@ -290,6 +290,12 @@ export class MujocoBackend implements IPhysicsBackend {
       this.applyForces();
       mujoco.mj_step(mjModel, mjData);
     }
+    // mj_step integrates after computing poses, so xpos and cvel describe the state before the
+    // last integration. Bring the derived quantities up to the integrated qpos; contacts and
+    // efc_force stay those of the last solve, which is what the step's impulses were.
+    mujoco.mj_kinematics(mjModel, mjData);
+    mujoco.mj_comPos(mjModel, mjData);
+    mujoco.mj_comVel(mjModel, mjData);
     // efc_force after the step belongs to the last substep; leave the applied forces in place
     // for the realized readout, they are rewritten next step.
     this.wrench.fill(0);
@@ -519,6 +525,46 @@ export class MujocoBackend implements IPhysicsBackend {
       (c as { delete?: () => void }).delete?.();
     }
     return n;
+  }
+
+  writeJointState(q: Float64Array, qdot: Float64Array): void {
+    const model = this.model;
+    const mujoco = this.mujoco;
+    const mjModel = this.mjModel;
+    const mjData = this.mjData;
+    if (!model || !mujoco || !mjModel || !mjData) throw new Error('No compiled model.');
+    const v = this.live();
+    v.qpos[0] = q[0] as number;
+    v.qpos[1] = q[1] as number;
+    v.qpos[2] = q[2] as number;
+    // x y z w -> w x y z
+    v.qpos[3] = q[6] as number;
+    v.qpos[4] = q[3] as number;
+    v.qpos[5] = q[4] as number;
+    v.qpos[6] = q[5] as number;
+    v.qvel[0] = qdot[0] as number;
+    v.qvel[1] = qdot[1] as number;
+    v.qvel[2] = qdot[2] as number;
+    // Angular velocity from world into the root body frame: conj(q) * w.
+    const qw = q[6] as number;
+    const qx = -(q[3] as number);
+    const qy = -(q[4] as number);
+    const qz = -(q[5] as number);
+    const wx = qdot[3] as number;
+    const wy = qdot[4] as number;
+    const wz = qdot[5] as number;
+    const tx = 2 * (qy * wz - qz * wy);
+    const ty = 2 * (qz * wx - qx * wz);
+    const tz = 2 * (qx * wy - qy * wx);
+    v.qvel[3] = wx + qw * tx + (qy * tz - qz * ty);
+    v.qvel[4] = wy + qw * ty + (qz * tx - qx * tz);
+    v.qvel[5] = wz + qw * tz + (qx * ty - qy * tx);
+    for (let i = 0; i < model.dofs.length; i++) {
+      v.qpos[this.qposAdr[i] as number] = q[ROOT_NQ + i] as number;
+      v.qvel[this.dofAdr[i] as number] = qdot[ROOT_NV + i] as number;
+    }
+    v.qacc_warmstart.fill(0);
+    mujoco.mj_forward(mjModel, mjData);
   }
 
   // --- Actuation --------------------------------------------------------------------------------

@@ -266,7 +266,9 @@ function limbJoints(s: Side): JointSpec[] {
         'Gimbal lock: the Y-X-Y sequence is singular at zero elevation, the rest pose, where ' +
           'plane of elevation and axial rotation share an axis and only their sum is ' +
           'determined. Kept because it is the ISB convention the ranges are stated in; a ' +
-          'backend recovering angles from poses must resolve the split, and does so toward neutral.',
+          'backend recovering angles from poses must resolve the split, and does so toward ' +
+          'neutral, so within a few degrees of zero elevation the recovered angles do not encode ' +
+          'a small swing of the arm and the range stops on those two DoFs do not act on it.',
         'The source arm model is right-sided only; the left mirrors it.',
       ],
     },

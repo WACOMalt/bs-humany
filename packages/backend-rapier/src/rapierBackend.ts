@@ -37,7 +37,7 @@ import type {
   PoseBuffer,
   VelocityBuffer,
 } from '@bs-humany/compiler';
-import { ROOT_NQ, ROOT_NV, dofAxisInertia } from '@bs-humany/compiler';
+import { ROOT_NQ, ROOT_NV, dofAxisInertia, forwardKinematics } from '@bs-humany/compiler';
 import {
   type Transform,
   type Vec3,
@@ -790,6 +790,48 @@ export class RapierBackend implements IPhysicsBackend {
   }
 
   private pendingOtherSegment = -1;
+
+  writeJointState(q: Float64Array, qdot: Float64Array): void {
+    const model = this.model;
+    if (!model) throw new Error('No compiled model.');
+    const n = model.segments.length;
+    // allocation-ok: a restore is a session event, not a step.
+    const state = {
+      position: new Float64Array(3 * n),
+      orientation: new Float64Array(4 * n),
+      linear: new Float64Array(3 * n),
+      angular: new Float64Array(3 * n),
+    };
+    forwardKinematics(model, q, qdot, state);
+    for (let i = 0; i < n; i++) {
+      const body = this.bodies[i];
+      if (!body) continue;
+      this.v3.x = state.position[3 * i] as number;
+      this.v3.y = state.position[3 * i + 1] as number;
+      this.v3.z = state.position[3 * i + 2] as number;
+      body.setTranslation(this.v3, true);
+      this.quat.x = state.orientation[4 * i] as number;
+      this.quat.y = state.orientation[4 * i + 1] as number;
+      this.quat.z = state.orientation[4 * i + 2] as number;
+      this.quat.w = state.orientation[4 * i + 3] as number;
+      body.setRotation(this.quat, true);
+      this.v3.x = state.linear[3 * i] as number;
+      this.v3.y = state.linear[3 * i + 1] as number;
+      this.v3.z = state.linear[3 * i + 2] as number;
+      body.setLinvel(this.v3, true);
+      this.v3.x = state.angular[3 * i] as number;
+      this.v3.y = state.angular[3 * i + 1] as number;
+      this.v3.z = state.angular[3 * i + 2] as number;
+      body.setAngvel(this.v3, true);
+    }
+    // Warm-start the angle solver at the coordinates just written, then recover the rest.
+    for (const joint of this.joints) {
+      for (let i = 0; i < joint.solver.n; i++) {
+        joint.solver.q[i] = q[ROOT_NQ + joint.compiled.dofStart + i] as number;
+      }
+    }
+    this.recoverJointState();
+  }
 
   // --- Actuation --------------------------------------------------------------------------------
 

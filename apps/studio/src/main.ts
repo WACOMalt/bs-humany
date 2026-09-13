@@ -215,6 +215,11 @@ let buildMs = 0;
 function rebuild(): void {
   if (!assets) return;
   const started = performance.now();
+  // A running simulation survives a morphology change: its joint state is carried into the
+  // recompiled body (M5.6) once the mesh is rebuilt.
+  const carry = simulation
+    ? { state: simulation.jointState(), ticks: simulation.ticks, paused: simulation.paused }
+    : null;
 
   const morphology = currentMorphology();
   const resolved = resolveMorphology(morphology);
@@ -247,6 +252,7 @@ function rebuild(): void {
   refreshSelection();
   updateReadouts(resolved.input.stature, resolved.input.mass);
   showValidation();
+  if (carry) void startSimulation(undefined, carry);
 }
 
 function updateReadouts(stature: number, mass: number): void {
@@ -524,7 +530,10 @@ function showCapabilities(sim: Simulation): void {
   }
 }
 
-async function startSimulation(restoreFrom?: SessionFile['simulation']): Promise<void> {
+async function startSimulation(
+  restoreFrom?: SessionFile['simulation'],
+  carry?: { state: ReturnType<Simulation['jointState']>; ticks: number; paused: boolean },
+): Promise<void> {
   if (!skeletonMesh || !skinned) return;
   stopSimulation();
   setSimulationStatus('Compiling…');
@@ -541,6 +550,12 @@ async function startSimulation(restoreFrom?: SessionFile['simulation']): Promise
     });
     await sim.start();
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
+    if (carry) {
+      const unmatched = sim.carryFrom(carry.state, carry.ticks);
+      sim.paused = carry.paused;
+      if (unmatched.length > 0)
+        console.warn('DoFs without a counterpart, left at neutral:', unmatched);
+    }
     simulation = sim;
     overlays = createOverlays(sim.articulation);
     scene.add(overlays.root);

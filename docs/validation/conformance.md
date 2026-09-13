@@ -32,16 +32,16 @@ so the tolerances can be read against what they actually cover.
 
 | Scenario | Rapier | MuJoCo | Conformance |
 |---|---|---|---|
-| drop-standing-collapse | 0.33 rad, 31 mm, 0.4 mm, 0.00 J | 0.11 rad, 18 mm, 0.0 mm, 0.00 J | ok |
-| drop-supine | 0.00 rad, 1 mm, 0.5 mm, 0.00 J | 0.06 rad, 8 mm, 0.0 mm, 0.00 J | ok |
-| drop-prone | 0.09 rad, 5 mm, 0.2 mm, 0.17 J | 0.02 rad, 10 mm, 0.0 mm, 0.01 J | ok |
-| stairs-tumble | 0.15 rad, 22 mm, 0.5 mm, 0.00 J | 0.09 rad, 10 mm, 0.0 mm, 0.00 J | ok, per-scenario tolerances |
-| hang-from-wrist | 0.37 rad, 33 mm, 2.1 mm, 0.23 J | 0.07 rad, 10 mm, 0.0 mm, 0.00 J | ok |
-| seated-on-box | 0.24 rad, 9 mm, 0.3 mm, 0.02 J | 0.04 rad, 24 mm, 0.0 mm, 0.03 J | ok |
-| grab-and-swing | 0.29 rad, 18 mm, 0.7 mm, 0.00 J | 0.07 rad, 16 mm, 0.0 mm, 0.00 J | ok |
+| drop-standing-collapse | 0.44 rad, 27 mm, 0.3 mm, 0.00 J | 0.11 rad, 18 mm, 0.0 mm, 0.00 J | ok |
+| drop-supine | 0.00 rad, 1 mm, 0.2 mm, 0.00 J | 0.06 rad, 8 mm, 0.0 mm, 0.00 J | ok |
+| drop-prone | 0.04 rad, 4 mm, 0.1 mm, 0.00 J | 0.02 rad, 10 mm, 0.0 mm, 0.00 J | ok |
+| stairs-tumble | 0.20 rad, 30 mm, 1.7 mm, 0.02 J | 0.09 rad, 10 mm, 0.0 mm, 0.00 J | ok, per-scenario tolerances |
+| hang-from-wrist | 0.37 rad, 26 mm, 0.7 mm, 0.09 J | 0.12 rad, 13 mm, 0.0 mm, 0.00 J | ok |
+| seated-on-box | 0.05 rad, 7 mm, 0.4 mm, 0.06 J | 0.04 rad, 24 mm, 0.0 mm, 0.03 J | ok |
+| grab-and-swing | 0.36 rad, 14 mm, 1.0 mm, 0.00 J | 0.06 rad, 9 mm, 0.0 mm, 0.00 J | ok |
 
-The Rapier stop yields (up to 0.37 rad at the ankle and the hanging shoulder) are the subject of
-OQ-009. Joint couplings (M5.2) run natively on MuJoCo and as one-way soft corrections on
+The Rapier stop yields (up to 0.44 rad at the ankle in the standing collapse, 0.37 rad at the
+hanging shoulder) are the subject of OQ-009. Joint couplings (M5.2) run natively on MuJoCo and as one-way soft corrections on
 Rapier, whose work is subtracted in the energy balance. The stairs scenario carries its own
 conformance tolerance, with the reason in its definition: which step a body stops on is chaotic,
 so resting heights may differ by up to 0.6 m between backends.

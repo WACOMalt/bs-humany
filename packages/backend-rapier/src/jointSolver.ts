@@ -128,15 +128,141 @@ function forward(state: JointSolverState): void {
 }
 
 /**
- * Regularisation weight pulling `q` toward neutral where the Jacobian does not care.
+ * Levenberg damping of the Gauss-Newton step, added to the diagonal of `J^T J`.
+ *
+ * Bounds the gain in a direction the Jacobian barely sees to `1 / damping`, so a measurement
+ * jitter of a microradian near a singular configuration moves `q` by at most a tenth of a
+ * milliradian per iteration instead of without limit. It biases nothing: the step is zero when
+ * the error is zero.
+ */
+export const LEVENBERG_DAMPING = 1e-2;
+
+/**
+ * Below this squared singular value of the Jacobian, the direction counts as a null space and
+ * `q` is pulled toward neutral along it.
  *
  * A sequence such as the ISB Y-X-Y humerus is singular at zero elevation: the first and third
  * hinges share an axis, and any split of the twist between them fits the measurement. Without a
- * preference the split wanders step to step and the range stops fight over it. With this term the
- * solution in the null space is the one nearest neutral; away from singularity the bias is of
- * order `damping` relative to unit Jacobian columns, which is negligible.
+ * preference the split wanders step to step and the range stops fight over it. The smallest
+ * eigenvalue of `J^T J` for that sequence is `1 - cos(elevation)`, so the pull starts at about
+ * 25 degrees of elevation, reaches half weight near 13 degrees, and is complete at zero. A hinge
+ * or a joint whose axes stay well apart has every eigenvalue near one and is never pulled, so a
+ * recovered angle there carries no bias at all; that is what a pull folded into the damping
+ * term could not offer, since it shifted every angle by `damping` of its distance from neutral.
  */
-export const NULL_SPACE_DAMPING = 1e-2;
+export const NULL_SPACE_ONSET = 0.1;
+
+/** Weight of the neutral pull along an eigen-direction with squared singular value `s2`. */
+function pullWeight(s2: number): number {
+  if (s2 >= NULL_SPACE_ONSET) return 0;
+  const t = 1 - s2 / NULL_SPACE_ONSET;
+  return t * t;
+}
+
+// Smallest eigenpair of the symmetric `n x n` matrix in `jtj` (3-stride), into `nullVec`.
+const nullVec = new Float64Array(3);
+
+/**
+ * Smallest eigenvalue of `J^T J` and its unit eigenvector, for `n` of 2 or 3. Closed form: the
+ * 2x2 case directly, the 3x3 case by the trigonometric solution of the characteristic cubic and
+ * the largest column of the adjugate of `M - s2 I`, which is rank one along the eigenvector.
+ * The Jacobi routine in eigen.ts is for compile time; it allocates, and this runs per joint per
+ * iteration per step.
+ */
+function smallestEigenpair(n: number, M: Float64Array): number {
+  if (n === 2) {
+    const a = M[0] as number;
+    const b = M[1] as number;
+    const c = M[4] as number;
+    const mean = (a + c) / 2;
+    const half = Math.hypot((a - c) / 2, b);
+    const s2 = mean - half;
+    // (M - s2 I) v = 0: either row gives v.
+    let vx = b;
+    let vy = s2 - a;
+    if (vx * vx + vy * vy < (s2 - c) * (s2 - c) + b * b) {
+      vx = s2 - c;
+      vy = b;
+    }
+    const len = Math.hypot(vx, vy);
+    nullVec[0] = len > 0 ? vx / len : 1;
+    nullVec[1] = len > 0 ? vy / len : 0;
+    nullVec[2] = 0;
+    return s2;
+  }
+  const a = M[0] as number;
+  const b = M[1] as number;
+  const c = M[2] as number;
+  const d = M[4] as number;
+  const e = M[5] as number;
+  const f = M[8] as number;
+  const tr = (a + d + f) / 3;
+  const A = a - tr;
+  const D = d - tr;
+  const F = f - tr;
+  const p2 = (A * A + D * D + F * F + 2 * (b * b + c * c + e * e)) / 6;
+  const p = Math.sqrt(p2);
+  let s2: number;
+  if (p < 1e-15) {
+    s2 = tr;
+  } else {
+    const B00 = A / p;
+    const B01 = b / p;
+    const B02 = c / p;
+    const B11 = D / p;
+    const B12 = e / p;
+    const B22 = F / p;
+    const detB =
+      B00 * (B11 * B22 - B12 * B12) - B01 * (B01 * B22 - B12 * B02) + B02 * (B01 * B12 - B11 * B02);
+    const r = Math.max(-1, Math.min(1, detB / 2));
+    const phi = Math.acos(r) / 3;
+    // Eigenvalues are tr + 2 p cos(phi + 2 pi k / 3); the smallest takes k = 1.
+    s2 = tr + 2 * p * Math.cos(phi + (2 * Math.PI) / 3);
+  }
+  // Adjugate columns of (M - s2 I); the largest is the eigenvector.
+  const a0 = a - s2;
+  const d0 = d - s2;
+  const f0 = f - s2;
+  const c0x = d0 * f0 - e * e;
+  const c0y = c * e - b * f0;
+  const c0z = b * e - c * d0;
+  const c1x = c0y;
+  const c1y = a0 * f0 - c * c;
+  const c1z = b * c - a0 * e;
+  const c2x = c0z;
+  const c2y = c1z;
+  const c2z = a0 * d0 - b * b;
+  const n0 = c0x * c0x + c0y * c0y + c0z * c0z;
+  const n1 = c1x * c1x + c1y * c1y + c1z * c1z;
+  const n2 = c2x * c2x + c2y * c2y + c2z * c2z;
+  let vx: number;
+  let vy: number;
+  let vz: number;
+  if (n0 >= n1 && n0 >= n2) {
+    vx = c0x;
+    vy = c0y;
+    vz = c0z;
+  } else if (n1 >= n2) {
+    vx = c1x;
+    vy = c1y;
+    vz = c1z;
+  } else {
+    vx = c2x;
+    vy = c2y;
+    vz = c2z;
+  }
+  const len = Math.hypot(vx, vy, vz);
+  if (len > 0) {
+    nullVec[0] = vx / len;
+    nullVec[1] = vy / len;
+    nullVec[2] = vz / len;
+  } else {
+    nullVec[0] = 1;
+    nullVec[1] = 0;
+    nullVec[2] = 0;
+  }
+  return s2;
+}
 
 /**
  * Update `state.q` so that R(q) matches the relative rotation `rel` (x y z w, child frame in the
@@ -146,7 +272,7 @@ export function solveJointAngles(
   state: JointSolverState,
   rel: Float64Array,
   iterations = 3,
-  damping = NULL_SPACE_DAMPING,
+  damping = LEVENBERG_DAMPING,
 ): number {
   let residual = 0;
   for (let iter = 0; iter < iterations; iter++) {
@@ -177,15 +303,15 @@ export function solveJointAngles(
       err[1] = sy * k;
       err[2] = sz * k;
     }
-    // Normal equations (n <= 3): (J^T J + damping I) dq = J^T e + damping (neutral - q).
+    // Normal equations (n <= 3): (J^T J + damping I) dq = J^T e, then the neutral pull along
+    // the least-observed direction, weighted by how close to null it is.
     const n = state.n;
     const J = state.jacobian;
     for (let i = 0; i < n; i++) {
       jte[i] =
         (J[3 * i] as number) * (err[0] as number) +
         (J[3 * i + 1] as number) * (err[1] as number) +
-        (J[3 * i + 2] as number) * (err[2] as number) +
-        damping * ((state.neutral[i] as number) - (state.q[i] as number));
+        (J[3 * i + 2] as number) * (err[2] as number);
       for (let j = 0; j < n; j++) {
         jtj[i * 3 + j] =
           (J[3 * i] as number) * (J[3 * j] as number) +
@@ -196,6 +322,19 @@ export function solveJointAngles(
     }
     solveSmall(n, jtj, jte, dq);
     for (let i = 0; i < n; i++) state.q[i] = (state.q[i] as number) + (dq[i] as number);
+    if (n > 1) {
+      for (let i = 0; i < n; i++) jtj[i * 3 + i] = (jtj[i * 3 + i] as number) - damping;
+      const weight = pullWeight(smallestEigenpair(n, jtj));
+      if (weight > 0) {
+        let along = 0;
+        for (let i = 0; i < n; i++) {
+          along += (nullVec[i] as number) * ((state.neutral[i] as number) - (state.q[i] as number));
+        }
+        for (let i = 0; i < n; i++) {
+          state.q[i] = (state.q[i] as number) + weight * along * (nullVec[i] as number);
+        }
+      }
+    }
   }
   forward(state);
   return residual;

@@ -150,6 +150,12 @@ export interface IPhysicsBackend {
   /** Writes up to `out.capacity` contacts; returns how many there were, which may exceed it. */
   readContacts(out: ContactBuffer): number;
 
+  /**
+   * Set the whole generalized state: root pose and velocity, then every joint coordinate and
+   * rate. What makes recompile-and-restore possible (spec 14.5 item 9): a body compiled anew is
+   * placed exactly where the old one was, in the coordinates both share.
+   */
+  writeJointState(q: Float64Array, qdot: Float64Array): void;
   /** Generalized force per DoF, `nv` long, applied this step. */
   applyGeneralizedForce(dofForces: Float64Array): void;
   setJointMotorTarget(dofIndex: number, target: MotorTarget | null): void;

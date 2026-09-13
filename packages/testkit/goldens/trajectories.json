@@ -1,71 +1,71 @@
 {
   "drop-prone/l1_standard/mujoco": {
-    "hash": "3f083cb509e5e61c",
+    "hash": "b6a5d143ed8b728e",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-prone/l1_standard/rapier": {
-    "hash": "437d0ab66b340c16",
+    "hash": "484e03e2cddb232b",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-standing-collapse/l1_standard/mujoco": {
-    "hash": "04b9edd807858123",
+    "hash": "b3a7afa21f73c4b9",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-standing-collapse/l1_standard/rapier": {
-    "hash": "ed6dd05961f5a106",
+    "hash": "88fe826fd0efdb12",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-supine/l1_standard/mujoco": {
-    "hash": "422c3a7aecc84789",
+    "hash": "880a11e90e08ef4a",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-supine/l1_standard/rapier": {
-    "hash": "02e1b1a5ed5bd0e1",
+    "hash": "0d8ab8a3bb4e786e",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "grab-and-swing/l1_standard/mujoco": {
-    "hash": "69bc8897351b3eab",
+    "hash": "71824f8638b6912a",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "grab-and-swing/l1_standard/rapier": {
-    "hash": "92439611136276d1",
+    "hash": "169cffd38b3084a7",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "hang-from-wrist/l1_standard/mujoco": {
-    "hash": "464a925d05d40323",
+    "hash": "494e66ccff719714",
     "ticks": 3000,
     "platform": "linux-x64"
   },
   "hang-from-wrist/l1_standard/rapier": {
-    "hash": "a00acdce867686bf",
+    "hash": "3e6ebf01e3996dd6",
     "ticks": 3000,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/mujoco": {
-    "hash": "11a85678145a531a",
+    "hash": "81e3d21620437284",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/rapier": {
-    "hash": "867243d8d13b592f",
+    "hash": "cd33fc1b8ee175b9",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/mujoco": {
-    "hash": "bf4e17c0f593e0a2",
+    "hash": "f451b94d929426ab",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/rapier": {
-    "hash": "59e40a1d29d01411",
+    "hash": "282829b09c1729c3",
     "ticks": 2000,
     "platform": "linux-x64"
   }
