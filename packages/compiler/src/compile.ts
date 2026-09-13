@@ -238,6 +238,8 @@ export function compileArticulation(
       displayName: joint.displayName,
       parentSegment: a,
       childSegment: b,
+      parentBone: joint.parentBone,
+      childBone: joint.childBone,
       frameInParent: relativeTo(world.parent, parentRest),
       frameInChild: relativeTo(world.child, childRest),
       dofs,

@@ -67,6 +67,9 @@ export interface CompiledJoint {
   readonly displayName: string;
   readonly parentSegment: number;
   readonly childSegment: number;
+  /** The document's bones the joint connects, for anatomical consumers such as redistribution. */
+  readonly parentBone: string;
+  readonly childBone: string;
   /** Joint frame in the parent segment's frame. */
   readonly frameInParent: Transform;
   /** Joint frame in the child segment's frame, at the neutral pose. */

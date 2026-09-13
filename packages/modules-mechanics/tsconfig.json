@@ -8,6 +8,7 @@
   "references": [
     { "path": "../frames" },
     { "path": "../compiler" },
+    { "path": "../hsdl" },
     { "path": "../kernel" },
     { "path": "../anthropometry" },
     { "path": "../backend-rapier" },

@@ -58,6 +58,8 @@ function pendulum(range: [number, number]): CompiledArticulation {
         displayName: 'Hinge',
         parentSegment: 0,
         childSegment: 1,
+        parentBone: 'root',
+        childBone: 'arm',
         frameInParent: { translation: vec3(0, 0, 0), rotation: IDENTITY_QUAT },
         frameInChild: { translation: vec3(0, 0.25, 0), rotation: IDENTITY_QUAT },
         dofs: [

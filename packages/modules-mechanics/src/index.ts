@@ -5,3 +5,6 @@
 
 export * from './channels.js';
 export * from './physicsModule.js';
+export * from './redistribution.js';
+export * from './skeletonPoseModule.js';
+export * from './qmath.js';
