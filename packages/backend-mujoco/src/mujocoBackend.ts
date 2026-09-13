@@ -278,8 +278,7 @@ export class MujocoBackend implements IPhysicsBackend {
     const model = this.model;
     const config = this.config;
     if (!mujoco || !mjModel || !mjData || !model || !config) {
-      // allocation-ok: error path, never taken at step rate.
-      throw new Error('No compiled model.');
+      throw new Error('No compiled model.'); // allocation-ok: error path, never taken at step rate
     }
     const n = Math.max(1, substeps | 0);
     const dt = config.dt / n;
