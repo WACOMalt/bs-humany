@@ -1,0 +1,48 @@
+{
+ "vertebra_c7": {
+  "Spinous_process_tip": "most posterior vertex of the C7 mesh (max Z, world frame)"
+ },
+ "vertebra_t8": {
+  "Spinous_process_tip": "most posterior vertex of the T8 mesh (max Z, world frame)"
+ },
+ "sternum": {
+  "Jugular_notch": "most superior vertex of the fused sternum within 8 mm of the midline (max Y, |X| < 0.008)",
+  "Xiphoid_tip": "most inferior vertex of the fused sternum within 8 mm of the midline (min Y, |X| < 0.008)"
+ },
+ "metatarsal_1_l": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_1_r": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_2_l": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_2_r": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_3_l": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_3_r": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_4_l": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_4_r": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_5_l": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "metatarsal_5_r": {
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+ },
+ "calcaneus_l": {
+  "Posterior_calcaneal_tuberosity_point": "most posterior vertex of the calcaneus mesh (max Z, world frame)"
+ },
+ "calcaneus_r": {
+  "Posterior_calcaneal_tuberosity_point": "most posterior vertex of the calcaneus mesh (max Z, world frame)"
+ }
+}

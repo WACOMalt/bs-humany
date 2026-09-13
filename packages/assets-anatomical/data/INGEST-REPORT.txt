@@ -1,11 +1,11 @@
-Z-Anatomy ingestion -- 2026-09-13T01:13:58.773Z
+Z-Anatomy ingestion -- 2026-09-13T01:28:01.468Z
 source: SkeletalSystem100.fbx sha256 294a649765cd060a62a4095da52b9c8ef2d97769aa447e196448aa5f7d596dea
 bones packed: 200   excluded: 6 (malleus_l (OQ-004), malleus_r (OQ-004), incus_l (OQ-004), incus_r (OQ-004), stapes_l (OQ-004), stapes_r (OQ-004))
 subject stature: 1.6963 m (soles placed at y = 0)
 vertices: 1,535,139 raw -> 256,030 welded; triangles 511,713; 8.8 MB
-landmarks: 814 markers on 68 bones
+landmarks: 811 markers plus 16 derived by rule, on 73 bones
 
 symmetry discrepancies over 5 mm or in vertex count (1):
   parietal: centroid mismatch (2.9, 1.7, 1.9) mm, vertex counts 3385 vs 3443
 
-elapsed 3.1 s
+elapsed 3.2 s

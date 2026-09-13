@@ -1,7 +1,13 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["dist", "node_modules", "coverage", "**/*.tsbuildinfo"]
+    "ignore": [
+      "dist",
+      "node_modules",
+      "coverage",
+      "**/*.tsbuildinfo",
+      "packages/assets-anatomical/data/**"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -32,7 +38,11 @@
   },
   "overrides": [
     {
-      "include": ["**/*.test.ts", "**/fixtures.ts", "**/testing.ts"],
+      "include": [
+        "**/*.test.ts",
+        "**/fixtures.ts",
+        "**/testing.ts"
+      ],
       "linter": {
         "rules": {
           "style": {

@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import type { Mesh, Object3D } from 'three';
+import { DERIVED_RULES } from './derived.js';
 import { allNodes, isMesh, loadFbx } from './fbx.js';
 import { type WorldMesh, extractWorldMesh, markerCentre, mergeWorldMeshes } from './geometry.js';
 import { BONE_SOURCES } from './mapping.js';
@@ -90,23 +91,44 @@ for (const e of extracted) {
 }
 const subjectStature = maxY - minY;
 
-// --- Landmarks: 36-vertex marker primitives under each bone, named by feature. ---------------
-// Suffix `j` is used on right-side and midline features, `i` on left-side ones.
+// --- Landmarks: marker meshes under each bone, named by feature. ------------------------------
+// The export's convention: a feature group named `<feature>t` (right side and midline) or
+// `<feature>s` (left side) containing one marker mesh named `<feature>j` or `<feature>i`. Most
+// markers are 36-vertex primitives, but not all -- the left lateral malleolus is a 390-vertex
+// patch -- so the group/mesh naming is the rule, not the vertex count. The marker's centroid is
+// the landmark.
 const landmarks: Record<string, Record<string, [number, number, number]>> = {};
 let landmarkCount = 0;
 for (const e of extracted) {
   const table: Record<string, [number, number, number]> = {};
   e.node.traverse((o) => {
     if (o === e.node || !isMesh(o)) return;
-    const count = o.geometry.getAttribute('position')?.count ?? 0;
-    if (count !== 36) return;
-    const m = /^(.*)[ji]$/.exec(o.name);
+    const parentName = o.parent?.name ?? '';
+    const m = /^(.*)([ji])$/.exec(o.name);
     if (!m || !m[1]) return;
+    const feature = m[1];
+    if (parentName !== `${feature}t` && parentName !== `${feature}s`) return;
     const c = markerCentre(o);
-    table[m[1]] = [c[0], c[1] - minY, c[2]];
+    table[feature] = [c[0], c[1] - minY, c[2]];
     landmarkCount++;
   });
   if (Object.keys(table).length > 0) landmarks[e.id] = table;
+}
+
+// --- Derived landmarks: extreme points by an explicit, recorded rule. -------------------------
+const derivedRules: Record<string, Record<string, string>> = {};
+let derivedCount = 0;
+for (const rule of DERIVED_RULES) {
+  const bone = extracted.find((e) => e.id === rule.bone);
+  if (!bone) continue;
+  const point = rule.pick(bone.mesh);
+  const table = landmarks[rule.bone] ?? {};
+  table[rule.feature] = point;
+  landmarks[rule.bone] = table;
+  const rules = derivedRules[rule.bone] ?? {};
+  rules[rule.feature] = rule.rule;
+  derivedRules[rule.bone] = rules;
+  derivedCount++;
 }
 
 // --- Symmetry report -------------------------------------------------------------------------
@@ -148,6 +170,7 @@ const manifest = pack(
   subjectStature,
 );
 writeFileSync(join(outDir, 'landmarks.json'), `${JSON.stringify(landmarks, null, 1)}\n`);
+writeFileSync(join(outDir, 'landmarks-derived.json'), `${JSON.stringify(derivedRules, null, 1)}\n`);
 
 const rawTotal = extracted.reduce((a, e) => a + e.rawVertices, 0);
 const report = [
@@ -156,7 +179,7 @@ const report = [
   `bones packed: ${manifest.bones.length}   excluded: ${excluded.length} (${excluded.join(', ')})`,
   `subject stature: ${subjectStature.toFixed(4)} m (soles placed at y = 0)`,
   `vertices: ${rawTotal.toLocaleString()} raw -> ${manifest.totals.vertices.toLocaleString()} welded; triangles ${manifest.totals.triangles.toLocaleString()}; ${(manifest.totals.bytes / 1048576).toFixed(1)} MB`,
-  `landmarks: ${landmarkCount} markers on ${Object.keys(landmarks).length} bones`,
+  `landmarks: ${landmarkCount} markers plus ${derivedCount} derived by rule, on ${Object.keys(landmarks).length} bones`,
   '',
   `symmetry discrepancies over 5 mm or in vertex count (${symmetry.length}):`,
   ...symmetry.map((s) => `  ${s}`),

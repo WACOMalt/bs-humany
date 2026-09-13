@@ -9,8 +9,7 @@
  * them into one 206-entry literal would make all three move together.
  */
 
-import type { PackedBone, SkeletonManifest } from '@bs-humany/assets-anatomical';
-import manifestJson from '@bs-humany/assets-anatomical/data/manifest.json' with { type: 'json' };
+import type { PackedBone } from '@bs-humany/assets-anatomical';
 import {
   type BoneDef,
   HSDL_VERSION,
@@ -20,7 +19,9 @@ import {
   provisional,
 } from '@bs-humany/hsdl';
 import { mul, param } from '@bs-humany/hsdl';
+import { DATASET_MANIFEST } from './dataset.js';
 import { BONE_SHAPES, FALLBACK_BONES, fallbackShape } from './geometry/shapes.js';
+import { buildLandmarks } from './landmarks.js';
 import { SEGMENTATION_PROFILES } from './segmentation.js';
 import { BONES } from './taxonomy.js';
 
@@ -38,6 +39,8 @@ import { BONES } from './taxonomy.js';
  * relative to a parent that is now dataset-placed; the two agree to within the fallback's own
  * size. This is the interim placement model until landmark-derived frames land (M1.2/M1.3).
  */
+const packedById = new Map<string, PackedBone>(DATASET_MANIFEST.bones.map((b) => [b.id, b]));
+
 function datasetRestTransform(entry: { id: string; parent: string | null }) {
   const own = packedById.get(entry.id);
   if (!own) return undefined;
@@ -90,12 +93,6 @@ export function buildBones(options: BuildOptions = {}): BoneDef[] {
 }
 
 /** Bones rendered with the generic fallback rather than a modelled shape. */
-/**
- * The measured skeleton's manifest. Bundled as JSON (no geometry) so the document can place bones
- * where the dataset measured them without loading the mesh pack.
- */
-export const DATASET_MANIFEST: SkeletonManifest = manifestJson as unknown as SkeletonManifest;
-const packedById = new Map<string, PackedBone>(DATASET_MANIFEST.bones.map((b) => [b.id, b]));
 
 export function unmodelledBones(): string[] {
   return BONES.filter((b) => !BONE_SHAPES.has(b.id)).map((b) => b.id);
@@ -129,7 +126,7 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
     units: { length: 'm', mass: 'kg', angle: 'rad', time: 's', force: 'N' },
 
     bones: buildBones(options),
-    landmarks: [],
+    landmarks: buildLandmarks(),
     joints: [],
     segmentation: [...SEGMENTATION_PROFILES],
     collisionProxies: [],
@@ -198,8 +195,8 @@ export function modelLimitations(): string[] {
     'Bone placement comes from the Z-Anatomy dataset (one male subject, 1.70 m) scaled uniformly ' +
       'by stature. Pelvic and shoulder breadth, and the sex blend, do not yet move the measured ' +
       'bones; that needs the landmark-derived joint frames of M1.2/M1.3.',
-    'Bone local frames are not yet derived from landmarks, so joint centres are implied by mesh ' +
-      'centroids rather than by ISB definitions.',
+    'Landmarks are in place (M1.2) but bone local frames are not yet derived from them, so joint ' +
+      'centres are still implied by mesh centroids rather than by ISB definitions. M1.3 next.',
     'Limb proportions are sex-neutral: the underlying table is not sex-separated. See OQ-003.',
     'Parameter tables are consistency-checked but not yet verified line by line against their ' +
       'source publications. See OQ-001 and OQ-002.',
@@ -213,4 +210,4 @@ export function modelLimitations(): string[] {
   return limitations;
 }
 
-export { FALLBACK_BONES };
+export { FALLBACK_BONES, DATASET_MANIFEST };
