@@ -4,5 +4,13 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../frames" },
+    { "path": "../compiler" },
+    { "path": "../kernel" },
+    { "path": "../anthropometry" },
+    { "path": "../backend-rapier" },
+    { "path": "../skeleton" }
+  ]
 }

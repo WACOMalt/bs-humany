@@ -132,7 +132,27 @@ importers:
 
   packages/kernel: {}
 
-  packages/modules-mechanics: {}
+  packages/modules-mechanics:
+    dependencies:
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../frames
+      '@bs-humany/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+    devDependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../anthropometry
+      '@bs-humany/backend-rapier':
+        specifier: workspace:*
+        version: link:../backend-rapier
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
 
   packages/render-three:
     dependencies:
