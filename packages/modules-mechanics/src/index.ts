@@ -10,3 +10,4 @@ export * from './skeletonPoseModule.js';
 export * from './qmath.js';
 export * from './passiveJointModule.js';
 export * from './grabModule.js';
+export * from './metricsModule.js';

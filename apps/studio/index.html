@@ -111,6 +111,20 @@
           </div>
         </div>
         <p class="note" id="sim-status">At rest.</p>
+        <dl class="readout" id="diagnostics" hidden>
+          <dt>Kinetic</dt><dd id="diag-kinetic">—</dd>
+          <dt>Potential</dt><dd id="diag-potential">—</dd>
+          <dt>Joint drift</dt><dd id="diag-drift">—</dd>
+          <dt>Nearest stop</dt><dd id="diag-limits">—</dd>
+          <dt>Contacts</dt><dd id="diag-contacts">—</dd>
+        </dl>
+        <div class="control">
+          <label>Overlays</label>
+          <label class="checkbox"><input type="checkbox" id="showProxies" /> Collision proxies</label>
+          <label class="checkbox"><input type="checkbox" id="showAxes" /> Joint axes, end-range heat</label>
+          <label class="checkbox"><input type="checkbox" id="showCom" /> Centres of mass</label>
+          <label class="checkbox"><input type="checkbox" id="showContacts" /> Contacts</label>
+        </div>
         <details>
           <summary>Compile report <span id="sim-report-summary"></span></summary>
           <ul id="sim-report" class="limitations"></ul>

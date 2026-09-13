@@ -47,6 +47,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { createOrbitControls } from './orbit.js';
+import { type Overlays, createOverlays } from './overlays.js';
 import { Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
 
@@ -139,6 +140,7 @@ let skinned: SkinnedSkeleton | null = null;
 let selectedObject: Mesh | null = null;
 let selectedBoneId: string | null = null;
 let simulation: Simulation | null = null;
+let overlays: Overlays | null = null;
 let groundY = 0;
 
 // ---------------------------------------------------------------------------------------------
@@ -162,6 +164,10 @@ const ui = {
   dropHeight: must<HTMLInputElement>('#dropHeight'),
   drop: must<HTMLButtonElement>('#drop'),
   reset: must<HTMLButtonElement>('#reset'),
+  showProxies: must<HTMLInputElement>('#showProxies'),
+  showAxes: must<HTMLInputElement>('#showAxes'),
+  showCom: must<HTMLInputElement>('#showCom'),
+  showContacts: must<HTMLInputElement>('#showContacts'),
 };
 
 function currentMorphology(): Morphology {
@@ -400,6 +406,9 @@ function stopSimulation(): void {
   grabState = null;
   simulation.dispose();
   simulation = null;
+  overlays?.dispose();
+  overlays = null;
+  must<HTMLElement>('#diagnostics').hidden = true;
   skinned?.rest();
   ui.drop.disabled = false;
   setSimulationStatus('At rest.');
@@ -420,6 +429,10 @@ async function startSimulation(): Promise<void> {
     });
     await sim.start();
     simulation = sim;
+    overlays = createOverlays(sim.articulation);
+    scene.add(overlays.root);
+    applyOverlayVisibility();
+    must<HTMLElement>('#diagnostics').hidden = false;
     showReports(sim);
     refreshSelection();
     setSimulationStatus('Running.');
@@ -428,6 +441,43 @@ async function startSimulation(): Promise<void> {
     setSimulationStatus(error instanceof Error ? error.message : String(error), true);
     ui.drop.disabled = false;
   }
+}
+
+function applyOverlayVisibility(): void {
+  if (!overlays) return;
+  overlays.proxies.visible = ui.showProxies.checked;
+  overlays.axes.visible = ui.showAxes.checked;
+  overlays.com.visible = ui.showCom.checked;
+  overlays.contacts.visible = ui.showContacts.checked;
+}
+for (const input of [ui.showProxies, ui.showAxes, ui.showCom, ui.showContacts]) {
+  input.addEventListener('change', applyOverlayVisibility);
+}
+
+function updateDiagnostics(sim: Simulation): void {
+  const energy = sim.channel('diagnostics.energy').fields;
+  const limits = sim.channel('diagnostics.limits').fields;
+  const contacts = sim.channel('contact.manifolds');
+  let worst = 0;
+  let violations = 0;
+  const proximity = limits.proximity as Float64Array;
+  const violation = limits.violation as Uint8Array;
+  for (let i = 0; i < proximity.length; i++) {
+    worst = Math.max(worst, proximity[i] ?? 0);
+    violations += violation[i] ?? 0;
+  }
+  must<HTMLElement>('#diag-kinetic').textContent =
+    `${((energy.kinetic as Float64Array)[0] ?? 0).toFixed(1)} J`;
+  must<HTMLElement>('#diag-potential').textContent =
+    `${((energy.potential as Float64Array)[0] ?? 0).toFixed(1)} J`;
+  must<HTMLElement>('#diag-drift').textContent =
+    `${(((energy.drift as Float64Array)[0] ?? 0) * 1000).toFixed(1)} mm`;
+  must<HTMLElement>('#diag-limits').textContent =
+    violations > 0 ? `${violations} past a stop` : `${Math.round(worst * 100)}% of range`;
+  must<HTMLElement>('#diag-contacts').textContent =
+    sim.physics.contactsSeen > contacts.count
+      ? `${contacts.count} shown of ${sim.physics.contactsSeen}`
+      : String(contacts.count);
 }
 
 ui.drop.addEventListener('click', () => {
@@ -536,6 +586,21 @@ function animate(): void {
     const plan = simulation.advance(Math.min(elapsed, 250) / 1000);
     const transforms = simulation.boneTransforms();
     skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
+    if (overlays) {
+      const pose = simulation.channel('body.pose').fields;
+      const limits = simulation.channel('diagnostics.limits').fields;
+      const contacts = simulation.channel('contact.manifolds');
+      overlays.update({
+        position: pose.position as Float64Array,
+        orientation: pose.orientation as Float64Array,
+        proximity: limits.proximity as Float64Array,
+        contactCount: contacts.count,
+        contactPoint: contacts.fields.point as Float64Array,
+        contactNormal: contacts.fields.normal as Float64Array,
+        contactCapacity: (contacts.fields.point as Float64Array).length / 3,
+      });
+    }
+    updateDiagnostics(simulation);
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     setSimulationStatus(
       plan.clamped

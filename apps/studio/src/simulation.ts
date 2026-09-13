@@ -20,6 +20,7 @@ import {
   BODY_BONE_TRANSFORMS,
   BODY_POSE,
   GrabModule,
+  MetricsModule,
   PassiveJointModule,
   PhysicsModule,
   SkeletonPoseModule,
@@ -68,6 +69,7 @@ export class Simulation {
   readonly pose: SkeletonPoseModule;
   readonly passive: PassiveJointModule | undefined;
   readonly grab: GrabModule;
+  readonly metrics: MetricsModule;
   readonly dt: number;
   private accumulator = 0;
   private started = false;
@@ -92,9 +94,11 @@ export class Simulation {
       redistribute: options.redistribute,
     });
     this.grab = new GrabModule(this.physics.backend, this.articulation);
+    this.metrics = new MetricsModule(this.articulation);
     this.kernel.register(this.physics);
     this.kernel.register(this.pose);
     this.kernel.register(this.grab);
+    this.kernel.register(this.metrics);
     if (options.passiveJoints) {
       this.passive = new PassiveJointModule(this.articulation);
       this.kernel.register(this.passive);
@@ -128,6 +132,15 @@ export class Simulation {
       position: storage.fields.position as Float64Array,
       orientation: storage.fields.orientation as Float64Array,
     };
+  }
+
+  /** A channel's fields, for readouts and overlays. */
+  channel(id: string): {
+    readonly fields: Readonly<Record<string, ArrayLike<number>>>;
+    readonly count: number;
+  } {
+    const storage = this.kernel.channels.storage(id);
+    return { fields: storage.fields, count: storage.count };
   }
 
   boneOrder(): readonly string[] {
