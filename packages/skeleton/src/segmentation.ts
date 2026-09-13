@@ -221,6 +221,165 @@ export const L1_STANDARD: SegmentationDef = {
   ],
 };
 
+/**
+ * `L2-biomechanical`: 49 segments.
+ *
+ * Every lumbar vertebra is its own body; the thoracic spine moves in three blocks with its ribs;
+ * the atlas and axis are separate from the sub-axial cervical spine (spec 7.2: C1-C2 is
+ * rotation-dominant and must not be a generic ball); clavicle and scapula separate; the patella
+ * is a body; each finger and the toes articulate.
+ */
+export const L2_BIOMECHANICAL: SegmentationDef = {
+  id: 'l2_biomechanical',
+  displayName: 'L2 — Biomechanical',
+  description:
+    'Forty-nine rigid bodies. Per-level lumbar spine, three thoracic blocks, atlas and axis ' +
+    'separate, shoulder girdle split, patellae, and articulated digits. Targets 60 fps on desktop ' +
+    'with Rapier, about 30 fps with MuJoCo.',
+  defaultBackend: 'rapier',
+  solver: { rate: 500, iterations: 16, equalityConstraints: true, selfCollision: 'full' },
+  limitations: [
+    'The thoracic spine moves in three blocks of four vertebrae, not at each level.',
+    'Sub-axial cervical vertebrae C3-C7 are one body.',
+    'Carpals and metacarpals are one body per hand; fingers articulate at the metacarpophalangeal ' +
+      'joint only, as one segment each.',
+    'Toes are one segment per foot.',
+  ],
+  segments: [
+    {
+      id: 'pelvis',
+      displayName: 'Pelvis',
+      anchor: 'sacrum',
+      bones: ['sacrum', 'coccyx', 'hip_l', 'hip_r'],
+    },
+    ...LUMBAR.map((id) => ({
+      id: id.replace('vertebra_', ''),
+      displayName: id.replace('vertebra_l', 'Lumbar vertebra L'),
+      anchor: id,
+      bones: [id],
+    })),
+    ...(
+      [
+        ['thoracic_lower', 'Lower thoracic block (T9-T12)', 'vertebra_t10', [9, 10, 11, 12]],
+        ['thoracic_middle', 'Middle thoracic block (T5-T8)', 'vertebra_t7', [5, 6, 7, 8]],
+        ['thoracic_upper', 'Upper thoracic block (T1-T4)', 'vertebra_t3', [1, 2, 3, 4]],
+      ] as const
+    ).map(([id, displayName, anchor, levels]) => ({
+      id,
+      displayName,
+      anchor,
+      bones: [
+        ...levels.map((t) => `vertebra_t${t}`),
+        ...levels.flatMap((t) => [`rib_${t}_l`, `rib_${t}_r`]),
+        ...(id === 'thoracic_upper' ? ['sternum'] : []),
+      ],
+    })),
+    {
+      id: 'cervical',
+      displayName: 'Sub-axial cervical spine (C3-C7)',
+      anchor: 'vertebra_c5',
+      bones: ['vertebra_c3', 'vertebra_c4', 'vertebra_c5', 'vertebra_c6', 'vertebra_c7'],
+    },
+    { id: 'axis', displayName: 'Axis (C2)', anchor: 'vertebra_c2', bones: ['vertebra_c2'] },
+    { id: 'atlas', displayName: 'Atlas (C1)', anchor: 'vertebra_c1', bones: ['vertebra_c1'] },
+    { id: 'head', displayName: 'Head', anchor: 'occipital', bones: SKULL },
+    ...(['l', 'r'] as const).flatMap((s) => [
+      {
+        id: `clavicle_${s}`,
+        displayName: `${label(s)} clavicle`,
+        anchor: `clavicle_${s}`,
+        bones: [`clavicle_${s}`],
+      },
+      {
+        id: `scapula_${s}`,
+        displayName: `${label(s)} scapula`,
+        anchor: `scapula_${s}`,
+        bones: [`scapula_${s}`],
+      },
+      {
+        id: `upperarm_${s}`,
+        displayName: `${label(s)} upper arm`,
+        anchor: `humerus_${s}`,
+        bones: [`humerus_${s}`],
+      },
+      {
+        id: `ulna_${s}`,
+        displayName: `${label(s)} ulna`,
+        anchor: `ulna_${s}`,
+        bones: [`ulna_${s}`],
+      },
+      {
+        id: `radius_${s}`,
+        displayName: `${label(s)} radius`,
+        anchor: `radius_${s}`,
+        bones: [`radius_${s}`],
+      },
+      {
+        id: `hand_${s}`,
+        displayName: `${label(s)} carpus and metacarpus`,
+        anchor: `capitate_${s}`,
+        bones: sided(HAND, s).filter((id) => !id.startsWith('phalanx_')),
+      },
+      ...[1, 2, 3, 4, 5].map((d) => ({
+        id: `finger_${d}_${s}`,
+        displayName: `${label(s)} ${['thumb', 'index finger', 'middle finger', 'ring finger', 'little finger'][d - 1]}`,
+        anchor: `phalanx_proximal_${d}_${s}`,
+        bones: sided(HAND, s).filter(
+          (id) => id.startsWith('phalanx_') && id.endsWith(`_${d}_${s}`),
+        ),
+      })),
+      {
+        id: `thigh_${s}`,
+        displayName: `${label(s)} thigh`,
+        anchor: `femur_${s}`,
+        bones: [`femur_${s}`],
+      },
+      {
+        id: `patella_${s}`,
+        displayName: `${label(s)} patella`,
+        anchor: `patella_${s}`,
+        bones: [`patella_${s}`],
+      },
+      {
+        id: `shank_${s}`,
+        displayName: `${label(s)} shank`,
+        anchor: `tibia_${s}`,
+        bones: [`tibia_${s}`, `fibula_${s}`],
+      },
+      {
+        id: `hindfoot_${s}`,
+        displayName: `${label(s)} hindfoot`,
+        anchor: `talus_${s}`,
+        bones: [`talus_${s}`, `calcaneus_${s}`],
+      },
+      {
+        id: `midfoot_${s}`,
+        displayName: `${label(s)} midfoot`,
+        anchor: `navicular_${s}`,
+        bones: [
+          `navicular_${s}`,
+          `cuboid_${s}`,
+          `cuneiform_medial_${s}`,
+          `cuneiform_intermediate_${s}`,
+          `cuneiform_lateral_${s}`,
+        ],
+      },
+      {
+        id: `forefoot_${s}`,
+        displayName: `${label(s)} forefoot`,
+        anchor: `metatarsal_2_${s}`,
+        bones: sided(FOOT, s).filter((id) => id.startsWith('metatarsal_')),
+      },
+      {
+        id: `toes_${s}`,
+        displayName: `${label(s)} toes`,
+        anchor: `phalanx_pedis_proximal_1_${s}`,
+        bones: sided(FOOT, s).filter((id) => id.startsWith('phalanx_pedis_')),
+      },
+    ]),
+  ],
+};
+
 function label(s: 'l' | 'r'): string {
   return s === 'l' ? 'Left' : 'Right';
 }
@@ -228,4 +387,5 @@ function label(s: 'l' | 'r'): string {
 export const SEGMENTATION_PROFILES: readonly SegmentationDef[] = Object.freeze([
   L0_RAGDOLL,
   L1_STANDARD,
+  L2_BIOMECHANICAL,
 ]);

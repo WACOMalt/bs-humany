@@ -4,5 +4,19 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "references": [
+    {
+      "path": "../frames"
+    },
+    {
+      "path": "../hsdl"
+    },
+    {
+      "path": "../skeleton"
+    },
+    {
+      "path": "../anthropometry"
+    }
+  ]
 }

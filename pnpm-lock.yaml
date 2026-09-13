@@ -77,7 +77,20 @@ importers:
 
   packages/backend-rapier: {}
 
-  packages/compiler: {}
+  packages/compiler:
+    dependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../anthropometry
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../frames
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../hsdl
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
 
   packages/frames: {}
 
@@ -118,13 +131,13 @@ importers:
       '@bs-humany/hsdl':
         specifier: workspace:^
         version: link:../hsdl
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
       three:
         specifier: ^0.186.0
         version: 0.186.0
     devDependencies:
-      '@bs-humany/skeleton':
-        specifier: workspace:^
-        version: link:../skeleton
       '@types/three':
         specifier: ^0.186.0
         version: 0.186.0

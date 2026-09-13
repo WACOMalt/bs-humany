@@ -9,7 +9,12 @@ import {
   unmodelledBones,
 } from './document.js';
 import { HEIGHT, VERTEBRA_COUNT, VERTEBRA_HEIGHT, columnSpan } from './geometry/layout.js';
-import { L0_RAGDOLL, L1_STANDARD, SEGMENTATION_PROFILES } from './segmentation.js';
+import {
+  L0_RAGDOLL,
+  L1_STANDARD,
+  L2_BIOMECHANICAL,
+  SEGMENTATION_PROFILES,
+} from './segmentation.js';
 import { BONES, EXPECTED_BONE_COUNT, getBone } from './taxonomy.js';
 
 const context = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 }).context;
@@ -226,14 +231,27 @@ describe('segmentation profiles', () => {
     }
   });
 
-  it('give L0 fifteen segments and L1 twenty-three', () => {
+  it('give L0 fifteen segments, L1 twenty-three and L2 forty-nine', () => {
     expect(L0_RAGDOLL.segments.length).toBe(15);
     expect(L1_STANDARD.segments.length).toBe(23);
+    expect(L2_BIOMECHANICAL.segments.length).toBe(49);
   });
 
-  it('make L1 strictly finer than L0', () => {
+  it('keep the atlas and axis as their own bodies at L2', () => {
+    // Spec 7.2: C1-C2 is rotation-dominant and must not be modelled as a generic 3-DoF ball.
+    const ids = L2_BIOMECHANICAL.segments.map((s) => s.id);
+    expect(ids).toContain('atlas');
+    expect(ids).toContain('axis');
+    expect(L2_BIOMECHANICAL.segments.find((s) => s.id === 'atlas')?.bones).toEqual(['vertebra_c1']);
+  });
+
+  it('make each profile strictly finer than the last', () => {
     expect(L1_STANDARD.segments.length).toBeGreaterThan(L0_RAGDOLL.segments.length);
+    expect(L2_BIOMECHANICAL.segments.length).toBeGreaterThan(L1_STANDARD.segments.length);
     expect(L1_STANDARD.solver?.rate ?? 0).toBeGreaterThan(L0_RAGDOLL.solver?.rate ?? 0);
+    expect(L2_BIOMECHANICAL.solver?.iterations ?? 0).toBeGreaterThan(
+      L1_STANDARD.solver?.iterations ?? 0,
+    );
   });
 
   it('state plainly what each profile gives up', () => {

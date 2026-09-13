@@ -27,6 +27,9 @@
       "path": "./tools/ingest"
     },
     {
+      "path": "./packages/compiler"
+    },
+    {
       "path": "./apps/studio"
     }
   ]
