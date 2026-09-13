@@ -42,21 +42,43 @@ export interface Scenario {
   readonly script?: ((time: number, api: ScenarioApi) => void) | undefined;
   /** Whether a passive-system energy check applies: false when a script pumps energy in. */
   readonly passiveSystem: boolean;
+  /**
+   * Per-scenario tolerance overrides (spec 13.3: tolerances are per scenario). Each carries its
+   * reason where it is set; the defaults live with the checks in the testkit.
+   */
+  readonly plausibility?: Readonly<Partial<Record<PlausibilityKey, number>>> | undefined;
+  readonly conformance?: Readonly<Partial<Record<ConformanceKey, number>>> | undefined;
 }
+
+export type PlausibilityKey =
+  | 'energyRisePerSample'
+  | 'rangeViolation'
+  | 'penetration'
+  | 'restKinetic'
+  | 'drift'
+  | 'ballistic';
+export type ConformanceKey = 'freeFlightCom' | 'restComHeight' | 'restKinetic' | 'dissipation';
 
 const REFERENCE: Morphology = { sex: 0.5, stature: 1.7, mass: 70 };
 const SUPINE = fromAxisAngle(vec3(1, 0, 0), Math.PI / 2);
 const PRONE = fromAxisAngle(vec3(1, 0, 0), -Math.PI / 2);
 
 function stairs(steps: number, rise: number, run: number, width: number): StaticBox[] {
-  // Steps descend toward +Z from the origin, each a full box down to the ground.
+  // The body faces anterior, which is -Z (ADR-010), so the steps descend toward -Z. The top step
+  // sits under the feet, and a landing behind it stops anything falling off the back.
   const out: StaticBox[] = [];
+  const top = rise * steps;
+  out.push({
+    id: 'stair_landing',
+    halfExtents: vec3(width / 2, top / 2, 0.6),
+    position: vec3(0, top / 2, run / 2 + 0.6),
+  });
   for (let i = 0; i < steps; i++) {
-    const top = rise * (steps - i);
+    const height = rise * (steps - i);
     out.push({
       id: `stair_${i}`,
-      halfExtents: vec3(width / 2, top / 2, run / 2),
-      position: vec3(0, top / 2, run / 2 + i * run),
+      halfExtents: vec3(width / 2, height / 2, run / 2),
+      position: vec3(0, height / 2, -run * i),
     });
   }
   return out;
@@ -114,6 +136,12 @@ export const SCENARIOS: readonly Scenario[] = [
     staticBoxes: stairs(6, 0.17, 0.28, 2),
     passiveJoints: true,
     passiveSystem: true,
+    // Step edges are hard impacts: the impulse solver's contact work shows as up to ~9 J per
+    // sample on Rapier, against ~2 J on flat ground. Which step the body comes to rest on is
+    // chaotic, so resting heights can differ by a few steps between backends; a whole flight is
+    // a metre, and that would be a bug.
+    plausibility: { energyRisePerSample: 10 },
+    conformance: { restComHeight: 0.6 },
   },
   {
     id: 'hang-from-wrist',
@@ -176,3 +204,6 @@ export function scenario(id: string): Scenario {
   if (!s) throw new Error(`No scenario '${id}'. Known: ${SCENARIOS.map((x) => x.id).join(', ')}.`);
   return s;
 }
+
+export * from './place.js';
+export * from './reports.js';

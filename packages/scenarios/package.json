@@ -18,6 +18,7 @@
     "@bs-humany/frames": "workspace:*",
     "@bs-humany/hsdl": "workspace:*",
     "@bs-humany/anthropometry": "workspace:*",
-    "@bs-humany/skeleton": "workspace:*"
+    "@bs-humany/skeleton": "workspace:*",
+    "@bs-humany/modules-mechanics": "workspace:*"
   }
 }

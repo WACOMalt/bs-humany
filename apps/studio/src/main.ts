@@ -18,6 +18,7 @@ import {
 import landmarksUrl from '@bs-humany/assets-anatomical/data/landmarks.json?url';
 import manifestUrl from '@bs-humany/assets-anatomical/data/manifest.json?url';
 import skeletonBinUrl from '@bs-humany/assets-anatomical/data/skeleton.bin?url';
+import { compileArticulation } from '@bs-humany/compiler';
 import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
 import {
   QUALITY_HIGH,
@@ -29,12 +30,20 @@ import {
   skeletonBounds,
   toSkeletonGeometry,
 } from '@bs-humany/render-three';
+import {
+  SCENARIOS,
+  scenario as findScenario,
+  inertiaAudit,
+  jointSweep,
+} from '@bs-humany/scenarios';
 import { buildDocument, modelLimitations } from '@bs-humany/skeleton';
 import {
   AmbientLight,
+  BoxGeometry,
   Color,
   DirectionalLight,
   GridHelper,
+  Group,
   HemisphereLight,
   Mesh,
   MeshStandardMaterial,
@@ -48,7 +57,15 @@ import {
 } from 'three';
 import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
-import { Simulation } from './simulation.js';
+import {
+  type SessionFile,
+  type SessionSettings,
+  deserializeSnapshot,
+  download,
+  isSessionFile,
+  serializeSnapshot,
+} from './session.js';
+import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
 
 // The document is built once. Only the morphology context changes as the sliders move, which is
@@ -141,6 +158,7 @@ let selectedObject: Mesh | null = null;
 let selectedBoneId: string | null = null;
 let simulation: Simulation | null = null;
 let overlays: Overlays | null = null;
+let furniture: Group | null = null;
 let groundY = 0;
 
 // ---------------------------------------------------------------------------------------------
@@ -163,7 +181,16 @@ const ui = {
   redistribute: must<HTMLInputElement>('#redistribute'),
   dropHeight: must<HTMLInputElement>('#dropHeight'),
   drop: must<HTMLButtonElement>('#drop'),
+  pause: must<HTMLButtonElement>('#pause'),
+  stepOnce: must<HTMLButtonElement>('#step'),
   reset: must<HTMLButtonElement>('#reset'),
+  backend: must<HTMLSelectElement>('#backend'),
+  scenario: must<HTMLSelectElement>('#scenario'),
+  timeline: must<HTMLInputElement>('#timeline'),
+  exportRecording: must<HTMLButtonElement>('#export'),
+  save: must<HTMLButtonElement>('#save'),
+  load: must<HTMLButtonElement>('#load'),
+  loadFile: must<HTMLInputElement>('#load-file'),
   showProxies: must<HTMLInputElement>('#showProxies'),
   showAxes: must<HTMLInputElement>('#showAxes'),
   showCom: must<HTMLInputElement>('#showCom'),
@@ -219,6 +246,7 @@ function rebuild(): void {
   buildMs = performance.now() - started;
   refreshSelection();
   updateReadouts(resolved.input.stature, resolved.input.mass);
+  showValidation();
 }
 
 function updateReadouts(stature: number, mass: number): void {
@@ -408,40 +436,155 @@ function stopSimulation(): void {
   simulation = null;
   overlays?.dispose();
   overlays = null;
+  if (furniture) {
+    scene.remove(furniture);
+    for (const child of furniture.children) if (child instanceof Mesh) child.geometry.dispose();
+    furniture = null;
+  }
   must<HTMLElement>('#diagnostics').hidden = true;
+  must<HTMLElement>('#timeline-control').hidden = true;
   skinned?.rest();
-  ui.drop.disabled = false;
+  setRunControls(false);
   setSimulationStatus('At rest.');
 }
 
-async function startSimulation(): Promise<void> {
+function setRunControls(running: boolean): void {
+  // Run always restarts with the current settings; a run in progress is replaced.
+  ui.drop.disabled = false;
+  ui.drop.textContent = running ? 'Restart' : 'Run';
+  ui.pause.disabled = !running;
+  ui.stepOnce.disabled = !running;
+  ui.reset.disabled = !running;
+  ui.exportRecording.disabled = !running;
+  ui.pause.textContent = simulation?.paused ? 'Resume' : 'Pause';
+}
+
+function currentSettings(): SessionSettings {
+  return {
+    sex: Number(ui.sex.value),
+    stature: Number(ui.stature.value),
+    mass: Number(ui.mass.value),
+    crural: Number(ui.crural.value),
+    brachial: Number(ui.brachial.value),
+    legLength: Number(ui.legLength.value),
+    profile: ui.profile.value,
+    backend: ui.backend.value,
+    scenario: ui.scenario.value,
+    passive: ui.passive.checked,
+    redistribute: ui.redistribute.checked,
+    dropHeight: Number(ui.dropHeight.value),
+  };
+}
+
+function applySettings(settings: SessionSettings): void {
+  ui.sex.value = String(settings.sex);
+  ui.stature.value = String(settings.stature);
+  ui.mass.value = String(settings.mass);
+  ui.crural.value = String(settings.crural);
+  ui.brachial.value = String(settings.brachial);
+  ui.legLength.value = String(settings.legLength);
+  ui.profile.value = settings.profile;
+  ui.backend.value = settings.backend;
+  ui.scenario.value = settings.scenario;
+  ui.passive.checked = settings.passive;
+  ui.redistribute.checked = settings.redistribute;
+  ui.dropHeight.value = String(settings.dropHeight);
+  must<HTMLOutputElement>('#dropHeight-value').textContent = `${settings.dropHeight.toFixed(2)} m`;
+  rebuild();
+}
+
+/** Draw a scenario's static boxes so the body has something visible to land on. */
+function showFurniture(sim: Simulation): void {
+  if (sim.staticBoxes.length === 0) return;
+  furniture = new Group();
+  const material = new MeshStandardMaterial({ color: 0x4a5566, roughness: 0.9 });
+  for (const box of sim.staticBoxes) {
+    const mesh = new Mesh(
+      new BoxGeometry(2 * box.halfExtents.x, 2 * box.halfExtents.y, 2 * box.halfExtents.z),
+      material,
+    );
+    mesh.position.set(box.position.x, box.position.y, box.position.z);
+    if (box.rotation)
+      mesh.quaternion.set(box.rotation.x, box.rotation.y, box.rotation.z, box.rotation.w);
+    furniture.add(mesh);
+  }
+  scene.add(furniture);
+}
+
+/** Capabilities as a definition list (spec section 9.3). */
+function showCapabilities(sim: Simulation): void {
+  const list = must<HTMLDListElement>('#capabilities');
+  list.innerHTML = '';
+  for (const [key, value] of Object.entries(sim.capabilities)) {
+    const dt = window.document.createElement('dt');
+    dt.textContent = key.replace(/([A-Z])/g, ' $1').toLowerCase();
+    const dd = window.document.createElement('dd');
+    dd.textContent = String(value);
+    list.append(dt, dd);
+  }
+}
+
+async function startSimulation(restoreFrom?: SessionFile['simulation']): Promise<void> {
   if (!skeletonMesh || !skinned) return;
   stopSimulation();
-  ui.drop.disabled = true;
   setSimulationStatus('Compiling…');
   try {
+    const chosen = ui.scenario.value ? findScenario(ui.scenario.value) : undefined;
     const sim = new Simulation(document_, resolveMorphology(currentMorphology()), {
       profileId: ui.profile.value,
+      backend: ui.backend.value as BackendId,
       passiveJoints: ui.passive.checked,
       redistribute: ui.redistribute.checked,
+      scenario: chosen,
       dropHeight: Number(ui.dropHeight.value),
       groundHeight: groundY,
     });
     await sim.start();
+    if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
     simulation = sim;
     overlays = createOverlays(sim.articulation);
     scene.add(overlays.root);
     applyOverlayVisibility();
+    showFurniture(sim);
+    showCapabilities(sim);
     must<HTMLElement>('#diagnostics').hidden = false;
+    must<HTMLElement>('#timeline-control').hidden = false;
     showReports(sim);
     refreshSelection();
+    setRunControls(true);
     setSimulationStatus('Running.');
   } catch (error) {
     console.error('The simulation failed to start.', error);
     setSimulationStatus(error instanceof Error ? error.message : String(error), true);
-    ui.drop.disabled = false;
+    setRunControls(false);
   }
 }
+
+function updateTimeline(sim: Simulation): void {
+  const seconds = sim.recordedSeconds;
+  ui.timeline.max = seconds.toFixed(2);
+  if (!scrubbing) ui.timeline.value = seconds.toFixed(2);
+  must<HTMLOutputElement>('#timeline-value').textContent =
+    `${Number(ui.timeline.value).toFixed(2)} s`;
+}
+
+let scrubbing = false;
+ui.timeline.addEventListener('pointerdown', () => {
+  scrubbing = true;
+  if (simulation) {
+    simulation.paused = true;
+    setRunControls(true);
+  }
+});
+ui.timeline.addEventListener('input', () => {
+  if (!simulation) return;
+  simulation.scrubTo(Number(ui.timeline.value));
+  must<HTMLOutputElement>('#timeline-value').textContent =
+    `${Number(ui.timeline.value).toFixed(2)} s`;
+});
+window.addEventListener('pointerup', () => {
+  scrubbing = false;
+});
 
 function applyOverlayVisibility(): void {
   if (!overlays) return;
@@ -483,11 +626,127 @@ function updateDiagnostics(sim: Simulation): void {
 ui.drop.addEventListener('click', () => {
   void startSimulation();
 });
-ui.reset.addEventListener('click', stopSimulation);
+ui.pause.addEventListener('click', () => {
+  if (!simulation) return;
+  simulation.paused = !simulation.paused;
+  setRunControls(true);
+});
+ui.stepOnce.addEventListener('click', () => {
+  if (!simulation) return;
+  simulation.paused = true;
+  simulation.tick();
+  simulation.pose.step();
+  simulation.metrics.step();
+  setRunControls(true);
+});
+ui.reset.addEventListener('click', () => {
+  if (!simulation) return;
+  simulation.reset();
+  simulation.paused = true;
+  setRunControls(true);
+});
 ui.dropHeight.addEventListener('input', () => {
   must<HTMLOutputElement>('#dropHeight-value').textContent =
     `${Number(ui.dropHeight.value).toFixed(2)} m`;
 });
+for (const s of SCENARIOS) {
+  const option = window.document.createElement('option');
+  option.value = s.id;
+  option.textContent = s.title;
+  ui.scenario.appendChild(option);
+}
+ui.scenario.addEventListener('change', () => {
+  const chosen = ui.scenario.value ? findScenario(ui.scenario.value) : undefined;
+  must<HTMLElement>('#scenario-note').textContent = chosen?.description ?? '';
+  must<HTMLElement>('#dropHeight-control').hidden = chosen !== undefined;
+  ui.passive.disabled = chosen !== undefined;
+  if (chosen) ui.passive.checked = chosen.passiveJoints;
+});
+ui.exportRecording.addEventListener('click', () => {
+  if (!simulation) return;
+  download(
+    `bs-humany-${simulation.recording.scenario}-${simulation.backendId}.json`,
+    simulation.exportRecording(),
+  );
+});
+ui.save.addEventListener('click', () => {
+  const file: SessionFile = {
+    format: 'bs-humany.session/1',
+    savedAt: new Date().toISOString(),
+    settings: currentSettings(),
+    ...(simulation
+      ? {
+          simulation: {
+            ticks: simulation.ticks,
+            snapshot: serializeSnapshot(simulation.snapshot()),
+          },
+        }
+      : {}),
+  };
+  download('bs-humany-session.json', JSON.stringify(file));
+});
+ui.load.addEventListener('click', () => ui.loadFile.click());
+ui.loadFile.addEventListener('change', async () => {
+  const file = ui.loadFile.files?.[0];
+  if (!file) return;
+  try {
+    const parsed: unknown = JSON.parse(await file.text());
+    if (!isSessionFile(parsed)) throw new Error('Not a bs-humany session file.');
+    applySettings(parsed.settings);
+    if (parsed.simulation) await startSimulation(parsed.simulation);
+  } catch (error) {
+    console.error('The session failed to load.', error);
+    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+  } finally {
+    ui.loadFile.value = '';
+  }
+});
+
+/** Validation views (M4.8): the two report scenarios, for the current morphology and profile. */
+function showValidation(): void {
+  const morphology = resolveMorphology(currentMorphology());
+  let compiled: ReturnType<typeof compileArticulation>['articulation'];
+  try {
+    compiled = compileArticulation(document_, ui.profile.value, morphology).articulation;
+  } catch {
+    return;
+  }
+  const audit = inertiaAudit(compiled, morphology);
+  const inertiaTable = must<HTMLTableElement>('#inertia-audit');
+  inertiaTable.innerHTML = `
+    <thead><tr><th>Segment</th><th>Mass</th><th>Bones</th><th>CoM height</th><th>Ixx</th><th>Iyy</th><th>Izz</th></tr></thead>
+    <tbody>${audit.rows
+      .map(
+        (r) =>
+          `<tr><td>${escapeHtml(r.segment)}</td><td>${r.mass.toFixed(3)}</td><td>${r.bones}</td><td>${r.comHeight.toFixed(3)}</td>` +
+          `<td>${r.principal[0].toExponential(2)}</td><td>${r.principal[1].toExponential(2)}</td><td>${r.principal[2].toExponential(2)}</td></tr>`,
+      )
+      .join('')}
+      <tr><th>Total</th><td>${audit.totalMass.toFixed(3)}</td><td></td><td>${audit.comHeight.toFixed(3)}</td><td colspan="3">target ${audit.targetMass.toFixed(1)} kg</td></tr>
+    </tbody>`;
+  const sweep = jointSweep(compiled);
+  const sweepTable = must<HTMLTableElement>('#joint-sweep');
+  sweepTable.innerHTML = `
+    <thead><tr><th>Joint</th><th>Axis</th><th>Range</th><th>At lower</th><th>At upper</th><th>Curve</th></tr></thead>
+    <tbody>${sweep
+      .map((r) => {
+        const peak = Math.max(...r.moments.map((m) => Math.abs(m)), 1e-9);
+        const points = r.moments
+          .map(
+            (m, i) =>
+              `${((i / (r.moments.length - 1)) * 60).toFixed(1)},${(10 - (m / peak) * 9).toFixed(1)}`,
+          )
+          .join(' ');
+        return (
+          `<tr><td>${escapeHtml(r.joint)}</td><td>${escapeHtml(r.axis)}${r.defaulted ? '*' : ''}</td>` +
+          `<td>${r.range[0].toFixed(2)} … ${r.range[1].toFixed(2)}</td><td>${r.atLower.toFixed(1)}</td><td>${r.atUpper.toFixed(1)}</td>` +
+          `<td><svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><polyline fill="none" stroke="#6aa9ff" stroke-width="1" points="${points}"/></svg></td></tr>`
+        );
+      })
+      .join('')}
+    </tbody>`;
+}
+ui.profile.addEventListener('change', showValidation);
 
 // ---------------------------------------------------------------------------------------------
 // Grabbing
@@ -601,11 +860,15 @@ function animate(): void {
       });
     }
     updateDiagnostics(simulation);
+    updateTimeline(simulation);
+    must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     setSimulationStatus(
-      plan.clamped
-        ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
-        : `Running, ${seconds} s simulated.`,
+      simulation.paused
+        ? `Paused at ${seconds} s.`
+        : plan.clamped
+          ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
+          : `Running, ${seconds} s simulated.`,
       plan.clamped,
     );
   }
@@ -645,6 +908,7 @@ Object.assign(window, {
     skinned: () => skinned,
     camera,
     raycaster,
+    session: { serializeSnapshot, deserializeSnapshot },
   },
 });
 

@@ -99,6 +99,20 @@
           </select>
         </div>
         <div class="control">
+          <label for="backend">Backend</label>
+          <select id="backend">
+            <option value="rapier" selected>Rapier — interactive default</option>
+            <option value="mujoco">MuJoCo — accuracy backend</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="scenario">Scenario</label>
+          <select id="scenario">
+            <option value="" selected>Free drop from the rest pose</option>
+          </select>
+          <p class="note" id="scenario-note"></p>
+        </div>
+        <div class="control" id="dropHeight-control">
           <label for="dropHeight">Drop height <output id="dropHeight-value">0.30 m</output></label>
           <input type="range" id="dropHeight" min="0" max="1.5" step="0.05" value="0.3" />
         </div>
@@ -106,9 +120,15 @@
         <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
         <div class="control">
           <div class="buttons">
-            <button type="button" id="drop">Drop</button>
-            <button type="button" id="reset">Reset</button>
+            <button type="button" id="drop">Run</button>
+            <button type="button" id="pause" disabled>Pause</button>
+            <button type="button" id="step" disabled>Step</button>
+            <button type="button" id="reset" disabled>Reset</button>
           </div>
+        </div>
+        <div class="control" id="timeline-control" hidden>
+          <label for="timeline">Timeline <output id="timeline-value">0.00 s</output></label>
+          <input type="range" id="timeline" min="0" max="0" step="0.01" value="0" />
         </div>
         <p class="note" id="sim-status">At rest.</p>
         <dl class="readout" id="diagnostics" hidden>
@@ -117,6 +137,7 @@
           <dt>Joint drift</dt><dd id="diag-drift">—</dd>
           <dt>Nearest stop</dt><dd id="diag-limits">—</dd>
           <dt>Contacts</dt><dd id="diag-contacts">—</dd>
+          <dt>Cost / tick</dt><dd id="diag-cost">—</dd>
         </dl>
         <div class="control">
           <label>Overlays</label>
@@ -127,7 +148,30 @@
         </div>
         <details>
           <summary>Compile report <span id="sim-report-summary"></span></summary>
+          <dl class="readout" id="capabilities"></dl>
           <ul id="sim-report" class="limitations"></ul>
+        </details>
+        <div class="control">
+          <div class="buttons">
+            <button type="button" id="export" disabled>Export recording</button>
+            <button type="button" id="save">Save session</button>
+            <button type="button" id="load">Load session</button>
+          </div>
+          <input type="file" id="load-file" accept="application/json" hidden />
+        </div>
+      </section>
+
+      <section>
+        <h2>Validation</h2>
+        <details>
+          <summary>Inertia audit</summary>
+          <p class="note">Compiled segment masses against the body mass, and the whole-body centre of mass at rest.</p>
+          <div class="table-wrap"><table id="inertia-audit"></table></div>
+        </details>
+        <details>
+          <summary>Joint sweep</summary>
+          <p class="note">Passive moment at each stop, per degree of freedom, from the curve the passive module applies.</p>
+          <div class="table-wrap"><table id="joint-sweep"></table></div>
         </details>
       </section>
 

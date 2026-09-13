@@ -41,7 +41,10 @@ describe.each(SCENARIOS.map((s) => [s.id, s] as const))('scenario %s', (_id, sce
       const t = await trajectory(scenario, backend);
       const findings = checkPlausibility(
         t,
-        backend === 'mujoco' ? MUJOCO_TOLERANCES : DEFAULT_TOLERANCES,
+        {
+          ...(backend === 'mujoco' ? MUJOCO_TOLERANCES : DEFAULT_TOLERANCES),
+          ...scenario.plausibility,
+        },
         {
           passiveSystem: scenario.passiveSystem,
           expectRest: true,
@@ -82,7 +85,12 @@ describe.each(SCENARIOS.map((s) => [s.id, s] as const))('scenario %s', (_id, sce
       trajectory(scenario, 'rapier'),
       trajectory(scenario, 'mujoco'),
     ]);
-    const disagreements = compareTrajectories(a, b, DEFAULT_CONFORMANCE, { expectRest: true });
+    const disagreements = compareTrajectories(
+      a,
+      b,
+      { ...DEFAULT_CONFORMANCE, ...scenario.conformance },
+      { expectRest: true },
+    );
     expect(disagreements.map((d) => `${d.check}: ${d.message}`)).toEqual([]);
   });
 });

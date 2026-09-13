@@ -35,6 +35,9 @@ importers:
       '@bs-humany/assets-anatomical':
         specifier: workspace:*
         version: link:../../packages/assets-anatomical
+      '@bs-humany/backend-mujoco':
+        specifier: workspace:*
+        version: link:../../packages/backend-mujoco
       '@bs-humany/backend-rapier':
         specifier: workspace:*
         version: link:../../packages/backend-rapier
@@ -56,6 +59,9 @@ importers:
       '@bs-humany/render-three':
         specifier: workspace:*
         version: link:../../packages/render-three
+      '@bs-humany/scenarios':
+        specifier: workspace:*
+        version: link:../../packages/scenarios
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../../packages/skeleton
@@ -225,6 +231,9 @@ importers:
       '@bs-humany/hsdl':
         specifier: workspace:*
         version: link:../hsdl
+      '@bs-humany/modules-mechanics':
+        specifier: workspace:*
+        version: link:../modules-mechanics
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../skeleton

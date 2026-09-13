@@ -28,4 +28,9 @@ export default defineConfig({
   build: {
     target: 'es2022',
   },
+  optimizeDeps: {
+    // MuJoCo locates its .wasm next to its own module file; pre-bundling moves the module and
+    // leaves the wasm behind. Served as-is, both stay together.
+    exclude: ['@mujoco/mujoco'],
+  },
 });

@@ -123,7 +123,6 @@ export class MujocoBackend implements IPhysicsBackend {
   private commanded = new Float64Array(0);
   private realized = new Float64Array(0);
   private motors: (MotorTarget | null)[] = [];
-  private readonly pendingForce = new Float64Array(0);
   private wrench = new Float64Array(0);
   private grabs = new Set<MujocoGrab>();
   private substepTimestep = 0;

@@ -25,15 +25,21 @@ should not be, but the file records the platform they were produced on.
 
 ## Results, 2026-09-13
 
-| Scenario | Rapier plausibility | MuJoCo plausibility | Conformance |
-|---|---|---|---|
-| drop-standing-collapse | ok (ankle stop yields 0.40 rad) | ok | ok |
-| drop-supine | ok | ok | ok |
-| drop-prone | ok | ok | ok |
-| stairs-tumble | ok (3.7 cm on a step edge) | ok (0.15 rad at a stop) | ok |
-| hang-from-wrist | ok (shoulder stop yields 0.40 rad) | ok (0.15 rad) | ok |
-| seated-on-box | ok | ok | ok |
-| grab-and-swing | ok | ok | ok |
+Largest values seen per scenario and backend: range violation (rad), penetration (mm), joint
+drift (mm), and kinetic energy at the end (J). Every run passes its checks; the numbers are kept
+so the tolerances can be read against what they actually cover.
 
-The parenthesised numbers are the largest values seen, kept here so the tolerances can be read
-against what they actually cover. The Rapier stop yields are the subject of OQ-009.
+| Scenario | Rapier | MuJoCo | Conformance |
+|---|---|---|---|
+| drop-standing-collapse | 0.40 rad, 30 mm, 0.4 mm, 0.00 J | 0.06 rad, 10 mm, 0.0 mm, 0.00 J | ok |
+| drop-supine | 0.00 rad, 2 mm, 0.4 mm, 0.00 J | 0.06 rad, 9 mm, 0.0 mm, 0.00 J | ok |
+| drop-prone | 0.04 rad, 3 mm, 0.1 mm, 0.00 J | 0.05 rad, 9 mm, 0.0 mm, 0.00 J | ok |
+| stairs-tumble | 0.19 rad, 32 mm, 0.2 mm, 0.00 J | 0.08 rad, 14 mm, 0.0 mm, 0.00 J | ok, per-scenario tolerances |
+| hang-from-wrist | 0.40 rad, 28 mm, 3.1 mm, 0.83 J | 0.15 rad, 8 mm, 0.0 mm, 0.02 J | ok |
+| seated-on-box | 0.08 rad, 6 mm, 0.4 mm, 0.02 J | 0.05 rad, 21 mm, 0.0 mm, 0.11 J | ok |
+| grab-and-swing | 0.28 rad, 13 mm, 0.8 mm, 0.35 J | 0.08 rad, 8 mm, 0.0 mm, 0.00 J | ok |
+
+The Rapier stop yields (0.40 rad at the ankle and the hanging shoulder) are the subject of
+OQ-009. The stairs scenario carries its own tolerances, with the reasons in its definition:
+step-edge impacts inject up to ~9 J per sample on Rapier, and which step a body stops on is
+chaotic, so resting heights may differ by up to 0.6 m between backends.

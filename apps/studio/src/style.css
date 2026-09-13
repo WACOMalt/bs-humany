@@ -347,3 +347,34 @@ summary:hover {
     display: none;
   }
 }
+
+.table-wrap {
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid #2a2f38;
+  border-radius: 4px;
+}
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.table-wrap th,
+.table-wrap td {
+  padding: 0.15rem 0.4rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.table-wrap th:first-child,
+.table-wrap td:first-child {
+  text-align: left;
+}
+.table-wrap thead th {
+  position: sticky;
+  top: 0;
+  background: #1b1f26;
+}
+.sparkline {
+  vertical-align: middle;
+}

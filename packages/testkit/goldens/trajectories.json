@@ -60,12 +60,12 @@
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/mujoco": {
-    "hash": "e74a832a104254cf",
+    "hash": "6eee5665f50b3c86",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/rapier": {
-    "hash": "442522201844694c",
+    "hash": "9f51a41fec7ea3e2",
     "ticks": 2000,
     "platform": "linux-x64"
   }
