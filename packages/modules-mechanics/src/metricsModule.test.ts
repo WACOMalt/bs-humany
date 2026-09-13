@@ -5,6 +5,7 @@ import { Kernel } from '@bs-humany/kernel';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { DIAGNOSTICS_ENERGY, DIAGNOSTICS_LIMITS, MetricsModule } from './metricsModule.js';
+import { PassiveJointModule } from './passiveJointModule.js';
 import { PhysicsModule } from './physicsModule.js';
 
 const document = buildDocument();
@@ -17,6 +18,9 @@ async function session() {
   const metrics = new MetricsModule(articulation);
   kernel.register(physics);
   kernel.register(metrics);
+  // The configuration the model is meant to run in: the passive model is a correctness
+  // requirement (spec 7.3), and without its damping an impulse-joint collapse is violent.
+  kernel.register(new PassiveJointModule(articulation));
   await kernel.init();
   const energy = kernel.channels.storage(DIAGNOSTICS_ENERGY).fields;
   const limits = kernel.channels.storage(DIAGNOSTICS_LIMITS).fields;

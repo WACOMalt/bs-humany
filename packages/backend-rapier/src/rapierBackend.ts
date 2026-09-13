@@ -119,9 +119,15 @@ class RapierGrab implements GrabHandle {
   }
 }
 
+export interface RapierOptions {
+  /** Native per-axis limits on two-DoF generic joints, behind the emulated stops. */
+  readonly twoDofNativeLimits?: 'both' | 'first' | 'none' | 'legacy' | undefined;
+}
+
 export class RapierBackend implements IPhysicsBackend {
   readonly id = 'rapier' as const;
   readonly capabilities = CAPABILITIES;
+  private readonly twoDofNativeLimits: 'both' | 'first' | 'none' | 'legacy';
 
   private config: BackendConfig | undefined;
   private model: CompiledArticulation | undefined;
@@ -156,7 +162,8 @@ export class RapierBackend implements IPhysicsBackend {
   private readonly onPairCollider: (other: Collider) => void;
   private readonly onManifold: (manifold: TempContactManifold, flipped: boolean) => void;
 
-  constructor() {
+  constructor(options: RapierOptions = {}) {
+    this.twoDofNativeLimits = options.twoDofNativeLimits ?? 'both';
     this.hooks = {
       filterContactPair: (_c1, _c2, b1, b2) =>
         this.excludedBodyPairs.has(pairKey(b1, b2)) ? null : RAPIER.SolverFlags.COMPUTE_IMPULSE,
@@ -335,7 +342,7 @@ export class RapierBackend implements IPhysicsBackend {
             dof.range[1] - dof.neutral,
           );
         }
-      } else if (n === 2 && lockedInParent) {
+      } else if (n === 2 && lockedInParent && this.twoDofNativeLimits !== 'legacy') {
         // Give the generic joint an explicit frame: X on the locked axis, Z on the first DoF, Y
         // completing it. Rapier's own frame would have an arbitrary roll about the locked axis,
         // which is what made the ankle's dorsiflexion axis oblique to it. With the frame fixed,
@@ -360,9 +367,11 @@ export class RapierBackend implements IPhysicsBackend {
           );
           nativeBackstops += 1;
         };
-        backstop(d0, ANG_Z, 1);
+        if (this.twoDofNativeLimits !== 'none') backstop(d0, ANG_Z, 1);
         const dy = dot(normalize(d1.vector), y);
-        if (Math.abs(Math.abs(dy) - 1) < 1e-6) backstop(d1, ANG_Y, dy > 0 ? 1 : -1);
+        if (this.twoDofNativeLimits === 'both' && Math.abs(Math.abs(dy) - 1) < 1e-6) {
+          backstop(d1, ANG_Y, dy > 0 ? 1 : -1);
+        }
       } else if (n === 3) {
         // Rapier's spherical joint can limit rotation about each of the parent body's axes. Where
         // a DoF vector lands on one of them at rest, that native limit backs up the emulated
@@ -638,6 +647,10 @@ export class RapierBackend implements IPhysicsBackend {
         if (joint.solver.n > 1) {
           const k = joint.stopStiffness[i] as number;
           const d = joint.stopDamping[i] as number;
+          // A spring beyond the stop, damped on the way out only. Damping the rebound too makes
+          // stops sticky under load (the stairs and the hang fail plausibility); without the
+          // passive module's own damping the rebound can accumulate, which is why a run without
+          // the PassiveJointModule is a degenerate configuration (spec 7.3), not a supported one.
           if (qi < dof.range[0]) f += -k * (qi - dof.range[0]) - (qd < 0 ? d * qd : 0);
           else if (qi > dof.range[1]) f += -k * (qi - dof.range[1]) - (qd > 0 ? d * qd : 0);
         }

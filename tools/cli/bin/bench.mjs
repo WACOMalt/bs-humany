@@ -74,7 +74,9 @@ for (const profileId of PROFILES) {
         perStep,
         realtime: 1000 / (perStep * rate),
       });
-      console.log(`${profileId} ${name} ${rate} Hz: ${perStep.toFixed(3)} ms/step, ${(1000 / (perStep * rate)).toFixed(1)}x real time`);
+      console.log(
+        `${profileId} ${name} ${rate} Hz: ${perStep.toFixed(3)} ms/step, ${(1000 / (perStep * rate)).toFixed(1)}x real time`,
+      );
     }
   }
 }

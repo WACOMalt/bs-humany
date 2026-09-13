@@ -14,7 +14,7 @@ describe('MJCF emitter', () => {
   it('emits one body per segment nested under joint-frame bodies, and one joint per DoF', () => {
     const bodies = result.xml.match(/<body /g)?.length ?? 0;
     expect(bodies).toBe(articulation.segments.length + articulation.joints.length);
-    expect(result.xml.match(/<joint /g)?.length ?? 0).toBe(articulation.dofs.length);
+    expect(result.xml.match(/<joint name=/g)?.length ?? 0).toBe(articulation.dofs.length);
     expect(result.xml.match(/<freejoint/g)?.length).toBe(1);
     expect(result.jointNames.length).toBe(articulation.dofs.length);
     expect(result.jointNames[0]).toMatch(/^lumbar_region_lower\//);
