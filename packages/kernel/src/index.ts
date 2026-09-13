@@ -10,3 +10,8 @@
 
 export * from './prng.js';
 export * from './clock.js';
+export * from './types.js';
+export * from './channels.js';
+export * from './delayLine.js';
+export * from './semver.js';
+export * from './kernel.js';
