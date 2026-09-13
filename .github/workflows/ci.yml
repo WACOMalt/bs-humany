@@ -31,5 +31,8 @@ jobs:
       - name: Citation coverage
         run: pnpm cite:lint
 
+      - name: Module lint
+        run: pnpm module:lint
+
       - name: Test
         run: pnpm test

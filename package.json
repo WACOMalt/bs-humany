@@ -6,7 +6,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@9.15.2",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -15,7 +17,8 @@
     "lint:fix": "biome check --write .",
     "cite:lint": "node tools/cli/bin/cite-lint.mjs",
     "dev": "pnpm --filter @bs-humany/studio dev",
-    "build:studio": "pnpm --filter @bs-humany/studio build"
+    "build:studio": "pnpm --filter @bs-humany/studio build",
+    "module:lint": "node tools/cli/bin/module-lint.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

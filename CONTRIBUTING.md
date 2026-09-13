@@ -113,5 +113,6 @@ pnpm test          # vitest, all packages
 pnpm typecheck     # tsc --build across project references
 pnpm lint          # biome
 pnpm cite:lint     # citation coverage
+pnpm module:lint   # banned globals and allocation in step()
 pnpm dev           # studio app
 ```

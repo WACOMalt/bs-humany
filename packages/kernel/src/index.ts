@@ -15,3 +15,5 @@ export * from './channels.js';
 export * from './delayLine.js';
 export * from './semver.js';
 export * from './kernel.js';
+export * from './transport.js';
+export * from './host.js';

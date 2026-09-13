@@ -280,7 +280,7 @@ export class Kernel {
 
   /** Advance one fixed tick. */
   step(): void {
-    if (!this.#initialised) throw new Error('Kernel.step called before init.');
+    if (!this.#initialised) throw new Error('Kernel.step called before init.'); // allocation-ok: error path
     const ctx = this.#stepContext;
     ctx.tick = this.clock.tick;
     ctx.dt = this.clock.dt;
