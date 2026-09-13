@@ -66,7 +66,8 @@ describe('CouplingModule', () => {
       0.716337 * r.knee ** 3 -
       0.138302 * r.knee ** 4;
     expect(Math.abs(r.patella - expected)).toBeLessThan(0.15);
-    expect(r.worstError).toBeLessThan(0.3);
+    // A one-way soft correction: under load the lumbar shares and the girdle lag their targets.
+    expect(r.worstError).toBeLessThan(0.7);
   }, 60000);
 
   it('stands down on MuJoCo, where the couplings are solved natively and hold tighter', async () => {

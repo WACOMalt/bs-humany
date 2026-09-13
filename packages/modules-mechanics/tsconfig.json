@@ -12,6 +12,7 @@
     { "path": "../kernel" },
     { "path": "../anthropometry" },
     { "path": "../backend-rapier" },
+    { "path": "../backend-mujoco" },
     { "path": "../skeleton" }
   ]
 }

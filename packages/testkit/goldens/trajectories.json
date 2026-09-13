@@ -5,7 +5,7 @@
     "platform": "linux-x64"
   },
   "drop-prone/l1_standard/rapier": {
-    "hash": "b1e1696abccee42d",
+    "hash": "437d0ab66b340c16",
     "ticks": 1500,
     "platform": "linux-x64"
   },
@@ -15,7 +15,7 @@
     "platform": "linux-x64"
   },
   "drop-standing-collapse/l1_standard/rapier": {
-    "hash": "97b53d30056d6817",
+    "hash": "ed6dd05961f5a106",
     "ticks": 1500,
     "platform": "linux-x64"
   },
@@ -25,7 +25,7 @@
     "platform": "linux-x64"
   },
   "drop-supine/l1_standard/rapier": {
-    "hash": "baf4ce62df55862a",
+    "hash": "02e1b1a5ed5bd0e1",
     "ticks": 1500,
     "platform": "linux-x64"
   },
@@ -35,7 +35,7 @@
     "platform": "linux-x64"
   },
   "grab-and-swing/l1_standard/rapier": {
-    "hash": "512f68a44384e12d",
+    "hash": "92439611136276d1",
     "ticks": 2000,
     "platform": "linux-x64"
   },
@@ -45,7 +45,7 @@
     "platform": "linux-x64"
   },
   "hang-from-wrist/l1_standard/rapier": {
-    "hash": "fc82a3eb0d251dbd",
+    "hash": "a00acdce867686bf",
     "ticks": 3000,
     "platform": "linux-x64"
   },
@@ -55,7 +55,7 @@
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/rapier": {
-    "hash": "1563457bda8819ab",
+    "hash": "867243d8d13b592f",
     "ticks": 1500,
     "platform": "linux-x64"
   },
@@ -65,7 +65,7 @@
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/rapier": {
-    "hash": "e47f4099f346870a",
+    "hash": "59e40a1d29d01411",
     "ticks": 2000,
     "platform": "linux-x64"
   }

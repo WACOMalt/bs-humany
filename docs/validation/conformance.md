@@ -7,11 +7,12 @@ they cannot drift apart.
 
 ## What is compared
 
-**Plausibility**, per backend: no NaN or Inf; total energy (kinetic, gravitational, and the
-elastic energy of the passive curves and emulated stops) never rises in a passive system beyond
-2 J per 20 ms sample; no DoF past its stop by more than 0.45 rad on Rapier or 0.2 rad on MuJoCo;
-penetration under 4 cm on Rapier and 3 cm on MuJoCo; joint drift under 5 cm; the body at rest
-(under 1 J kinetic) at the end; the centre of mass falling at g during free flight.
+**Plausibility**, per backend: no NaN or Inf; the energy balance (kinetic, gravitational, the
+elastic energy of the passive curves and emulated stops, less the work of emulated couplings)
+never rises in a passive system beyond 20 J per 20 ms sample on Rapier or 2 J on MuJoCo; no DoF
+past its stop by more than 0.5 rad on Rapier or 0.2 rad on MuJoCo; penetration under 4 cm on
+Rapier and 3 cm on MuJoCo; joint drift under 5 cm; the body at rest (under 1 J kinetic) at the
+end; the centre of mass falling at g during free flight.
 
 **Conformance**, Rapier against MuJoCo: the centre of mass within 5 mm during the contact-free
 prefix; both at rest at the end with resting centre-of-mass heights within 12 cm; dissipated
@@ -31,15 +32,16 @@ so the tolerances can be read against what they actually cover.
 
 | Scenario | Rapier | MuJoCo | Conformance |
 |---|---|---|---|
-| drop-standing-collapse | 0.40 rad, 30 mm, 0.4 mm, 0.00 J | 0.06 rad, 10 mm, 0.0 mm, 0.00 J | ok |
-| drop-supine | 0.00 rad, 2 mm, 0.4 mm, 0.00 J | 0.06 rad, 9 mm, 0.0 mm, 0.00 J | ok |
-| drop-prone | 0.04 rad, 3 mm, 0.1 mm, 0.00 J | 0.05 rad, 9 mm, 0.0 mm, 0.00 J | ok |
-| stairs-tumble | 0.19 rad, 32 mm, 0.2 mm, 0.00 J | 0.08 rad, 14 mm, 0.0 mm, 0.00 J | ok, per-scenario tolerances |
-| hang-from-wrist | 0.40 rad, 28 mm, 3.1 mm, 0.83 J | 0.15 rad, 8 mm, 0.0 mm, 0.02 J | ok |
-| seated-on-box | 0.08 rad, 6 mm, 0.4 mm, 0.02 J | 0.05 rad, 21 mm, 0.0 mm, 0.11 J | ok |
-| grab-and-swing | 0.28 rad, 13 mm, 0.8 mm, 0.35 J | 0.08 rad, 8 mm, 0.0 mm, 0.00 J | ok |
+| drop-standing-collapse | 0.33 rad, 31 mm, 0.4 mm, 0.00 J | 0.11 rad, 18 mm, 0.0 mm, 0.00 J | ok |
+| drop-supine | 0.00 rad, 1 mm, 0.5 mm, 0.00 J | 0.06 rad, 8 mm, 0.0 mm, 0.00 J | ok |
+| drop-prone | 0.09 rad, 5 mm, 0.2 mm, 0.17 J | 0.02 rad, 10 mm, 0.0 mm, 0.01 J | ok |
+| stairs-tumble | 0.15 rad, 22 mm, 0.5 mm, 0.00 J | 0.09 rad, 10 mm, 0.0 mm, 0.00 J | ok, per-scenario tolerances |
+| hang-from-wrist | 0.37 rad, 33 mm, 2.1 mm, 0.23 J | 0.07 rad, 10 mm, 0.0 mm, 0.00 J | ok |
+| seated-on-box | 0.24 rad, 9 mm, 0.3 mm, 0.02 J | 0.04 rad, 24 mm, 0.0 mm, 0.03 J | ok |
+| grab-and-swing | 0.29 rad, 18 mm, 0.7 mm, 0.00 J | 0.07 rad, 16 mm, 0.0 mm, 0.00 J | ok |
 
-The Rapier stop yields (0.40 rad at the ankle and the hanging shoulder) are the subject of
-OQ-009. The stairs scenario carries its own tolerances, with the reasons in its definition:
-step-edge impacts inject up to ~9 J per sample on Rapier, and which step a body stops on is
-chaotic, so resting heights may differ by up to 0.6 m between backends.
+The Rapier stop yields (up to 0.37 rad at the ankle and the hanging shoulder) are the subject of
+OQ-009. Joint couplings (M5.2) run natively on MuJoCo and as one-way soft corrections on
+Rapier, whose work is subtracted in the energy balance. The stairs scenario carries its own
+conformance tolerance, with the reason in its definition: which step a body stops on is chaotic,
+so resting heights may differ by up to 0.6 m between backends.

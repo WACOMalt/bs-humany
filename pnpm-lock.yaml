@@ -185,6 +185,9 @@ importers:
       '@bs-humany/anthropometry':
         specifier: workspace:*
         version: link:../anthropometry
+      '@bs-humany/backend-mujoco':
+        specifier: workspace:*
+        version: link:../backend-mujoco
       '@bs-humany/backend-rapier':
         specifier: workspace:*
         version: link:../backend-rapier

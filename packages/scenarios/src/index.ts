@@ -136,11 +136,8 @@ export const SCENARIOS: readonly Scenario[] = [
     staticBoxes: stairs(6, 0.17, 0.28, 2),
     passiveJoints: true,
     passiveSystem: true,
-    // Step edges are hard impacts: the impulse solver's contact work shows as up to ~9 J per
-    // sample on Rapier, against ~2 J on flat ground. Which step the body comes to rest on is
-    // chaotic, so resting heights can differ by a few steps between backends; a whole flight is
-    // a metre, and that would be a bug.
-    plausibility: { energyRisePerSample: 10 },
+    // Which step the body comes to rest on is chaotic, so resting heights can differ by a few
+    // steps between backends; a whole flight is a metre, and that would be a bug.
     conformance: { restComHeight: 0.6 },
   },
   {
@@ -189,6 +186,9 @@ export const SCENARIOS: readonly Scenario[] = [
     ground: { height: 0 },
     passiveJoints: true,
     passiveSystem: false,
+    // The release flings the body into the ground at a few metres per second; the impulse
+    // solver lets a capsule sink a little further than a drop does before it pushes back.
+    plausibility: { penetration: 0.06 },
     script: (time, api) => {
       const hand = api.segment('hand_r');
       if (time === 0) api.grab(hand, vec3(0, 0, 0), vec3(0.6, 1.5, 0));

@@ -51,6 +51,8 @@ export interface Sample {
   readonly maxPenetration: number;
   /** Largest range violation across DoFs, radians. */
   readonly maxViolation: number;
+  /** Work done so far by emulated couplings, joules; zero where the backend solves them. */
+  readonly couplingWork: number;
   /** Whole-body centre of mass. */
   readonly com: Vec3;
   readonly linearMomentum: Vec3;
@@ -102,7 +104,8 @@ export async function runScenario(
   kernel.register(physics);
   kernel.register(grab);
   kernel.register(metrics);
-  kernel.register(new CouplingModule(articulation, backend.capabilities));
+  const coupling = new CouplingModule(articulation, backend.capabilities);
+  kernel.register(coupling);
   if (scenario.passiveJoints) kernel.register(new PassiveJointModule(articulation));
   await kernel.init();
 
@@ -166,6 +169,7 @@ export async function runScenario(
       contacts: physics.contactsSeen,
       maxPenetration,
       maxViolation,
+      couplingWork: coupling.work,
       com: vec3(cx, cy, cz),
       linearMomentum: vec3(lm[0] ?? 0, lm[1] ?? 0, lm[2] ?? 0),
     });

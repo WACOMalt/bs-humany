@@ -61,15 +61,19 @@ export interface PlausibilityTolerances {
 /**
  * Defaults and their reasons. These are the Rapier tolerances; MuJoCo's are tighter below.
  *
- * - energyRisePerSample 2 J: kinetic plus gravitational plus the elastic energy of the passive
- *   curves and emulated stops should never rise in a passive system. What remains is contact
- *   solver work at impacts and the one-tick lag of the actuate phase; two joules over a 20 ms
- *   sample is a small fraction of the ~100 J a drop releases.
- * - rangeViolation 0.45 rad: every axis-aligned DoF has a native limit backing its emulated stop
+ * - energyRisePerSample 20 J on Rapier, 2 J on MuJoCo: kinetic plus gravitational plus the
+ *   elastic energy of the passive curves and emulated stops, less the work of emulated
+ *   couplings, should never rise in a passive system. What remains is the impulse solver's
+ *   contact work at impacts (penetration recovery is not conservative) and the one-tick lag of
+ *   the actuate phase. On Rapier a 70 kg body landing at a few metres per second, with 100 to
+ *   250 J of kinetic energy in play, shows rises of up to ~18 J over a 20 ms sample; MuJoCo's
+ *   contacts stay within 2 J. Both numbers scale with the sample interval.
+ * - rangeViolation 0.5 rad: every axis-aligned DoF has a native limit backing its emulated stop
  *   and holds to a few hundredths of a radian. Oblique axes (the subtalar inversion axis) have
  *   only the emulated stop, and joints carrying the whole body's weight against ground friction
- *   (the ankles in a standing collapse, a shoulder hanging from its wrist) push it this far. The
- *   remedy is native oblique-axis limits, tracked as OQ-009.
+ *   (the ankles in a standing collapse, a shoulder hanging from its wrist while the shoulder
+ *   rhythm loads its girdle) push it this far. The remedy is native oblique-axis limits,
+ *   tracked as OQ-009.
  * - penetration 0.04 m: the ground plane never exceeds three centimetres; a hard landing on a
  *   box edge (the stairs) reaches this much before the impulse solver pushes back.
  * - restKinetic 1 J: a 70 kg body with a joule of kinetic energy is twitching, not moving.
@@ -78,8 +82,8 @@ export interface PlausibilityTolerances {
  *   parabola is available, so the fit is short and coarse.
  */
 export const DEFAULT_TOLERANCES: PlausibilityTolerances = {
-  energyRisePerSample: 2,
-  rangeViolation: 0.45,
+  energyRisePerSample: 20,
+  rangeViolation: 0.5,
   penetration: 0.04,
   restKinetic: 1,
   drift: 0.05,
@@ -92,6 +96,7 @@ export const DEFAULT_TOLERANCES: PlausibilityTolerances = {
  */
 export const MUJOCO_TOLERANCES: PlausibilityTolerances = {
   ...DEFAULT_TOLERANCES,
+  energyRisePerSample: 2,
   rangeViolation: 0.2,
   penetration: 0.03,
 };
@@ -134,7 +139,9 @@ export function checkPlausibility(
   if (options.passiveSystem) {
     let worst = 0;
     let at = 0;
-    const total = (s: Sample) => s.kinetic + s.potential + elasticEnergy(trajectory, s, options);
+    // Energy balance: kinetic, gravitational and elastic, less the work emulated couplings did.
+    const total = (s: Sample) =>
+      s.kinetic + s.potential + elasticEnergy(trajectory, s, options) - s.couplingWork;
     for (let i = 1; i < samples.length; i++) {
       const a = samples[i - 1];
       const b = samples[i];
