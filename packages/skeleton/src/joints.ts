@@ -60,111 +60,29 @@ import {
   writeExtension,
 } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
-import { VIRTUAL_LANDMARKS, computeBoneFrames, virtualLandmarkWorld } from './frames.js';
-import { ISB_LANDMARKS, isbLandmarkWorld, landmarkId, markerWorld } from './landmarks.js';
+import { computeBoneFrames } from './frames.js';
+import {
+  ARM,
+  type DofSpec,
+  HEAD,
+  type JointSpec,
+  LEG,
+  MTP_AXIS,
+  SUBTALAR_AXIS,
+  type Side,
+  TORSO,
+  centreLocator,
+  centreWorld,
+  dataset,
+  flexionPositive,
+  half,
+  myo,
+  sideName,
+  wu2002,
+  wu2005,
+} from './jointHelpers.js';
+import { L2_EXTRA_JOINTS, L3_JOINT_SPECS, L3_ONLY_JOINTS } from './jointsL3.js';
 import { computeWorldTransforms } from './pose.js';
-
-type Side = 'l' | 'r';
-type P3 = readonly [number, number, number];
-
-// ---------------------------------------------------------------------------------------------
-// Citations
-// ---------------------------------------------------------------------------------------------
-
-const LEG = 'myo_sim/models/leg/assets/myolegs_chain.xml';
-const ARM = 'myo_sim/models/arm/assets/myoarm_r_chain.xml';
-const TORSO = 'myo_sim/models/torso/assets/myotorso_chain.xml';
-const HEAD = 'myo_sim/models/head/assets/myohead_rigid_chain.xml';
-
-const myo = (file: string, joint: string) => cite('caggiano2022', `${file}, joint ${joint}`);
-const wu2002 = (locator: string) => cite('wu2002', locator);
-const wu2005 = (locator: string) => cite('wu2005', locator);
-const dataset = (locator: string) => cite('kervyn2021', locator);
-
-// ---------------------------------------------------------------------------------------------
-// Joint centres
-// ---------------------------------------------------------------------------------------------
-
-/**
- * Where a joint centre comes from.
- *
- *   - `isb`: an ISB landmark by abbreviation.
- *   - `virtual`: a midpoint landmark defined in `frames.ts`.
- *   - `marker`: a raw dataset marker that has no ISB name.
- *   - `centroidMid`: midway between two bones' centroids. Used only for spine joints whose disc
- *     has no marker; the vertebral centroid includes the posterior arch, so the point sits a
- *     little posterior to the disc. Recorded as a limitation on each such joint.
- */
-type Centre =
-  | { readonly isb: readonly [bone: string, abbreviation: string] }
-  | { readonly virtual: string }
-  | { readonly marker: readonly [bone: string, feature: string] }
-  | { readonly centroidMid: readonly [string, string] };
-
-function centreWorld(c: Centre): P3 {
-  if ('isb' in c) return isbLandmarkWorld(c.isb[0], c.isb[1]);
-  if ('marker' in c) return markerWorld(c.marker[0], c.marker[1]);
-  if ('virtual' in c) {
-    const v = VIRTUAL_LANDMARKS.find((x) => x.id === c.virtual);
-    if (!v) throw new Error(`Joint centre references unknown virtual landmark '${c.virtual}'.`);
-    return virtualLandmarkWorld(v);
-  }
-  const [a, b] = c.centroidMid.map((id) => {
-    const bone = DATASET_MANIFEST.bones.find((x) => x.id === id);
-    if (!bone) throw new Error(`Joint centre references unpacked bone '${id}'.`);
-    return bone.centroid;
-  }) as [P3, P3];
-  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
-}
-
-/** How the centre was located, for the provenance extension. */
-function centreLocator(c: Centre): string {
-  if ('isb' in c) {
-    const l = ISB_LANDMARKS.find((x) => x.bone === c.isb[0] && x.abbreviation === c.isb[1]);
-    return l ? `landmark ${landmarkId(l.bone, l.feature)}` : `landmark ${c.isb.join('/')}`;
-  }
-  if ('marker' in c) return `landmark ${landmarkId(c.marker[0], c.marker[1])}`;
-  if ('virtual' in c) return `landmark ${c.virtual}`;
-  return `midpoint of centroids ${c.centroidMid[0]} and ${c.centroidMid[1]}`;
-}
-
-// ---------------------------------------------------------------------------------------------
-// Specifications
-// ---------------------------------------------------------------------------------------------
-
-interface DofSpec {
-  readonly axis: string;
-  /** In the joint frame, right side. Normalised on build; the left side is mirrored on build. */
-  readonly vector: readonly [number, number, number];
-  readonly range: readonly [number, number];
-  readonly romSource: Citation;
-}
-
-export interface JointSpec {
-  readonly id: string;
-  readonly displayName: string;
-  readonly parentBone: string;
-  readonly childBone: string;
-  readonly type: JointDef['type'];
-  readonly centre: Centre;
-  readonly centreSource: Citation;
-  readonly dofs: readonly DofSpec[];
-  readonly reportingOrder?: JointDef['reportingOrder'];
-  readonly limitations?: readonly string[];
-  /** Which side's sign policy applies; midline joints have none. */
-  readonly side?: Side;
-}
-
-const sideName = (s: Side) => (s === 'r' ? 'right' : 'left');
-
-/** Halve a range: the arithmetic behind the L1 region joints, kept in one place. */
-const half = (r: readonly [number, number]): [number, number] => [r[0] / 2, r[1] / 2];
-
-/** Flip the sign convention of a source that counts extension as positive. */
-const flexionPositive = (r: readonly [number, number]): [number, number] => [-r[1], -r[0]];
-
-const SUBTALAR_AXIS = [0.78718, 0.604747, -0.120949] as const;
-const MTP_AXIS = [-0.580954, 0, 0.813936] as const;
 
 function limbJoints(s: Side): JointSpec[] {
   const side = sideName(s);
@@ -704,6 +622,7 @@ export const JOINT_SPECS: readonly JointSpec[] = [
   ...NECK_JOINTS,
   ...limbJoints('r'),
   ...limbJoints('l'),
+  ...L3_JOINT_SPECS,
 ];
 
 /**
@@ -751,9 +670,42 @@ export const L2_JOINTS: readonly string[] = [
   'l5_s1',
   ...LUMBAR_LEVELS.map((l) => l.id),
   't12_l1',
+  // The three thoracic blocks meet at T8/T9 and T4/T5.
+  't8_t9',
+  't4_t5',
   'neck_region_lower',
+  'c2_c3',
+  'c1_c2',
   'neck_region_upper',
   ...L1_JOINTS.filter((id) => !id.startsWith('lumbar_region') && !id.startsWith('neck_region')),
+  ...L2_EXTRA_JOINTS,
+];
+
+/**
+ * Joint ids the L3 profile activates: every anatomical level, articulated hands, the patellae,
+ * separate talus and calcaneus, and the ribs.
+ */
+export const L3_JOINTS: readonly string[] = [
+  'l5_s1',
+  ...LUMBAR_LEVELS.map((l) => l.id),
+  't12_l1',
+  ...L3_ONLY_JOINTS,
+  ...(['r', 'l'] as const).flatMap((s) => [
+    `sternoclavicular_${s}`,
+    `acromioclavicular_${s}`,
+    `glenohumeral_${s}`,
+    `elbow_${s}`,
+    `radioulnar_${s}`,
+    `wrist_${s}`,
+    `hip_${s}`,
+    `knee_${s}`,
+    `patellofemoral_${s}`,
+    `talocrural_${s}`,
+    `subtalar_${s}`,
+    `midtarsal_${s}`,
+    `tarsometatarsal_${s}`,
+    `mtp_${s}`,
+  ]),
 ];
 
 // ---------------------------------------------------------------------------------------------

@@ -141,3 +141,22 @@ for Rapier range violation is 0.45 rad for that reason.
 light intermediate body, or a per-axis limit in a frame Rapier lets us choose freely), and the
 tolerance can drop to what the axis-aligned DoFs already achieve.
 **Status:** open
+
+### OQ-010 — Per-level thoracic and cervical ranges
+**Needed for:** `packages/skeleton/src/jointsL3.ts`, the L3-anatomical profile
+**Provisional value:** thoracic levels take half of the lumbar per-level mean for flexion and
+lateral bending and a fixed 0.2 rad of axial rotation; the cervical levels share the head
+model's lumped neck range, with the atlanto-axial joint taking half of the axial rotation and the
+atlanto-occipital joint a nod. The shapes follow every published segmental table; the numbers
+are derived, not transcribed.
+**Closes when:** a segmental cervical and thoracic source with a compatible licence is cited
+(White & Panjabi's tables are the usual one), or the torso and head models grow the levels.
+**Status:** open
+
+### OQ-011 — Costovertebral, midtarsal and tarsometatarsal ranges
+**Needed for:** `packages/skeleton/src/jointsL3.ts`
+**Provisional value:** ribs get a pump-handle hinge of ±0.1 rad at the rib head; the midtarsal
+and tarsometatarsal joints are rigid. The sternum is rigid with the first rib, so the rib cage
+does not breathe.
+**Closes when:** cited ranges exist for each, or a Phase 2 respiration module needs them.
+**Status:** open

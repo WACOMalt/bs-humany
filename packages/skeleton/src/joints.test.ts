@@ -86,19 +86,30 @@ describe('joint definitions', () => {
     }
   });
 
-  it('carry a real citation on every range, except the two provisional lumbar levels', () => {
+  it('cite MyoSuite on every range, or record the open question a provisional range belongs to', () => {
+    const provisionalQuestions = new Set<string>();
     for (const joint of document.joints) {
       for (const dof of joint.dofs) {
-        const sourced = isSourced(dof.romSource);
-        if (joint.id === 'l5_s1' || joint.id === 't12_l1') {
-          expect(sourced, `${joint.id}.${dof.axis}`).toBe(false);
-          expect(dof.romSource.provisional?.openQuestion).toBe('OQ-007');
+        if (isSourced(dof.romSource)) {
+          expect(dof.romSource.key, `${joint.id}.${dof.axis}`).toBe('caggiano2022');
         } else {
-          expect(sourced, `${joint.id}.${dof.axis}`).toBe(true);
-          expect(dof.romSource.key).toBe('caggiano2022');
+          const question = dof.romSource.provisional?.openQuestion ?? '';
+          expect(['OQ-007', 'OQ-010', 'OQ-011'], `${joint.id}.${dof.axis}`).toContain(question);
+          provisionalQuestions.add(`${joint.id}:${question}`);
         }
       }
     }
+    // The L1 set is fully sourced; only the L2/L3 extra levels and rigid-ish joints are not.
+    for (const id of L1_JOINTS) {
+      const joint = joints.get(id);
+      expect(
+        joint?.dofs.every((d) => isSourced(d.romSource)),
+        id,
+      ).toBe(true);
+    }
+    expect(provisionalQuestions.has('l5_s1:OQ-007')).toBe(true);
+    expect(provisionalQuestions.has('t3_t4:OQ-010')).toBe(true);
+    expect(provisionalQuestions.has('costovertebral_5_l:OQ-011')).toBe(true);
   });
 
   it('have unit-quaternion frames and unit DoF vectors', () => {
@@ -189,9 +200,12 @@ describe('joint axes', () => {
   it('orient every joint frame X anterior, Y superior, Z right at neutral', () => {
     for (const joint of document.joints) {
       const axes = frameAxes(jointWorld(joint.id));
-      expect(dot(column(axes, 0), ANTERIOR), `${joint.id} x`).toBeGreaterThan(0.85);
-      expect(dot(column(axes, 1), SUPERIOR), `${joint.id} y`).toBeGreaterThan(0.85);
-      expect(dot(column(axes, 2), RIGHT), `${joint.id} z`).toBeGreaterThan(0.85);
+      // The acromioclavicular joint takes the clavicle's ISB frame, whose Z runs along the
+      // clavicle itself, some 35 degrees from the transverse axis.
+      const slack = joint.id.startsWith('acromioclavicular') ? 0.7 : 0.85;
+      expect(dot(column(axes, 0), ANTERIOR), `${joint.id} x`).toBeGreaterThan(slack);
+      expect(dot(column(axes, 1), SUPERIOR), `${joint.id} y`).toBeGreaterThan(slack);
+      expect(dot(column(axes, 2), RIGHT), `${joint.id} z`).toBeGreaterThan(slack);
     }
   });
 

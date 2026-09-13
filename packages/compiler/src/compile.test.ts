@@ -163,16 +163,31 @@ describe('mass properties', () => {
 });
 
 describe('failure modes', () => {
+  it('compiles every committed profile, including L2 and L3', () => {
+    for (const profile of document.segmentation) {
+      const { articulation } = compileArticulation(document, profile.id, morphology);
+      expect(articulation.segments.length, profile.id).toBe(profile.segments.length);
+      expect(articulation.joints.length, profile.id).toBe(profile.segments.length - 1);
+    }
+  });
+
   it('refuses a profile whose segments are not all connected, naming them', () => {
-    expect(() => compileArticulation(document, 'l2_biomechanical', morphology)).toThrow(
-      CompileError,
-    );
+    // L1 with its wrists taken away: both hands float.
+    const l1 = document.segmentation.find((p) => p.id === 'l1_standard');
+    if (!l1) throw new Error('no L1');
+    const broken = {
+      ...document,
+      segmentation: [
+        { ...l1, id: 'broken', joints: (l1.joints ?? []).filter((j) => !j.startsWith('wrist')) },
+      ],
+    };
+    expect(() => compileArticulation(broken, 'broken', morphology)).toThrow(CompileError);
     try {
-      compileArticulation(document, 'l2_biomechanical', morphology);
+      compileArticulation(broken, 'broken', morphology);
     } catch (e) {
       const err = e as CompileError;
       expect(err.message).toMatch(/no parent joint/);
-      expect(err.message).toMatch(/finger_1_r/);
+      expect(err.message).toMatch(/hand_r/);
       expect(err.report.notes.some((n) => n.severity === 'error')).toBe(true);
     }
   });

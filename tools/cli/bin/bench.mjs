@@ -27,7 +27,7 @@ const { PhysicsModule, PassiveJointModule, SkeletonPoseModule, MetricsModule } =
 const { RapierBackend } = await jiti.import(join(ROOT, 'packages/backend-rapier/src/index.ts'));
 const { MujocoBackend } = await jiti.import(join(ROOT, 'packages/backend-mujoco/src/index.ts'));
 
-const PROFILES = ['l0_ragdoll', 'l1_standard'];
+const PROFILES = ['l0_ragdoll', 'l1_standard', 'l2_biomechanical', 'l3_anatomical'];
 const BACKENDS = { rapier: () => new RapierBackend(), mujoco: () => new MujocoBackend() };
 const RATES = [240, 500, 1000];
 const SECONDS = 2;

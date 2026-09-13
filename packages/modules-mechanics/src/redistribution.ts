@@ -40,6 +40,9 @@ export interface RedistributionPlan {
   readonly parentSegment: Int32Array;
   /** Per joint: frame in the parent segment, 7 scalars. */
   readonly frameInParent: Float64Array;
+  /** Step scratch sized for this plan's joints: world joint frames (7 each) and conj(R(q)) (4). */
+  readonly jointWorld: Float64Array;
+  readonly fullConj: Float64Array;
 }
 
 /** Which weight a DoF draws on, by its semantic axis name. */
@@ -190,13 +193,13 @@ export function planRedistribution(
     dofStart,
     parentSegment,
     frameInParent,
+    jointWorld: new Float64Array(7 * model.joints.length),
+    fullConj: new Float64Array(4 * model.joints.length),
   };
 }
 
 // Scratch for the step function. Module-level so no step allocates.
 const anchor = new Float64Array(7);
-const jointWorld = new Float64Array(7 * 64);
-const fullConj = new Float64Array(4 * 64);
 const rq = new Float64Array(4);
 const partial = new Float64Array(4);
 const delta = new Float64Array(4);
@@ -222,7 +225,8 @@ export function poseBones(
   redistribute = true,
 ): void {
   const joints = plan.dofCount.length;
-  if (joints > 64) throw new RangeError('poseBones supports at most 64 joints.');
+  const jointWorld = plan.jointWorld;
+  const fullConj = plan.fullConj;
   // Joint frames in world, and the conjugate of the full joint rotation R(q).
   for (let k = 0; k < joints; k++) {
     const ps = plan.parentSegment[k] as number;

@@ -9,7 +9,7 @@
  */
 
 import type { SegmentationDef } from '@bs-humany/hsdl';
-import { L0_JOINTS, L1_JOINTS, L2_JOINTS } from './joints.js';
+import { L0_JOINTS, L1_JOINTS, L2_JOINTS, L3_JOINTS } from './joints.js';
 import { BONES } from './taxonomy.js';
 
 const idsIn = (predicate: (id: string) => boolean): string[] =>
@@ -249,9 +249,9 @@ export const L2_BIOMECHANICAL: SegmentationDef = {
     'Carpals and metacarpals are one body per hand; fingers articulate at the metacarpophalangeal ' +
       'joint only, as one segment each.',
     'Toes are one segment per foot.',
-    'Joint definitions are incomplete for this profile: the acromioclavicular, atlanto-axial, ' +
-      'C2/C3, patellofemoral, midtarsal, tarsometatarsal and finger joints are not yet defined, so ' +
-      'those segments are not connected. The cervical spine uses the L1 region joints.',
+    'The cervical spine mixes the L1 region joints at C7/T1 and the atlanto-occipital joint ' +
+      'with per-level C2/C3 and atlanto-axial joints, so its total range is over-counted.',
+    'Midtarsal and tarsometatarsal joints are rigid (OQ-011).',
   ],
   joints: [...L2_JOINTS],
   segments: [
@@ -389,6 +389,166 @@ export const L2_BIOMECHANICAL: SegmentationDef = {
   ],
 };
 
+/**
+ * `L3-anatomical`: every vertebra, every rib, every phalanx, the patellae, separate talus and
+ * calcaneus. About 110 rigid bodies. The reference profile for measurement runs, not for
+ * interaction; the benchmark table says what it costs.
+ */
+export const L3_ANATOMICAL: SegmentationDef = {
+  id: 'l3_anatomical',
+  displayName: 'L3 — Anatomical',
+  description:
+    'Per-vertebra spine, ribs on pump-handle hinges, articulated fingers and thumbs, patellae, ' +
+    'talus and calcaneus apart. About a hundred and ten rigid bodies; MuJoCo recommended.',
+  defaultBackend: 'mujoco',
+  solver: { rate: 1000, iterations: 24, equalityConstraints: true, selfCollision: 'full' },
+  limitations: [
+    'Per-level thoracic and cervical ranges are provisional (OQ-010); costovertebral and tarsal ' +
+      'joints are provisional or rigid (OQ-011).',
+    'The carpals and metacarpals two to five are one body per hand; the thumb metacarpal moves ' +
+      'at its saddle joint.',
+    'Toes are one segment per foot, at the metatarsophalangeal joints.',
+    'The sternum is rigid with the first right rib; the rib cage does not breathe.',
+  ],
+  joints: [...L3_JOINTS],
+  segments: [
+    {
+      id: 'pelvis',
+      displayName: 'Pelvis',
+      anchor: 'sacrum',
+      bones: ['sacrum', 'coccyx', 'hip_l', 'hip_r'],
+    },
+    ...[...LUMBAR, ...THORACIC, ...CERVICAL].map((id) => ({
+      id: id.replace('vertebra_', ''),
+      displayName: id
+        .replace('vertebra_', 'Vertebra ')
+        .toUpperCase()
+        .replace('VERTEBRA', 'Vertebra'),
+      anchor: id,
+      bones: [id],
+    })),
+    ...RIBS.map((id) => ({
+      id,
+      displayName: id.replace(
+        /rib_(\d+)_([lr])/,
+        (_, n, side) => `${label(side as 'l' | 'r')} rib ${n}`,
+      ),
+      anchor: id,
+      bones: [id],
+    })),
+    { id: 'sternum', displayName: 'Sternum', anchor: 'sternum', bones: ['sternum'] },
+    { id: 'head', displayName: 'Head', anchor: 'occipital', bones: SKULL },
+    ...(['l', 'r'] as const).flatMap((s) => [
+      {
+        id: `clavicle_${s}`,
+        displayName: `${label(s)} clavicle`,
+        anchor: `clavicle_${s}`,
+        bones: [`clavicle_${s}`],
+      },
+      {
+        id: `scapula_${s}`,
+        displayName: `${label(s)} scapula`,
+        anchor: `scapula_${s}`,
+        bones: [`scapula_${s}`],
+      },
+      {
+        id: `upperarm_${s}`,
+        displayName: `${label(s)} upper arm`,
+        anchor: `humerus_${s}`,
+        bones: [`humerus_${s}`],
+      },
+      {
+        id: `ulna_${s}`,
+        displayName: `${label(s)} ulna`,
+        anchor: `ulna_${s}`,
+        bones: [`ulna_${s}`],
+      },
+      {
+        id: `radius_${s}`,
+        displayName: `${label(s)} radius`,
+        anchor: `radius_${s}`,
+        bones: [`radius_${s}`],
+      },
+      {
+        id: `hand_${s}`,
+        displayName: `${label(s)} carpus and metacarpals two to five`,
+        anchor: `capitate_${s}`,
+        bones: sided(HAND, s).filter(
+          (id) => !id.startsWith('phalanx_') && id !== `metacarpal_1_${s}`,
+        ),
+      },
+      {
+        id: `metacarpal_1_${s}`,
+        displayName: `${label(s)} thumb metacarpal`,
+        anchor: `metacarpal_1_${s}`,
+        bones: [`metacarpal_1_${s}`],
+      },
+      ...sided(HAND, s)
+        .filter((id) => id.startsWith('phalanx_'))
+        .map((id) => ({
+          id,
+          displayName: `${label(s)} ${id.replace(/phalanx_(\w+)_(\d)_[lr]/, '$1 phalanx $2')}`,
+          anchor: id,
+          bones: [id],
+        })),
+      {
+        id: `thigh_${s}`,
+        displayName: `${label(s)} thigh`,
+        anchor: `femur_${s}`,
+        bones: [`femur_${s}`],
+      },
+      {
+        id: `patella_${s}`,
+        displayName: `${label(s)} patella`,
+        anchor: `patella_${s}`,
+        bones: [`patella_${s}`],
+      },
+      {
+        id: `shank_${s}`,
+        displayName: `${label(s)} shank`,
+        anchor: `tibia_${s}`,
+        bones: [`tibia_${s}`, `fibula_${s}`],
+      },
+      {
+        id: `talus_${s}`,
+        displayName: `${label(s)} talus`,
+        anchor: `talus_${s}`,
+        bones: [`talus_${s}`],
+      },
+      {
+        id: `calcaneus_${s}`,
+        displayName: `${label(s)} calcaneus`,
+        anchor: `calcaneus_${s}`,
+        bones: [`calcaneus_${s}`],
+      },
+      {
+        id: `midfoot_${s}`,
+        displayName: `${label(s)} midfoot`,
+        anchor: `navicular_${s}`,
+        bones: [
+          `navicular_${s}`,
+          `cuboid_${s}`,
+          `cuneiform_medial_${s}`,
+          `cuneiform_intermediate_${s}`,
+          `cuneiform_lateral_${s}`,
+        ],
+      },
+      {
+        id: `forefoot_${s}`,
+        displayName: `${label(s)} forefoot`,
+        anchor: `metatarsal_2_${s}`,
+        bones: sided(FOOT, s).filter((id) => id.startsWith('metatarsal_')),
+      },
+      {
+        id: `toes_${s}`,
+        displayName: `${label(s)} toes`,
+        anchor: `phalanx_pedis_proximal_1_${s}`,
+        bones: sided(FOOT, s).filter((id) => id.startsWith('phalanx_pedis_')),
+      },
+    ]),
+  ],
+};
+
 function label(s: 'l' | 'r'): string {
   return s === 'l' ? 'Left' : 'Right';
 }
@@ -397,4 +557,5 @@ export const SEGMENTATION_PROFILES: readonly SegmentationDef[] = Object.freeze([
   L0_RAGDOLL,
   L1_STANDARD,
   L2_BIOMECHANICAL,
+  L3_ANATOMICAL,
 ]);
