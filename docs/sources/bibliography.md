@@ -218,3 +218,13 @@ OQ-004.
 
 The 0.4 rule that meshes may render but not measure was withdrawn in spec 0.5 (ADR-011). The table
 above is retained for the URLs.
+
+### `gray1918` — T1
+Gray, H. (1918). *Anatomy of the Human Body*, 20th edition, revised by W. H. Lewis. Lea &
+Febiger, Philadelphia. **Public domain.**
+
+The source for muscle origins and insertions as bony features: which tubercle, crest, fossa or
+line a muscle attaches to. Used for the attachment sites of M5.3, where the dataset's marker of
+that feature is the *location* and Gray is the *statement* that the muscle attaches there
+(ADR-011's split between what a landmark is and where this subject has it). Locators name the
+muscle's section in Part IV, Myology.

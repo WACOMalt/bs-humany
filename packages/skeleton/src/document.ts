@@ -19,6 +19,7 @@ import {
   provisional,
 } from '@bs-humany/hsdl';
 import { mul, param } from '@bs-humany/hsdl';
+import { buildAttachmentSites } from './attachments.js';
 import { buildConstraints } from './constraints.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { buildFrameDefs, buildVirtualLandmarks } from './frames.js';
@@ -153,6 +154,7 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
           'kervyn2021',
           'Bone geometry, placement and landmarks from the Z-Anatomy skeletal system',
         ),
+        cite('gray1918', 'Muscle origins and insertions as bony features, Part IV'),
       ],
     },
     units: { length: 'm', mass: 'kg', angle: 'rad', time: 's', force: 'N' },
@@ -209,7 +211,7 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
       ],
     },
 
-    attachmentSites: [],
+    attachmentSites: options.placement === 'procedural' ? [] : buildAttachmentSites(),
   };
 
   return assertValidDocument(document);
