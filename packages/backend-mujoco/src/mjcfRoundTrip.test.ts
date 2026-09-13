@@ -17,7 +17,8 @@ describe('MJCF round trip through mj_forward', () => {
     expect(model.nq).toBe(articulation.nq);
     const data = new mujoco.MjData(model);
     mujoco.mj_forward(model, data);
-    const objBody = (mujoco as unknown as { mjtObj: { mjOBJ_BODY: { value: number } } }).mjtObj.mjOBJ_BODY.value;
+    const objBody = (mujoco as unknown as { mjtObj: { mjOBJ_BODY: { value: number } } }).mjtObj
+      .mjOBJ_BODY.value;
     const xpos = data.xpos as Float64Array;
     const xquat = data.xquat as Float64Array;
     for (const segment of articulation.segments) {
