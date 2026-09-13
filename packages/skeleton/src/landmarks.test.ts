@@ -2,6 +2,7 @@ import { resolveMorphology } from '@bs-humany/anthropometry';
 import { evaluate, validateDocument } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
 import { DATASET_MANIFEST, buildDocument } from './document.js';
+import { VIRTUAL_LANDMARKS } from './frames.js';
 import {
   ISB_LANDMARKS,
   PROVENANCE_NS,
@@ -126,6 +127,6 @@ describe('the document with landmarks', () => {
     const result = validateDocument(buildDocument());
     expect(result.issues.filter((i) => i.severity === 'error')).toEqual([]);
     expect(result.ok).toBe(true);
-    expect(buildDocument().landmarks.length).toBe(landmarks.length);
+    expect(buildDocument().landmarks.length).toBe(landmarks.length + VIRTUAL_LANDMARKS.length);
   });
 });

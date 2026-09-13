@@ -49,15 +49,11 @@ import { createOrbitControls } from './orbit.js';
 
 // The document is built once. Only the morphology context changes as the sliders move, which is
 // exactly the separation ADR-005 is for: anatomy is fixed, geometry is parametric.
-const datasetDocument = buildDocument();
-const proceduralDocument = buildDocument({ placement: 'procedural' });
-/** The document in use: measured placement with the mesh pack, or the hand-authored layout. */
-let document_ = datasetDocument;
+// Measured placement only. The procedural recipes remain as the internal fallback for bones the
+// dataset lacks (the ossicles, OQ-004) and as a future low-detail LOD; they are not a user option.
+const document_ = buildDocument();
 
-/**
- * The measured mesh pack (ADR-005, ADR-011). Loaded once; `null` until it arrives, during which
- * the procedural skeleton renders so the page is never blank.
- */
+/** The measured mesh pack (ADR-005, ADR-011). Nothing renders until it has loaded. */
 let assets: SkeletonAssets | null = null;
 
 async function loadAssets(): Promise<SkeletonAssets> {
@@ -151,7 +147,6 @@ const ui = {
   brachial: must<HTMLInputElement>('#brachial'),
   legLength: must<HTMLInputElement>('#legLength'),
   quality: must<HTMLSelectElement>('#quality'),
-  geometry: must<HTMLSelectElement>('#geometry'),
   showGrid: must<HTMLInputElement>('#showGrid'),
   spin: must<HTMLInputElement>('#spin'),
 };
@@ -172,6 +167,7 @@ function currentMorphology(): Morphology {
 let buildMs = 0;
 
 function rebuild(): void {
+  if (!assets) return;
   const started = performance.now();
 
   const morphology = currentMorphology();
@@ -185,12 +181,7 @@ function rebuild(): void {
   }
 
   const quality = QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM;
-  const useDataset = ui.geometry.value === 'dataset' && assets !== null;
-  document_ = useDataset ? datasetDocument : proceduralDocument;
-  skeletonMesh = buildSkeletonMesh(document_, resolved.context, {
-    quality,
-    ...(useDataset && assets ? { assets } : {}),
-  });
+  skeletonMesh = buildSkeletonMesh(document_, resolved.context, { quality, assets });
 
   if (boneObject) {
     boneObject.geometry.dispose();
@@ -229,7 +220,6 @@ for (const input of [ui.sex, ui.stature, ui.mass, ui.crural, ui.brachial, ui.leg
   input.addEventListener('input', rebuild);
 }
 ui.quality.addEventListener('change', rebuild);
-ui.geometry.addEventListener('change', rebuild);
 /**
  * View presets.
  *
@@ -392,7 +382,6 @@ for (const limitation of modelLimitations()) {
   limitations.appendChild(item);
 }
 
-rebuild();
 animate();
 
 loadAssets()
@@ -400,12 +389,14 @@ loadAssets()
     assets = loaded;
     must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
     must<HTMLElement>('#attribution').hidden = false;
+    must<HTMLElement>('#loading').hidden = true;
     rebuild();
   })
   .catch((error: unknown) => {
-    console.error('Mesh pack failed to load; staying on procedural geometry.', error);
-    ui.geometry.value = 'procedural';
-    ui.geometry.disabled = true;
+    console.error('The measured skeleton failed to load.', error);
+    const loading = must<HTMLElement>('#loading');
+    loading.textContent = 'The measured skeleton failed to load. See the console.';
+    loading.classList.add('error');
   });
 
 function must<T extends Element>(selector: string): T {

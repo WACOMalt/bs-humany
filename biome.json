@@ -38,11 +38,7 @@
   },
   "overrides": [
     {
-      "include": [
-        "**/*.test.ts",
-        "**/fixtures.ts",
-        "**/testing.ts"
-      ],
+      "include": ["**/*.test.ts", "**/fixtures.ts", "**/testing.ts"],
       "linter": {
         "rules": {
           "style": {

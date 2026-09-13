@@ -39,6 +39,18 @@
  "metatarsal_5_r": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
  },
+ "tibia_l": {
+  "Medial_malleolus": "most inferior vertex of the tibia mesh (min Y): the tip of the medial malleolus"
+ },
+ "tibia_r": {
+  "Medial_malleolus": "most inferior vertex of the tibia mesh (min Y): the tip of the medial malleolus"
+ },
+ "fibula_l": {
+  "Lateral_malleolus": "most inferior vertex of the fibula mesh (min Y): the tip of the lateral malleolus"
+ },
+ "fibula_r": {
+  "Lateral_malleolus": "most inferior vertex of the fibula mesh (min Y): the tip of the lateral malleolus"
+ },
  "calcaneus_l": {
   "Posterior_calcaneal_tuberosity_point": "most posterior vertex of the calcaneus mesh (max Z, world frame)"
  },

@@ -20,6 +20,7 @@ import {
 } from '@bs-humany/hsdl';
 import { mul, param } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
+import { buildFrameDefs, buildVirtualLandmarks } from './frames.js';
 import { BONE_SHAPES, FALLBACK_BONES, fallbackShape } from './geometry/shapes.js';
 import { buildLandmarks } from './landmarks.js';
 import { SEGMENTATION_PROFILES } from './segmentation.js';
@@ -74,7 +75,9 @@ export interface BuildOptions {
 
 export function buildBones(options: BuildOptions = {}): BoneDef[] {
   const placement = options.placement ?? 'dataset';
+  const frames = placement === 'dataset' ? buildFrameDefs() : new Map();
   return BONES.map((entry): BoneDef => {
+    const frame = frames.get(entry.id);
     const shape = BONE_SHAPES.get(entry.id) ?? fallbackShape(entry.region);
     const restTransform =
       (placement === 'dataset' ? datasetRestTransform(entry) : undefined) ?? shape.restTransform;
@@ -86,6 +89,7 @@ export function buildBones(options: BuildOptions = {}): BoneDef[] {
       region: entry.region,
       ...(entry.side ? { side: entry.side } : {}),
       restTransform,
+      ...(frame ? { frame } : {}),
       dimensions: shape.dimensions,
       geometry: shape.geometry,
     };
@@ -126,7 +130,10 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
     units: { length: 'm', mass: 'kg', angle: 'rad', time: 's', force: 'N' },
 
     bones: buildBones(options),
-    landmarks: buildLandmarks(),
+    landmarks: [
+      ...buildLandmarks(),
+      ...(options.placement === 'procedural' ? [] : buildVirtualLandmarks()),
+    ],
     joints: [],
     segmentation: [...SEGMENTATION_PROFILES],
     collisionProxies: [],
@@ -195,12 +202,20 @@ export function modelLimitations(): string[] {
     'Bone placement comes from the Z-Anatomy dataset (one male subject, 1.70 m) scaled uniformly ' +
       'by stature. Pelvic and shoulder breadth, and the sex blend, do not yet move the measured ' +
       'bones; that needs the landmark-derived joint frames of M1.2/M1.3.',
-    'Landmarks are in place (M1.2) but bone local frames are not yet derived from them, so joint ' +
-      'centres are still implied by mesh centroids rather than by ISB definitions. M1.3 next.',
+    'ISB segment frames cover the pelvis, femur, tibia/fibula, calcaneus, thorax, clavicle, ' +
+      'scapula, humerus, ulna and radius. Vertebrae, skull, hands and the remaining foot bones ' +
+      'are world-aligned at their centroid until their systems are defined.',
+    "Left-side frames follow the right-handed policy of OQ-006 (Z to the subject's right on both " +
+      'sides) rather than the literal ISB wording for left segments.',
     'Limb proportions are sex-neutral: the underlying table is not sex-separated. See OQ-003.',
     'Parameter tables are consistency-checked but not yet verified line by line against their ' +
       'source publications. See OQ-001 and OQ-002.',
   ];
+  limitations.push(
+    'The procedural skeleton is disabled as a user option and is a future goal; the measured ' +
+      'skeleton is the only one rendered. Procedural recipes serve only as the fallback for bones ' +
+      'the dataset lacks.',
+  );
   if (unmodelled.length > 0) {
     limitations.push(
       `${unmodelled.length} bone(s) use a generic fallback shape rather than a modelled one: ` +

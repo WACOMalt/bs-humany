@@ -18,10 +18,10 @@
     "@bs-humany/frames": "workspace:^",
     "@bs-humany/hsdl": "workspace:^",
     "three": "^0.186.0",
-    "@bs-humany/assets-anatomical": "workspace:*"
+    "@bs-humany/assets-anatomical": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*"
   },
   "devDependencies": {
-    "@bs-humany/skeleton": "workspace:^",
     "@types/three": "^0.186.0"
   }
 }

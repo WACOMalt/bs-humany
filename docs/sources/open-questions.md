@@ -71,3 +71,35 @@ one distributed work (ADR-009), so the safe default is exclusion.
 does model them, as FMA52751-3), or the meshes are replaced from BodyParts3D directly. Then remove
 `excluded` from the three mapping entries and re-run ingestion.
 **Status:** open
+
+### OQ-005 — ISB frame definitions: sections verified, hand and spine still to do
+**Needed for:** `packages/skeleton/src/frames.ts`
+**Provisional value:** the pelvis, femur, tibia/fibula and calcaneus systems were transcribed from
+the text of Wu et al. (2002) §3.3, §3.4, §4.3, §4.4, and the thorax, clavicle, scapula, humerus
+(option 1), ulna and radius systems from Wu et al. (2005) §2.3.1–2.3.6 and §3.3.3–3.3.4, read
+directly from the ISB-hosted PDFs on 2026-09-13. Those are verified. The hand and wrist systems
+(2005 §4) and the vertebral system (2002 §5.2, which needs endplate centres and pedicle bases the
+pack does not mark) are not yet implemented; those bones are world-aligned at their centroid.
+Also: MM and LM are derived as the most inferior vertex of the tibia and fibula respectively
+(ISB: "tip of the malleolus"), because the export's marker for the left lateral malleolus is a
+surface patch whose centroid sat 2 cm above the tip and tilted the tibia frame by 22°. With the
+tip rule the two sides mirror to within 1°, but the malleolar axis inclination on this subject
+comes out at about 23° in the frontal plane, at the high end of published values (Inman reports
+the axis roughly 8° from the transverse plane). Whether that is the subject, the mesh, or the rule
+picking a point below the true tip has not been established.
+**Closes when:** hand/wrist and vertebral frames are defined from cited landmarks, and the
+malleolar inclination is checked against the mesh by eye or against a second dataset.
+**Status:** open (partial)
+
+### OQ-006 — Left-side frame handedness
+**Needed for:** `packages/skeleton/src/frames.ts`
+**Provisional value:** every frame is right-handed with Z toward the subject's right, X anterior
+and Y superior at neutral, on both sides. ISB 2005 defines the clavicle and scapula Z as "pointing
+to AC/AA" (lateral), which for a left segment gives the opposite direction and, with X forward and Y
+up, a left-handed frame. Reversing the pair keeps the frames right-handed and identical in meaning
+across sides, which is also OpenSim's convention. The spec (§7.1) requires rotation orders be
+explicit; joint definitions in M3.1 must account for this when comparing left-side angles to
+literature that follows the literal ISB wording.
+**Closes when:** the project owner confirms the policy, or joint-angle comparison against
+published left-side data shows a sign discrepancy that requires the literal convention.
+**Status:** open

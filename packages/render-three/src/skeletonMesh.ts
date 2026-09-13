@@ -16,12 +16,11 @@ import type { SkeletonAssets } from '@bs-humany/assets-anatomical';
 import {
   IDENTITY_TRANSFORM,
   type Transform,
-  compose,
   rotate,
   transformPoint,
   vec3,
 } from '@bs-humany/frames';
-import type { BoneDef, ExprContext, HsdlDocument } from '@bs-humany/hsdl';
+import type { ExprContext, HsdlDocument } from '@bs-humany/hsdl';
 import { evaluate } from '@bs-humany/hsdl';
 import { evaluateRecipe } from './mesh/evaluate.js';
 import { computeSmoothNormals } from './mesh/primitives.js';
@@ -73,42 +72,9 @@ export interface BuildOptions {
 /** Which source a bone's geometry came from, surfaced in the inspector. */
 export type GeometrySource = 'dataset' | 'procedural';
 
-/**
- * World transforms for every bone, in the rest pose.
- *
- * Computed by composing each bone's parent-relative rest transform down the tree. Exposed
- * separately because the pose module and the inspector both need it without the geometry.
- */
-export function computeWorldTransforms(
-  document: HsdlDocument,
-  context: ExprContext,
-): Map<string, Transform> {
-  const byId = new Map(document.bones.map((b) => [b.id, b]));
-  const world = new Map<string, Transform>();
+import { computeWorldTransforms } from '@bs-humany/skeleton';
 
-  const resolve = (bone: BoneDef): Transform => {
-    const cached = world.get(bone.id);
-    if (cached) return cached;
-
-    const local: Transform = {
-      translation: vec3(
-        evaluate(bone.restTransform.translation.x, context),
-        evaluate(bone.restTransform.translation.y, context),
-        evaluate(bone.restTransform.translation.z, context),
-      ),
-      rotation: bone.restTransform.rotation,
-    };
-
-    const parent = bone.parent === null ? undefined : byId.get(bone.parent);
-    const parentWorld = parent ? resolve(parent) : IDENTITY_TRANSFORM;
-    const result = compose(parentWorld, local);
-    world.set(bone.id, result);
-    return result;
-  };
-
-  for (const bone of document.bones) resolve(bone);
-  return world;
-}
+export { computeWorldTransforms };
 
 /** Evaluate every bone's geometry and bake it into one merged buffer. */
 export function buildSkeletonMesh(

@@ -97,6 +97,26 @@ export const DERIVED_RULES: readonly DerivedRule[] = [
       }),
     ),
   ),
+  // ISB 2002 defines MM and LM as the *tips* of the malleoli. The export's markers are surface
+  // patches -- the left lateral malleolus is a 390-vertex patch whose centroid sits well above
+  // the tip -- and the two sides differed enough to tilt the tibia frame by 22 degrees. The tip is
+  // the most inferior point of the bone, on both sides, so it is derived rather than read.
+  ...(['l', 'r'] as const).map(
+    (s): DerivedRule => ({
+      bone: `tibia_${s}`,
+      feature: 'Medial_malleolus',
+      rule: 'most inferior vertex of the tibia mesh (min Y): the tip of the medial malleolus',
+      pick: (m) => extreme(m, 1, -1),
+    }),
+  ),
+  ...(['l', 'r'] as const).map(
+    (s): DerivedRule => ({
+      bone: `fibula_${s}`,
+      feature: 'Lateral_malleolus',
+      rule: 'most inferior vertex of the fibula mesh (min Y): the tip of the lateral malleolus',
+      pick: (m) => extreme(m, 1, -1),
+    }),
+  ),
   ...(['l', 'r'] as const).map(
     (s): DerivedRule => ({
       bone: `calcaneus_${s}`,
