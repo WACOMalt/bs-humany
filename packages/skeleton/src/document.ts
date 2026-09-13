@@ -24,6 +24,7 @@ import { buildFrameDefs, buildVirtualLandmarks } from './frames.js';
 import { BONE_SHAPES, FALLBACK_BONES, fallbackShape } from './geometry/shapes.js';
 import { buildJoints } from './joints.js';
 import { buildLandmarks } from './landmarks.js';
+import { buildCollisionSetup, buildContactRules } from './proxies.js';
 import { SEGMENTATION_PROFILES } from './segmentation.js';
 import { BONES } from './taxonomy.js';
 
@@ -118,6 +119,15 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
   // Joints are located from landmarks and oriented by ISB frames, neither of which the procedural
   // layout carries, so that layout stays a bare, unjointed skeleton.
   const joints = options.placement === 'procedural' ? [] : buildJoints({ bones, landmarks });
+  // The procedural layout has no joints to activate, so its profiles carry no joint lists.
+  const profiles = SEGMENTATION_PROFILES.map((profile) => {
+    if (options.placement !== 'procedural') return profile;
+    const { joints: _joints, ...rest } = profile;
+    return rest;
+  });
+  // Proxies are fitted to the measured bounds, which only the dataset placement honours.
+  const collision =
+    options.placement === 'procedural' ? undefined : buildCollisionSetup(profiles, joints);
   const document: HsdlDocument = {
     hsdlVersion: HSDL_VERSION,
     id: 'bs-humany.reference-skeleton',
@@ -149,20 +159,17 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
     bones,
     landmarks,
     joints,
-    // The procedural layout has no joints to activate, so its profiles carry no joint lists.
-    segmentation: SEGMENTATION_PROFILES.map((profile) => {
-      if (options.placement !== 'procedural') return profile;
-      const { joints: _joints, ...rest } = profile;
-      return rest;
-    }),
-    collisionProxies: [],
-    contactRules: {
-      classes: {
-        bone_on_ground: { friction: 0.85, restitution: 0.02 },
-        bone_on_bone: { friction: 0.3, restitution: 0.0 },
-      },
-      defaultClass: 'bone_on_ground',
-    },
+    segmentation: collision ? collision.profiles : profiles,
+    collisionProxies: collision ? collision.proxies : [],
+    contactRules: collision
+      ? buildContactRules(collision)
+      : {
+          classes: {
+            bone_on_ground: { friction: 0.85, restitution: 0.02 },
+            bone_on_bone: { friction: 0.3, restitution: 0.0 },
+          },
+          defaultClass: 'bone_on_ground',
+        },
     constraints: [],
 
     morphology: {
@@ -219,6 +226,9 @@ export function modelLimitations(): string[] {
     'Joint ranges are fixed values from the MyoSuite reference models. Several are ' +
       'posture-dependent in reality (hip flexion with knee angle, glenohumeral range with scapular ' +
       'position); each joint records its own simplifications.',
+    'Collision proxies are one capsule or box per segment, fitted to the measured bounds of ' +
+      'its bones at the dataset pose. Pairs of unjoined segments whose proxies overlap at rest ' +
+      'are excluded from self-collision, so those regions pass through each other.',
     'The L1 spine moves at two lumbar and two neck region joints, each carrying half of a lumped ' +
       'source range. Per-level lumbar joints exist for L2; two of the six levels are provisional ' +
       '(OQ-007). No cervical lateral bending is defined yet.',

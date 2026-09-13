@@ -1315,7 +1315,7 @@
           "$ref": "#/$defs/Id"
         },
         "transform": {
-          "$ref": "#/$defs/Transform"
+          "$ref": "#/$defs/TransformExpr"
         },
         "shape": {
           "oneOf": [
@@ -1412,19 +1412,6 @@
         }
       },
       "required": ["id", "transform", "shape"],
-      "additionalProperties": false
-    },
-    "Transform": {
-      "type": "object",
-      "properties": {
-        "translation": {
-          "$ref": "#/$defs/Vec3"
-        },
-        "rotation": {
-          "$ref": "#/$defs/Quat"
-        }
-      },
-      "required": ["translation", "rotation"],
       "additionalProperties": false
     },
     "ContactRuleDef": {
@@ -1788,6 +1775,19 @@
         }
       },
       "required": ["id", "bone", "kind", "displayName", "position", "source"],
+      "additionalProperties": false
+    },
+    "Transform": {
+      "type": "object",
+      "properties": {
+        "translation": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "rotation": {
+          "$ref": "#/$defs/Quat"
+        }
+      },
+      "required": ["translation", "rotation"],
       "additionalProperties": false
     }
   }

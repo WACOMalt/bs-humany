@@ -334,6 +334,20 @@ export function checkCoherence(doc: HsdlDocument): ValidationIssue[] {
 
   // --- Contact rules -------------------------------------------------------------------------
 
+  // Exclusion pairs name segments. A pair naming nothing would be silently ignored by the
+  // compiler, which is exactly how a typo turns into an explosion at run time.
+  const segmentIds = new Set(doc.segmentation.flatMap((p) => p.segments.map((s) => s.id)));
+  for (const [index, pair] of (doc.contactRules.exclude ?? []).entries()) {
+    for (const id of pair) {
+      if (!segmentIds.has(id)) {
+        error(
+          `contactRules.exclude[${index}]`,
+          `Exclusion pair names segment '${id}', which no profile defines.`,
+        );
+      }
+    }
+  }
+
   const classNames = new Set(Object.keys(doc.contactRules.classes ?? {}));
   for (const [index, assignment] of (doc.contactRules.assign ?? []).entries()) {
     if (!classNames.has(assignment.class)) {

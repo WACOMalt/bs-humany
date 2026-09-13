@@ -14,13 +14,19 @@
 import { z } from 'zod';
 import { ScalarExprSchema } from './expr.js';
 import { ExtensionsSchema } from './extensions.js';
-import { IdSchema, TransformSchema, Vec3Schema } from './primitives.js';
+import { IdSchema, TransformExprSchema, Vec3Schema } from './primitives.js';
 
 export const CollisionProxySchema = z
   .object({
     id: IdSchema,
-    /** Placement in the owning segment's frame. */
-    transform: TransformSchema,
+    /**
+     * Placement in the owning segment's frame -- the anchor bone's local frame.
+     *
+     * Expression-valued like a joint frame: a proxy pinned to fixed metres would slide off its
+     * segment as soon as stature changed. A capsule's axis is the proxy's local +Y; a box's half
+     * extents are along its local axes.
+     */
+    transform: TransformExprSchema,
     shape: z.discriminatedUnion('kind', [
       z
         .object({
