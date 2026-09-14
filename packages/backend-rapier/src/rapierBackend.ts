@@ -928,6 +928,11 @@ export class RapierBackend implements IPhysicsBackend {
 
   // --- Direct manipulation ----------------------------------------------------------------------
 
+  setGravity(gravity: Vec3): void {
+    const world = this.requireWorld();
+    world.gravity = new RAPIER.Vector3(gravity.x, gravity.y, gravity.z);
+  }
+
   setKinematic(segmentIndex: number, enabled: boolean): void {
     const body = this.requireBody(segmentIndex);
     body.setBodyType(

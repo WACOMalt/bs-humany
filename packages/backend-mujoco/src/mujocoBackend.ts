@@ -610,6 +610,15 @@ export class MujocoBackend implements IPhysicsBackend {
 
   // --- Direct manipulation ----------------------------------------------------------------------
 
+  setGravity(gravity: Vec3): void {
+    const model = this.mjModel;
+    if (!model) throw new Error('No compiled model.');
+    const g = model.opt.gravity as Float64Array;
+    g[0] = gravity.x;
+    g[1] = gravity.y;
+    g[2] = gravity.z;
+  }
+
   setKinematic(_segmentIndex: number, _enabled: boolean): void {
     throw new Error(
       'MujocoBackend does not support switching a segment kinematic; declare a mocap body at ' +

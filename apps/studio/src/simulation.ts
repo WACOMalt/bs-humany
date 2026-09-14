@@ -324,6 +324,17 @@ export class Simulation {
     return unmatched;
   }
 
+  /**
+   * Turn gravity on or off while the body is running.
+   *
+   * Off is exactly zero rather than a small number: a body in free fall then coasts, which is
+   * what makes it useful for looking at a pose. The energy readout follows, because the physics
+   * module publishes what is in force and the metrics module reads that.
+   */
+  setGravity(on: boolean): void {
+    this.physics.setGravity(on ? this.articulation.gravity : { x: 0, y: 0, z: 0 });
+  }
+
   /** Kernel snapshot of the present moment, for session save. */
   snapshot(): KernelSnapshot {
     return this.kernel.snapshot();

@@ -23,6 +23,8 @@ export interface SessionSettings {
   readonly dropHeight: number;
   /** Grab spring multiplier, 1 being the backend's default. */
   readonly grabStrength?: number | undefined;
+  /** False leaves a running body coasting. */
+  readonly gravity?: boolean | undefined;
   /** The chosen scenario's parameter values, by parameter id. Absent means its defaults. */
   readonly scenarioParameters?: Readonly<Record<string, number>> | undefined;
 }

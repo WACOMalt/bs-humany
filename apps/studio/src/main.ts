@@ -193,6 +193,7 @@ const ui = {
   redistribute: must<HTMLInputElement>('#redistribute'),
   dropHeight: must<HTMLInputElement>('#dropHeight'),
   grabStrength: must<HTMLInputElement>('#grabStrength'),
+  gravity: must<HTMLInputElement>('#gravity'),
   drop: must<HTMLButtonElement>('#drop'),
   pause: must<HTMLButtonElement>('#pause'),
   stepOnce: must<HTMLButtonElement>('#step'),
@@ -486,6 +487,7 @@ function currentSettings(): SessionSettings {
     redistribute: ui.redistribute.checked,
     dropHeight: Number(ui.dropHeight.value),
     grabStrength: Number(ui.grabStrength.value),
+    gravity: ui.gravity.checked,
     ...(ui.scenario.value
       ? { scenarioParameters: { ...scenarioValues.get(ui.scenario.value) } }
       : {}),
@@ -507,6 +509,7 @@ function applySettings(settings: SessionSettings): void {
   ui.redistribute.checked = settings.redistribute;
   ui.dropHeight.value = String(settings.dropHeight);
   must<HTMLOutputElement>('#dropHeight-value').textContent = `${settings.dropHeight.toFixed(2)} m`;
+  if (settings.gravity !== undefined) ui.gravity.checked = settings.gravity;
   if (settings.grabStrength !== undefined) {
     ui.grabStrength.value = String(settings.grabStrength);
     must<HTMLOutputElement>('#grabStrength-value').textContent =
@@ -569,6 +572,8 @@ async function startSimulation(
       groundHeight: groundY,
     });
     await sim.start();
+    // A fresh backend always starts with gravity; the toggle is a session setting, not a run one.
+    if (!ui.gravity.checked) sim.setGravity(false);
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
     if (carry) {
       const unmatched = sim.carryFrom(carry.state, carry.ticks);
@@ -679,6 +684,10 @@ ui.reset.addEventListener('click', () => {
   simulation.reset();
   simulation.paused = true;
   setRunControls(true);
+});
+// Gravity can go off mid-flight: the body keeps whatever motion it had and coasts.
+ui.gravity.addEventListener('change', () => {
+  simulation?.setGravity(ui.gravity.checked);
 });
 ui.grabStrength.addEventListener('input', () => {
   must<HTMLOutputElement>('#grabStrength-value').textContent =

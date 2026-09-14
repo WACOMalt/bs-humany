@@ -39,12 +39,14 @@ import {
   BODY_VELOCITY,
   CHANNEL_VERSION,
   CONTACT_MANIFOLDS,
+  SIM_GRAVITY,
   actuationBodyWrenchSpec,
   actuationJointTorqueSpec,
   bodyJointStateSpec,
   bodyPoseSpec,
   bodyVelocitySpec,
   contactManifoldsSpec,
+  simGravitySpec,
 } from './channels.js';
 
 export const PHYSICS_MODULE_ID = 'bsums.xyz.bs-humany.physics';
@@ -79,6 +81,8 @@ export class PhysicsModule implements SimModule, Stateful {
   private wrenchForce: Float64Array | undefined;
   private wrenchTorque: Float64Array | undefined;
   private readonly substeps: number;
+  private readonly gravity: { x: number; y: number; z: number };
+  private gravityOut: Float64Array | undefined;
   private readonly force: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
   private readonly moment: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
 
@@ -88,6 +92,8 @@ export class PhysicsModule implements SimModule, Stateful {
     private readonly options: PhysicsModuleOptions = {},
   ) {
     this.substeps = Math.max(1, options.substeps ?? 1);
+    const g = options.gravity ?? articulation.gravity;
+    this.gravity = { x: g.x, y: g.y, z: g.z };
     const capacity = options.contactCapacity;
     this.manifest = {
       id: PHYSICS_MODULE_ID,
@@ -103,9 +109,11 @@ export class PhysicsModule implements SimModule, Stateful {
         { id: BODY_VELOCITY, version: CHANNEL_VERSION },
         { id: BODY_JOINT_STATE, version: CHANNEL_VERSION },
         { id: CONTACT_MANIFOLDS, version: CHANNEL_VERSION },
+        { id: SIM_GRAVITY, version: CHANNEL_VERSION },
       ],
       accumulates: [],
       gives: [
+        simGravitySpec(),
         bodyPoseSpec(articulation),
         bodyVelocitySpec(articulation),
         bodyJointStateSpec(articulation),
@@ -120,7 +128,7 @@ export class PhysicsModule implements SimModule, Stateful {
     await this.backend.init({
       dt: ctx.dt / this.substeps,
       iterations: this.options.iterations,
-      gravity: this.options.gravity,
+      gravity: this.gravity,
       ground: this.options.ground,
       staticBoxes: this.options.staticBoxes,
     });
@@ -133,7 +141,27 @@ export class PhysicsModule implements SimModule, Stateful {
     this.bind(ctx);
   }
 
+  /**
+   * Change the gravity the backend integrates with, and say so on `sim.gravity`.
+   *
+   * The articulation's own gravity is what it was compiled for and does not change; this is what
+   * is in force now, which is what an energy ledger has to use.
+   */
+  setGravity(gravity: Vec3): void {
+    this.gravity.x = gravity.x;
+    this.gravity.y = gravity.y;
+    this.gravity.z = gravity.z;
+    this.backend.setGravity(this.gravity);
+    this.publishGravity();
+  }
+
+  private publishGravity(): void {
+    this.gravityOut?.set([this.gravity.x, this.gravity.y, this.gravity.z]);
+  }
+
   private bind(ctx: ModuleInitContext): void {
+    this.gravityOut = ctx.write(SIM_GRAVITY).fields.gravity as Float64Array;
+    this.publishGravity();
     const pose = ctx.write(BODY_POSE);
     this.pose = {
       position: field(pose, 'position'),

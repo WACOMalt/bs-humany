@@ -22,7 +22,13 @@ import type {
   ModuleStepContext,
   SimModule,
 } from '@bs-humany/kernel';
-import { BODY_JOINT_STATE, BODY_POSE, BODY_VELOCITY, CHANNEL_VERSION } from './channels.js';
+import {
+  BODY_JOINT_STATE,
+  BODY_POSE,
+  BODY_VELOCITY,
+  CHANNEL_VERSION,
+  SIM_GRAVITY,
+} from './channels.js';
 import { qRotate } from './qmath.js';
 
 export const METRICS_MODULE_ID = 'bsums.xyz.bs-humany.metrics';
@@ -68,7 +74,9 @@ export function diagnosticsLimitsSpec(model: CompiledArticulation): ChannelSpec 
 
 export class MetricsModule implements SimModule {
   readonly manifest: ModuleManifest;
-  private readonly gravity: number;
+  /** Read from `sim.gravity` each step, so turning gravity off empties the potential term. */
+  private gravityIn: Float64Array | undefined;
+  private gravity: number;
   private readonly mass: Float64Array;
   /** Segment-frame inertia, 9 per segment. */
   private readonly inertia: Float64Array;
@@ -133,6 +141,7 @@ export class MetricsModule implements SimModule {
         { id: BODY_POSE, version: CHANNEL_VERSION },
         { id: BODY_VELOCITY, version: CHANNEL_VERSION },
         { id: BODY_JOINT_STATE, version: CHANNEL_VERSION },
+        { id: SIM_GRAVITY, version: CHANNEL_VERSION },
       ],
       writes: [
         { id: DIAGNOSTICS_ENERGY, version: CHANNEL_VERSION },
@@ -144,6 +153,7 @@ export class MetricsModule implements SimModule {
   }
 
   init(ctx: ModuleInitContext): void {
+    this.gravityIn = ctx.read(SIM_GRAVITY).fields.gravity as Float64Array;
     const pose = ctx.read(BODY_POSE);
     this.position = pose.fields.position as Float64Array;
     this.orientation = pose.fields.orientation as Float64Array;
@@ -169,6 +179,10 @@ export class MetricsModule implements SimModule {
   }
 
   step(_ctx?: ModuleStepContext): void {
+    const g = this.gravityIn;
+    // Gravity can be switched off mid-flight; the potential term follows it rather than the
+    // articulation's compiled value, so the ledger stays the energy the body actually has.
+    if (g) this.gravity = Math.hypot(g[0] as number, g[1] as number, g[2] as number);
     const position = this.position;
     const orientation = this.orientation;
     const linear = this.linear;

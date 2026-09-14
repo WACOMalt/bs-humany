@@ -161,6 +161,8 @@ export interface IPhysicsBackend {
   setJointMotorTarget(dofIndex: number, target: MotorTarget | null): void;
   applyBodyWrench(segmentIndex: number, force: Vec3, torque: Vec3, point?: Vec3): void;
 
+  /** Change the gravity being integrated with, after `init`. */
+  setGravity(gravity: Vec3): void;
   setKinematic(segmentIndex: number, enabled: boolean): void;
   setPose(segmentIndex: number, transform: Transform): void;
   /**

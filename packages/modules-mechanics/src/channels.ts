@@ -18,6 +18,7 @@ export const BODY_BONE_TRANSFORMS = 'body.boneTransforms';
 export const ACTUATION_JOINT_TORQUE = 'actuation.jointTorque';
 export const ACTUATION_BODY_WRENCH = 'actuation.bodyWrench';
 export const CONTACT_MANIFOLDS = 'contact.manifolds';
+export const SIM_GRAVITY = 'sim.gravity';
 
 /** Default capacity of the dynamic contact channel. Overflow is reported, never dropped silently. */
 export const DEFAULT_CONTACT_CAPACITY = 256;
@@ -128,6 +129,26 @@ export function boneTransformsSpec(boneCount: number): ChannelSpec {
       { name: 'orientation', dtype: 'f64', components: 4 },
     ],
     elementCount: boneCount,
+    mode: 'single-writer',
+    backing: 'shared',
+  };
+}
+
+/**
+ * The gravity the backend is integrating with, metres per second squared.
+ *
+ * The compiled articulation carries the gravity it was built for, but gravity can be turned off
+ * while a body is in the air, and anything that reads the articulation's copy would go on
+ * reporting a potential energy the body no longer has. The physics module publishes what is
+ * actually in force, and whoever needs it reads this.
+ */
+export function simGravitySpec(): ChannelSpec {
+  return {
+    id: SIM_GRAVITY,
+    version: CHANNEL_VERSION,
+    layout: 'SoA',
+    fields: [{ name: 'gravity', dtype: 'f64', components: 3 }],
+    elementCount: 1,
     mode: 'single-writer',
     backing: 'shared',
   };
