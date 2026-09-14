@@ -176,6 +176,10 @@ describe('the Blender script', () => {
     expect(script).toContain('scene.frame_end = 2499');
     expect(script).toContain('bpy.ops.import_scene.gltf(filepath=path)');
     expect(script).toContain('"run.glb"');
+    // A hundred metre-wide empties would bury the skeleton in axes.
+    expect(script).toContain('empty_display_size = 0.01');
+    expect(script).toContain('Joint centres');
+    expect(script).toContain('hide_viewport = True');
   });
 });
 

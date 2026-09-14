@@ -14,8 +14,11 @@ second, a 1000 Hz run 1000.
    `blender --python <file>.py` from a shell). The script sets the scene frame rate to the
    simulation rate, imports the `.glb`, and sets the frame range to the capture.
 
-Importing the `.glb` directly also works, but into a 24 fps scene the keyframes land on
-fractional frames; the script exists so each tick is an integer frame.
+Importing the `.glb` directly also works, but two things go wrong. Into a 24 fps scene the
+keyframes land on fractional frames, and Blender draws each of the hundred-odd joint empties one
+metre across, which buries the skeleton in a thicket of axes. The script sets the frame rate,
+shrinks the empties to a centimetre, and puts the joint centres in their own hidden collection.
+Un-hide **Joint centres** in the outliner when you want to inspect a pivot.
 
 ## What the file contains
 
