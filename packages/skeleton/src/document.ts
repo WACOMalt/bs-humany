@@ -236,6 +236,10 @@ export function modelLimitations(): string[] {
     'Joint couplings (lumbar level shares, the patella tracking the knee, the shoulder girdle ' +
       'following elevation) are transcribed from MyoSuite and solved exactly by MuJoCo, the ' +
       'only enabled backend.',
+    'The first seven ribs are welded rigidly to the sternum to close the rib cage, which a tree ' +
+      'of joints cannot do. Costal cartilage is compliant, so the thorax is stiffer here than ' +
+      'in life; before this the cage had no anterior connection at all and opened as the spine ' +
+      'bent. See OQ-011.',
     'The scapula travels with the clavicle but does not turn with it: the acromioclavicular ' +
       'joint carries two counter-rotating degrees of freedom that undo the clavicle’s own ' +
       'rotation, as the source model does with a phantom body. Nothing else holds the scapula ' +

@@ -360,6 +360,7 @@ export function compileArticulation(
 
   // --- Constraints ----------------------------------------------------------------------------
   const constraints: CompiledConstraint[] = [];
+  const weldedPairs = new Map<string, string>();
   for (const c of document.constraints) {
     if (c.kind.type === 'jointCoupling') {
       const dependent = dofIndexOf.get(`${c.kind.dependent.joint}/${c.kind.dependent.dof}`);
@@ -409,6 +410,22 @@ export function compileArticulation(
         });
         continue;
       }
+      // Welds that land on the same pair of segments say the same thing: at a coarse profile
+      // the seven costal welds of one side collapse onto one pair of trunk segments, and six
+      // copies of a constraint only give the solver more of the same to satisfy.
+      const pair = `${Math.min(a, b)}|${Math.max(a, b)}`;
+      if (weldedPairs.has(pair)) {
+        notes.push({
+          severity: 'info',
+          feature: 'constraint',
+          element: c.id,
+          message:
+            `Weld '${c.id}' repeats '${weldedPairs.get(pair)}' on the same pair of segments at ` +
+            'this profile, and is dropped as redundant.',
+        });
+        continue;
+      }
+      weldedPairs.set(pair, c.id);
       constraints.push({
         index: constraints.length,
         id: c.id,

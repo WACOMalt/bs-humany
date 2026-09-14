@@ -15,7 +15,7 @@
  * MuJoCo solves these natively; on Rapier the CouplingModule enforces them softly.
  */
 
-import { type ConstraintDef, cite } from '@bs-humany/hsdl';
+import { type ConstraintDef, cite, provisional } from '@bs-humany/hsdl';
 
 const TORSO = 'myo_sim/models/torso/assets/myotorso_assets.xml';
 const LEG = 'myo_sim/models/leg/assets/myolegs_assets.xml';
@@ -159,6 +159,48 @@ function sideCouplings(s: 'l' | 'r'): ConstraintDef[] {
   ];
 }
 
+/**
+ * The costal cartilage, as weld constraints closing the rib cage.
+ *
+ * A kinematic tree cannot close a loop: each rib hangs from its own vertebra and, below the
+ * first, its anterior end is joined to nothing. The seventh rib's tip then wanders 138 mm from
+ * the sternum over a three-second fall, because six thoracic levels bend between the vertebra it
+ * hangs from and the one the sternum follows, and the cage opens like a set of blinds.
+ *
+ * In life the first seven ribs are bound to the sternum by costal cartilage, and that binding is
+ * most of why the thoracic spine is stiffer than the lumbar. A weld per true rib closes the
+ * loop, which stops the cage opening and braces the thorax at the same time. Cartilage is
+ * compliant, not rigid, so this overstates the stiffness a little; what it replaces understated
+ * it entirely.
+ */
+function ribCageWelds(): ConstraintDef[] {
+  const out: ConstraintDef[] = [];
+  for (const s of ['r', 'l'] as const) {
+    const side = s === 'r' ? 'right' : 'left';
+    for (let n = 1; n <= TRUE_RIBS; n++) {
+      // The first right rib already carries the sternum as a fixed joint.
+      if (n === 1 && s === 'r') continue;
+      out.push({
+        id: `sternocostal_${n}_${s}`,
+        displayName: `Costal cartilage, rib ${n} to sternum, ${side}`,
+        kind: { type: 'weld', bodyA: 'sternum', bodyB: `rib_${n}_${s}` },
+        soft: false,
+        source: provisional(
+          'gray1918',
+          'OQ-011',
+          'The true ribs articulate with the sternum through costal cartilage. Held rigid here ' +
+            'because no cited stiffness for the cartilage is in hand; the alternative in place ' +
+            'before this was no connection at all.',
+        ),
+      });
+    }
+  }
+  return out;
+}
+
+/** Ribs bound directly to the sternum by their own cartilage. */
+export const TRUE_RIBS = 7;
+
 export function buildConstraints(): ConstraintDef[] {
-  return [...lumbarCouplings(), ...sideCouplings('r'), ...sideCouplings('l')];
+  return [...lumbarCouplings(), ...sideCouplings('r'), ...sideCouplings('l'), ...ribCageWelds()];
 }

@@ -97,16 +97,6 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
         'armature and friction loss are emitted natively.',
     });
   }
-  for (const c of model.constraints) {
-    if (c.kind.type === 'weld') {
-      notes.push({
-        severity: 'warning',
-        feature: 'constraint',
-        element: c.id,
-        message: `Weld '${c.id}' is not emitted yet.`,
-      });
-    }
-  }
 
   const lines: string[] = [];
   const push = (depth: number, text: string) => lines.push(`${'  '.repeat(depth)}${text}`);
@@ -270,8 +260,22 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
   }
 
   const couplings = model.constraints.filter((c) => c.kind.type === 'jointCoupling');
-  if (couplings.length > 0) {
+  const welds = model.constraints.filter((c) => c.kind.type === 'weld');
+  if (couplings.length > 0 || welds.length > 0) {
     push(1, '<equality>');
+    for (const c of welds) {
+      if (c.kind.type !== 'weld') continue;
+      const a = model.segments[c.kind.segmentA];
+      const b = model.segments[c.kind.segmentB];
+      if (!a || !b) continue;
+      // No relpose: MuJoCo then holds the two bodies at the relative pose of the reference
+      // configuration, which is the rest pose the document places them in.
+      push(
+        2,
+        `<weld name="${esc(c.id)}" body1="${esc(a.id)}" body2="${esc(b.id)}"` +
+          `${c.soft ? '' : ' solimp="0.9999 0.9999 0.001 0.5 2"'}/>`,
+      );
+    }
     for (const c of couplings) {
       if (c.kind.type !== 'jointCoupling') continue;
       const dependent = jointNames[c.kind.dependent];

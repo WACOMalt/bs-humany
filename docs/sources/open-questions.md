@@ -159,4 +159,8 @@ are derived, not transcribed.
 and tarsometatarsal joints are rigid. The sternum is rigid with the first rib, so the rib cage
 does not breathe.
 **Closes when:** cited ranges exist for each, or a Phase 2 respiration module needs them.
+**Also provisional here:** the costal cartilage. The first seven ribs are welded rigidly to the
+sternum, because a tree of joints cannot close that loop and without it the seventh rib's tip
+wanders 138 mm from the sternum over a three-second fall. Cartilage is compliant, so a rigid
+weld overstates the stiffness; no cited value for the compliance is in hand.
 **Status:** open
