@@ -126,7 +126,8 @@ describe('joint definitions', () => {
   it('record how each centre was located and which frame oriented it', () => {
     const hip = joints.get('hip_r');
     const p = hip?.ext?.[JOINT_NS] as JointProvenance | undefined;
-    expect(p?.centre).toBe('landmark femur_r__head_of_femur');
+    // The fitted centre of the femoral head, not the surface marker of the same name.
+    expect(p?.centre).toBe('landmark femur_r__head_of_femur__articular_centre');
     expect(p?.orientation).toBe('isb-frame:hip_r');
     expect(p?.mirrored).toBe(false);
     // The sacrum carries the ISB pelvis frame; a lumbar vertebra has no frame yet.

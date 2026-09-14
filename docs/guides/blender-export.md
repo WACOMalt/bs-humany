@@ -28,6 +28,10 @@ fractional frames; the script exists so each tick is an integer frame.
 - **Animation.** Translation and rotation channels for every node, keyed at
   `tick / rate` seconds, linear interpolation, parent-relative so the hierarchy carries the
   motion. Consecutive rotations are kept on the same quaternion hemisphere.
+- **Joint centres.** A `joint__<id>` node at every pivot, parented to the bone the pivot is
+  fixed in, so it travels with the body. Each carries its DoF axes, ranges and neutral angles in
+  `extras`. Select one and look at the bone around it to check a pivot by eye: a hip centre
+  belongs in the middle of the femoral head, not on its surface.
 - **Scene geometry.** A second root named `scene` holds the ground (a 20 m square at the
   ground height of the run) and every static box of the scenario, such as the stairs and the
   landing, as unanimated nodes at their world placement.

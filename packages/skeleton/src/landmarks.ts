@@ -26,15 +26,44 @@ import {
   param,
   writeExtension,
 } from '@bs-humany/hsdl';
+import { ARTICULAR_CENTRES } from './articularCentres.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { getBone } from './taxonomy.js';
 
 type LandmarkTable = Record<string, Record<string, [number, number, number]>>;
+/** The pack's own markers: one per named feature, at the marker mesh's centroid. */
 const RAW: LandmarkTable = landmarksJson as unknown as LandmarkTable;
 const DERIVED: Record<string, Record<string, string>> = derivedJson as Record<
   string,
   Record<string, string>
 >;
+
+/**
+ * Markers and fitted centres together, which is what a landmark lookup wants.
+ *
+ * A marker marks a feature; the centre of a ball is not on the feature's surface and no marker
+ * can carry it (see `articularCentres.ts`). The fitted centres join the table under their own
+ * feature names, so they become ordinary landmarks with their derivation on the record, and the
+ * ISB entries that mean "the centre of this ball" point at them.
+ */
+const POSITIONS: LandmarkTable = (() => {
+  const merged: LandmarkTable = {};
+  for (const [bone, features] of Object.entries(RAW)) merged[bone] = { ...features };
+  for (const c of ARTICULAR_CENTRES) {
+    merged[c.bone] ??= {};
+    const features = merged[c.bone];
+    if (features) features[c.feature] = [c.centre[0], c.centre[1], c.centre[2]];
+  }
+  return merged;
+})();
+
+/** How a fitted centre was located, for its provenance line. */
+const FITTED_RULES = new Map(
+  ARTICULAR_CENTRES.map((c) => [
+    `${c.bone}/${c.feature}`,
+    `${c.rule} (${c.inliers} inliers, mean residual ${(c.residual * 1000).toFixed(2)} mm)`,
+  ]),
+);
 
 /** Namespace for dataset provenance carried on each landmark. */
 export const PROVENANCE_NS = moduleNamespace('provenance');
@@ -98,7 +127,9 @@ export const ISB_LANDMARKS: readonly IsbLandmark[] = sided([
     abbreviation: 'HJC',
     description: 'Hip joint centre (centre of the femoral head)',
     bone: 'femur_r',
-    feature: 'Head_of_femur',
+    // The marker of the same name sits on the label side of the head, 35 mm from its centre;
+    // the centre is fitted to the articular surface instead (articularCentres.ts).
+    feature: 'Head_of_femur__articular_centre',
     source: wu2002('2.2, femoral coordinate system'),
     palpable: false,
   },
@@ -288,7 +319,8 @@ export const ISB_LANDMARKS: readonly IsbLandmark[] = sided([
     abbreviation: 'GH',
     description: 'Glenohumeral rotation centre (centre of the humeral head)',
     bone: 'humerus_r',
-    feature: 'Head_of_humerus',
+    // As with the hip: the marker is a surface feature, the rotation centre is the ball's centre.
+    feature: 'Head_of_humerus__articular_centre',
     source: wu2005('2.4, humerus coordinate system'),
     palpable: false,
   },
@@ -368,7 +400,7 @@ export function buildLandmarks(): LandmarkDef[] {
   const out: LandmarkDef[] = [];
   const seen = new Set<string>();
 
-  for (const [bone, features] of Object.entries(RAW)) {
+  for (const [bone, features] of Object.entries(POSITIONS)) {
     const centroid = centroids.get(bone);
     const taxonomy = getBone(bone);
     if (!centroid || !taxonomy) continue;
@@ -379,7 +411,7 @@ export function buildLandmarks(): LandmarkDef[] {
       seen.add(id);
 
       const isb = isbByKey.get(`${bone}/${feature}`);
-      const derivedRule = DERIVED[bone]?.[feature];
+      const derivedRule = DERIVED[bone]?.[feature] ?? FITTED_RULES.get(`${bone}/${feature}`);
       const local = (i: 0 | 1 | 2) => (world[i] - centroid[i]) / DATASET_MANIFEST.subjectStature;
 
       const provenance: LandmarkProvenance = {
@@ -423,7 +455,7 @@ export function isbLandmarkWorld(
 ): readonly [number, number, number] {
   const entry = ISB_LANDMARKS.find((l) => l.bone === bone && l.abbreviation === abbreviation);
   if (!entry) throw new Error(`No ISB landmark '${abbreviation}' is defined on '${bone}'.`);
-  const p = RAW[bone]?.[entry.feature];
+  const p = POSITIONS[bone]?.[entry.feature];
   if (!p) {
     throw new Error(
       `ISB landmark '${abbreviation}' on '${bone}' expects feature '${entry.feature}', which the ` +

@@ -26,6 +26,7 @@ import {
   half,
   myo,
   sideName,
+  wu2002,
   wu2005,
 } from './jointHelpers.js';
 
@@ -478,8 +479,13 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       parentBone: `femur_${s}`,
       childBone: `patella_${s}`,
       type: 'revolute',
-      centre: { centroid: `patella_${s}` },
-      centreSource: dataset(`centroid of patella_${s}`),
+      // The pivot is the knee's own axis, not the patella's middle. The source rotates the
+      // patella about a femur-side frame at the condyles and slides it along the trochlea with
+      // two coupled translations; with the translations dropped, a pivot at the patella's
+      // centroid leaves it spinning on the spot through a hundred degrees, while one at the
+      // knee axis swings it around the condyle the way the real bone travels.
+      centre: { virtual: `femur_${s}__mid_fe` },
+      centreSource: wu2002('4.4, knee: origin at the midpoint of the femoral epicondyles'),
       dofs: [
         {
           // About +z as in the source, so its coupling polynomial applies as written.
@@ -490,8 +496,9 @@ function girdleAndLimbs(s: Side): JointSpec[] {
         },
       ],
       limitations: [
-        'The patella hinges about its own centroid; the source couples it to knee flexion with ' +
-          'translations, which M5.2 supplies as a coupling constraint.',
+        'The patella swings about the knee axis on a fixed radius; the real bone also slides ' +
+          'along the trochlea, which the source expresses as two further coupled translations ' +
+          'that a single rotational DoF cannot carry.',
       ],
     },
     {

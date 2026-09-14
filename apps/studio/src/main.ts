@@ -953,6 +953,7 @@ Object.assign(window, {
     pick: (x: number, y: number) => pickBone(x, y)?.boneId,
     skinned: () => skinned,
     camera,
+    controls,
     raycaster,
     session: { serializeSnapshot, deserializeSnapshot },
     blenderExport: () =>

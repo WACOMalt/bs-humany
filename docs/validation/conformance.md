@@ -27,7 +27,7 @@ changed hash fails the suite. Updating a golden is a deliberate commit with a wr
 run `UPDATE_GOLDENS=1 pnpm test` to regenerate. Rapier's hashes are platform-specific; MuJoCo's
 should not be, but the file records the platform they were produced on.
 
-## Results, 2026-09-13, convex-hull proxies (M5.8)
+## Results, 2026-09-14, fitted hip and shoulder centres
 
 Largest values seen per scenario on MuJoCo: range violation (rad), penetration (mm), joint
 drift (mm), and kinetic energy at the end (J). Every run passes its checks; the numbers are kept
@@ -35,17 +35,18 @@ so the tolerances can be read against what they actually cover.
 
 | Scenario | MuJoCo |
 |---|---|
-| drop-standing-collapse | 0.09 rad, 13 mm, 0.0 mm, 0.00 J |
-| drop-supine | 0.05 rad, 11 mm, 0.0 mm, 0.00 J |
-| drop-prone | 0.07 rad, 10 mm, 0.0 mm, 0.00 J |
-| stairs-tumble | 0.10 rad, 15 mm, 0.0 mm, 0.00 J |
-| hang-from-wrist | 0.16 rad, 5 mm, 0.0 mm, 0.08 J |
-| seated-on-box | 0.06 rad, 15 mm, 0.0 mm, 0.27 J |
-| grab-and-swing | 0.07 rad, 9 mm, 0.0 mm, 0.00 J |
+| drop-standing-collapse | 0.08 rad, 11 mm, 0.0 mm, 0.00 J |
+| drop-supine | 0.07 rad, 11 mm, 0.0 mm, 0.00 J |
+| drop-prone | 0.08 rad, 11 mm, 0.0 mm, 0.00 J |
+| stairs-tumble | 0.07 rad, 12 mm, 0.0 mm, 0.00 J |
+| hang-from-wrist | 0.17 rad, 6 mm, 0.0 mm, 0.01 J |
+| seated-on-box | 0.07 rad, 15 mm, 0.0 mm, 0.53 J |
+| grab-and-swing | 0.08 rad, 10 mm, 0.0 mm, 0.00 J |
 
-With the same hull proxies Rapier failed three scenarios (energy rising by 60 to 1200 J in a
-sample, a torn wrist in the hang) and ran four to five times slower than before; that, with the
-table below from the primitive proxies, is the evidence behind the ADR-003 reassessment.
+The hip and shoulder centres moved to the middle of their articular spheres, 33 mm and 28 mm
+from the surface markers that stood in for them before. The body now lands harder in the
+standing collapse, and the sample after peak compression returns about 5 J of the 230 J that
+impact absorbs; that scenario carries its own energy tolerance with the reason beside it.
 
 ## Results, 2026-09-13, primitive proxies (before M5.8)
 

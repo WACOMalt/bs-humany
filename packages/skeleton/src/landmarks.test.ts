@@ -1,14 +1,17 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { evaluate, validateDocument } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
+import { ARTICULAR_CENTRES } from './articularCentres.js';
 import { DATASET_MANIFEST, buildDocument } from './document.js';
 import { VIRTUAL_LANDMARKS } from './frames.js';
 import {
   ISB_LANDMARKS,
+  type LandmarkProvenance,
   PROVENANCE_NS,
   buildLandmarks,
   isbLandmarkWorld,
   landmarkId,
+  markerWorld,
 } from './landmarks.js';
 import { getBone } from './taxonomy.js';
 
@@ -128,5 +131,59 @@ describe('the document with landmarks', () => {
     expect(result.issues.filter((i) => i.severity === 'error')).toEqual([]);
     expect(result.ok).toBe(true);
     expect(buildDocument().landmarks.length).toBe(landmarks.length + VIRTUAL_LANDMARKS.length);
+  });
+});
+
+describe('fitted articular centres', () => {
+  it('put the hip and shoulder centres inside their balls, where the markers are not', () => {
+    for (const [bone, marker] of [
+      ['femur_r', 'Head_of_femur'],
+      ['humerus_r', 'Head_of_humerus'],
+    ] as const) {
+      const fitted = ARTICULAR_CENTRES.find((c) => c.bone === bone);
+      if (!fitted) throw new Error(bone);
+      // A femoral or humeral head is about 24 mm in radius on this subject.
+      expect(fitted.radius, bone).toBeGreaterThan(0.018);
+      expect(fitted.radius, bone).toBeLessThan(0.03);
+      // The fit is a real surface, not a handful of stray vertices.
+      expect(fitted.inliers, bone).toBeGreaterThan(200);
+      expect(fitted.residual, bone).toBeLessThan(0.002);
+      // The centre lies within the bone's own bounds; the marker does not.
+      const packed = DATASET_MANIFEST.bones.find((b) => b.id === bone);
+      if (!packed) throw new Error(bone);
+      for (let i = 0; i < 3; i++) {
+        expect(fitted.centre[i] ?? 0, `${bone} axis ${i}`).toBeGreaterThanOrEqual(
+          packed.min[i] ?? 0,
+        );
+        expect(fitted.centre[i] ?? 0, `${bone} axis ${i}`).toBeLessThanOrEqual(packed.max[i] ?? 0);
+      }
+      const surface = markerWorld(bone, marker);
+      const away = Math.hypot(
+        (surface[0] ?? 0) - (fitted.centre[0] ?? 0),
+        (surface[1] ?? 0) - (fitted.centre[1] ?? 0),
+        (surface[2] ?? 0) - (fitted.centre[2] ?? 0),
+      );
+      expect(away, `${bone} marker distance`).toBeGreaterThan(0.02);
+    }
+  });
+
+  it('are what the ISB hip and shoulder centres resolve to, mirrored on both sides', () => {
+    for (const side of ['r', 'l'] as const) {
+      const hip = isbLandmarkWorld(`femur_${side}`, 'HJC');
+      const fitted = ARTICULAR_CENTRES.find((c) => c.bone === `femur_${side}`);
+      expect(Array.from(hip)).toEqual(Array.from(fitted?.centre ?? []));
+      const gh = isbLandmarkWorld(`humerus_${side}`, 'GH');
+      const humerus = ARTICULAR_CENTRES.find((c) => c.bone === `humerus_${side}`);
+      expect(Array.from(gh)).toEqual(Array.from(humerus?.centre ?? []));
+    }
+  });
+
+  it('carry their derivation in the landmark provenance', () => {
+    const landmark = buildLandmarks().find(
+      (l) => l.id === 'femur_r__head_of_femur__articular_centre',
+    );
+    const p = landmark?.ext?.[PROVENANCE_NS] as LandmarkProvenance | undefined;
+    expect(p?.locatedBy).toMatch(/^rule: least-squares sphere/);
+    expect(p?.locatedBy).toMatch(/inliers/);
   });
 });

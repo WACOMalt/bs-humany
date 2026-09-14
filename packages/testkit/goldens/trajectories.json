@@ -1,36 +1,36 @@
 {
   "drop-prone/l1_standard/mujoco": {
-    "hash": "e75a3fe64135eb59",
+    "hash": "49c60f35397819b0",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-standing-collapse/l1_standard/mujoco": {
-    "hash": "aef6cf0e06832cdf",
+    "hash": "11e9b65c954d5061",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-supine/l1_standard/mujoco": {
-    "hash": "45a1c2c8eb14634c",
+    "hash": "d00d3dddb989b37a",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "grab-and-swing/l1_standard/mujoco": {
-    "hash": "d5e5cd352587f4ab",
+    "hash": "5e18aa3008383567",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "hang-from-wrist/l1_standard/mujoco": {
-    "hash": "b87c111b4793d7cf",
+    "hash": "d37f6811c5f07f7a",
     "ticks": 3000,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/mujoco": {
-    "hash": "9dbeacdd2816520a",
+    "hash": "c890037a2d28978d",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/mujoco": {
-    "hash": "782e138f056f2cd4",
+    "hash": "b73b7cfb9cb0d090",
     "ticks": 2000,
     "platform": "linux-x64"
   }

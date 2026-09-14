@@ -1,0 +1,76 @@
+{
+ "format": "bs-humany.articular-centres/1",
+ "dataset": {
+  "name": "Z-Anatomy SkeletalSystem",
+  "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",
+  "license": "CC-BY-SA-4.0",
+  "attribution": [
+   "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan",
+   "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+  ],
+  "sourceFile": "SkeletalSystem100.fbx",
+  "sourceSha256": "294a649765cd060a62a4095da52b9c8ef2d97769aa447e196448aa5f7d596dea"
+ },
+ "generator": "tools/ingest/src/centres.ts",
+ "subjectStature": 1.696251163190114,
+ "units": "m",
+ "frame": "canonical world frame at the dataset stature",
+ "centres": [
+  {
+   "bone": "femur_r",
+   "feature": "Head_of_femur__articular_centre",
+   "description": "Centre of the femoral head: the hip joint centre (Wu 2002, 2.2)",
+   "centre": [
+    0.083671,
+    0.851296,
+    0.00495
+   ],
+   "radius": 0.023744,
+   "inliers": 259,
+   "residual": 0.000569,
+   "rule": "least-squares sphere through the articular surface: vertices within 40 mm of Fovea_for_ligament_of_head_of_femur, refined to those within 2.5 mm of the sphere"
+  },
+  {
+   "bone": "femur_l",
+   "feature": "Head_of_femur__articular_centre",
+   "description": "Centre of the femoral head: the hip joint centre (Wu 2002, 2.2)",
+   "centre": [
+    -0.083671,
+    0.851296,
+    0.00495
+   ],
+   "radius": 0.023744,
+   "inliers": 259,
+   "residual": 0.000569,
+   "rule": "least-squares sphere through the articular surface: vertices within 40 mm of Fovea_for_ligament_of_head_of_femur, refined to those within 2.5 mm of the sphere"
+  },
+  {
+   "bone": "humerus_r",
+   "feature": "Head_of_humerus__articular_centre",
+   "description": "Centre of the humeral head: the glenohumeral rotation centre (Wu 2005, 2.4)",
+   "centre": [
+    0.170332,
+    1.373963,
+    0.026679
+   ],
+   "radius": 0.023624,
+   "inliers": 681,
+   "residual": 0.001071,
+   "rule": "least-squares sphere through the articular surface: vertices within 40 mm of Head_of_humerus, refined to those within 2.5 mm of the sphere"
+  },
+  {
+   "bone": "humerus_l",
+   "feature": "Head_of_humerus__articular_centre",
+   "description": "Centre of the humeral head: the glenohumeral rotation centre (Wu 2005, 2.4)",
+   "centre": [
+    -0.170332,
+    1.373963,
+    0.026679
+   ],
+   "radius": 0.023624,
+   "inliers": 681,
+   "residual": 0.001071,
+   "rule": "least-squares sphere through the articular surface: vertices within 40 mm of Head_of_humerus, refined to those within 2.5 mm of the sphere"
+  }
+ ]
+}

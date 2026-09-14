@@ -17,7 +17,7 @@ import {
   buildAnimatedGlb,
   planeMesh,
 } from '@bs-humany/export-gltf';
-import { IDENTITY_TRANSFORM, type Transform, transformPoint } from '@bs-humany/frames';
+import { IDENTITY_TRANSFORM, type Transform, compose, transformPoint } from '@bs-humany/frames';
 import { type HsdlDocument, evaluate, param } from '@bs-humany/hsdl';
 import { computeWorldTransforms } from '@bs-humany/skeleton';
 import type { Simulation } from './simulation.js';
@@ -104,6 +104,37 @@ export function buildBlenderExport(
     };
   });
 
+  // Joint centres, one node each, parented to the bone the pivot is fixed in. They carry no
+  // channels of their own: a joint frame is rigid in its parent bone, so inheriting that bone's
+  // animation puts each pivot exactly where the solver had it. This is what makes a pivot
+  // checkable against the bone it turns inside.
+  const boneNode = new Map(nodes.map((n, i) => [n.id, i]));
+  const model = simulation.articulation;
+  for (const joint of model.joints) {
+    const parentSegment = model.segments[joint.parentSegment];
+    const host = boneNode.get(joint.parentBone);
+    if (!parentSegment || host === undefined) continue;
+    nodes.push({
+      id: `joint__${joint.id}`,
+      parent: host,
+      restWorld: compose(parentSegment.restWorld, joint.frameInParent),
+      animated: false,
+      extras: {
+        role: 'joint centre',
+        joint: joint.id,
+        parentBone: joint.parentBone,
+        childBone: joint.childBone,
+        dofs: joint.dofs.map((d) => ({
+          axis: d.axisName,
+          kind: d.kind,
+          vector: [d.vector.x, d.vector.y, d.vector.z],
+          range: d.range,
+          neutral: d.neutral,
+        })),
+      },
+    });
+  }
+
   // Scene geometry the body interacts with: the ground and the scenario's static boxes, as
   // unanimated nodes under their own root so they import as a separate hierarchy.
   const GROUND_HALF_SIZE = 10;
@@ -186,8 +217,9 @@ export function buildBlenderExport(
       morphology: simulation.resolved.input,
       frame: '+X right, +Y up, +Z posterior (anterior is -Z); metres; seconds',
       hierarchy:
-        'bones nested by anatomical parent, each carrying its own rigid mesh; the ground and ' +
-        'the scenario furniture under a static "scene" root',
+        'bones nested by anatomical parent, each carrying its own rigid mesh; a joint__<id> ' +
+        'node at every joint centre, parented to the bone the pivot is fixed in; the ground ' +
+        'and the scenario furniture under a static "scene" root',
       attribution: attributionText(assets.manifest),
       dataLicense: assets.manifest.dataset.license,
     },
