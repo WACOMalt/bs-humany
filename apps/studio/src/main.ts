@@ -194,6 +194,7 @@ const ui = {
   dropHeight: must<HTMLInputElement>('#dropHeight'),
   grabStrength: must<HTMLInputElement>('#grabStrength'),
   gravity: must<HTMLInputElement>('#gravity'),
+  floor: must<HTMLInputElement>('#floor'),
   drop: must<HTMLButtonElement>('#drop'),
   pause: must<HTMLButtonElement>('#pause'),
   stepOnce: must<HTMLButtonElement>('#step'),
@@ -488,6 +489,7 @@ function currentSettings(): SessionSettings {
     dropHeight: Number(ui.dropHeight.value),
     grabStrength: Number(ui.grabStrength.value),
     gravity: ui.gravity.checked,
+    floor: ui.floor.checked,
     ...(ui.scenario.value
       ? { scenarioParameters: { ...scenarioValues.get(ui.scenario.value) } }
       : {}),
@@ -510,6 +512,7 @@ function applySettings(settings: SessionSettings): void {
   ui.dropHeight.value = String(settings.dropHeight);
   must<HTMLOutputElement>('#dropHeight-value').textContent = `${settings.dropHeight.toFixed(2)} m`;
   if (settings.gravity !== undefined) ui.gravity.checked = settings.gravity;
+  if (settings.floor !== undefined) ui.floor.checked = settings.floor;
   if (settings.grabStrength !== undefined) {
     ui.grabStrength.value = String(settings.grabStrength);
     must<HTMLOutputElement>('#grabStrength-value').textContent =
@@ -572,8 +575,10 @@ async function startSimulation(
       groundHeight: groundY,
     });
     await sim.start();
-    // A fresh backend always starts with gravity; the toggle is a session setting, not a run one.
+    // A fresh backend always starts with gravity and a solid floor; both toggles are session
+    // settings rather than run ones.
     if (!ui.gravity.checked) sim.setGravity(false);
+    if (!ui.floor.checked) sim.setGroundCollision(false);
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
     if (carry) {
       const unmatched = sim.carryFrom(carry.state, carry.ticks);
@@ -688,6 +693,10 @@ ui.reset.addEventListener('click', () => {
 // Gravity can go off mid-flight: the body keeps whatever motion it had and coasts.
 ui.gravity.addEventListener('change', () => {
   simulation?.setGravity(ui.gravity.checked);
+});
+// The floor likewise: the grid stays drawn, the body falls through it.
+ui.floor.addEventListener('change', () => {
+  simulation?.setGroundCollision(ui.floor.checked);
 });
 ui.grabStrength.addEventListener('input', () => {
   must<HTMLOutputElement>('#grabStrength-value').textContent =

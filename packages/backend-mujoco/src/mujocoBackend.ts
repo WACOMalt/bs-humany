@@ -47,6 +47,7 @@ export const GRAB_LEASH = 0.3;
 export const GRAB_FORCE_FRACTION = 0.8;
 const STANDARD_GRAVITY_MAGNITUDE = 9.80665;
 const OBJ_BODY = 1;
+const OBJ_GEOM = 5;
 const OBJ_JOINT = 3;
 
 const CAPABILITIES: BackendCapabilities = {
@@ -617,6 +618,18 @@ export class MujocoBackend implements IPhysicsBackend {
     g[0] = gravity.x;
     g[1] = gravity.y;
     g[2] = gravity.z;
+  }
+
+  setGroundCollision(enabled: boolean): void {
+    const mujoco = this.mujoco;
+    const model = this.mjModel;
+    if (!mujoco || !model) throw new Error('No compiled model.');
+    const id = mujoco.mj_name2id(model, OBJ_GEOM, 'ground');
+    if (id < 0) return;
+    // MuJoCo pairs a geom with another when either one's type matches the other's affinity;
+    // zeroing both takes the plane out of every pair without moving or deleting it.
+    (model.geom_contype as Int32Array)[id] = enabled ? 1 : 0;
+    (model.geom_conaffinity as Int32Array)[id] = enabled ? 1 : 0;
   }
 
   setKinematic(_segmentIndex: number, _enabled: boolean): void {

@@ -163,6 +163,13 @@ export interface IPhysicsBackend {
 
   /** Change the gravity being integrated with, after `init`. */
   setGravity(gravity: Vec3): void;
+  /**
+   * Turn contact with the ground plane on or off, after `init`.
+   *
+   * The ground stays in the world either way, so the body's own geometry, the furniture and the
+   * solver are untouched; it simply stops taking part in contact.
+   */
+  setGroundCollision(enabled: boolean): void;
   setKinematic(segmentIndex: number, enabled: boolean): void;
   setPose(segmentIndex: number, transform: Transform): void;
   /**

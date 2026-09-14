@@ -141,6 +141,11 @@ export class PhysicsModule implements SimModule, Stateful {
     this.bind(ctx);
   }
 
+  /** Turn contact with the ground plane on or off. The ground stays where it is. */
+  setGroundCollision(enabled: boolean): void {
+    this.backend.setGroundCollision(enabled);
+  }
+
   /**
    * Change the gravity the backend integrates with, and say so on `sim.gravity`.
    *

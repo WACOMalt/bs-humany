@@ -152,6 +152,7 @@ export class RapierBackend implements IPhysicsBackend {
   readonly capabilities = CAPABILITIES;
   private readonly twoDofNativeLimits: 'both' | 'first' | 'none' | 'legacy';
   private readonly hullRounding: number;
+  private groundCollider: Collider | undefined;
   private readonly options: RapierOptions;
 
   private config: BackendConfig | undefined;
@@ -528,7 +529,7 @@ export class RapierBackend implements IPhysicsBackend {
       const ground = world.createRigidBody(
         RAPIER.RigidBodyDesc.fixed().setTranslation(0, config.ground.height - 0.5, 0),
       );
-      world.createCollider(
+      this.groundCollider = world.createCollider(
         RAPIER.ColliderDesc.cuboid(50, 0.5, 50)
           .setFriction(cls?.friction ?? 0.8)
           .setRestitution(cls?.restitution ?? 0),
@@ -927,6 +928,13 @@ export class RapierBackend implements IPhysicsBackend {
   }
 
   // --- Direct manipulation ----------------------------------------------------------------------
+
+  setGroundCollision(enabled: boolean): void {
+    const collider = this.groundCollider;
+    if (!collider) return;
+    // An empty membership takes the ground out of every pair; the collider itself stays put.
+    collider.setCollisionGroups(enabled ? 0xffffffff : 0);
+  }
 
   setGravity(gravity: Vec3): void {
     const world = this.requireWorld();

@@ -25,6 +25,8 @@ export interface SessionSettings {
   readonly grabStrength?: number | undefined;
   /** False leaves a running body coasting. */
   readonly gravity?: boolean | undefined;
+  /** False lets the body fall through the ground plane. */
+  readonly floor?: boolean | undefined;
   /** The chosen scenario's parameter values, by parameter id. Absent means its defaults. */
   readonly scenarioParameters?: Readonly<Record<string, number>> | undefined;
 }

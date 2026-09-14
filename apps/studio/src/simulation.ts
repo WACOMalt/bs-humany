@@ -338,6 +338,16 @@ export class Simulation {
     this.physics.setGravity(on ? this.articulation.gravity : { x: 0, y: 0, z: 0 });
   }
 
+  /**
+   * Turn contact with the ground on or off while the body is running.
+   *
+   * The floor is still drawn and the furniture still collides; only the ground plane stops
+   * taking part, so a body can be dropped through it to see what it does in free space.
+   */
+  setGroundCollision(enabled: boolean): void {
+    this.physics.setGroundCollision(enabled);
+  }
+
   /** Kernel snapshot of the present moment, for session save. */
   snapshot(): KernelSnapshot {
     return this.kernel.snapshot();
