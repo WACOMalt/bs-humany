@@ -779,7 +779,7 @@ ui.scenario.addEventListener('change', () => {
   const definition = definitionFor(ui.scenario.value);
   must<HTMLElement>('#scenario-note').textContent = definition?.description ?? '';
   must<HTMLElement>('#dropHeight-control').hidden = definition !== undefined;
-  ui.passive.disabled = definition !== undefined;
+
   refreshScenarioParameters();
   const chosen = currentScenario();
   if (chosen) ui.passive.checked = chosen.passiveJoints;

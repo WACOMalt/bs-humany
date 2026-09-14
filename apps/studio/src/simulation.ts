@@ -171,7 +171,10 @@ export class Simulation {
     this.kernel.register(this.grab);
     this.kernel.register(this.metrics);
     this.kernel.register(new CouplingModule(this.articulation, backend.capabilities));
-    const passive = options.scenario ? options.scenario.passiveJoints : options.passiveJoints;
+    // The scenario's own value is what the goldens run with and what the studio offers when you
+    // pick one, but the studio is for trying things: the checkbox wins here. The testkit reads
+    // `scenario.passiveJoints` itself, so nothing committed depends on this.
+    const passive = options.passiveJoints;
     if (passive) {
       this.passive = new PassiveJointModule(this.articulation);
       this.kernel.register(this.passive);
