@@ -83,8 +83,13 @@ export interface Recording {
   readonly samples: RecordedSample[];
 }
 
+/**
+ * MuJoCo is the only enabled backend. Rapier is kept as a vestigial remnant behind this switch
+ * (ADR-003 reassessment, 2026-09-13): the studio never offers it, but nothing stops a scripted
+ * session from asking for it.
+ */
 function makeBackend(id: BackendId): IPhysicsBackend {
-  return id === 'mujoco' ? new MujocoBackend() : new RapierBackend();
+  return id === 'rapier' ? new RapierBackend() : new MujocoBackend();
 }
 
 export class Simulation {

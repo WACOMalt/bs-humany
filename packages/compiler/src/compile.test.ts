@@ -93,16 +93,30 @@ describe('compiled articulation', () => {
     for (const [a, b] of l1.articulation.excludedPairs) expect(a).toBeLessThan(b);
   });
 
-  it('carries one evaluated proxy per segment, owned by that segment', () => {
+  it('carries evaluated hull proxies per segment, owned by that segment and scaled to stature', () => {
+    const taller = compileArticulation(
+      document,
+      'l1_standard',
+      resolveMorphology({ sex: 0.5, stature: 1.9, mass: 80 }),
+    ).articulation;
     for (const { articulation } of [l0, l1]) {
-      expect(articulation.proxies.length).toBe(articulation.segments.length);
+      expect(articulation.proxies.length).toBeGreaterThanOrEqual(articulation.segments.length);
       for (const s of articulation.segments) {
-        expect(s.proxyIndices.length).toBe(1);
-        const p = articulation.proxies[s.proxyIndices[0] ?? -1];
-        expect(p?.segment).toBe(s.index);
-        if (p?.shape.kind === 'capsule') expect(p.shape.radius).toBeGreaterThan(0);
+        expect(s.proxyIndices.length, s.id).toBeGreaterThan(0);
+        for (const i of s.proxyIndices) {
+          const p = articulation.proxies[i];
+          expect(p?.segment).toBe(s.index);
+          expect(p?.shape.kind).toBe('convexHull');
+        }
       }
     }
+    const first = l1.articulation.proxies[0];
+    const tall = taller.proxies[0];
+    if (first?.shape.kind !== 'convexHull' || tall?.shape.kind !== 'convexHull') throw new Error();
+    const v = first.shape.vertices.find((x) => Math.abs(x.y) > 0.01);
+    const w = tall.shape.vertices[first.shape.vertices.indexOf(v ?? first.shape.vertices[0]!)];
+    if (!v || !w) throw new Error('no vertex');
+    expect(w.y / v.y).toBeCloseTo(1.9 / 1.7, 10);
   });
 
   it('is deterministic', () => {

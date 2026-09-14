@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
-import { RapierBackend } from '@bs-humany/backend-rapier';
 import type { IPhysicsBackend } from '@bs-humany/compiler';
 import { SCENARIOS, type Scenario } from '@bs-humany/scenarios';
 import { describe, expect, it } from 'vitest';
@@ -11,9 +10,14 @@ import { trajectoryHash } from './hash.js';
 import { DEFAULT_TOLERANCES, MUJOCO_TOLERANCES, checkPlausibility } from './plausibility.js';
 import { type Trajectory, runScenario } from './runner.js';
 
+/**
+ * The enabled backends. Rapier is disabled and hidden (ADR-003 reassessment, 2026-09-13):
+ * with convex-hull proxies it injects energy and tears joints in three scenarios, and it is
+ * five times slower than MuJoCo. Its factory stays here, commented, for the day it is revisited.
+ */
 const BACKENDS: Record<string, () => IPhysicsBackend> = {
-  rapier: () => new RapierBackend(),
   mujoco: () => new MujocoBackend(),
+  // rapier: () => new RapierBackend(),
 };
 
 const cache = new Map<string, Promise<Trajectory>>();
@@ -80,17 +84,20 @@ describe.each(SCENARIOS.map((s) => [s.id, s] as const))('scenario %s', (_id, sce
     });
   });
 
-  it('agrees across backends within the documented tolerances', async () => {
-    const [a, b] = await Promise.all([
-      trajectory(scenario, 'rapier'),
-      trajectory(scenario, 'mujoco'),
-    ]);
-    const disagreements = compareTrajectories(
-      a,
-      b,
-      { ...DEFAULT_CONFORMANCE, ...scenario.conformance },
-      { expectRest: true },
-    );
-    expect(disagreements.map((d) => `${d.check}: ${d.message}`)).toEqual([]);
-  });
+  // Cross-backend conformance needs two enabled backends; it resumes with Rapier.
+  it.skipIf(Object.keys(BACKENDS).length < 2)(
+    'agrees across backends within the documented tolerances',
+    async () => {
+      const [first, second] = Object.keys(BACKENDS);
+      if (!first || !second) throw new Error('two backends');
+      const [a, b] = await Promise.all([trajectory(scenario, first), trajectory(scenario, second)]);
+      const disagreements = compareTrajectories(
+        a,
+        b,
+        { ...DEFAULT_CONFORMANCE, ...scenario.conformance },
+        { expectRest: true },
+      );
+      expect(disagreements.map((d) => `${d.check}: ${d.message}`)).toEqual([]);
+    },
+  );
 });

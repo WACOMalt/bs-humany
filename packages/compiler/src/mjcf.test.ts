@@ -49,7 +49,11 @@ describe('MJCF emitter', () => {
     expect(result.xml).toMatch(/<exclude body1="(hand_r|ulna_r)" body2="(ulna_r|hand_r)"\/>/);
     expect(result.xml).toContain('fullinertia=');
     expect(result.xml).toContain('class="bone_on_ground"');
-    expect(result.xml).toContain('type="capsule"');
+    // Hull proxies are mesh assets referenced by mesh geoms.
+    expect(result.xml).toContain('<asset>');
+    expect(result.xml).toMatch(/<mesh name="proxy_thigh_r_hull1" vertex="[-0-9. e]+"\/>/);
+    expect(result.xml).toContain('type="mesh" mesh="proxy_thigh_r_hull1"');
+    expect(result.notes.some((n) => /Convex hull/.test(n.message))).toBe(false);
   });
 
   it('is deterministic and says what it could not express', () => {

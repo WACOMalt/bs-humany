@@ -1,6 +1,7 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
+import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { RapierBackend } from '@bs-humany/backend-rapier';
-import { ROOT_NQ, ROOT_NV, compileArticulation } from '@bs-humany/compiler';
+import { type IPhysicsBackend, ROOT_NQ, ROOT_NV, compileArticulation } from '@bs-humany/compiler';
 import { Kernel, type SimModule } from '@bs-humany/kernel';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
@@ -17,8 +18,8 @@ const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
 const { articulation } = compileArticulation(document, 'l1_standard', morphology);
 
-function physics() {
-  return new PhysicsModule(new RapierBackend(), articulation, {
+function physics(backend: IPhysicsBackend = new RapierBackend()) {
+  return new PhysicsModule(backend, articulation, {
     ground: { height: 0 },
     iterations: 8,
   });
@@ -65,7 +66,10 @@ describe('PhysicsModule', () => {
 
   it('lets the body fall under the kernel clock and reports contacts', async () => {
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
-    const module = physics();
+    // On the enabled backend; the vestigial Rapier stands on its hull feet for longer than the
+    // second this test allows. The other tests keep Rapier for what only it supports (kinematic
+    // switching at runtime).
+    const module = physics(new MujocoBackend());
     kernel.register(module);
     await kernel.init();
     kernel.run(500);

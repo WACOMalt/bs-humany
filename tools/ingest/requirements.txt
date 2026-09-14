@@ -1,0 +1,8 @@
+# Python side of `pnpm --filter @bs-humany/ingest hulls` (scripts/decompose.py).
+# Set COACD_PYTHON to the interpreter of a venv with these installed, e.g.
+#   uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -r tools/ingest/requirements.txt
+coacd
+trimesh
+numpy
+scipy
+fast-simplification

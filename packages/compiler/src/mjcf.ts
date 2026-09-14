@@ -131,6 +131,18 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
   }
   push(1, '</default>');
 
+  // Convex hulls are mesh assets; MuJoCo takes the convex hull of the vertices itself.
+  const hulls = model.proxies.filter((p) => p.shape.kind === 'convexHull');
+  if (hulls.length > 0) {
+    push(1, '<asset>');
+    for (const proxy of hulls) {
+      if (proxy.shape.kind !== 'convexHull') continue;
+      const vertex = proxy.shape.vertices.map((v) => v3(v.x, v.y, v.z)).join(' ');
+      push(2, `<mesh name="${esc(proxy.id)}" vertex="${vertex}"/>`);
+    }
+    push(1, '</asset>');
+  }
+
   push(1, '<worldbody>');
   if (options.ground) {
     // A plane collides from its local +Z side; rotating Z onto world +Y makes it a floor.
@@ -177,12 +189,11 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
             `pos="${v3(t.translation.x, t.translation.y, t.translation.z)}" quat="${q4(t.rotation)}"${cls}/>`,
         );
       } else {
-        notes.push({
-          severity: 'warning',
-          feature: 'collisionProxy',
-          element: proxy.id,
-          message: `Convex hull '${proxy.id}' needs a mesh asset and is not emitted.`,
-        });
+        push(
+          depth,
+          `<geom name="${esc(proxy.id)}" type="mesh" mesh="${esc(proxy.id)}" ` +
+            `pos="${v3(t.translation.x, t.translation.y, t.translation.z)}" quat="${q4(t.rotation)}"${cls}/>`,
+        );
       }
     }
   };

@@ -16,7 +16,9 @@ import {
   parseSkeletonAssets,
 } from '@bs-humany/assets-anatomical';
 import landmarksUrl from '@bs-humany/assets-anatomical/data/landmarks.json?url';
+import manifestLod1Url from '@bs-humany/assets-anatomical/data/manifest-lod1.json?url';
 import manifestUrl from '@bs-humany/assets-anatomical/data/manifest.json?url';
+import skeletonLod1BinUrl from '@bs-humany/assets-anatomical/data/skeleton-lod1.bin?url';
 import skeletonBinUrl from '@bs-humany/assets-anatomical/data/skeleton.bin?url';
 import { compileArticulation } from '@bs-humany/compiler';
 import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
@@ -77,14 +79,22 @@ const document_ = buildDocument();
 /** The measured mesh pack (ADR-005, ADR-011). Nothing renders until it has loaded. */
 let assets: SkeletonAssets | null = null;
 
-async function loadAssets(): Promise<SkeletonAssets> {
+/**
+ * The pack streams in two steps (M5.8): the quarter-size level of detail first, so the page
+ * shows a skeleton after one small fetch, then the full pack in the background. A device with a
+ * coarse pointer (a phone or tablet) stays on the small pack; its meshes are one mesh draw either
+ * way and the full pack is nine megabytes it does not need.
+ */
+async function loadAssets(level: 'lod1' | 'full'): Promise<SkeletonAssets> {
   const [manifest, bin, landmarks] = await Promise.all([
-    fetch(manifestUrl).then((r) => r.json()),
-    fetch(skeletonBinUrl).then((r) => r.arrayBuffer()),
+    fetch(level === 'lod1' ? manifestLod1Url : manifestUrl).then((r) => r.json()),
+    fetch(level === 'lod1' ? skeletonLod1BinUrl : skeletonBinUrl).then((r) => r.arrayBuffer()),
     fetch(landmarksUrl).then((r) => r.json()),
   ]);
   return parseSkeletonAssets(manifest, bin, landmarks);
 }
+
+const STAY_ON_SMALL_PACK = window.matchMedia('(pointer: coarse)').matches;
 
 const QUALITIES: Record<string, TessellationQuality> = {
   low: QUALITY_LOW,
@@ -490,7 +500,8 @@ function applySettings(settings: SessionSettings): void {
   ui.brachial.value = String(settings.brachial);
   ui.legLength.value = String(settings.legLength);
   ui.profile.value = settings.profile;
-  ui.backend.value = settings.backend;
+  // Rapier is disabled and hidden (ADR-003 reassessment); a saved session naming it falls back.
+  ui.backend.value = settings.backend === 'rapier' ? 'mujoco' : settings.backend;
   ui.scenario.value = settings.scenario;
   ui.passive.checked = settings.passive;
   ui.redistribute.checked = settings.redistribute;
@@ -927,13 +938,18 @@ Object.assign(window, {
   },
 });
 
-loadAssets()
+loadAssets('lod1')
   .then((loaded) => {
     assets = loaded;
     must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
     must<HTMLElement>('#attribution').hidden = false;
     must<HTMLElement>('#loading').hidden = true;
     rebuild();
+    if (STAY_ON_SMALL_PACK) return;
+    return loadAssets('full').then((full) => {
+      assets = full;
+      rebuild();
+    });
   })
   .catch((error: unknown) => {
     console.error('The measured skeleton failed to load.', error);

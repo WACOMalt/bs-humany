@@ -2,12 +2,7 @@ import { resolveMorphology } from '@bs-humany/anthropometry';
 import { evaluate, validateDocument } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
 import { DATASET_MANIFEST, buildDocument } from './document.js';
-import {
-  CAPSULE_ASPECT,
-  type ExclusionProvenance,
-  PROXY_NS,
-  type ProxyProvenance,
-} from './proxies.js';
+import { type ExclusionProvenance, PROXY_NS, type ProxyProvenance } from './proxies.js';
 
 const document = buildDocument();
 const proxies = new Map(document.collisionProxies.map((p) => [p.id, p]));
@@ -20,62 +15,80 @@ describe('collision proxies', () => {
     expect(result.issues.filter((i) => i.severity === 'error')).toEqual([]);
   });
 
-  it('give every segment of every profile exactly one proxy', () => {
+  it('give every segment of every profile at least one proxy, all of them hull pieces', () => {
     for (const profile of document.segmentation) {
       for (const segment of profile.segments) {
-        expect(segment.proxies, `${profile.id}/${segment.id}`).toHaveLength(1);
-        expect(proxies.has(segment.proxies?.[0] ?? ''), segment.id).toBe(true);
+        const ids = segment.proxies ?? [];
+        expect(ids.length, `${profile.id}/${segment.id}`).toBeGreaterThan(0);
+        for (const id of ids) {
+          const p = proxies.get(id);
+          expect(p?.shape.kind, id).toBe('convexHull');
+          expect(provenance(id)?.hull?.count, id).toBe(ids.length);
+          expect(provenance(id)?.rule, id).not.toMatch(/fallback/);
+        }
       }
     }
   });
 
-  it('share a proxy between profiles whose segment owns the same bones, and not otherwise', () => {
-    expect(proxies.has('proxy_thigh_r')).toBe(true);
-    expect(provenance('proxy_thigh_r')?.profiles).toEqual(['l0_ragdoll', 'l1_standard']);
-    // L2 drops the patella from the thigh, so it gets its own fit.
-    expect(proxies.has('proxy_thigh_r_l2_biomechanical')).toBe(true);
+  it('share proxies between profiles whose segment owns the same bones, and not otherwise', () => {
+    expect(proxies.has('proxy_thigh_r_hull1')).toBe(true);
+    expect(provenance('proxy_thigh_r_hull1')?.profiles).toEqual(['l0_ragdoll', 'l1_standard']);
+    // L2 drops the patella from the thigh, so it gets its own decomposition.
+    expect(proxies.has('proxy_thigh_r_l2_biomechanical_hull1')).toBe(true);
     // L0's foot has the toes; L1's does not.
-    expect(provenance('proxy_foot_r')?.profiles).toEqual(['l0_ragdoll']);
-    expect(provenance('proxy_foot_r_l1_standard')?.profiles).toEqual(['l1_standard']);
+    expect(provenance('proxy_foot_r_hull1')?.profiles).toEqual(['l0_ragdoll']);
+    expect(provenance('proxy_foot_r_l1_standard_hull1')?.profiles).toEqual(['l1_standard']);
   });
 
-  it('fit capsules to limbs and boxes to the trunk, hands and feet', () => {
-    for (const id of ['proxy_thigh_r', 'proxy_shank_l', 'proxy_upperarm_r', 'proxy_ulna_l']) {
-      expect(proxies.get(id)?.shape.kind, id).toBe('capsule');
+  it('keep every piece within budget: at most three per bone, twelve per segment', () => {
+    for (const profile of document.segmentation) {
+      for (const segment of profile.segments) {
+        const count = segment.proxies?.length ?? 0;
+        expect(count, segment.id).toBeLessThanOrEqual(Math.min(12, 3 * segment.bones.length));
+        for (const id of segment.proxies ?? []) {
+          const shape = proxies.get(id)?.shape;
+          if (shape?.kind !== 'convexHull') throw new Error(id);
+          expect(shape.vertices.length, id).toBeGreaterThanOrEqual(4);
+          expect(shape.vertices.length, id).toBeLessThanOrEqual(48);
+        }
+      }
     }
-    for (const id of ['proxy_pelvis', 'proxy_trunk', 'proxy_hand_r', 'proxy_foot_r']) {
-      expect(proxies.get(id)?.shape.kind, id).toBe('box');
-    }
-    expect(provenance('proxy_thigh_r')?.rule).toMatch(`>= ${CAPSULE_ASPECT}`);
   });
 
-  it('size the thigh capsule to the femur: roughly 40 cm long and a few cm thick', () => {
-    const shape = proxies.get('proxy_thigh_r')?.shape;
-    if (shape?.kind !== 'capsule') throw new Error('expected a capsule');
-    const radius = evaluate(shape.radius, context);
-    const length = evaluate(shape.length, context);
-    expect(radius).toBeGreaterThan(0.03);
-    expect(radius).toBeLessThan(0.08);
-    expect(length + 2 * radius).toBeGreaterThan(0.38);
-    expect(length + 2 * radius).toBeLessThan(0.5);
+  it('cover the femur: the thigh pieces together span roughly 40 cm', () => {
+    const ids = document.segmentation
+      .find((p) => p.id === 'l1_standard')
+      ?.segments.find((s) => s.id === 'thigh_r')?.proxies;
+    if (!ids) throw new Error('no thigh proxies');
+    let lo = Number.POSITIVE_INFINITY;
+    let hi = Number.NEGATIVE_INFINITY;
+    for (const id of ids) {
+      const shape = proxies.get(id)?.shape;
+      if (shape?.kind !== 'convexHull') throw new Error(id);
+      const s = evaluate(shape.scale ?? 1, context);
+      for (const v of shape.vertices) {
+        lo = Math.min(lo, v.y * s);
+        hi = Math.max(hi, v.y * s);
+      }
+    }
+    expect(hi - lo).toBeGreaterThan(0.38);
+    expect(hi - lo).toBeLessThan(0.5);
   });
 
   it('scale with stature', () => {
     const tall = resolveMorphology({ sex: 0.5, stature: 1.9, mass: 80 }).context;
-    const shape = proxies.get('proxy_pelvis')?.shape;
-    if (shape?.kind !== 'box') throw new Error('expected a box');
-    expect(
-      evaluate(shape.halfExtents.x, tall) / evaluate(shape.halfExtents.x, context),
-    ).toBeCloseTo(1.9 / 1.7, 10);
-    const t = proxies.get('proxy_thigh_r')?.transform.translation;
-    if (!t) throw new Error('missing transform');
-    expect(evaluate(t.y, tall) / evaluate(t.y, context)).toBeCloseTo(1.9 / 1.7, 10);
+    const shape = proxies.get('proxy_pelvis_hull1')?.shape;
+    if (shape?.kind !== 'convexHull') throw new Error('expected a hull');
+    expect(evaluate(shape.scale ?? 1, tall) / evaluate(shape.scale ?? 1, context)).toBeCloseTo(
+      1.9 / 1.7,
+      10,
+    );
   });
 
   it('mirror left and right within a few millimetres', () => {
     for (const base of ['thigh', 'shank', 'upperarm', 'hand', 'foot']) {
-      const r = provenance(`proxy_${base}_r`);
-      const l = provenance(`proxy_${base}_l`);
+      const r = provenance(`proxy_${base}_r_hull1`);
+      const l = provenance(`proxy_${base}_l_hull1`);
       if (!r || !l) throw new Error(base);
       const ext = (p: ProxyProvenance, i: number) => (p.max[i] ?? 0) - (p.min[i] ?? 0);
       for (let i = 0; i < 3; i++) expect(Math.abs(ext(r, i) - ext(l, i)), base).toBeLessThan(0.006);
@@ -83,7 +96,7 @@ describe('collision proxies', () => {
   });
 
   it('record what each proxy was fitted to', () => {
-    const p = provenance('proxy_shank_r');
+    const p = provenance('proxy_shank_r_hull1');
     expect(p?.bones).toEqual(['tibia_r', 'fibula_r']);
     expect(p?.segment).toBe('shank_r');
     expect(p?.max[1]).toBeGreaterThan(p?.min[1] ?? 0);
@@ -122,7 +135,7 @@ describe('default exclusion pairs', () => {
     }
   });
 
-  it("find the ulna's distal end inside the hand box in L1", () => {
+  it("find the ulna's distal end inside the hand's bounds in L1", () => {
     expect(exclude.some(([a, b]) => a === 'hand_r' && b === 'ulna_r')).toBe(true);
   });
 

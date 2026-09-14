@@ -41,6 +41,23 @@ export interface SkeletonManifest {
     readonly triangles: number;
     readonly bytes: number;
   };
+  /** Present on a decimated pack: which level it is and what fraction of triangles it keeps. */
+  readonly lod?: { readonly name: string; readonly keepFraction: number; readonly of: string };
+}
+
+/**
+ * Levels of detail shipped with the pack. The full pack is `manifest.json` + `skeleton.bin`; a
+ * level `x` is `manifest-x.json` + `skeleton-x.bin`, same format, same centroids and bounds,
+ * fewer triangles. A phone starts on `lod1`.
+ */
+export const LOD_LEVELS = ['lod1'] as const;
+export type LodLevel = (typeof LOD_LEVELS)[number];
+
+/** File names of a pack level, relative to the data directory. */
+export function packFiles(lod?: LodLevel): { manifest: string; bin: string } {
+  return lod
+    ? { manifest: `manifest-${lod}.json`, bin: `skeleton-${lod}.bin` }
+    : { manifest: 'manifest.json', bin: 'skeleton.bin' };
 }
 
 /** One bone's geometry, as views into the shared buffer. No copy is made. */
@@ -114,12 +131,16 @@ export function parseSkeletonAssets(
 }
 
 /** Node-side convenience: read the three data files from disk. Not for the browser. */
-export async function loadSkeletonAssetsFromDisk(dataDir: string): Promise<SkeletonAssets> {
+export async function loadSkeletonAssetsFromDisk(
+  dataDir: string,
+  lod?: LodLevel,
+): Promise<SkeletonAssets> {
   const { readFile } = await import('node:fs/promises');
   const { join } = await import('node:path');
+  const files = packFiles(lod);
   const [manifestText, bin, landmarksText] = await Promise.all([
-    readFile(join(dataDir, 'manifest.json'), 'utf8'),
-    readFile(join(dataDir, 'skeleton.bin')),
+    readFile(join(dataDir, files.manifest), 'utf8'),
+    readFile(join(dataDir, files.bin)),
     readFile(join(dataDir, 'landmarks.json'), 'utf8'),
   ]);
   const buffer = bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer;

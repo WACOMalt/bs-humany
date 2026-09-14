@@ -19,3 +19,4 @@ export * from './geometry/layout.js';
 export * from './geometry/shapes.js';
 export * from './constraints.js';
 export * from './attachments.js';
+export * from './hulls.js';

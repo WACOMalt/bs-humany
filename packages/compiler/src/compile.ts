@@ -43,6 +43,7 @@ import {
   type ExprContext,
   type HsdlDocument,
   type JointDef,
+  type ScalarExpr,
   type SegmentationDef,
   evaluate,
 } from '@bs-humany/hsdl';
@@ -118,6 +119,16 @@ function makeReport(notes: CompileNote[], segments: number, joints: number, nv: 
  * The document is assumed valid (`assertValidDocument`); this function does not re-run the
  * validator, so cross-reference errors surface as exceptions with less helpful messages.
  */
+/** Hull vertices scaled by the proxy's expression, so a measured hull follows stature. */
+function convexHullShape(
+  vertices: readonly Vec3[],
+  scale: ScalarExpr | undefined,
+  context: ExprContext,
+): CompiledProxy['shape'] {
+  const s = scale === undefined ? 1 : evaluate(scale, context);
+  return { kind: 'convexHull', vertices: vertices.map((v) => vec3(v.x * s, v.y * s, v.z * s)) };
+}
+
 export function compileArticulation(
   document: HsdlDocument,
   profileId: string,
@@ -301,7 +312,7 @@ export function compileArticulation(
             ? { kind: 'sphere', radius: evaluate(shape.radius, context) }
             : shape.kind === 'box'
               ? { kind: 'box', halfExtents: evalVec3(shape.halfExtents, context) }
-              : { kind: 'convexHull', vertices: shape.vertices.map((v) => vec3(v.x, v.y, v.z)) };
+              : convexHullShape(shape.vertices, shape.scale, context);
       proxyIndices[si]?.push(proxies.length);
       proxies.push({
         index: proxies.length,

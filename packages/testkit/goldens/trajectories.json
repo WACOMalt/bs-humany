@@ -1,71 +1,36 @@
 {
   "drop-prone/l1_standard/mujoco": {
-    "hash": "b6a5d143ed8b728e",
-    "ticks": 1500,
-    "platform": "linux-x64"
-  },
-  "drop-prone/l1_standard/rapier": {
-    "hash": "484e03e2cddb232b",
+    "hash": "e75a3fe64135eb59",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-standing-collapse/l1_standard/mujoco": {
-    "hash": "b3a7afa21f73c4b9",
-    "ticks": 1500,
-    "platform": "linux-x64"
-  },
-  "drop-standing-collapse/l1_standard/rapier": {
-    "hash": "88fe826fd0efdb12",
+    "hash": "aef6cf0e06832cdf",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-supine/l1_standard/mujoco": {
-    "hash": "880a11e90e08ef4a",
-    "ticks": 1500,
-    "platform": "linux-x64"
-  },
-  "drop-supine/l1_standard/rapier": {
-    "hash": "0d8ab8a3bb4e786e",
+    "hash": "45a1c2c8eb14634c",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "grab-and-swing/l1_standard/mujoco": {
-    "hash": "71824f8638b6912a",
-    "ticks": 2000,
-    "platform": "linux-x64"
-  },
-  "grab-and-swing/l1_standard/rapier": {
-    "hash": "169cffd38b3084a7",
+    "hash": "d5e5cd352587f4ab",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "hang-from-wrist/l1_standard/mujoco": {
-    "hash": "494e66ccff719714",
-    "ticks": 3000,
-    "platform": "linux-x64"
-  },
-  "hang-from-wrist/l1_standard/rapier": {
-    "hash": "3e6ebf01e3996dd6",
+    "hash": "b87c111b4793d7cf",
     "ticks": 3000,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/mujoco": {
-    "hash": "81e3d21620437284",
-    "ticks": 1500,
-    "platform": "linux-x64"
-  },
-  "seated-on-box/l1_standard/rapier": {
-    "hash": "cd33fc1b8ee175b9",
+    "hash": "9dbeacdd2816520a",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/mujoco": {
-    "hash": "f451b94d929426ab",
-    "ticks": 2000,
-    "platform": "linux-x64"
-  },
-  "stairs-tumble/l1_standard/rapier": {
-    "hash": "282829b09c1729c3",
+    "hash": "782e138f056f2cd4",
     "ticks": 2000,
     "platform": "linux-x64"
   }

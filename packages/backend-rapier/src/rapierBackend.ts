@@ -122,12 +122,37 @@ class RapierGrab implements GrabHandle {
 export interface RapierOptions {
   /** Native per-axis limits on two-DoF generic joints, behind the emulated stops. */
   readonly twoDofNativeLimits?: 'both' | 'first' | 'none' | 'legacy' | undefined;
+  /**
+   * Rounding radius added to every convex hull proxy, metres. A sharp-edged hull landing on
+   * an edge gives the impulse solver a contact that jumps between faces from step to step; a
+   * rounded one (the hull grown by this radius, as a capsule is a rounded segment) gives it a
+   * continuous one. The hull grows by the radius, which is recorded as a limitation.
+   */
+  readonly hullRounding?: number | undefined;
+  /**
+   * Speculative contact distance, metres: pairs closer than this get a contact before they
+   * touch, so a fast, thin hull piece is caught rather than resolved from deep inside another.
+   * Rapier's default is two millimetres.
+   */
+  readonly predictionDistance?: number | undefined;
+  /**
+   * Natural frequency of the contact spring, Hz. Lower is softer: a deep penetration is
+   * resolved over more steps with less energy injected. Rapier's default is 30.
+   */
+  readonly contactNaturalFrequency?: number | undefined;
+  /** Solver iterations, overriding the profile's request. For tuning and tests. */
+  readonly solverIterations?: number | undefined;
 }
+
+/** Default hull rounding: a few millimetres, below the fit of the hulls themselves. */
+export const DEFAULT_HULL_ROUNDING = 0.003;
 
 export class RapierBackend implements IPhysicsBackend {
   readonly id = 'rapier' as const;
   readonly capabilities = CAPABILITIES;
   private readonly twoDofNativeLimits: 'both' | 'first' | 'none' | 'legacy';
+  private readonly hullRounding: number;
+  private readonly options: RapierOptions;
 
   private config: BackendConfig | undefined;
   private model: CompiledArticulation | undefined;
@@ -164,6 +189,8 @@ export class RapierBackend implements IPhysicsBackend {
 
   constructor(options: RapierOptions = {}) {
     this.twoDofNativeLimits = options.twoDofNativeLimits ?? 'both';
+    this.hullRounding = options.hullRounding ?? DEFAULT_HULL_ROUNDING;
+    this.options = options;
     this.hooks = {
       filterContactPair: (_c1, _c2, b1, b2) =>
         this.excludedBodyPairs.has(pairKey(b1, b2)) ? null : RAPIER.SolverFlags.COMPUTE_IMPULSE,
@@ -171,6 +198,18 @@ export class RapierBackend implements IPhysicsBackend {
     };
     this.onManifold = (manifold, flipped) => this.collectManifold(manifold, flipped);
     this.onPairCollider = (other) => this.collectPair(other);
+  }
+
+  private configureWorld(world: World, config: BackendConfig): void {
+    world.numSolverIterations =
+      this.options.solverIterations ?? config.iterations ?? DEFAULT_ITERATIONS;
+    const p = world.integrationParameters;
+    if (this.options.predictionDistance !== undefined) {
+      p.normalizedPredictionDistance = this.options.predictionDistance / p.lengthUnit;
+    }
+    if (this.options.contactNaturalFrequency !== undefined) {
+      p.contact_natural_frequency = this.options.contactNaturalFrequency;
+    }
   }
 
   async init(config: BackendConfig): Promise<void> {
@@ -186,7 +225,7 @@ export class RapierBackend implements IPhysicsBackend {
     const g = config.gravity ?? model.gravity;
     const world = new RAPIER.World(new RAPIER.Vector3(g.x, g.y, g.z));
     world.timestep = config.dt;
-    world.numSolverIterations = config.iterations ?? DEFAULT_ITERATIONS;
+    this.configureWorld(world, config);
     this.world = world;
     this.model = model;
 
@@ -214,7 +253,21 @@ export class RapierBackend implements IPhysicsBackend {
       this.segmentOfBody.set(body.handle, segment.index);
     }
 
-    // Colliders.
+    // Colliders. The pair filter hook runs in JavaScript for every candidate pair of a flagged
+    // collider, so only bodies with an exclusion the joints do not already cover carry the
+    // flag; at L0 and L1 that is nobody or the arms, and the hook costs nothing elsewhere.
+    const joined = new Set(
+      model.joints.map(
+        (j) =>
+          `${Math.min(j.parentSegment, j.childSegment)}|${Math.max(j.parentSegment, j.childSegment)}`,
+      ),
+    );
+    const hooked = new Set<number>();
+    for (const [a, b] of model.excludedPairs) {
+      if (joined.has(`${a}|${b}`)) continue;
+      hooked.add(a);
+      hooked.add(b);
+    }
     this.colliders = [];
     this.colliderHandles = [];
     this.colliderSegment = new Int32Array(model.proxies.length);
@@ -237,7 +290,10 @@ export class RapierBackend implements IPhysicsBackend {
           points[3 * i + 1] = v.y;
           points[3 * i + 2] = v.z;
         });
-        desc = RAPIER.ColliderDesc.convexHull(points);
+        desc =
+          this.hullRounding > 0
+            ? RAPIER.ColliderDesc.roundConvexHull(points, this.hullRounding)
+            : RAPIER.ColliderDesc.convexHull(points);
         if (!desc) {
           notes.push({
             severity: 'warning',
@@ -259,7 +315,11 @@ export class RapierBackend implements IPhysicsBackend {
         .setMass(0)
         .setFriction(cls?.friction ?? 0.5)
         .setRestitution(cls?.restitution ?? 0)
-        .setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
+        .setActiveHooks(
+          hooked.has(proxy.segment)
+            ? RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS
+            : RAPIER.ActiveHooks.NONE,
+        );
       const body = this.bodies[proxy.segment];
       if (!body)
         throw new Error(`Proxy '${proxy.id}' names segment ${proxy.segment}, which has no body.`);
@@ -985,7 +1045,7 @@ export class RapierBackend implements IPhysicsBackend {
     this.world?.free();
     const world = RAPIER.World.restoreSnapshot(worldBytes);
     world.timestep = config.dt;
-    world.numSolverIterations = config.iterations ?? DEFAULT_ITERATIONS;
+    this.configureWorld(world, config);
     this.world = world;
     this.bodies = this.bodyHandles.map((h) => world.getRigidBody(h));
     this.colliders = this.colliderHandles.map((h) => world.getCollider(h));

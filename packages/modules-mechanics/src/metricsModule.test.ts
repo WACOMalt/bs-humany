@@ -1,5 +1,5 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
-import { RapierBackend } from '@bs-humany/backend-rapier';
+import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { compileArticulation } from '@bs-humany/compiler';
 import { Kernel } from '@bs-humany/kernel';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -14,7 +14,7 @@ const { articulation } = compileArticulation(document, 'l1_standard', morphology
 
 async function session() {
   const kernel = new Kernel({ rateHz: 500, seed: 1 });
-  const physics = new PhysicsModule(new RapierBackend(), articulation, { ground: { height: 0 } });
+  const physics = new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } });
   const metrics = new MetricsModule(articulation);
   kernel.register(physics);
   kernel.register(metrics);

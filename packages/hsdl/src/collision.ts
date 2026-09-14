@@ -53,6 +53,12 @@ export const CollisionProxySchema = z
            * module comment.
            */
           vertices: z.array(Vec3Schema).min(4),
+          /**
+           * Multiplier applied to every vertex at compile time. Expression-valued for the same
+           * reason a capsule's radius is: a hull measured from the dataset subject has to follow
+           * `stature`, and the vertices themselves are plain numbers.
+           */
+          scale: ScalarExprSchema.optional(),
         })
         .strict(),
     ]),

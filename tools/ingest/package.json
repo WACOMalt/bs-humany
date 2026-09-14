@@ -17,6 +17,8 @@
   },
   "scripts": {
     "ingest": "jiti src/ingest.ts",
-    "inspect": "node scripts/inspect-fbx.mjs"
+    "inspect": "node scripts/inspect-fbx.mjs",
+    "hulls": "jiti src/hulls.ts",
+    "lods": "jiti src/lods.ts"
   }
 }

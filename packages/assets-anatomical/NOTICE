@@ -1,7 +1,7 @@
 @bs-humany/assets-anatomical
 
-The data in this package (data/skeleton.bin, data/manifest.json, data/landmarks.json) is a
-derivative work of the following, and is distributed under the same licence,
+The data in this package (data/skeleton.bin, data/manifest.json, data/landmarks.json,
+data/hulls.json) is a derivative work of the following, and is distributed under the same licence,
 Creative Commons Attribution-ShareAlike 4.0 International (see LICENSE):
 
   "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"

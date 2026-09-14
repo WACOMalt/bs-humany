@@ -1,6 +1,6 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
-import { NULL_SPACE_ONSET, RapierBackend } from '@bs-humany/backend-rapier';
+import { NULL_SPACE_ONSET } from '@bs-humany/backend-rapier';
 import {
   type IPhysicsBackend,
   ROOT_NQ,
@@ -86,7 +86,9 @@ async function stepped(backend: IPhysicsBackend, ticks: number) {
 }
 
 describe.each([
-  ['rapier', () => new RapierBackend()],
+  // Rapier is disabled (ADR-003 reassessment); its restore is within 5 cm with hull proxies,
+  // not 5 mm, and the row stays here for the day it is revisited.
+  // ['rapier', () => new RapierBackend()],
   ['mujoco', () => new MujocoBackend()],
 ] as const)('recompile-and-restore on %s', (_name, make) => {
   it('places a fresh backend at a running one’s state, losslessly in joint space', async () => {

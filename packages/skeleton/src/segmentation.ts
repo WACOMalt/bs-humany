@@ -44,7 +44,7 @@ export const L0_RAGDOLL: SegmentationDef = {
   description:
     'Fifteen rigid bodies. The trunk is a single segment and the spine articulates cosmetically ' +
     'only. Targets 60 fps on mobile.',
-  defaultBackend: 'rapier',
+  defaultBackend: 'mujoco',
   solver: { rate: 240, iterations: 8, equalityConstraints: false, selfCollision: 'coarse' },
   limitations: [
     'Spinal kinematics are cosmetic. The trunk is one rigid body, and the visible curve across ' +
@@ -137,7 +137,7 @@ export const L1_STANDARD: SegmentationDef = {
   description:
     'Twenty-three rigid bodies. The spine articulates in three regions, the shoulder girdle moves, ' +
     'and the toes articulate at the metatarsophalangeal joints. Targets 60 fps on desktop.',
-  defaultBackend: 'rapier',
+  defaultBackend: 'mujoco',
   solver: { rate: 500, iterations: 12, equalityConstraints: false, selfCollision: 'coarse' },
   limitations: [
     'The spine bends in three regions rather than at each of its twenty-four levels. Motion is ' +
@@ -241,7 +241,7 @@ export const L2_BIOMECHANICAL: SegmentationDef = {
     'Forty-nine rigid bodies. Per-level lumbar spine, three thoracic blocks, atlas and axis ' +
     'separate, shoulder girdle split, patellae, and articulated digits. Targets 60 fps on desktop ' +
     'with Rapier, about 30 fps with MuJoCo.',
-  defaultBackend: 'rapier',
+  defaultBackend: 'mujoco',
   solver: { rate: 500, iterations: 16, equalityConstraints: true, selfCollision: 'full' },
   limitations: [
     'The thoracic spine moves in three blocks of four vertebrae, not at each level.',

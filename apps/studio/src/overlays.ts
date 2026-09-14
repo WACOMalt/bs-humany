@@ -27,6 +27,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
+import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 
 export interface OverlayChannels {
   readonly position: Float64Array;
@@ -90,7 +91,7 @@ export function createOverlays(model: CompiledArticulation): Overlays {
         2 * shape.halfExtents.y,
         2 * shape.halfExtents.z,
       );
-    else continue;
+    else geometry = new ConvexGeometry(shape.vertices.map((v) => new Vector3(v.x, v.y, v.z)));
     const mesh = new Mesh(geometry, proxyMaterial);
     const t = proxy.transform;
     mesh.position.set(t.translation.x, t.translation.y, t.translation.z);

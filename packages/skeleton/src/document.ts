@@ -229,12 +229,13 @@ export function modelLimitations(): string[] {
     'Joint ranges are fixed values from the MyoSuite reference models. Several are ' +
       'posture-dependent in reality (hip flexion with knee angle, glenohumeral range with scapular ' +
       'position); each joint records its own simplifications.',
-    'Collision proxies are one capsule or box per segment, fitted to the measured bounds of ' +
-      'its bones at the dataset pose. Pairs of unjoined segments whose proxies overlap at rest ' +
-      'are excluded from self-collision, so those regions pass through each other.',
+    "Collision proxies are convex decompositions of each segment's bones (up to three " +
+      'pieces per bone, twelve per segment), so a rib cage or a pelvis is a dozen convex ' +
+      'pieces rather than its true shape. Pairs of unjoined segments whose bounds overlap at ' +
+      'rest are excluded from self-collision, so those regions pass through each other.',
     'Joint couplings (lumbar level shares, the patella tracking the knee, the shoulder girdle ' +
-      'following elevation) are transcribed from MyoSuite. MuJoCo solves them exactly; Rapier ' +
-      'enforces them as soft corrective torques, so under load they can be violated.',
+      'following elevation) are transcribed from MyoSuite and solved exactly by MuJoCo, the ' +
+      'only enabled backend.',
     'The L1 spine moves at two lumbar and two neck region joints, each carrying half of a lumped ' +
       'source range. Per-level lumbar joints exist for L2; two of the six levels are provisional ' +
       '(OQ-007). No cervical lateral bending is defined yet.',

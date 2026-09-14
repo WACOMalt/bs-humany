@@ -1,15 +1,17 @@
 /**
- * Collision proxies and default exclusion pairs -- milestone M3.3.
+ * Collision proxies and default exclusion pairs -- milestones M3.3 and M5.8.
  *
  * ADR-006: collision geometry is never anatomical geometry. Every segment of every profile gets
- * one primitive proxy fitted to the measured extent of the bones it owns: a capsule where the
- * segment is elongated, a box otherwise. Nothing here reads a mesh at runtime; the fit uses the
- * per-bone bounds the ingestion tool recorded in the manifest, so it is as measured as the bone
- * placement is, and it scales with stature the same way.
+ * the convex decomposition of the bones it owns, computed offline by `tools/ingest` (CoACD) and
+ * read from the assets package's hull table: a long bone is a piece or two plus its head, a
+ * pelvis or a rib cage is a dozen pieces. The pieces are the bones' own vertices, so they follow
+ * an oblique bone's orientation and scale with stature exactly as the bone placement does.
+ * Nothing here reads a mesh at runtime.
  *
- * The fit is deliberately crude. A single primitive per segment is what a first ragdoll needs
- * (spec section 8.1); convex hulls per segment are M5.8 work and will arrive with the asset pack's
- * decimated LODs.
+ * A segment whose bone set has no entry in the hull table (a profile edited since the table was
+ * generated) falls back to one primitive fitted to the bones' measured bounds -- a capsule where
+ * the segment is elongated, a box otherwise -- and says so in its provenance, so the fallback
+ * cannot pass for the real thing.
  *
  * ## Exclusion pairs
  *
@@ -33,6 +35,7 @@ import {
   writeExtension,
 } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
+import { HULL_GROUPS, HULL_TABLE, type HullGroup, hullGroupKey } from './hulls.js';
 
 type P3 = readonly [number, number, number];
 type Axis = 0 | 1 | 2;
@@ -61,6 +64,8 @@ export interface ProxyProvenance {
   readonly min: P3;
   readonly max: P3;
   readonly rule: string;
+  /** Present on a convex-hull piece: which piece of how many, and its vertex count. */
+  readonly hull?: { readonly index: number; readonly count: number; readonly vertices: number };
 }
 
 interface Bounds {
@@ -101,10 +106,64 @@ function axisRotation(axis: Axis): Quat {
     : fromAxisAngle(vec3(1, 0, 0), Math.PI / 2);
 }
 
-/** A fitted proxy plus the world-space bounds it occupies, for the overlap test. */
+/** A segment's fitted proxies plus the world-space bounds they occupy, for the overlap test. */
 interface Fitted {
-  readonly proxy: CollisionProxy;
+  readonly proxies: CollisionProxy[];
   readonly occupies: Bounds;
+}
+
+/** The hull pieces of a group as proxies in the anchor frame, scaled by stature at compile. */
+function hullProxies(
+  id: string,
+  segment: SegmentationDef['segments'][number],
+  group: HullGroup,
+  bounds: Bounds,
+  anchor: { readonly centroid: P3 },
+): Fitted {
+  const min: [number, number, number] = [
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+  ];
+  const max: [number, number, number] = [
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  ];
+  const { maxVertices } = HULL_TABLE.parameters;
+  const proxies = group.hulls.map((flat, k) => {
+    const vertices: { x: number; y: number; z: number }[] = [];
+    for (let i = 0; i + 2 < flat.length; i += 3) {
+      const v = { x: flat[i] ?? 0, y: flat[i + 1] ?? 0, z: flat[i + 2] ?? 0 };
+      vertices.push(v);
+      const world = [v.x + anchor.centroid[0], v.y + anchor.centroid[1], v.z + anchor.centroid[2]];
+      for (let a = 0; a < 3; a++) {
+        min[a] = Math.min(min[a] ?? 0, world[a] ?? 0);
+        max[a] = Math.max(max[a] ?? 0, world[a] ?? 0);
+      }
+    }
+    const provenance: ProxyProvenance = {
+      profiles: [],
+      segment: segment.id,
+      bones: segment.bones,
+      min: bounds.min,
+      max: bounds.max,
+      rule:
+        group.settings === 'hull-per-bone'
+          ? `convex hull ${k + 1} of ${group.hulls.length}: one hull per bone, CoACD overran ` +
+            `its time limit on this group (at most ${maxVertices} vertices per piece)`
+          : `convex hull ${k + 1} of ${group.hulls.length}: CoACD decomposition of the ` +
+            `segment's bones, ${group.settings} settings (at most ${maxVertices} vertices per piece)`,
+      hull: { index: k, count: group.hulls.length, vertices: vertices.length },
+    };
+    return {
+      id: `${id}_hull${k + 1}`,
+      transform: { translation: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } },
+      shape: { kind: 'convexHull' as const, vertices, scale: ofStature(1) },
+      ext: writeExtension(undefined, PROXY_NS, provenance),
+    };
+  });
+  return { proxies, occupies: { min, max } };
 }
 
 function fitProxy(
@@ -115,6 +174,13 @@ function fitProxy(
   const bounds = segmentBounds(segment.bones);
   const anchor = packed.get(segment.anchor);
   if (!bounds || !anchor) return undefined;
+  const group = HULL_GROUPS.get(
+    hullGroupKey(
+      segment.anchor,
+      segment.bones.filter((b) => packed.has(b)),
+    ),
+  );
+  if (group) return hullProxies(id, segment, group, bounds, anchor);
 
   const extent = [0, 1, 2].map((i) => (bounds.max[i] ?? 0) - (bounds.min[i] ?? 0)) as [
     number,
@@ -148,7 +214,7 @@ function fitProxy(
     const length = Math.max(extent[longest] - 2 * radius, 0);
     shape = { kind: 'capsule', radius: ofStature(radius), length: ofStature(length) };
     rotation = axisRotation(longest);
-    rule = `capsule along ${'xyz'[longest]}: aspect ${aspect.toFixed(2)} >= ${CAPSULE_ASPECT}`;
+    rule = `no hull group; fallback capsule along ${'xyz'[longest]}: aspect ${aspect.toFixed(2)} >= ${CAPSULE_ASPECT}`;
     const half = [0, 1, 2].map((i) => (i === longest ? extent[longest] / 2 : radius));
     occupies = {
       min: [0, 1, 2].map((i) => (centre[i] ?? 0) - (half[i] ?? 0)) as unknown as P3,
@@ -165,8 +231,8 @@ function fitProxy(
     };
     rotation = { x: 0, y: 0, z: 0, w: 1 };
     rule = BOX_SEGMENTS.test(segment.id)
-      ? `box: plate segment, aspect ${aspect.toFixed(2)}`
-      : `box: aspect ${aspect.toFixed(2)} < ${CAPSULE_ASPECT}`;
+      ? `no hull group; fallback box: plate segment, aspect ${aspect.toFixed(2)}`
+      : `no hull group; fallback box: aspect ${aspect.toFixed(2)} < ${CAPSULE_ASPECT}`;
     occupies = bounds;
   }
 
@@ -179,12 +245,14 @@ function fitProxy(
     rule,
   };
   return {
-    proxy: {
-      id,
-      transform: { translation, rotation },
-      shape,
-      ext: writeExtension(undefined, PROXY_NS, provenance),
-    },
+    proxies: [
+      {
+        id,
+        transform: { translation, rotation },
+        shape,
+        ext: writeExtension(undefined, PROXY_NS, provenance),
+      },
+    ],
     occupies,
   };
 }
@@ -221,11 +289,11 @@ export interface CollisionSetup {
 }
 
 /**
- * Fit one proxy per segment across all profiles, and find the non-adjacent overlapping pairs.
+ * Fit every segment's proxies across all profiles, and find the non-adjacent overlapping pairs.
  *
- * Segments with the same id and the same bone set in several profiles share one proxy. A segment
- * whose bone set differs between profiles (`foot_r` with and without the toes) gets a proxy per
- * variant, suffixed with the profile id.
+ * Segments with the same id and the same bone set in several profiles share their proxies. A
+ * segment whose bone set differs between profiles (`foot_r` with and without the toes) gets
+ * proxies per variant, suffixed with the profile id.
  */
 export function buildCollisionSetup(
   profiles: readonly SegmentationDef[],
@@ -250,23 +318,20 @@ export function buildCollisionSetup(
         entry = { id, fitted, profiles: [] };
         byBoneSet.set(key, entry);
         idsUsed.add(id);
-        proxies.push(fitted.proxy);
+        proxies.push(...fitted.proxies);
       }
       entry.profiles.push(profile.id);
       fittedHere.set(segment.id, entry.fitted);
-      return { ...segment, proxies: [entry.id] };
+      return { ...segment, proxies: entry.fitted.proxies.map((p) => p.id) };
     });
     return { ...profile, segments };
   });
 
   // Provenance is written once the profile list per proxy is complete.
   for (const entry of byBoneSet.values()) {
-    const p = entry.fitted.proxy.ext?.[PROXY_NS] as ProxyProvenance | undefined;
-    if (p) {
-      entry.fitted.proxy.ext = writeExtension(undefined, PROXY_NS, {
-        ...p,
-        profiles: entry.profiles,
-      });
+    for (const proxy of entry.fitted.proxies) {
+      const p = proxy.ext?.[PROXY_NS] as ProxyProvenance | undefined;
+      if (p) proxy.ext = writeExtension(undefined, PROXY_NS, { ...p, profiles: entry.profiles });
     }
   }
 

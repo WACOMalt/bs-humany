@@ -7,6 +7,9 @@
  * say whether Rapier still earns its place as the interactive default.
  *
  * Run: pnpm bench
+ *
+ * Both backends are measured although only MuJoCo is enabled (ADR-003 reassessment,
+ * 2026-09-13): the Rapier rows are the evidence for that decision and the baseline for revisiting it.
  */
 
 import { writeFileSync } from 'node:fs';

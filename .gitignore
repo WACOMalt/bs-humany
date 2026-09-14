@@ -7,3 +7,4 @@ coverage/
 .vite/
 apps/*/dist/
 tools/*/dist/
+.venv/
