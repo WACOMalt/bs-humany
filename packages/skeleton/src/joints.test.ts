@@ -264,9 +264,35 @@ describe('joint axes', () => {
         if (!l) throw new Error('missing dof');
         expect(l.axis).toBe(dof.axis);
         expect(l.range).toEqual(dof.range);
+        // A counter-rotating DoF takes its axis from the joint it undoes, resolved in each
+        // side's own frames, so it is not the mirror of the right side's vector. The test
+        // below checks the property it does have.
+        if (spec.dofs[i]?.counterRotates) return;
         const m = mirrorVector(vec3(dof.vector.x, dof.vector.y, dof.vector.z));
         near([l.vector.x, l.vector.y, l.vector.z], [m.x, m.y, m.z]);
       });
+    }
+  });
+
+  it('point a counter-rotating DoF along the very axis it undoes, on both sides', () => {
+    for (const s of ['r', 'l'] as const) {
+      const ac = joints.get(`acromioclavicular_${s}`);
+      const sc = joints.get(`sternoclavicular_${s}`);
+      if (!ac || !sc) throw new Error(s);
+      const acFrame = jointWorld(`acromioclavicular_${s}`).rotation;
+      const scFrame = jointWorld(`sternoclavicular_${s}`).rotation;
+      // DoF 0 undoes sternoclavicular elevation (DoF 1), DoF 1 undoes protraction (DoF 0).
+      for (const [here, there] of [
+        [0, 1],
+        [1, 0],
+      ] as const) {
+        const a = ac.dofs[here];
+        const b = sc.dofs[there];
+        if (!a || !b) throw new Error('missing dof');
+        const inWorld = rotate(acFrame, vec3(a.vector.x, a.vector.y, a.vector.z));
+        const target = rotate(scFrame, vec3(b.vector.x, b.vector.y, b.vector.z));
+        near([inWorld.x, inWorld.y, inWorld.z], [target.x, target.y, target.z], 1e-9);
+      }
     }
   });
 

@@ -236,6 +236,10 @@ export function modelLimitations(): string[] {
     'Joint couplings (lumbar level shares, the patella tracking the knee, the shoulder girdle ' +
       'following elevation) are transcribed from MyoSuite and solved exactly by MuJoCo, the ' +
       'only enabled backend.',
+    'The scapula travels with the clavicle but does not turn with it: the acromioclavicular ' +
+      'joint carries two counter-rotating degrees of freedom that undo the clavicle’s own ' +
+      'rotation, as the source model does with a phantom body. Nothing else holds the scapula ' +
+      'against the rib cage, so it still drifts a few centimetres clear at full elevation.',
     'The L1 spine moves at two lumbar and two neck region joints, each carrying half of a lumped ' +
       'source range. Per-level lumbar joints exist for L2; two of the six levels are provisional ' +
       '(OQ-007). No cervical lateral bending is defined yet.',

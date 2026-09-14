@@ -28,6 +28,25 @@ export interface ArticularCentre {
   readonly rule: string;
 }
 
+/**
+ * A joint centre measured where two bones meet.
+ *
+ * Used for a joint that is a contact between surfaces rather than a ball in a socket. The
+ * acromioclavicular marker sits 16 mm clear of the scapula it pivots; the measured contact sits
+ * where the clavicle and the acromion actually touch, which is what the scapula hangs from.
+ */
+export interface ContactCentre {
+  /** The two bones, in the order the measurement names them; the feature is published on the first. */
+  readonly bones: readonly [string, string];
+  readonly feature: string;
+  readonly description: string;
+  readonly centre: readonly [number, number, number];
+  /** Distance between the two surfaces at their closest, metres. */
+  readonly gap: number;
+  readonly pairs: number;
+  readonly rule: string;
+}
+
 export interface ArticularCentreTable {
   readonly format: 'bs-humany.articular-centres/1';
   readonly dataset: Record<string, unknown>;
@@ -36,12 +55,14 @@ export interface ArticularCentreTable {
   readonly units: 'm';
   readonly frame: string;
   readonly centres: readonly ArticularCentre[];
+  readonly contacts: readonly ContactCentre[];
 }
 
 export const ARTICULAR_CENTRE_TABLE: ArticularCentreTable =
   centresJson as unknown as ArticularCentreTable;
 
 export const ARTICULAR_CENTRES: readonly ArticularCentre[] = ARTICULAR_CENTRE_TABLE.centres;
+export const CONTACT_CENTRES: readonly ContactCentre[] = ARTICULAR_CENTRE_TABLE.contacts;
 
 /** The fitted centre for a bone's articular surface, or undefined. */
 export function articularCentre(bone: string, feature: string): ArticularCentre | undefined {

@@ -183,7 +183,9 @@ describe('failure modes', () => {
     const l2 = compileArticulation(document, 'l2_biomechanical', morphology).articulation;
     // L1 has sternoclavicular joints but no per-level lumbar, patella or acromioclavicular.
     expect(l1.constraints.length).toBe(4);
-    expect(l2.constraints.length).toBe(9 + 2 * 6);
+    // Per side: patella, two sternoclavicular, two scapular counter-rotations, three
+    // acromioclavicular. Plus the nine lumbar level shares.
+    expect(l2.constraints.length).toBe(9 + 2 * 8);
     const patella = l2.constraints.find((c) => c.id === 'patellofemoral_r_follows_knee');
     expect(patella?.kind.type === 'jointCoupling' && patella.kind.drivers[0]?.higher?.length).toBe(
       3,

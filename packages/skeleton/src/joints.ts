@@ -40,10 +40,12 @@ import {
   type Transform,
   type Vec3,
   WORLD,
+  conjugate,
   conversionMatrix,
   normalize,
   quatFromMat3,
   relativeTo,
+  rotate,
   vec3,
 } from '@bs-humany/frames';
 import {
@@ -761,6 +763,31 @@ export function buildJoints(document: Pick<HsdlDocument, 'bones' | 'landmarks'>)
   const frames = computeBoneFrames(document, context);
   const stature = DATASET_MANIFEST.subjectStature;
 
+  // Each joint's frame orientation and its DoF axes in that frame, resolved before any joint is
+  // built: a counter-rotating DoF needs another joint's axis expressed in its own frame, and
+  // both frames have to exist first.
+  const resolved = new Map<string, { rotation: Quat; axes: Vec3[] }>();
+  for (const spec of JOINT_SPECS) {
+    const rotation = frames.get(spec.parentBone)?.rotation ?? ISB_CANONICAL;
+    const axes = spec.dofs.map((d) => {
+      const unit = normalize(vec3(d.vector[0], d.vector[1], d.vector[2]));
+      return spec.side === 'l' ? mirrorVector(unit) : unit;
+    });
+    resolved.set(spec.id, { rotation, axes });
+  }
+
+  /** The axis `dof` of joint `joint`, expressed in the frame of the joint being built. */
+  const axisInFrame = (source: { joint: string; dof: number }, target: Quat): Vec3 => {
+    const from = resolved.get(source.joint);
+    const axis = from?.axes[source.dof];
+    if (!from || !axis) {
+      throw new Error(
+        `Counter-rotation names '${source.joint}' DoF ${source.dof}, which is absent.`,
+      );
+    }
+    return rotate(conjugate(target), rotate(from.rotation, axis));
+  };
+
   return JOINT_SPECS.map((spec): JointDef => {
     const parentWorld = world.get(spec.parentBone);
     if (!parentWorld)
@@ -794,9 +821,10 @@ export function buildJoints(document: Pick<HsdlDocument, 'bones' | 'landmarks'>)
         },
         rotation: local.rotation,
       },
-      dofs: spec.dofs.map((d): DofDef => {
-        const unit = normalize(vec3(d.vector[0], d.vector[1], d.vector[2]));
-        const vector = mirrored ? mirrorVector(unit) : unit;
+      dofs: spec.dofs.map((d, i): DofDef => {
+        const vector = d.counterRotates
+          ? axisInFrame(d.counterRotates, jointWorld.rotation)
+          : (resolved.get(spec.id)?.axes[i] ?? vec3(0, 1, 0));
         return {
           axis: d.axis,
           kind: 'hinge',

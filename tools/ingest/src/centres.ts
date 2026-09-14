@@ -76,6 +76,103 @@ const TARGETS: readonly Target[] = [
   },
 ];
 
+/**
+ * A pair of bones whose joint centre is where they meet.
+ *
+ * For a joint that is a contact between two surfaces rather than a ball in a socket, the centre
+ * is the place the bones nearly touch. The marker for such a feature is no better placed than
+ * any other -- the acromioclavicular marker sits 16 mm clear of the scapula it is supposed to
+ * pivot -- so the contact is measured instead.
+ */
+interface ContactTarget {
+  readonly a: string;
+  readonly b: string;
+  /** Feature name the measured centre is published under, on bone `a`. */
+  readonly feature: string;
+  readonly description: string;
+}
+
+const CONTACTS: readonly ContactTarget[] = [
+  {
+    a: 'clavicle',
+    b: 'scapula',
+    feature: 'Acromial_end__contact_centre',
+    description: 'Where the clavicle meets the acromion: the acromioclavicular joint centre',
+  },
+  {
+    a: 'talus',
+    b: 'navicular',
+    feature: 'Head_of_talus__contact_centre',
+    description: 'Where the talar head meets the navicular: the talonavicular joint centre',
+  },
+];
+
+/** Vertex pairs no further apart than the closest pair plus this count as touching, metres. */
+export const CONTACT_BAND = 0.002;
+
+export interface ContactCentre {
+  readonly bones: readonly [string, string];
+  readonly feature: string;
+  readonly description: string;
+  readonly centre: [number, number, number];
+  /** Distance between the two surfaces at their closest, metres. */
+  readonly gap: number;
+  /** Vertex pairs within `CONTACT_BAND` of that closest approach. */
+  readonly pairs: number;
+  readonly rule: string;
+}
+
+/**
+ * Midpoint of the region where two bones come closest.
+ *
+ * Every pair of vertices within `CONTACT_BAND` of the closest approach contributes its midpoint,
+ * and the centre is their average: one stray vertex cannot move it, and a joint whose surfaces
+ * are broadly parallel gets the middle of that whole area rather than an arbitrary corner.
+ */
+export function contactCentre(
+  a: Float64Array,
+  b: Float64Array,
+): { centre: [number, number, number]; gap: number; pairs: number } {
+  const na = a.length / 3;
+  const nb = b.length / 3;
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < na; i++) {
+    const ax = a[3 * i] as number;
+    const ay = a[3 * i + 1] as number;
+    const az = a[3 * i + 2] as number;
+    for (let j = 0; j < nb; j++) {
+      const dx = ax - (b[3 * j] as number);
+      const dy = ay - (b[3 * j + 1] as number);
+      const dz = az - (b[3 * j + 2] as number);
+      const d = dx * dx + dy * dy + dz * dz;
+      if (d < best) best = d;
+    }
+  }
+  const gap = Math.sqrt(best);
+  const cut = (gap + CONTACT_BAND) ** 2;
+  let sx = 0;
+  let sy = 0;
+  let sz = 0;
+  let pairs = 0;
+  for (let i = 0; i < na; i++) {
+    const ax = a[3 * i] as number;
+    const ay = a[3 * i + 1] as number;
+    const az = a[3 * i + 2] as number;
+    for (let j = 0; j < nb; j++) {
+      const bx = b[3 * j] as number;
+      const by = b[3 * j + 1] as number;
+      const bz = b[3 * j + 2] as number;
+      const d = (ax - bx) ** 2 + (ay - by) ** 2 + (az - bz) ** 2;
+      if (d > cut) continue;
+      sx += (ax + bx) / 2;
+      sy += (ay + by) / 2;
+      sz += (az + bz) / 2;
+      pairs += 1;
+    }
+  }
+  return { centre: [sx / pairs, sy / pairs, sz / pairs], gap, pairs };
+}
+
 export interface FittedCentre {
   readonly bone: string;
   readonly feature: string;
@@ -264,6 +361,39 @@ for (const target of TARGETS) {
   }
 }
 
+const contacts: ContactCentre[] = [];
+for (const target of CONTACTS) {
+  for (const side of ['r', 'l'] as const) {
+    const aId = `${target.a}_${side}`;
+    const bId = `${target.b}_${side}`;
+    const boneA = packed.get(aId);
+    const boneB = packed.get(bId);
+    if (!boneA || !boneB) throw new Error(`no ${aId} or ${bId}`);
+    const va = Float64Array.from(
+      positions.subarray(boneA.vertexOffset * 3, (boneA.vertexOffset + boneA.vertexCount) * 3),
+    );
+    const vb = Float64Array.from(
+      positions.subarray(boneB.vertexOffset * 3, (boneB.vertexOffset + boneB.vertexCount) * 3),
+    );
+    const fit = contactCentre(va, vb);
+    contacts.push({
+      bones: [aId, bId],
+      feature: target.feature,
+      description: target.description,
+      centre: fit.centre.map(round) as [number, number, number],
+      gap: round(fit.gap),
+      pairs: fit.pairs,
+      rule:
+        `midpoint of every vertex pair within ${CONTACT_BAND * 1000} mm of the closest approach ` +
+        `between ${aId} and ${bId}`,
+    });
+    console.error(
+      `${aId}/${bId}: contact centre ${fit.centre.map((v) => v.toFixed(4)).join(', ')}  ` +
+        `gap ${(fit.gap * 1000).toFixed(1)} mm  ${fit.pairs} pairs`,
+    );
+  }
+}
+
 const out = {
   format: 'bs-humany.articular-centres/1',
   // A measurement of the meshes carries their licence and attribution (ADR-009, ADR-011).
@@ -273,6 +403,9 @@ const out = {
   units: 'm',
   frame: 'canonical world frame at the dataset stature',
   centres: fitted,
+  contacts,
 };
 writeFileSync(join(dataDir, 'articular-centres.json'), `${JSON.stringify(out, null, 1)}\n`);
-console.error(`wrote ${join(dataDir, 'articular-centres.json')}: ${fitted.length} centres`);
+console.error(
+  `wrote ${join(dataDir, 'articular-centres.json')}: ${fitted.length} fitted centres, ${contacts.length} contact centres`,
+);

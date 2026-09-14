@@ -7,7 +7,13 @@
 import { type Citation, type JointDef, cite } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
 import { VIRTUAL_LANDMARKS, virtualLandmarkWorld } from './frames.js';
-import { ISB_LANDMARKS, isbLandmarkWorld, landmarkId, markerWorld } from './landmarks.js';
+import {
+  ISB_LANDMARKS,
+  isbLandmarkWorld,
+  landmarkId,
+  markerWorld,
+  measuredWorld,
+} from './landmarks.js';
 
 export type Side = 'l' | 'r';
 export type P3 = readonly [number, number, number];
@@ -36,6 +42,9 @@ export const dataset = (locator: string) => cite('kervyn2021', locator);
  *   - `isb`: an ISB landmark by abbreviation.
  *   - `virtual`: a midpoint landmark defined in `frames.ts`.
  *   - `marker`: a raw dataset marker that has no ISB name.
+ *   - `measured`: a centre measured from the meshes -- a fitted articular sphere or the contact
+ *     between two bones (see `articularCentres.ts`). A marker marks a surface feature and is a
+ *     poor stand-in for a rotation centre, so a joint that needs one says so here.
  *   - `centroidMid`: midway between two bones' centroids. Used only for spine joints whose disc
  *     has no marker; the vertebral centroid includes the posterior arch, so the point sits a
  *     little posterior to the disc. Recorded as a limitation on each such joint.
@@ -44,6 +53,7 @@ export type Centre =
   | { readonly isb: readonly [bone: string, abbreviation: string] }
   | { readonly virtual: string }
   | { readonly marker: readonly [bone: string, feature: string] }
+  | { readonly measured: readonly [bone: string, feature: string] }
   | { readonly centroidMid: readonly [string, string] }
   /**
    * Where two bones' bounds meet along an axis: the proximal bone's far extreme and the distal
@@ -64,6 +74,7 @@ function packed(id: string) {
 export function centreWorld(c: Centre): P3 {
   if ('isb' in c) return isbLandmarkWorld(c.isb[0], c.isb[1]);
   if ('marker' in c) return markerWorld(c.marker[0], c.marker[1]);
+  if ('measured' in c) return measuredWorld(c.measured[0], c.measured[1]);
   if ('virtual' in c) {
     const v = VIRTUAL_LANDMARKS.find((x) => x.id === c.virtual);
     if (!v) throw new Error(`Joint centre references unknown virtual landmark '${c.virtual}'.`);
@@ -102,6 +113,7 @@ export function centreLocator(c: Centre): string {
     return l ? `landmark ${landmarkId(l.bone, l.feature)}` : `landmark ${c.isb.join('/')}`;
   }
   if ('marker' in c) return `landmark ${landmarkId(c.marker[0], c.marker[1])}`;
+  if ('measured' in c) return `landmark ${landmarkId(c.measured[0], c.measured[1])}`;
   if ('virtual' in c) return `landmark ${c.virtual}`;
   if ('centroid' in c) return `centroid of ${c.centroid}`;
   if ('boundary' in c)
@@ -120,6 +132,22 @@ export interface DofSpec {
   readonly vector: readonly [number, number, number];
   readonly range: readonly [number, number];
   readonly romSource: Citation;
+  /**
+   * Undo another joint's degree of freedom.
+   *
+   * A kinematic tree makes a child inherit its parent's rotation, and sometimes that is not what
+   * the anatomy does: the scapula travels with the clavicle but does not turn with it, because
+   * the muscles that hold it against the rib cage keep its own orientation. The source model
+   * expresses that with a phantom body carrying the parent joint's axes and the opposite
+   * coupling, and this is the same thing without the extra body.
+   *
+   * The axis is resolved on build -- the named joint's axis, expressed in this joint's frame,
+   * which needs both frames and so cannot be written as a literal. `vector` is ignored, and the
+   * left side is not mirrored again because both frames are already that side's own. Such a DoF
+   * is meaningless unless a constraint drives it with the negated coefficient, and the
+   * counter-rotations must come first in the list, in the reverse of the source's order.
+   */
+  readonly counterRotates?: { readonly joint: string; readonly dof: number } | undefined;
 }
 
 export interface JointSpec {

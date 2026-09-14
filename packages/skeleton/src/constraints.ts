@@ -118,26 +118,43 @@ function sideCouplings(s: 'l' | 'r'): ConstraintDef[] {
       'sternoclavicular_r3',
       'Sternoclavicular elevation with elevation',
     ),
+    // The two counter-rotations carry the sternoclavicular coefficients negated, which is what
+    // the source's unrotscap joint does; without them the scapula inherits the clavicle's swing
+    // and lifts off the rib cage as the arm rises.
     rhythm(
       `acromioclavicular_${s}`,
       0,
+      -0.1025,
+      'unrotscap_r3',
+      'Scapula released from clavicular elevation',
+    ),
+    rhythm(
+      `acromioclavicular_${s}`,
+      1,
+      0.242,
+      'unrotscap_r2',
+      'Scapula released from clavicular protraction',
+    ),
+    rhythm(
+      `acromioclavicular_${s}`,
+      2,
       -0.049,
       'acromioclavicular_r2',
       'Acromioclavicular protraction with elevation',
     ),
     rhythm(
       `acromioclavicular_${s}`,
-      1,
-      0.178,
-      'acromioclavicular_r1',
-      'Acromioclavicular tilt with elevation',
-    ),
-    rhythm(
-      `acromioclavicular_${s}`,
-      2,
+      3,
       0.396,
       'acromioclavicular_r3',
       'Acromioclavicular upward rotation with elevation',
+    ),
+    rhythm(
+      `acromioclavicular_${s}`,
+      4,
+      0.178,
+      'acromioclavicular_r1',
+      'Acromioclavicular tilt with elevation',
     ),
   ];
 }

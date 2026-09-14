@@ -27,7 +27,7 @@ changed hash fails the suite. Updating a golden is a deliberate commit with a wr
 run `UPDATE_GOLDENS=1 pnpm test` to regenerate. Rapier's hashes are platform-specific; MuJoCo's
 should not be, but the file records the platform they were produced on.
 
-## Results, 2026-09-14, fitted hip and shoulder centres
+## Results, 2026-09-14, measured joint centres and the released scapula
 
 Largest values seen per scenario on MuJoCo: range violation (rad), penetration (mm), joint
 drift (mm), and kinetic energy at the end (J). Every run passes its checks; the numbers are kept
@@ -44,7 +44,10 @@ so the tolerances can be read against what they actually cover.
 | grab-and-swing | 0.08 rad, 10 mm, 0.0 mm, 0.00 J |
 
 The hip and shoulder centres moved to the middle of their articular spheres, 33 mm and 28 mm
-from the surface markers that stood in for them before. The body now lands harder in the
+from the surface markers that stood in for them before; the acromioclavicular and talonavicular
+centres moved to where those bones actually touch; and the scapula gained the counter-rotations
+that release it from the clavicle's swing. The scenarios run at L1, which has neither of the
+last two, so they are unchanged by them. The body now lands harder in the
 standing collapse, and the sample after peak compression returns about 5 J of the 230 J that
 impact absorbs; that scenario carries its own energy tolerance with the reason beside it.
 

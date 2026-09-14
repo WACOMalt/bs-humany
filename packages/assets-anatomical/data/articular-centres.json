@@ -72,5 +72,71 @@
    "residual": 0.001071,
    "rule": "least-squares sphere through the articular surface: vertices within 40 mm of Head_of_humerus, refined to those within 2.5 mm of the sphere"
   }
+ ],
+ "contacts": [
+  {
+   "bones": [
+    "clavicle_r",
+    "scapula_r"
+   ],
+   "feature": "Acromial_end__contact_centre",
+   "description": "Where the clavicle meets the acromion: the acromioclavicular joint centre",
+   "centre": [
+    0.150795,
+    1.40537,
+    0.037366
+   ],
+   "gap": 0.000246,
+   "pairs": 381,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between clavicle_r and scapula_r"
+  },
+  {
+   "bones": [
+    "clavicle_l",
+    "scapula_l"
+   ],
+   "feature": "Acromial_end__contact_centre",
+   "description": "Where the clavicle meets the acromion: the acromioclavicular joint centre",
+   "centre": [
+    -0.150795,
+    1.40537,
+    0.037366
+   ],
+   "gap": 0.000246,
+   "pairs": 381,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between clavicle_l and scapula_l"
+  },
+  {
+   "bones": [
+    "talus_r",
+    "navicular_r"
+   ],
+   "feature": "Head_of_talus__contact_centre",
+   "description": "Where the talar head meets the navicular: the talonavicular joint centre",
+   "centre": [
+    0.080866,
+    0.058384,
+    0.011064
+   ],
+   "gap": 0.001023,
+   "pairs": 123,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between talus_r and navicular_r"
+  },
+  {
+   "bones": [
+    "talus_l",
+    "navicular_l"
+   ],
+   "feature": "Head_of_talus__contact_centre",
+   "description": "Where the talar head meets the navicular: the talonavicular joint centre",
+   "centre": [
+    -0.080866,
+    0.058384,
+    0.011064
+   ],
+   "gap": 0.001023,
+   "pairs": 123,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between talus_l and navicular_l"
+  }
  ]
 }

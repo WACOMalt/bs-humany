@@ -26,7 +26,7 @@ import {
   param,
   writeExtension,
 } from '@bs-humany/hsdl';
-import { ARTICULAR_CENTRES } from './articularCentres.js';
+import { ARTICULAR_CENTRES, CONTACT_CENTRES } from './articularCentres.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { getBone } from './taxonomy.js';
 
@@ -54,16 +54,32 @@ const POSITIONS: LandmarkTable = (() => {
     const features = merged[c.bone];
     if (features) features[c.feature] = [c.centre[0], c.centre[1], c.centre[2]];
   }
+  for (const c of CONTACT_CENTRES) {
+    const bone = c.bones[0];
+    merged[bone] ??= {};
+    const features = merged[bone];
+    if (features) features[c.feature] = [c.centre[0], c.centre[1], c.centre[2]];
+  }
   return merged;
 })();
 
 /** How a fitted centre was located, for its provenance line. */
-const FITTED_RULES = new Map(
-  ARTICULAR_CENTRES.map((c) => [
-    `${c.bone}/${c.feature}`,
-    `${c.rule} (${c.inliers} inliers, mean residual ${(c.residual * 1000).toFixed(2)} mm)`,
-  ]),
-);
+const FITTED_RULES = new Map<string, string>([
+  ...ARTICULAR_CENTRES.map(
+    (c) =>
+      [
+        `${c.bone}/${c.feature}`,
+        `${c.rule} (${c.inliers} inliers, mean residual ${(c.residual * 1000).toFixed(2)} mm)`,
+      ] as const,
+  ),
+  ...CONTACT_CENTRES.map(
+    (c) =>
+      [
+        `${c.bones[0]}/${c.feature}`,
+        `${c.rule} (${c.pairs} pairs, ${(c.gap * 1000).toFixed(1)} mm apart at the closest)`,
+      ] as const,
+  ),
+]);
 
 /** Namespace for dataset provenance carried on each landmark. */
 export const PROVENANCE_NS = moduleNamespace('provenance');
@@ -439,6 +455,17 @@ export function buildLandmarks(): LandmarkDef[] {
     }
   }
   return out;
+}
+
+/**
+ * World position of any landmark the document carries -- a dataset marker or a measured centre
+ * -- at the dataset stature. Use this where the question is "where is this feature", and
+ * `markerWorld` where it must be a marker the export itself placed.
+ */
+export function measuredWorld(bone: string, feature: string): readonly [number, number, number] {
+  const p = POSITIONS[bone]?.[feature];
+  if (!p) throw new Error(`No landmark '${feature}' on '${bone}'.`);
+  return p;
 }
 
 /** World position of a raw dataset marker at the dataset stature, or throw naming the gap. */

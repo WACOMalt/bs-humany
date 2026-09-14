@@ -443,11 +443,31 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       displayName: `Acromioclavicular, ${side}`,
       parentBone: `clavicle_${s}`,
       childBone: `scapula_${s}`,
-      type: 'spherical',
-      centre: { isb: [`clavicle_${s}`, 'AC'] },
-      centreSource: wu2005('2.3.2, clavicle coordinate system: AC'),
+      type: 'custom',
+      // Not the ISB 'AC' landmark: that is defined as the most dorsal point *on* the joint, a
+      // surface marker for building the clavicle frame, and it sits 16 mm clear of the scapula
+      // it would be pivoting. The centre is measured where the two bones actually touch.
+      centre: { measured: [`clavicle_${s}`, 'Acromial_end__contact_centre'] },
+      centreSource: dataset(`measured contact between clavicle_${s} and scapula_${s}`),
       reportingOrder: 'yxz',
+      // The source's order, which matters because rotations do not commute: the two
+      // counter-rotations that release the scapula from the clavicle's swing, then the
+      // acromioclavicular axes as r2, r3, r1.
       dofs: [
+        {
+          axis: 'unrotate_clavicle_elevation',
+          vector: [0, 1, 0],
+          counterRotates: { joint: `sternoclavicular_${s}`, dof: 1 },
+          range: [-0.318, 0],
+          romSource: myo(ARM, 'unrotscap_r3_r'),
+        },
+        {
+          axis: 'unrotate_clavicle_protraction',
+          vector: [0, 1, 0],
+          counterRotates: { joint: `sternoclavicular_${s}`, dof: 0 },
+          range: [0, 0.75],
+          romSource: myo(ARM, 'unrotscap_r2_r'),
+        },
         {
           axis: 'protraction',
           vector: [0.157095, 0.947269, -0.279291],
@@ -455,21 +475,25 @@ function girdleAndLimbs(s: Side): JointSpec[] {
           romSource: myo(ARM, 'acromioclavicular_r2_r'),
         },
         {
-          axis: 'tilt',
-          vector: [0.6377, 0.1186, 0.7611],
-          range: [0, 0.552],
-          romSource: myo(ARM, 'acromioclavicular_r1_r'),
-        },
-        {
           axis: 'upward_rotation',
           vector: [-0.754084, 0.297594, 0.585487],
           range: [0, 1.228],
           romSource: myo(ARM, 'acromioclavicular_r3_r'),
         },
+        {
+          axis: 'tilt',
+          vector: [0.6377, 0.1186, 0.7611],
+          range: [0, 0.552],
+          romSource: myo(ARM, 'acromioclavicular_r1_r'),
+        },
       ],
       limitations: [
-        'Axes are the source model’s acromioclavicular axes as given, in its clavicle frame; ' +
-          'scapulothoracic gliding is still not a constraint surface (spec 7.2).',
+        'Axes are the source model’s acromioclavicular axes as given, in its clavicle frame. ' +
+          'The first two DoFs undo the clavicle’s own rotation, as the source’s phantom body ' +
+          'does, so the scapula travels with the clavicle without turning with it.',
+        'Scapulothoracic gliding is still not a constraint surface (spec 7.2): nothing holds ' +
+          'the scapula against the rib cage beyond this chain, and the two are excluded from ' +
+          'contact because they overlap at rest.',
       ],
     },
     ...hand,
@@ -541,8 +565,8 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       parentBone: `talus_${s}`,
       childBone: `navicular_${s}`,
       type: 'fixed',
-      centre: { marker: [`talus_${s}`, 'Head_of_talus'] },
-      centreSource: dataset(`marker Head_of_talus on talus_${s}`),
+      centre: { measured: [`talus_${s}`, 'Head_of_talus__contact_centre'] },
+      centreSource: dataset(`measured contact between talus_${s} and navicular_${s}`),
       dofs: [],
       limitations: ['Rigid: no cited midtarsal range yet (OQ-011).'],
     },
