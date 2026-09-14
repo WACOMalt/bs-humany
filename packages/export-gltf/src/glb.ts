@@ -35,6 +35,11 @@ export interface ExportNode {
     | undefined;
   /** Free-form metadata written to the node's `extras`. */
   readonly extras?: Readonly<Record<string, unknown>> | undefined;
+  /**
+   * False for scene furniture that never moves: the node gets no animation channels and its
+   * slots in the animation arrays are ignored. Defaults to true.
+   */
+  readonly animated?: boolean | undefined;
 }
 
 export interface ExportAnimation {
@@ -199,7 +204,8 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
     const translation = new Float32Array(frames * 3);
     const rotation = new Float32Array(frames * 4);
     let previous: Quat | null = null;
-    for (let f = 0; f < frames; f++) {
+    const animated = node.animated !== false;
+    for (let f = 0; animated && f < frames; f++) {
       const world = worldAt(f, i);
       const local = node.parent >= 0 ? relativeTo(world, worldAt(f, node.parent)) : world;
       translation[3 * f] = local.translation.x;
@@ -219,23 +225,17 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
       rotation[4 * f + 2] = q.z;
       rotation[4 * f + 3] = q.w;
     }
-    const translationAccessor = bin.add(translation, 'VEC3', FLOAT);
-    const rotationAccessor = bin.add(rotation, 'VEC4', FLOAT);
-    channels.push({
-      sampler:
-        samplers.push({
-          input: timeAccessor,
-          output: translationAccessor,
-          interpolation: 'LINEAR',
-        }) - 1,
-      target: { node: i, path: 'translation' },
-    });
-    channels.push({
-      sampler:
-        samplers.push({ input: timeAccessor, output: rotationAccessor, interpolation: 'LINEAR' }) -
-        1,
-      target: { node: i, path: 'rotation' },
-    });
+    if (animated) {
+      const translationAccessor = bin.add(translation, 'VEC3', FLOAT);
+      const rotationAccessor = bin.add(rotation, 'VEC4', FLOAT);
+      const sampler = (output: number) =>
+        samplers.push({ input: timeAccessor, output, interpolation: 'LINEAR' }) - 1;
+      channels.push({
+        sampler: sampler(translationAccessor),
+        target: { node: i, path: 'translation' },
+      });
+      channels.push({ sampler: sampler(rotationAccessor), target: { node: i, path: 'rotation' } });
+    }
 
     const gltfNode: Record<string, unknown> = {
       name: node.id,
@@ -340,4 +340,53 @@ export function readGlb(bytes: Uint8Array): { json: Record<string, unknown>; bin
 /** Compose world transforms from a parent chain, the inverse of what the writer does. */
 export function composeWorld(parentWorld: Transform | null, local: Transform): Transform {
   return parentWorld ? compose(parentWorld, local) : local;
+}
+
+/** A box mesh centred on the origin, for scene furniture: 8 vertices, 12 triangles. */
+export function boxMesh(halfExtents: { x: number; y: number; z: number }): {
+  positions: Float32Array;
+  indices: Uint32Array;
+} {
+  const { x, y, z } = halfExtents;
+  const positions = new Float32Array([
+    -x,
+    -y,
+    -z,
+    x,
+    -y,
+    -z,
+    x,
+    y,
+    -z,
+    -x,
+    y,
+    -z,
+    -x,
+    -y,
+    z,
+    x,
+    -y,
+    z,
+    x,
+    y,
+    z,
+    -x,
+    y,
+    z,
+  ]);
+  // Outward-facing, counter-clockwise from outside.
+  const indices = new Uint32Array([
+    0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 2, 3, 7, 2, 7, 6, 1, 2, 6, 1, 6, 5, 0, 4,
+    7, 0, 7, 3,
+  ]);
+  return { positions, indices };
+}
+
+/** A square in the X-Z plane of the given half size, facing +Y. */
+export function planeMesh(halfSize: number): { positions: Float32Array; indices: Uint32Array } {
+  const s = halfSize;
+  return {
+    positions: new Float32Array([-s, 0, -s, s, 0, -s, s, 0, s, -s, 0, s]),
+    indices: new Uint32Array([0, 2, 1, 0, 3, 2]),
+  };
 }

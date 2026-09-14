@@ -28,6 +28,9 @@ fractional frames; the script exists so each tick is an integer frame.
 - **Animation.** Translation and rotation channels for every node, keyed at
   `tick / rate` seconds, linear interpolation, parent-relative so the hierarchy carries the
   motion. Consecutive rotations are kept on the same quaternion hemisphere.
+- **Scene geometry.** A second root named `scene` holds the ground (a 20 m square at the
+  ground height of the run) and every static box of the scenario, such as the stairs and the
+  landing, as unanimated nodes at their world placement.
 - **Frame.** The canonical frame of the project: +X right, +Y up, +Z posterior, metres.
   glTF is Y-up, so no conversion is applied on export; Blender converts to its Z-up on import.
 - **Provenance.** `scene.extras` records the rate, frame count, first captured tick, profile,

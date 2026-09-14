@@ -10,8 +10,14 @@
 
 import type { SkeletonAssets } from '@bs-humany/assets-anatomical';
 import { attributionText } from '@bs-humany/assets-anatomical';
-import { type ExportNode, blenderImportScript, buildAnimatedGlb } from '@bs-humany/export-gltf';
-import { IDENTITY_TRANSFORM } from '@bs-humany/frames';
+import {
+  type ExportNode,
+  blenderImportScript,
+  boxMesh,
+  buildAnimatedGlb,
+  planeMesh,
+} from '@bs-humany/export-gltf';
+import { IDENTITY_TRANSFORM, type Transform, transformPoint } from '@bs-humany/frames';
 import { type HsdlDocument, evaluate, param } from '@bs-humany/hsdl';
 import { computeWorldTransforms } from '@bs-humany/skeleton';
 import type { Simulation } from './simulation.js';
@@ -43,6 +49,25 @@ function hierarchyOrder(document: HsdlDocument): { id: string; parent: number }[
   };
   for (const bone of document.bones) place(bone.id);
   return out;
+}
+
+/** Place a local mesh in the world, which is how the writer expects rest geometry. */
+function worldMesh(
+  mesh: { positions: Float32Array; indices: Uint32Array },
+  at: Transform,
+): { positions: Float32Array; indices: Uint32Array } {
+  const positions = new Float32Array(mesh.positions.length);
+  for (let i = 0; i < mesh.positions.length; i += 3) {
+    const p = transformPoint(at, {
+      x: mesh.positions[i] ?? 0,
+      y: mesh.positions[i + 1] ?? 0,
+      z: mesh.positions[i + 2] ?? 0,
+    });
+    positions[i] = p.x;
+    positions[i + 1] = p.y;
+    positions[i + 2] = p.z;
+  }
+  return { positions, indices: mesh.indices };
 }
 
 export function buildBlenderExport(
@@ -79,7 +104,46 @@ export function buildBlenderExport(
     };
   });
 
-  // Keyframes in node order; a bone the pose channel does not carry stays at rest.
+  // Scene geometry the body interacts with: the ground and the scenario's static boxes, as
+  // unanimated nodes under their own root so they import as a separate hierarchy.
+  const GROUND_HALF_SIZE = 10;
+  const sceneRoot =
+    nodes.push({
+      id: 'scene',
+      parent: -1,
+      restWorld: IDENTITY_TRANSFORM,
+      animated: false,
+      extras: { role: 'static scene geometry' },
+    }) - 1;
+  const groundRest = {
+    translation: { x: 0, y: simulation.groundHeight, z: 0 },
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+  };
+  nodes.push({
+    id: 'ground',
+    parent: sceneRoot,
+    restWorld: groundRest,
+    animated: false,
+    mesh: worldMesh(planeMesh(GROUND_HALF_SIZE), groundRest),
+    extras: { role: 'ground plane', halfSize: GROUND_HALF_SIZE },
+  });
+  for (const box of simulation.staticBoxes) {
+    const restWorld = {
+      translation: box.position,
+      rotation: box.rotation ?? { x: 0, y: 0, z: 0, w: 1 },
+    };
+    nodes.push({
+      id: box.id,
+      parent: sceneRoot,
+      restWorld,
+      animated: false,
+      mesh: worldMesh(boxMesh(box.halfExtents), restWorld),
+      extras: { role: 'static box', halfExtents: box.halfExtents, contactClass: box.contactClass },
+    });
+  }
+
+  // Keyframes in node order; a bone the pose channel does not carry stays at rest, as does
+  // scene geometry.
   const n = nodes.length;
   const position = new Float32Array(capture.frames * n * 3);
   const orientation = new Float32Array(capture.frames * n * 4);
@@ -121,7 +185,9 @@ export function buildBlenderExport(
       scenario: simulation.recording.scenario,
       morphology: simulation.resolved.input,
       frame: '+X right, +Y up, +Z posterior (anterior is -Z); metres; seconds',
-      hierarchy: 'bones nested by anatomical parent; each node carries its own rigid mesh',
+      hierarchy:
+        'bones nested by anatomical parent, each carrying its own rigid mesh; the ground and ' +
+        'the scenario furniture under a static "scene" root',
       attribution: attributionText(assets.manifest),
       dataLicense: assets.manifest.dataset.license,
     },

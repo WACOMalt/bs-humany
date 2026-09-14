@@ -106,6 +106,8 @@ export class Simulation {
   readonly capabilities: BackendCapabilities;
   readonly scenario: Scenario | undefined;
   readonly staticBoxes: readonly StaticBox[];
+  /** Height of the ground plane the physics runs on, metres. */
+  readonly groundHeight: number;
   readonly dt: number;
   readonly recording: Recording;
   private accumulator = 0;
@@ -147,6 +149,7 @@ export class Simulation {
           options.groundHeight,
         );
     this.staticBoxes = options.scenario?.staticBoxes ?? [];
+    this.groundHeight = options.scenario?.ground.height ?? options.groundHeight;
     const rate = profile.solver?.rate ?? 500;
     this.dt = 1 / rate;
     this.backendId = options.backend;

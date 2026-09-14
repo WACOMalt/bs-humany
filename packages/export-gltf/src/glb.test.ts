@@ -1,7 +1,14 @@
 import { type Transform, compose, fromAxisAngle, vec3 } from '@bs-humany/frames';
 import { describe, expect, it } from 'vitest';
 import { blenderImportScript } from './blender.js';
-import { type ExportNode, buildAnimatedGlb, composeWorld, readGlb } from './glb.js';
+import {
+  type ExportNode,
+  boxMesh,
+  buildAnimatedGlb,
+  composeWorld,
+  planeMesh,
+  readGlb,
+} from './glb.js';
 
 const identity = { x: 0, y: 0, z: 0, w: 1 };
 const nodes: ExportNode[] = [
@@ -169,5 +176,40 @@ describe('the Blender script', () => {
     expect(script).toContain('scene.frame_end = 2499');
     expect(script).toContain('bpy.ops.import_scene.gltf(filepath=path)');
     expect(script).toContain('"run.glb"');
+  });
+});
+
+describe('scene furniture', () => {
+  it('exports unanimated nodes without channels, and box and plane helpers close', () => {
+    const box = boxMesh({ x: 1, y: 2, z: 3 });
+    expect(box.positions.length / 3).toBe(8);
+    expect(box.indices.length / 3).toBe(12);
+    const plane = planeMesh(5);
+    expect(plane.positions.length / 3).toBe(4);
+    const still: ExportNode = {
+      id: 'stair',
+      parent: -1,
+      restWorld: { translation: vec3(1, 0.5, 0), rotation: identity },
+      mesh: box,
+      animated: false,
+    };
+    // The two animated nodes keep their keyframes; the static node's slots are left zero.
+    const position3 = new Float32Array(frames * 3 * 3);
+    const orientation3 = new Float32Array(frames * 3 * 4);
+    for (let f = 0; f < frames; f++) {
+      position3.set(position.subarray(f * 6, f * 6 + 6), f * 9);
+      orientation3.set(orientation.subarray(f * 8, f * 8 + 8), f * 12);
+    }
+    const out = buildAnimatedGlb({
+      nodes: [...nodes, still],
+      animation: { times, position: position3, orientation: orientation3 },
+    });
+    const parsed = readGlb(out);
+    const animation = (parsed.json.animations as { channels: { target: { node: number } }[] }[])[0];
+    expect(animation?.channels.some((c) => c.target.node === 2)).toBe(false);
+    expect(animation?.channels).toHaveLength(4);
+    const still2 = (parsed.json.nodes as { name: string; translation: number[] }[])[2];
+    expect(still2?.name).toBe('stair');
+    expect(still2?.translation).toEqual([1, 0.5, 0]);
   });
 });
