@@ -640,13 +640,18 @@ export class MujocoBackend implements IPhysicsBackend {
     mujoco.mj_forward(mjModel, mjData);
   }
 
-  createGrabConstraint(segmentIndex: number, localPoint: Vec3, worldTarget: Vec3): GrabHandle {
+  createGrabConstraint(
+    segmentIndex: number,
+    localPoint: Vec3,
+    worldTarget: Vec3,
+    strength = 1,
+  ): GrabHandle {
     const model = this.model;
     if (!model) throw new Error('No compiled model.');
     const segment = model.segments[segmentIndex];
     if (!segment) throw new RangeError(`Segment index ${segmentIndex} has no body.`);
     const stiffness =
-      (GRAB_FORCE_FRACTION * model.totalMass * STANDARD_GRAVITY_MAGNITUDE) / GRAB_LEASH;
+      (strength * GRAB_FORCE_FRACTION * model.totalMass * STANDARD_GRAVITY_MAGNITUDE) / GRAB_LEASH;
     const damping = 2 * Math.sqrt(stiffness * Math.max(segment.mass, model.totalMass / 8));
     const handle = new MujocoGrab(this, {
       segment: segmentIndex,

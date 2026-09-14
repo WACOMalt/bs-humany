@@ -954,7 +954,12 @@ export class RapierBackend implements IPhysicsBackend {
     }
   }
 
-  createGrabConstraint(segmentIndex: number, localPoint: Vec3, worldTarget: Vec3): GrabHandle {
+  createGrabConstraint(
+    segmentIndex: number,
+    localPoint: Vec3,
+    worldTarget: Vec3,
+    strength = 1,
+  ): GrabHandle {
     const world = this.requireWorld();
     const body = this.requireBody(segmentIndex);
     const handleBody = world.createRigidBody(
@@ -965,7 +970,8 @@ export class RapierBackend implements IPhysicsBackend {
       ),
     );
     const total = this.model?.totalMass ?? body.mass();
-    const stiffness = (GRAB_FORCE_FRACTION * total * STANDARD_GRAVITY_MAGNITUDE) / GRAB_LEASH;
+    const stiffness =
+      (strength * GRAB_FORCE_FRACTION * total * STANDARD_GRAVITY_MAGNITUDE) / GRAB_LEASH;
     // Critically damped for an eighth of the body, which is about what a limb chain weighs.
     const damping = 2 * Math.sqrt(stiffness * Math.max(body.mass(), total / 8));
     const joint = world.createImpulseJoint(

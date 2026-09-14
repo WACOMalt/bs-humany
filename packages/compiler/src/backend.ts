@@ -163,7 +163,18 @@ export interface IPhysicsBackend {
 
   setKinematic(segmentIndex: number, enabled: boolean): void;
   setPose(segmentIndex: number, transform: Transform): void;
-  createGrabConstraint(segmentIndex: number, localPoint: Vec3, worldTarget: Vec3): GrabHandle;
+  /**
+   * Hold a point on a segment toward a moving world target.
+   *
+   * `strength` scales the spring: 1 is the backend's default, which can carry a fraction of the
+   * whole body's weight. Below 1 a grab slips under load, above it a hand can lift the body.
+   */
+  createGrabConstraint(
+    segmentIndex: number,
+    localPoint: Vec3,
+    worldTarget: Vec3,
+    strength?: number,
+  ): GrabHandle;
 
   snapshot(): Uint8Array;
   restore(snapshot: Uint8Array): void;

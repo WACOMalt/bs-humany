@@ -33,8 +33,8 @@ import {
   toSkeletonGeometry,
 } from '@bs-humany/render-three';
 import {
-  SCENARIOS,
-  scenario as findScenario,
+  SCENARIO_DEFINITIONS,
+  type ScenarioDefinition,
   inertiaAudit,
   jointSweep,
 } from '@bs-humany/scenarios';
@@ -192,12 +192,14 @@ const ui = {
   passive: must<HTMLInputElement>('#passive'),
   redistribute: must<HTMLInputElement>('#redistribute'),
   dropHeight: must<HTMLInputElement>('#dropHeight'),
+  grabStrength: must<HTMLInputElement>('#grabStrength'),
   drop: must<HTMLButtonElement>('#drop'),
   pause: must<HTMLButtonElement>('#pause'),
   stepOnce: must<HTMLButtonElement>('#step'),
   reset: must<HTMLButtonElement>('#reset'),
   backend: must<HTMLSelectElement>('#backend'),
   scenario: must<HTMLSelectElement>('#scenario'),
+  scenarioParameters: must<HTMLDivElement>('#scenario-parameters'),
   timeline: must<HTMLInputElement>('#timeline'),
   exportRecording: must<HTMLButtonElement>('#export'),
   exportBlender: must<HTMLButtonElement>('#export-blender'),
@@ -495,6 +497,10 @@ function currentSettings(): SessionSettings {
     passive: ui.passive.checked,
     redistribute: ui.redistribute.checked,
     dropHeight: Number(ui.dropHeight.value),
+    grabStrength: Number(ui.grabStrength.value),
+    ...(ui.scenario.value
+      ? { scenarioParameters: { ...scenarioValues.get(ui.scenario.value) } }
+      : {}),
   };
 }
 
@@ -513,6 +519,15 @@ function applySettings(settings: SessionSettings): void {
   ui.redistribute.checked = settings.redistribute;
   ui.dropHeight.value = String(settings.dropHeight);
   must<HTMLOutputElement>('#dropHeight-value').textContent = `${settings.dropHeight.toFixed(2)} m`;
+  if (settings.grabStrength !== undefined) {
+    ui.grabStrength.value = String(settings.grabStrength);
+    must<HTMLOutputElement>('#grabStrength-value').textContent =
+      `${settings.grabStrength.toFixed(1)}\u00d7`;
+  }
+  if (settings.scenario && settings.scenarioParameters) {
+    scenarioValues.set(settings.scenario, { ...settings.scenarioParameters });
+  }
+  ui.scenario.dispatchEvent(new Event('change'));
   rebuild();
 }
 
@@ -555,7 +570,7 @@ async function startSimulation(
   stopSimulation();
   setSimulationStatus('Compiling…');
   try {
-    const chosen = ui.scenario.value ? findScenario(ui.scenario.value) : undefined;
+    const chosen = currentScenario();
     const sim = new Simulation(document_, resolveMorphology(currentMorphology()), {
       profileId: ui.profile.value,
       backend: ui.backend.value as BackendId,
@@ -677,21 +692,99 @@ ui.reset.addEventListener('click', () => {
   simulation.paused = true;
   setRunControls(true);
 });
+ui.grabStrength.addEventListener('input', () => {
+  must<HTMLOutputElement>('#grabStrength-value').textContent =
+    `${Number(ui.grabStrength.value).toFixed(1)}\u00d7`;
+});
+// Ctrl-click is the secondary click on some platforms; the canvas would rather have the drag.
+renderer.domElement.addEventListener('contextmenu', (event) => {
+  if (event.ctrlKey) event.preventDefault();
+});
+// The cursor says whether a press will reach into the scene or move around it.
+const setReachCursor = (reaching: boolean) => {
+  renderer.domElement.style.cursor = reaching ? 'grab' : '';
+};
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Control') setReachCursor(true);
+});
+window.addEventListener('keyup', (event) => {
+  if (event.key === 'Control') setReachCursor(false);
+});
+window.addEventListener('blur', () => setReachCursor(false));
+
 ui.dropHeight.addEventListener('input', () => {
   must<HTMLOutputElement>('#dropHeight-value').textContent =
     `${Number(ui.dropHeight.value).toFixed(2)} m`;
 });
-for (const s of SCENARIOS) {
+for (const d of SCENARIO_DEFINITIONS) {
   const option = window.document.createElement('option');
-  option.value = s.id;
-  option.textContent = s.title;
+  option.value = d.id;
+  option.textContent = d.title;
   ui.scenario.appendChild(option);
 }
+
+/**
+ * Parameter values the sliders are currently showing, per scenario.
+ *
+ * Kept here rather than read off the inputs so that switching scenarios and coming back keeps
+ * what was set, and so a saved session can carry the values.
+ */
+const scenarioValues = new Map<string, Record<string, number>>();
+
+function definitionFor(id: string): ScenarioDefinition | undefined {
+  return SCENARIO_DEFINITIONS.find((d) => d.id === id);
+}
+
+/** Build the chosen scenario at the values its sliders are showing. */
+function currentScenario() {
+  const definition = definitionFor(ui.scenario.value);
+  return definition?.build(scenarioValues.get(definition.id));
+}
+
+/** Draw a slider per parameter of the chosen scenario, or nothing when none is chosen. */
+function refreshScenarioParameters(): void {
+  const definition = definitionFor(ui.scenario.value);
+  ui.scenarioParameters.replaceChildren();
+  if (!definition) return;
+  const values = scenarioValues.get(definition.id) ?? {};
+  for (const p of definition.parameters) {
+    const value = values[p.id] ?? p.value;
+    values[p.id] = value;
+    const control = window.document.createElement('div');
+    control.className = 'control';
+    const label = window.document.createElement('label');
+    label.htmlFor = `scenario-${p.id}`;
+    const readout = window.document.createElement('output');
+    const show = (v: number) => {
+      readout.textContent = `${p.step >= 1 ? v.toFixed(0) : v.toFixed(2)}${p.unit}`;
+    };
+    label.append(`${p.label} `, readout);
+    const input = window.document.createElement('input');
+    input.type = 'range';
+    input.id = `scenario-${p.id}`;
+    input.min = String(p.min);
+    input.max = String(p.max);
+    input.step = String(p.step);
+    input.value = String(value);
+    show(value);
+    input.addEventListener('input', () => {
+      const next = Number(input.value);
+      values[p.id] = next;
+      show(next);
+    });
+    control.append(label, input);
+    ui.scenarioParameters.append(control);
+  }
+  scenarioValues.set(definition.id, values);
+}
+
 ui.scenario.addEventListener('change', () => {
-  const chosen = ui.scenario.value ? findScenario(ui.scenario.value) : undefined;
-  must<HTMLElement>('#scenario-note').textContent = chosen?.description ?? '';
-  must<HTMLElement>('#dropHeight-control').hidden = chosen !== undefined;
-  ui.passive.disabled = chosen !== undefined;
+  const definition = definitionFor(ui.scenario.value);
+  must<HTMLElement>('#scenario-note').textContent = definition?.description ?? '';
+  must<HTMLElement>('#dropHeight-control').hidden = definition !== undefined;
+  ui.passive.disabled = definition !== undefined;
+  refreshScenarioParameters();
+  const chosen = currentScenario();
   if (chosen) ui.passive.checked = chosen.passiveJoints;
 });
 ui.exportRecording.addEventListener('click', () => {
@@ -809,9 +902,15 @@ function pickBone(clientX: number, clientY: number): { boneId: string; point: Ve
   return boneId ? { boneId, point: hit.point } : null;
 }
 
-/** Start holding the segment under the pointer while the body is simulating. */
+/**
+ * Start holding the segment under the pointer, while Ctrl is down and the body is simulating.
+ *
+ * Ctrl is what separates reaching into the scene from moving around it: without it the drag
+ * belongs to the camera, and a body that is only being looked at cannot be knocked over by
+ * accident.
+ */
 function beginGrab(event: PointerEvent): boolean {
-  if (!simulation) return false;
+  if (!event.ctrlKey || !simulation) return false;
   const picked = pickBone(event.clientX, event.clientY);
   if (!picked) return false;
   const segment = simulation.segmentOfBone(picked.boneId);
@@ -834,6 +933,7 @@ function beginGrab(event: PointerEvent): boolean {
       y: picked.point.y,
       z: picked.point.z,
     },
+    Number(ui.grabStrength.value),
   );
   grabState = { pointerId: event.pointerId, depth: picked.point.distanceTo(camera.position) };
   try {

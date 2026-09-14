@@ -42,6 +42,10 @@ export interface OrbitOptions {
    * Called on every primary pointer press before the orbit claims it. Return true to take the
    * pointer for something else -- grabbing a bone -- and the orbit leaves it alone.
    */
+  /**
+   * Offered every left-press. Returning true means something else has taken the pointer and the
+   * camera should not move.
+   */
   readonly claimPointer?: (event: PointerEvent) => boolean;
 }
 
@@ -72,6 +76,10 @@ export function createOrbitControls(
 
   element.addEventListener('pointerdown', (event) => {
     if (event.button === 0 && !event.shiftKey && options.claimPointer?.(event)) return;
+    // Ctrl is the modifier for reaching into the scene rather than moving around it. The camera
+    // holds still for the whole press even when the reach missed, so a near miss does not swing
+    // the view out from under the next attempt.
+    if (event.ctrlKey) return;
     element.setPointerCapture(event.pointerId);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 

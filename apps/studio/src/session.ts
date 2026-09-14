@@ -21,6 +21,10 @@ export interface SessionSettings {
   readonly passive: boolean;
   readonly redistribute: boolean;
   readonly dropHeight: number;
+  /** Grab spring multiplier, 1 being the backend's default. */
+  readonly grabStrength?: number | undefined;
+  /** The chosen scenario's parameter values, by parameter id. Absent means its defaults. */
+  readonly scenarioParameters?: Readonly<Record<string, number>> | undefined;
 }
 
 export interface SessionFile {

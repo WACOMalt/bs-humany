@@ -98,7 +98,11 @@ export class GrabModule implements SimModule {
   }
 
   /** Hold `localPoint` (in the segment's frame) toward `worldTarget`. Releases any prior grab. */
-  grab(segmentIndex: number, localPoint: Vec3, worldTarget: Vec3): void {
+  /**
+   * Take hold of a point on a segment. `strength` scales the spring the backend sizes: 1 is the
+   * default, which can carry a fraction of the body's weight.
+   */
+  grab(segmentIndex: number, localPoint: Vec3, worldTarget: Vec3, strength = 1): void {
     if (segmentIndex < 0 || segmentIndex >= this.articulation.segments.length) {
       throw new RangeError(`Segment index ${segmentIndex} is out of range.`);
     }
@@ -113,7 +117,12 @@ export class GrabModule implements SimModule {
     this.target.x = worldTarget.x;
     this.target.y = worldTarget.y;
     this.target.z = worldTarget.z;
-    this.handle = this.backend.createGrabConstraint(segmentIndex, localPoint, worldTarget);
+    this.handle = this.backend.createGrabConstraint(
+      segmentIndex,
+      localPoint,
+      worldTarget,
+      strength,
+    );
     this.publish();
   }
 
