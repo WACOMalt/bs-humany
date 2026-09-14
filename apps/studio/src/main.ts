@@ -336,27 +336,15 @@ ui.percentile.addEventListener('input', () => {
 const raycaster = new Raycaster();
 const pointer = new Vector2();
 
+/** Pixels out from the pointer to retry a missed pick, and how many tries per ring. */
+const PICK_RADII = [6, 14] as const;
+const PICK_RING = 8;
+
 renderer.domElement.addEventListener('click', (event) => {
   if (controls.wasDragging()) return;
-  if (!skinned || !skeletonMesh) return;
-
-  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(pointer, camera);
-
-  const hits = raycaster.intersectObject(skinned.mesh, false);
-  const hit = hits[0];
-  if (!hit || hit.face === undefined || hit.face === null) {
-    selectedBoneId = null;
-    refreshSelection();
-    return;
-  }
-
-  // The merge into one draw call keeps per-bone identity as a vertex attribute, so a face index
-  // still resolves to a bone id.
-  const attribute = skinned.mesh.geometry.getAttribute('boneIndex');
-  const index = attribute.getX(hit.face.a);
-  selectedBoneId = skeletonMesh.bones[index]?.id ?? null;
+  if (!skinned) return;
+  const picked = pickBone(event.clientX, event.clientY);
+  selectedBoneId = picked?.boneId ?? null;
   refreshSelection();
 });
 
@@ -889,17 +877,34 @@ ui.profile.addEventListener('change', showValidation);
 
 let grabState: { pointerId: number; depth: number } | null = null;
 
-/** Pick a bone under the pointer; returns the hit point and bone id, or null. */
+/**
+ * Pick a bone under the pointer; returns the hit point and bone id, or null.
+ *
+ * A bone drawn at arm's length is a few pixels wide, and asking the user to hit it exactly makes
+ * grabbing feel broken. A miss is retried on a ring of nearby pixels and the nearest of those
+ * hits is taken, so a press close to a bone still lands on it. The picker is cheap enough for
+ * that to cost nothing worth measuring.
+ */
 function pickBone(clientX: number, clientY: number): { boneId: string; point: Vector3 } | null {
-  if (!skinned || !skeletonMesh) return null;
-  pointer.x = (clientX / window.innerWidth) * 2 - 1;
-  pointer.y = -(clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObject(skinned.mesh, false)[0];
-  if (!hit || hit.face === undefined || hit.face === null) return null;
-  const index = skinned.mesh.geometry.getAttribute('boneIndex').getX(hit.face.a);
-  const boneId = skeletonMesh.bones[index]?.id;
-  return boneId ? { boneId, point: hit.point } : null;
+  if (!skinned) return null;
+  const at = (x: number, y: number) => {
+    pointer.x = (x / window.innerWidth) * 2 - 1;
+    pointer.y = -(y / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    return skinned?.pick(raycaster.ray.origin, raycaster.ray.direction) ?? null;
+  };
+  const exact = at(clientX, clientY);
+  if (exact) return exact;
+  let best: { boneId: string; point: Vector3; distance: number } | null = null;
+  for (const radius of PICK_RADII) {
+    for (let i = 0; i < PICK_RING; i++) {
+      const angle = (2 * Math.PI * i) / PICK_RING;
+      const hit = at(clientX + radius * Math.cos(angle), clientY + radius * Math.sin(angle));
+      if (hit && (!best || hit.distance < best.distance)) best = hit;
+    }
+    if (best) return best;
+  }
+  return null;
 }
 
 /**
