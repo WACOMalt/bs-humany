@@ -14,6 +14,10 @@ second, a 1000 Hz run 1000.
    `blender --python <file>.py` from a shell). The script sets the scene frame rate to the
    simulation rate, imports the `.glb`, and sets the frame range to the capture.
 
+The script looks for the `.glb` beside itself, beside the `.blend`, and in the working
+directory. If it cannot find it, it says so and names where it looked; put the full path in the
+`GLB` line at the top of the script and run it again.
+
 Importing the `.glb` directly also works, but two things go wrong. Into a 24 fps scene the
 keyframes land on fractional frames, and Blender draws each of the hundred-odd joint empties one
 metre across, which buries the skeleton in a thicket of axes. The script sets the frame rate,

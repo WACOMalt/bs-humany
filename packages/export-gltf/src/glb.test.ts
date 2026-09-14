@@ -178,6 +178,10 @@ describe('the Blender script', () => {
     expect(script).toContain('"run.glb"');
     // A hundred metre-wide empties would bury the skeleton in axes.
     expect(script).toContain('empty_display_size = 0.01');
+    // Run from the Text Editor there is no __file__, so the script has to look elsewhere.
+    expect(script).toContain('bpy.data.texts');
+    expect(script).toContain('bpy.data.filepath');
+    expect(script).toContain('cannot find');
     expect(script).toContain('Joint centres');
     expect(script).toContain('hide_viewport = True');
   });
