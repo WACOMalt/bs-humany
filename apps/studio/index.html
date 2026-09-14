@@ -158,6 +158,11 @@
             <button type="button" id="save">Save session</button>
             <button type="button" id="load">Load session</button>
           </div>
+          <div class="buttons">
+            <button type="button" id="export-blender" disabled title="Animated glTF: every tick a keyframe, bones nested with their meshes">Export for Blender (.glb)</button>
+            <button type="button" id="export-blender-script" disabled title="Sets the Blender frame rate to the simulation rate and imports the .glb">Import script (.py)</button>
+          </div>
+          <p class="note" id="capture-status"></p>
           <input type="file" id="load-file" accept="application/json" hidden />
         </div>
       </section>

@@ -29,6 +29,9 @@
     },
     {
       "path": "../../packages/assets-anatomical"
+    },
+    {
+      "path": "../../packages/export-gltf"
     }
   ]
 }

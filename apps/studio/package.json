@@ -23,7 +23,8 @@
     "@bs-humany/modules-mechanics": "workspace:*",
     "@bs-humany/backend-rapier": "workspace:*",
     "@bs-humany/backend-mujoco": "workspace:*",
-    "@bs-humany/scenarios": "workspace:*"
+    "@bs-humany/scenarios": "workspace:*",
+    "@bs-humany/export-gltf": "workspace:*"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",

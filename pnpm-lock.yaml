@@ -44,6 +44,9 @@ importers:
       '@bs-humany/compiler':
         specifier: workspace:*
         version: link:../../packages/compiler
+      '@bs-humany/export-gltf':
+        specifier: workspace:*
+        version: link:../../packages/export-gltf
       '@bs-humany/frames':
         specifier: workspace:*
         version: link:../../packages/frames
@@ -143,6 +146,12 @@ importers:
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../skeleton
+
+  packages/export-gltf:
+    dependencies:
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../frames
 
   packages/frames: {}
 

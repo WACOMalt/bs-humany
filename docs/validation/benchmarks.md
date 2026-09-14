@@ -6,34 +6,34 @@ fidelity profile, backend and physics rate. "Real time" is how many times faster
 clock the tick rate runs. Regenerate with `pnpm bench`; commit the result with the change that
 motivated it.
 
-Generated 2026-09-13 on linux-x64, Node v22.22.2.
+Generated 2026-09-14 on linux-x64, Node v22.22.2.
 
 | Profile | Backend | Rate (Hz) | Bodies | nv | ms / step | Real time |
 |---|---|---|---|---|---|---|
-| l0_ragdoll | rapier | 240 | 15 | 35 | 0.321 | 13.0x |
-| l0_ragdoll | rapier | 500 | 15 | 35 | 0.240 | 8.3x |
-| l0_ragdoll | rapier | 1000 | 15 | 35 | 0.215 | 4.6x |
-| l0_ragdoll | mujoco | 240 | 15 | 35 | 0.184 | 22.6x |
-| l0_ragdoll | mujoco | 500 | 15 | 35 | 0.133 | 15.0x |
-| l0_ragdoll | mujoco | 1000 | 15 | 35 | 0.120 | 8.3x |
-| l1_standard | rapier | 240 | 23 | 48 | 0.363 | 11.5x |
-| l1_standard | rapier | 500 | 23 | 48 | 0.334 | 6.0x |
-| l1_standard | rapier | 1000 | 23 | 48 | 0.352 | 2.8x |
-| l1_standard | mujoco | 240 | 23 | 48 | 0.203 | 20.5x |
-| l1_standard | mujoco | 500 | 23 | 48 | 0.199 | 10.1x |
-| l1_standard | mujoco | 1000 | 23 | 48 | 0.178 | 5.6x |
-| l2_biomechanical | rapier | 240 | 49 | 98 | 0.875 | 4.8x |
-| l2_biomechanical | rapier | 500 | 49 | 98 | 0.861 | 2.3x |
-| l2_biomechanical | rapier | 1000 | 49 | 98 | 0.837 | 1.2x |
-| l2_biomechanical | mujoco | 240 | 49 | 98 | 0.401 | 10.4x |
-| l2_biomechanical | mujoco | 500 | 49 | 98 | 0.375 | 5.3x |
-| l2_biomechanical | mujoco | 1000 | 49 | 98 | 0.364 | 2.8x |
-| l3_anatomical | rapier | 240 | 109 | 185 | 0.659 | 6.3x |
-| l3_anatomical | rapier | 500 | 109 | 185 | 0.897 | 2.2x |
-| l3_anatomical | rapier | 1000 | 109 | 185 | 0.537 | 1.9x |
-| l3_anatomical | mujoco | 240 | 109 | 185 | 1.281 | 3.3x |
-| l3_anatomical | mujoco | 500 | 109 | 185 | 1.200 | 1.7x |
-| l3_anatomical | mujoco | 1000 | 109 | 185 | 1.175 | 0.9x |
+| l0_ragdoll | rapier | 240 | 15 | 35 | 0.438 | 9.5x |
+| l0_ragdoll | rapier | 500 | 15 | 35 | 0.407 | 4.9x |
+| l0_ragdoll | rapier | 1000 | 15 | 35 | 0.849 | 1.2x |
+| l0_ragdoll | mujoco | 240 | 15 | 35 | 0.232 | 18.0x |
+| l0_ragdoll | mujoco | 500 | 15 | 35 | 0.151 | 13.3x |
+| l0_ragdoll | mujoco | 1000 | 15 | 35 | 0.156 | 6.4x |
+| l1_standard | rapier | 240 | 23 | 48 | 0.555 | 7.5x |
+| l1_standard | rapier | 500 | 23 | 48 | 1.542 | 1.3x |
+| l1_standard | rapier | 1000 | 23 | 48 | 1.877 | 0.5x |
+| l1_standard | mujoco | 240 | 23 | 48 | 0.258 | 16.1x |
+| l1_standard | mujoco | 500 | 23 | 48 | 0.260 | 7.7x |
+| l1_standard | mujoco | 1000 | 23 | 48 | 0.247 | 4.1x |
+| l2_biomechanical | rapier | 240 | 49 | 98 | 1.652 | 2.5x |
+| l2_biomechanical | rapier | 500 | 49 | 98 | 7.352 | 0.3x |
+| l2_biomechanical | rapier | 1000 | 49 | 98 | 9.978 | 0.1x |
+| l2_biomechanical | mujoco | 240 | 49 | 98 | 0.542 | 7.7x |
+| l2_biomechanical | mujoco | 500 | 49 | 98 | 0.574 | 3.5x |
+| l2_biomechanical | mujoco | 1000 | 49 | 98 | 0.612 | 1.6x |
+| l3_anatomical | rapier | 240 | 109 | 185 | 1.370 | 3.0x |
+| l3_anatomical | rapier | 500 | 109 | 185 | 18.012 | 0.1x |
+| l3_anatomical | rapier | 1000 | 109 | 185 | 17.514 | 0.1x |
+| l3_anatomical | mujoco | 240 | 109 | 185 | 1.310 | 3.2x |
+| l3_anatomical | mujoco | 500 | 109 | 185 | 1.266 | 1.6x |
+| l3_anatomical | mujoco | 1000 | 109 | 185 | 1.325 | 0.8x |
 
 ## Recompile and restore
 
@@ -43,7 +43,7 @@ Excludes the WASM module load, which happens once per session.
 
 | Profile | Backend | ms |
 |---|---|---|
-| l1_standard | rapier | 8.3 |
-| l1_standard | mujoco | 44.1 |
-| l2_biomechanical | rapier | 9.4 |
-| l2_biomechanical | mujoco | 80.9 |
+| l1_standard | rapier | 19.1 |
+| l1_standard | mujoco | 229.8 |
+| l2_biomechanical | rapier | 20.5 |
+| l2_biomechanical | mujoco | 432.9 |

@@ -57,6 +57,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three';
+import { buildBlenderExport } from './blenderExport.js';
 import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
 import {
@@ -64,6 +65,7 @@ import {
   type SessionSettings,
   deserializeSnapshot,
   download,
+  downloadBytes,
   isSessionFile,
   serializeSnapshot,
 } from './session.js';
@@ -198,6 +200,8 @@ const ui = {
   scenario: must<HTMLSelectElement>('#scenario'),
   timeline: must<HTMLInputElement>('#timeline'),
   exportRecording: must<HTMLButtonElement>('#export'),
+  exportBlender: must<HTMLButtonElement>('#export-blender'),
+  exportBlenderScript: must<HTMLButtonElement>('#export-blender-script'),
   save: must<HTMLButtonElement>('#save'),
   load: must<HTMLButtonElement>('#load'),
   loadFile: must<HTMLInputElement>('#load-file'),
@@ -472,6 +476,8 @@ function setRunControls(running: boolean): void {
   ui.stepOnce.disabled = !running;
   ui.reset.disabled = !running;
   ui.exportRecording.disabled = !running;
+  ui.exportBlender.disabled = !running;
+  ui.exportBlenderScript.disabled = !running;
   ui.pause.textContent = simulation?.paused ? 'Resume' : 'Pause';
 }
 
@@ -695,6 +701,16 @@ ui.exportRecording.addEventListener('click', () => {
     simulation.exportRecording(),
   );
 });
+ui.exportBlender.addEventListener('click', () => {
+  if (!simulation || !assets) return;
+  const built = buildBlenderExport(simulation, document_, assets);
+  downloadBytes(built.glbFileName, built.glb, 'model/gltf-binary');
+});
+ui.exportBlenderScript.addEventListener('click', () => {
+  if (!simulation || !assets) return;
+  const built = buildBlenderExport(simulation, document_, assets);
+  download(built.scriptFileName, built.script, 'text/x-python');
+});
 ui.save.addEventListener('click', () => {
   const file: SessionFile = {
     format: 'bs-humany.session/1',
@@ -888,6 +904,10 @@ function animate(): void {
     updateDiagnostics(simulation);
     updateTimeline(simulation);
     must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
+    const capture = simulation.capture;
+    must<HTMLElement>('#capture-status').textContent =
+      `Captured ${capture.frameCount} frames for export (${(capture.bytes / 1048576).toFixed(0)} MB)` +
+      (capture.full ? ' — capture budget reached; earlier frames kept.' : '');
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     setSimulationStatus(
       simulation.paused
@@ -935,6 +955,8 @@ Object.assign(window, {
     camera,
     raycaster,
     session: { serializeSnapshot, deserializeSnapshot },
+    blenderExport: () =>
+      simulation && assets ? buildBlenderExport(simulation, document_, assets) : null,
   },
 });
 

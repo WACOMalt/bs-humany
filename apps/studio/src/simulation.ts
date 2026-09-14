@@ -40,6 +40,7 @@ import {
   SkeletonPoseModule,
 } from '@bs-humany/modules-mechanics';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
+import { BoneCapture } from './capture.js';
 
 export type BackendId = 'rapier' | 'mujoco';
 
@@ -120,12 +121,17 @@ export class Simulation {
   paused = false;
   clamped = false;
   lastStepMs = 0;
+  /** Every bone's transform at every tick, for the Blender export. */
+  readonly capture = new BoneCapture();
+  /** The morphology the articulation was compiled at. */
+  readonly resolved: ResolvedMorphology;
 
   constructor(document: HsdlDocument, morphology: ResolvedMorphology, options: SimulationOptions) {
     const profile = document.segmentation.find((p) => p.id === options.profileId);
     if (!profile) throw new Error(`No profile '${options.profileId}'.`);
     const compiled = compileArticulation(document, options.profileId, morphology);
     this.compileReport = compiled.report;
+    this.resolved = morphology;
     this.scenario = options.scenario;
     this.articulation = options.scenario
       ? placeArticulation(
@@ -228,6 +234,8 @@ export class Simulation {
       this.scenario.script(this.ticks * this.dt, this.scriptApi);
     this.kernel.step();
     this.ticks += 1;
+    const bones = this.boneTransforms();
+    this.capture.append(this.ticks, bones.position, bones.orientation);
     if (this.ticks % this.snapshotEvery === 0) {
       if (this.timeline.length >= this.timelineCapacity) this.timeline.splice(1, 1);
       this.timeline.push({ tick: this.ticks, snapshot: this.kernel.snapshot() });
@@ -247,6 +255,7 @@ export class Simulation {
     if (!best) return;
     this.kernel.restore(best.snapshot);
     this.ticks = best.tick;
+    this.capture.truncate(best.tick);
     // Everything after the restored point is history no longer on the path; drop it.
     const keep = this.timeline.filter((e) => e.tick <= best.tick);
     this.timeline.splice(0, this.timeline.length, ...keep);
@@ -303,6 +312,7 @@ export class Simulation {
     this.pose.step();
     this.metrics.step();
     this.ticks = ticks;
+    this.capture.clear();
     this.timeline.splice(0, this.timeline.length, {
       tick: ticks,
       snapshot: this.kernel.snapshot(),
@@ -319,6 +329,7 @@ export class Simulation {
   restore(snapshot: KernelSnapshot, ticks: number): void {
     this.kernel.restore(snapshot);
     this.ticks = ticks;
+    this.capture.clear();
     this.timeline.splice(0, this.timeline.length, { tick: ticks, snapshot });
     this.pose.step();
     this.metrics.step();

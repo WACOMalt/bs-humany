@@ -1,0 +1,19 @@
+{
+  "name": "@bs-humany/export-gltf",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Animated glTF (.glb) export of a bone hierarchy with every simulation tick as a keyframe, for Blender.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@bs-humany/frames": "workspace:*"
+  }
+}
