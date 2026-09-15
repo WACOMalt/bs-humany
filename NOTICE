@@ -19,6 +19,12 @@ restrictions. Values are transcribed with citations recorded in docs/sources/bib
   - Rajagopal, A., et al. (2016). Full-body musculoskeletal model for muscle-driven simulation of
     human gait. IEEE TBME 63(10), 2068-2079. Model freely distributed via SimTK.
 
+Reference models, vendored under tools/validate-external/ for the validation of spec section
+13.6 and not compiled into any package:
+
+  - MyoSuite myo_sim (MyoHub) - Apache-2.0, with its licence alongside it. Pinned to a commit;
+    see that directory for the pin and how to verify it.
+
 Third-party software dependencies:
 
   - Rapier (dimforge) - Apache-2.0

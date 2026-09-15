@@ -34,5 +34,8 @@ jobs:
       - name: Module lint
         run: pnpm module:lint
 
+      - name: External validation
+        run: pnpm validate:external --check
+
       - name: Test
         run: pnpm test

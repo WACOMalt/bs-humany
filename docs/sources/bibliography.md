@@ -143,6 +143,11 @@ simulation suite for musculoskeletal motor control. *Proceedings of Machine Lear
 MuJoCo conversions of OpenSim models (`myoLeg`, `myoArm`, `myoHand`, `myoTorso`). Adopted as
 reference for how OpenSim biomechanics maps onto MJCF. Apache-2.0, so usable in core **and** in CI.
 
+Every value cited to this key names the file and the element it came from, and the model files
+are vendored at a pinned commit under `tools/validate-external/`. `pnpm validate:external` puts
+each cited value next to the file it cites and writes `docs/validation/external.md`; CI runs it
+with `--check`, so a citation that stops matching its source fails the build.
+
 ### `wang2022` — T1
 Wang, H., Caggiano, V., Durandau, G., Sartori, M., & Kumar, V. (2022). MyoSim: Fast and
 physiologically realistic MuJoCo models for musculoskeletal and exoskeletal studies. *ICRA 2022*.

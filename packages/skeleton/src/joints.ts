@@ -173,8 +173,9 @@ function limbJoints(s: Side): JointSpec[] {
         'Talocrural and subtalar motion are lumped into one joint between tibia and talus, ' +
           'because talus and calcaneus share a segment in every current profile. The inversion ' +
           'axis is the source subtalar axis, expressed in the tibia frame.',
-        'Dorsiflexion is about the ISB tibia Z (malleolar) axis rather than the source axis, ' +
-          'which is tilted a few degrees from it.',
+        'Dorsiflexion is about the ISB tibia Z (malleolar) axis rather than the source axis. ' +
+          "The source tilts its own by about 12 degrees, so the angle between this joint's two " +
+          'axes is 96.9 degrees where the source has 107.8 (measured by the M5.7 validation).',
       ],
     },
     {
@@ -424,6 +425,23 @@ function meanLumbarRange(key: 'flexion' | 'lateralBending' | 'axialRotation'): [
   ];
 }
 
+/**
+ * The neck ranges, which the reference no longer states.
+ *
+ * External validation (M5.7) found that the head model in the pinned reference carries its neck
+ * joints commented out: it was reduced to a rigid chain when it was folded into the full-body
+ * model, and the ranges this project holds were read from that commented-out block. They are
+ * plausible and they are what the source's authors wrote, but a commented-out line is not a
+ * value a model states, so they are provisional until a live source is cited.
+ */
+const OQ012 = (axis: string, joint: string) =>
+  provisional(
+    'caggiano2022',
+    'OQ-012',
+    `The head model's ${axis} range, from the commented-out '${joint}' joint in ${HEAD}. The ` +
+      'reference reduced that model to a rigid chain, so no live joint states this range.',
+  );
+
 const OQ007 = (rationale: string) =>
   provisional('caggiano2022', 'OQ-007', rationale, `${TORSO}, mean of joints L1_L2 .. L4_L5`);
 
@@ -583,13 +601,13 @@ function neckDofs(): DofSpec[] {
       axis: 'flexion',
       vector: [0, 0, -1],
       range: half(NECK_LUMPED.flexion),
-      romSource: myo(HEAD, 'neck_flexion'),
+      romSource: OQ012('flexion', 'neck_flexion'),
     },
     {
       axis: 'axial_rotation_left',
       vector: [0, 1, 0],
       range: half(NECK_LUMPED.axialRotation),
-      romSource: myo(HEAD, 'neck_rotation'),
+      romSource: OQ012('axial rotation', 'neck_rotation'),
     },
   ];
 }

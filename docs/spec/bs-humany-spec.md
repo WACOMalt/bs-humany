@@ -995,7 +995,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M5.4` HSDL extension namespaces (§14.5 item 3).
 `M5.5` Realized per-DoF force reporting verified on both backends (§14.5 item 4).
 `M5.6` Runtime articulation recompile-and-restore, benchmarked (§14.5 item 9).
-`M5.7` External validation tool (§13.6): comparison harness vs. Rajagopal/MyoSuite in CI, vs. MyoSkeleton locally, producing a committed discrepancy report.
+`M5.7` External validation tool (§13.6): comparison harness vs. Rajagopal/MyoSuite in CI, vs. MyoSkeleton locally, producing a committed discrepancy report. ✅ `pnpm validate:external`, reference vendored at a pinned commit, report in `docs/validation/external.md`, `--check` in CI. Found OQ-012: the neck ranges came from a joint the reference has commented out.
 `M5.8` `assets-anatomical` pack hardening: decimated LODs, convex hulls for collision proxies, streaming, attribution and CC BY-SA notices propagated (ADR-005, ADR-009). *The pack is a measurement source as of ADR-011; the 0.4 one-way-consumer criterion is withdrawn.*
 `M5.9` Module authoring guide + a worked example module.
 `M5.10` §14.5 audit: verify all ten obligations, with evidence, as a documented gate.

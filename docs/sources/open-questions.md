@@ -164,3 +164,16 @@ sternum, because a tree of joints cannot close that loop and without it the seve
 wanders 138 mm from the sternum over a three-second fall. Cartilage is compliant, so a rigid
 weld overstates the stiffness; no cited value for the compliance is in hand.
 **Status:** open
+
+### OQ-012 — The neck ranges come from a commented-out joint
+**Needed for:** `packages/skeleton/src/joints.ts`, the `neck_region_*` joints of every profile
+**Provisional value:** flexion -0.87 to 1.05 rad and axial rotation ±1.4 rad, lumped for the
+whole neck and halved between the two region joints. They are the numbers the reference's head
+model states, but it states them in a commented-out block: that model was reduced to a rigid
+chain when it was folded into the full-body assembly, and it now carries no live neck joint at
+all. Found by the external validation of M5.7, which reads the vendored reference and reports a
+citation whose element is absent.
+**Closes when:** a live source states a cervical range -- a revision of the head model that
+carries the joints, or a published table with a compatible licence -- and the ranges are cited
+to it. Related to OQ-010, which covers the per-level cervical split.
+**Status:** open

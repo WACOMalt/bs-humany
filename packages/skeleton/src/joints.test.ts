@@ -94,19 +94,24 @@ describe('joint definitions', () => {
           expect(dof.romSource.key, `${joint.id}.${dof.axis}`).toBe('caggiano2022');
         } else {
           const question = dof.romSource.provisional?.openQuestion ?? '';
-          expect(['OQ-007', 'OQ-010', 'OQ-011'], `${joint.id}.${dof.axis}`).toContain(question);
+          expect(['OQ-007', 'OQ-010', 'OQ-011', 'OQ-012'], `${joint.id}.${dof.axis}`).toContain(
+            question,
+          );
           provisionalQuestions.add(`${joint.id}:${question}`);
         }
       }
     }
-    // The L1 set is fully sourced; only the L2/L3 extra levels and rigid-ish joints are not.
+    // The L1 set is sourced but for the neck, whose ranges the reference states only in a
+    // commented-out block (OQ-012, found by the external validation of M5.7).
     for (const id of L1_JOINTS) {
       const joint = joints.get(id);
+      if (id.startsWith('neck_region')) continue;
       expect(
         joint?.dofs.every((d) => isSourced(d.romSource)),
         id,
       ).toBe(true);
     }
+    expect(provisionalQuestions.has('neck_region_lower:OQ-012')).toBe(true);
     expect(provisionalQuestions.has('l5_s1:OQ-007')).toBe(true);
     expect(provisionalQuestions.has('t3_t4:OQ-010')).toBe(true);
     expect(provisionalQuestions.has('costovertebral_5_l:OQ-011')).toBe(true);
