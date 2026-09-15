@@ -40,6 +40,9 @@
     },
     {
       "path": "./packages/muscle-model"
+    },
+    {
+      "path": "./packages/muscle-path"
     }
   ]
 }

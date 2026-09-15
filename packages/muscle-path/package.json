@@ -1,0 +1,20 @@
+{
+  "name": "@bs-humany/muscle-path",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Muscle path geometry: attachment sites, wrap surfaces, path solvers, analytic path velocity and moment arms.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@bs-humany/hsdl": "workspace:*",
+    "@bs-humany/compiler": "workspace:*"
+  }
+}

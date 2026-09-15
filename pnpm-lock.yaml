@@ -229,6 +229,21 @@ importers:
         specifier: workspace:*
         version: link:../skeleton
 
+  packages/muscle-model:
+    dependencies:
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../hsdl
+
+  packages/muscle-path:
+    dependencies:
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../hsdl
+
   packages/render-three:
     dependencies:
       '@bs-humany/anthropometry':
