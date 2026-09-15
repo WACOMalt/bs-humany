@@ -20,6 +20,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   Object3D,
   Points,
   PointsMaterial,
@@ -46,6 +47,15 @@ export interface OverlayChannels {
         readonly point: Float64Array;
         /** Tendon force as a fraction of the unit's maximum, 0 to 1. */
         readonly tension: Float64Array;
+        /** The swept surfaces, when Tier V is running. */
+        readonly mesh?:
+          | {
+              readonly position: Float64Array;
+              readonly normal: Float64Array;
+              readonly index: Uint32Array;
+              readonly verticesPerUnit: number;
+            }
+          | undefined;
       }
     | undefined;
 }
@@ -57,6 +67,7 @@ export interface Overlays {
   readonly com: Group;
   readonly contacts: Group;
   readonly muscles: Group;
+  readonly muscleVolumes: Group;
   update(channels: OverlayChannels): void;
   dispose(): void;
 }
@@ -97,7 +108,8 @@ export function createOverlays(
   const com = new Group();
   const contacts = new Group();
   const muscles = new Group();
-  root.add(proxies, axes, com, contacts, muscles);
+  const muscleVolumes = new Group();
+  root.add(proxies, axes, com, contacts, muscles, muscleVolumes);
 
   // --- Proxies: one wireframe per segment, children placed at the proxy transform -------------
   const proxyMaterial = new MeshBasicMaterial({
@@ -203,6 +215,14 @@ export function createOverlays(
   muscleLines.frustumCulled = false;
   muscles.add(muscleLines);
 
+  // --- Muscle volumes: one mesh per unit, so each can carry its own tension colour -------------
+  //
+  // Per unit rather than one merged mesh, because the colour is per muscle and a merged mesh would
+  // need per-vertex colours rewritten every frame to say the same thing. The geometry is shared:
+  // every unit has the same topology, so they share one index buffer.
+  const volumeMeshes: Mesh[] = [];
+  const volumeMaterials: MeshStandardMaterial[] = [];
+
   const jointOrigin = new Vector3();
   const jointRotation = new Quaternion();
   const axisVector = new Vector3();
@@ -214,6 +234,7 @@ export function createOverlays(
     com,
     contacts,
     muscles,
+    muscleVolumes,
     update(ch) {
       const total = model.totalMass;
       let cx = 0;
@@ -313,6 +334,45 @@ export function createOverlays(
         normalGeometry.setDrawRange(0, 2 * n);
         contactGeometry.getAttribute('position').needsUpdate = true;
         normalGeometry.getAttribute('position').needsUpdate = true;
+      }
+
+      if (muscleVolumes.visible && ch.muscles?.mesh) {
+        const m = ch.muscles;
+        const mesh = m.mesh as NonNullable<typeof m.mesh>;
+        const stride = mesh.verticesPerUnit;
+        for (let unit = 0; unit < m.count; unit++) {
+          let object = volumeMeshes[unit];
+          if (!object) {
+            // Built on first sight rather than up front: how many units there are is a property of
+            // the muscle set, which the overlay is handed rather than told about.
+            const geometry = new BufferGeometry();
+            geometry.setAttribute('position', new BufferAttribute(new Float32Array(3 * stride), 3));
+            geometry.setAttribute('normal', new BufferAttribute(new Float32Array(3 * stride), 3));
+            geometry.setIndex(new BufferAttribute(mesh.index.slice(), 1));
+            const material = new MeshStandardMaterial({
+              roughness: 0.55,
+              metalness: 0.0,
+              transparent: true,
+              opacity: 0.85,
+            });
+            object = new Mesh(geometry, material);
+            object.frustumCulled = false;
+            volumeMeshes[unit] = object;
+            volumeMaterials[unit] = material;
+            muscleVolumes.add(object);
+          }
+          const position = object.geometry.getAttribute('position');
+          const normal = object.geometry.getAttribute('normal');
+          const from = 3 * unit * stride;
+          for (let v = 0; v < 3 * stride; v++) {
+            (position.array as Float32Array)[v] = mesh.position[from + v] ?? 0;
+            (normal.array as Float32Array)[v] = mesh.normal[from + v] ?? 0;
+          }
+          position.needsUpdate = true;
+          normal.needsUpdate = true;
+          _tint.copy(_slack).lerp(_taut, Math.min(1, Math.max(0, m.tension[unit] ?? 0)));
+          volumeMaterials[unit]?.color.copy(_tint);
+        }
       }
 
       if (muscles.visible && ch.muscles && muscleCapacity > 0) {

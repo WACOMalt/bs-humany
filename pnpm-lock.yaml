@@ -233,6 +233,9 @@ importers:
       '@bs-humany/muscle-path':
         specifier: workspace:*
         version: link:../muscle-path
+      '@bs-humany/muscle-volume':
+        specifier: workspace:*
+        version: link:../muscle-volume
     devDependencies:
       '@bs-humany/anthropometry':
         specifier: workspace:*

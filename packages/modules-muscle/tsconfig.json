@@ -13,6 +13,7 @@
     { "path": "../muscle-data" },
     { "path": "../muscle-model" },
     { "path": "../muscle-path" },
+    { "path": "../muscle-volume" },
     { "path": "../anthropometry" },
     { "path": "../backend-mujoco" },
     { "path": "../skeleton" }

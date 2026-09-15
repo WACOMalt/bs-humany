@@ -32,6 +32,7 @@ export const MUSCLE_CONTACT = 'muscle.contact';
 export const MUSCLE_POLYLINE = 'muscle.polyline';
 export const MUSCLE_STATE = 'muscle.state';
 export const DIAGNOSTICS_MOMENT_ARM = 'diagnostics.momentArm';
+export const RENDER_MUSCLE_MESH = 'render.muscleMesh';
 export const EFFERENT_ALPHA_MOTOR = 'efferent.alphaMotor';
 export const EFFERENT_GAMMA_MOTOR = 'efferent.gammaMotor';
 
@@ -155,6 +156,34 @@ export function muscleStateSpec(units: number): ChannelSpec {
 export const MUSCLE_OK = 0;
 export const MUSCLE_EQUILIBRIUM_FAILED = 1;
 export const MUSCLE_FIBER_OUT_OF_RANGE = 2;
+
+/**
+ * Muscle surface vertices, for drawing (muscle spec 9.3).
+ *
+ * One element per vertex, with every unit's mesh laid end to end in the same order the units are
+ * in, so a renderer finds a muscle's vertices at `unit * verticesPerUnit`. The triangle indices
+ * are not here: a sweep's connectivity depends only on how many rings and segments it has, so it
+ * is built once and never changes, and putting it in a per-tick channel would be publishing a
+ * constant.
+ *
+ * Read by the renderer and by nothing else. Tier V writes here and to nowhere else (M-ADR-004).
+ */
+export function renderMuscleMeshSpec(vertices: number): ChannelSpec {
+  return {
+    id: RENDER_MUSCLE_MESH,
+    version: MUSCLE_CHANNEL_VERSION,
+    layout: 'SoA',
+    fields: [
+      /** World metres. */
+      { name: 'position', dtype: 'f64', components: 3 },
+      /** Unit, world. */
+      { name: 'normal', dtype: 'f64', components: 3 },
+    ],
+    elementCount: Math.max(1, vertices),
+    mode: 'single-writer',
+    backing: 'shared',
+  };
+}
 
 /**
  * How much leverage each muscle has over each joint coordinate it crosses.

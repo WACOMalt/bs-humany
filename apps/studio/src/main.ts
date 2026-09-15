@@ -214,6 +214,7 @@ const ui = {
   showCom: must<HTMLInputElement>('#showCom'),
   showContacts: must<HTMLInputElement>('#showContacts'),
   showMuscles: must<HTMLInputElement>('#showMuscles'),
+  showMuscleVolumes: must<HTMLInputElement>('#showMuscleVolumes'),
   muscles: must<HTMLInputElement>('#muscles'),
   fullFidelity: must<HTMLInputElement>('#fullFidelity'),
   targetRate: must<HTMLInputElement>('#targetRate'),
@@ -672,8 +673,16 @@ function applyOverlayVisibility(): void {
   overlays.com.visible = ui.showCom.checked;
   overlays.contacts.visible = ui.showContacts.checked;
   overlays.muscles.visible = ui.showMuscles.checked;
+  overlays.muscleVolumes.visible = ui.showMuscleVolumes.checked;
 }
-for (const input of [ui.showProxies, ui.showAxes, ui.showCom, ui.showContacts, ui.showMuscles]) {
+for (const input of [
+  ui.showProxies,
+  ui.showAxes,
+  ui.showCom,
+  ui.showContacts,
+  ui.showMuscles,
+  ui.showMuscleVolumes,
+]) {
   input.addEventListener('change', applyOverlayVisibility);
 }
 
@@ -696,6 +705,7 @@ function muscleOverlay(sim: Simulation) {
     pointCount: path.pointCount as unknown as Int32Array,
     point: sim.channel('muscle.polyline').fields.point as Float64Array,
     tension,
+    mesh: sim.muscleMesh(),
   };
 }
 

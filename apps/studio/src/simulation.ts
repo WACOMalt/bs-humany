@@ -46,6 +46,8 @@ import {
   MuscleDynamicsModule,
   MusclePathModule,
   MuscleTestDriveModule,
+  MuscleVolumeModule,
+  RENDER_MUSCLE_MESH,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
 import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
@@ -133,6 +135,7 @@ export class Simulation {
   readonly muscleDrive: MuscleTestDriveModule | undefined;
   readonly musclePath: MusclePathModule | undefined;
   readonly muscleDynamics: MuscleDynamicsModule | undefined;
+  readonly muscleVolume: MuscleVolumeModule | undefined;
   readonly backendId: BackendId;
   readonly capabilities: BackendCapabilities;
   readonly scenario: Scenario | undefined;
@@ -267,9 +270,11 @@ export class Simulation {
       ]);
       this.musclePath = new MusclePathModule(this.articulation, this.muscles);
       this.muscleDynamics = new MuscleDynamicsModule(this.articulation, this.muscles);
+      this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles);
       this.kernel.register(this.muscleDrive);
       this.kernel.register(this.musclePath);
       this.kernel.register(this.muscleDynamics);
+      this.kernel.register(this.muscleVolume);
     }
 
     // Life speed, which is where a run starts before anyone slows it down to watch something.
@@ -520,6 +525,33 @@ export class Simulation {
       fiberLength: fields.fiberLength as Float64Array,
       tendonForce: fields.tendonForce as Float64Array,
       diagnostic: fields.diagnostic as unknown as Int32Array,
+    };
+  }
+
+  /**
+   * The swept muscle surfaces, for the renderer.
+   *
+   * Every unit's vertices lie end to end in one buffer, so a muscle's own begin at
+   * `unit * verticesPerUnit`. The indices come from the module because they never change.
+   */
+  muscleMesh():
+    | {
+        readonly position: Float64Array;
+        readonly normal: Float64Array;
+        readonly index: Uint32Array;
+        readonly verticesPerUnit: number;
+        readonly units: number;
+      }
+    | undefined {
+    const volume = this.muscleVolume;
+    if (!volume || !this.muscles) return undefined;
+    const fields = this.channel(RENDER_MUSCLE_MESH).fields;
+    return {
+      position: fields.position as Float64Array,
+      normal: fields.normal as Float64Array,
+      index: volume.index,
+      verticesPerUnit: volume.verticesPerUnit,
+      units: this.muscles.units.length,
     };
   }
 
