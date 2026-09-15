@@ -5,7 +5,7 @@ with the change that moved it.
 
 The elbow swept from 0 to 130 degrees of flexion in 10-degree steps, forearm neutral, against the vendored MyoSuite arm at commit `eb327acbae` loaded into MuJoCo and measured the same way. Both sides are computed here: nothing is transcribed, and no value from the reference reaches the model (ADR-009).
 
-Generated 2026-09-15. 7 muscles, 0 hard failure(s), 0 to investigate, 2 recorded.
+Generated 2026-09-15. 7 muscles, 0 hard failure(s), 0 to investigate, 5 recorded.
 
 ## Summary
 
@@ -13,42 +13,42 @@ Moment arms in millimetres, positive toward flexion. Mean and worst are |ours - 
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| biceps_brachii_long_r | 39.2 at 110° | 41.3 at 110° | 4.4 | 18.9 at 0° | ok |
-| biceps_brachii_short_r | 36.0 at 110° | 38.0 at 110° | 4.8 | 20.0 at 0° | ok |
-| brachialis_r | 48.2 at 80° | 24.0 at 110° | 22.1 | 28.2 at 60° | recorded (OQ-015) |
-| brachioradialis_r | 20.9 at 110° | 89.7 at 120° | 40.1 | 69.9 at 130° | recorded (OQ-015) |
-| triceps_brachii_long_r | -20.2 at 20° | -24.1 at 20° | 4.0 | 10.2 at 130° | ok |
-| triceps_brachii_lateral_r | -20.2 at 20° | -24.1 at 20° | 4.0 | 10.2 at 130° | ok |
-| triceps_brachii_medial_r | -20.2 at 20° | -24.1 at 20° | 4.0 | 10.2 at 130° | ok |
+| biceps_brachii_long_r | 38.3 at 110° | 41.3 at 110° | 4.1 | 13.1 at 0° | ok |
+| biceps_brachii_short_r | 35.3 at 120° | 38.0 at 110° | 4.1 | 14.3 at 0° | ok |
+| brachialis_r | 41.0 at 120° | 24.0 at 110° | 11.9 | 17.7 at 130° | recorded (OQ-015) |
+| brachioradialis_r | 18.2 at 110° | 89.7 at 120° | 42.6 | 72.6 at 130° | recorded (OQ-015) |
+| triceps_brachii_long_r | -14.6 at 20° | -24.1 at 20° | 6.4 | 9.7 at 30° | recorded (OQ-015) |
+| triceps_brachii_lateral_r | -14.6 at 20° | -24.1 at 20° | 6.4 | 9.7 at 30° | recorded (OQ-015) |
+| triceps_brachii_medial_r | -14.6 at 20° | -24.1 at 20° | 6.4 | 9.7 at 30° | recorded (OQ-015) |
 
 ## Notes
 
 - **biceps_brachii_long_r** — Agrees through the middle and upper range. The disagreement is at full extension, where ours sits at the trochlea’s radius and the reference passes within a millimetre of the elbow axis -- which would leave a biceps unable to begin flexing from a straight arm, so the difference is not evidence against ours.
 - **biceps_brachii_short_r** — As the long head, and at the same place in the range.
-- **brachialis_r** — Twice the reference through the middle of the range, and it never touches the surface it declares: our insertion marker sits 50 mm from the flexion axis where the reference’s sits 24, so the straight line from origin to insertion passes outside the trochlea cylinder at every angle and the wrap has nothing to do. The marker is a label anchor rather than a measured attachment centroid.
-- **brachioradialis_r** — A quarter of the reference, which is the largest error in the set. Brachioradialis has the longest flexion arm at the elbow because its path stands well clear of the joint, and the reference holds it there with a cylinder at the distal humerus that this has not carried over; ours is held out only by the trochlea it wraps.
-- **triceps_brachii_long_r** — Within tolerance, and the shape differs at the closed end: ours is a pulley at every angle, and the reference path leaves its surface past about 90 degrees.
-- **triceps_brachii_lateral_r** — As the long head, and from the same surface.
-- **triceps_brachii_medial_r** — As the long head, and from the same surface.
+- **brachialis_r** — Still close to twice the reference, though putting the markers back on the bone brought it in from 22 mm of mean error to 12 and moved its peak onto the reference’s angle. Its line still passes outside the trochlea cylinder at every angle, so the surface it declares does nothing for it; what it needs is an attachment over the coronoid rather than a point 40 mm from the flexion axis.
+- **brachioradialis_r** — A fifth of the reference, which is the largest error in the set. Brachioradialis has the longest flexion arm at the elbow because its path stands well clear of the joint, and the reference holds it there with a cylinder at the distal humerus that this has not carried over; ours is held out only by the trochlea it wraps, which is now measured at 12 mm rather than 18.
+- **triceps_brachii_long_r** — Flat at 15 mm where the reference runs from 24 down to 8, and both halves of that are the same cause: our extensor pulley is coaxial with the joint, which by construction gives a constant arm, and the reference’s cylinder is offset behind it, which gives one that falls as the elbow closes. The size is the attachment: the triceps inserts on the olecranon, and the point the marker projects to stands 15 mm from the flexion axis where the bone’s own posterior apex stands 25. A surface at the olecranon was measured (25.1 mm) and does not help, because an attachment inside a wrap surface cannot wrap it.
+- **triceps_brachii_lateral_r** — As the long head, and from the same attachment.
+- **triceps_brachii_medial_r** — As the long head, and from the same attachment.
 
 ## Ours, millimetres
 
 | Flexion | biceps_brachii_long | biceps_brachii_short | brachialis | brachioradialis | triceps_brachii_long | triceps_brachii_lateral | triceps_brachii_medial |
 |---|---|---|---|---|---|---|---|
-| 0° | 18.3 | 18.3 | 21.3 | 18.7 | -17.7 | -17.7 | -17.7 |
-| 10° | 18.3 | 18.3 | 26.2 | 18.6 | -19.5 | -19.5 | -19.5 |
-| 20° | 18.2 | 18.2 | 30.8 | 18.4 | -20.2 | -20.2 | -20.2 |
-| 30° | 18.6 | 18.6 | 35.4 | 18.9 | -19.8 | -19.8 | -19.8 |
-| 40° | 19.4 | 18.5 | 39.2 | 18.6 | -19.3 | -19.3 | -19.3 |
-| 50° | 23.6 | 21.1 | 42.5 | 18.2 | -18.6 | -18.6 | -18.6 |
-| 60° | 27.5 | 24.9 | 45.2 | 18.1 | -17.7 | -17.7 | -17.7 |
-| 70° | 31.1 | 28.3 | 47.2 | 18.1 | -17.8 | -17.8 | -17.8 |
-| 80° | 34.3 | 31.2 | 48.2 | 18.3 | -17.8 | -17.8 | -17.8 |
-| 90° | 36.8 | 33.7 | 48.0 | 19.7 | -17.6 | -17.6 | -17.6 |
-| 100° | 38.5 | 35.2 | 45.9 | 20.6 | -17.7 | -17.7 | -17.7 |
-| 110° | 39.2 | 36.0 | 41.7 | 20.9 | -17.6 | -17.6 | -17.6 |
-| 120° | 38.7 | 35.5 | 33.3 | 20.6 | -17.7 | -17.7 | -17.7 |
-| 130° | 36.8 | 33.9 | 20.3 | 19.6 | -17.8 | -17.8 | -17.8 |
+| 0° | 12.5 | 12.5 | 12.5 | 12.6 | -13.3 | -13.3 | -13.3 |
+| 10° | 12.5 | 12.5 | 12.5 | 12.5 | -14.2 | -14.2 | -14.2 |
+| 20° | 12.5 | 12.5 | 12.5 | 12.4 | -14.6 | -14.6 | -14.6 |
+| 30° | 12.5 | 12.5 | 14.9 | 12.3 | -14.4 | -14.4 | -14.4 |
+| 40° | 16.9 | 14.7 | 19.4 | 12.3 | -13.9 | -13.9 | -13.9 |
+| 50° | 21.5 | 19.0 | 23.7 | 12.4 | -13.0 | -13.0 | -13.0 |
+| 60° | 25.6 | 23.0 | 27.7 | 13.1 | -12.1 | -12.1 | -12.1 |
+| 70° | 29.4 | 26.5 | 31.3 | 14.9 | -12.1 | -12.1 | -12.1 |
+| 80° | 32.7 | 29.7 | 34.5 | 16.4 | -12.0 | -12.0 | -12.0 |
+| 90° | 35.4 | 32.3 | 37.3 | 17.5 | -11.9 | -11.9 | -11.9 |
+| 100° | 37.3 | 34.2 | 39.3 | 18.1 | -12.1 | -12.1 | -12.1 |
+| 110° | 38.3 | 35.2 | 40.7 | 18.2 | -12.1 | -12.1 | -12.1 |
+| 120° | 38.3 | 35.3 | 41.0 | 17.7 | -12.2 | -12.2 | -12.2 |
+| 130° | 37.0 | 34.2 | 40.0 | 16.8 | -12.1 | -12.1 | -12.1 |
 
 ## The reference, millimetres
 

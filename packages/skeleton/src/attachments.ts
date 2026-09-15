@@ -11,6 +11,9 @@
  * most of the hand and foot intrinsics) are left out and listed by `attachmentGaps`.
  */
 
+import surfaceJson from '@bs-humany/assets-anatomical/data/landmarks-surface.json' with {
+  type: 'json',
+};
 import landmarksJson from '@bs-humany/assets-anatomical/data/landmarks.json' with { type: 'json' };
 import { type AttachmentSiteDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
@@ -19,6 +22,54 @@ import { MUSCLE_VIA_POINTS } from './muscleViaPoints.js';
 
 type Table = Record<string, Record<string, [number, number, number]>>;
 const RAW: Table = landmarksJson as unknown as Table;
+
+interface SurfaceLandmark {
+  readonly bone: string;
+  readonly feature: string;
+  readonly surface: readonly [number, number, number];
+  readonly offset: number;
+  readonly vertices: number;
+  readonly patchRadius: number;
+  readonly rule: string;
+}
+
+/**
+ * Markers put back on the bone they name, by `pnpm --filter @bs-humany/ingest surface-landmarks`.
+ *
+ * The dataset's markers are label anchors: placed out in the clear beside the feature they name so
+ * a text label can point at it. Not one marker in the arm lies on its bone -- the olecranon is
+ * 10 mm off it, the anteromedial surface of the humerus 30 mm -- and an attachment floating that
+ * far off the bone puts a muscle's whole line of action in the wrong place. Brachialis is the
+ * case that showed it: its insertion marker stands 50 mm from the elbow's flexion axis where the
+ * reference model's stands 24, which gave it twice the moment arm it should have and a path that
+ * misses the surface it is supposed to wrap.
+ *
+ * So the location comes from the measurement and the anatomy still comes from Gray: the marker
+ * names which feature, and the mesh says where that feature is.
+ */
+const SURFACE = new Map<string, SurfaceLandmark>(
+  (surfaceJson as unknown as { readonly landmarks: readonly SurfaceLandmark[] }).landmarks.map(
+    (l) => [`${l.bone}/${l.feature}`, l],
+  ),
+);
+
+/** Where an attachment goes: the measured point on the bone, or the raw marker if none exists. */
+function located(
+  bone: string,
+  feature: string,
+): { readonly world: readonly [number, number, number]; readonly locatedBy: string } | undefined {
+  const measured = SURFACE.get(`${bone}/${feature}`);
+  if (measured) {
+    return {
+      world: measured.surface,
+      locatedBy:
+        `marker '${feature}' put on the bone: ${measured.rule}; moved ` +
+        `${(measured.offset * 1000).toFixed(1)} mm over ${measured.vertices} vertices`,
+    };
+  }
+  const raw = RAW[bone]?.[feature];
+  return raw ? { world: raw, locatedBy: `marker: ${feature}` } : undefined;
+}
 
 const gray = (section: string) => cite('gray1918', `Part IV, Myology: ${section}`);
 
@@ -385,9 +436,10 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
       ) => {
         for (const [boneTemplate, feature] of pairs) {
           const bone = side(boneTemplate, s);
-          const world = RAW[bone]?.[feature];
+          const site = located(bone, feature);
           const centroid = centroids.get(bone);
-          if (!world || !centroid) continue;
+          if (!site || !centroid) continue;
+          const world = site.world;
           const id = `${m.id}_${role}_${s}_${landmarkId(bone, feature).split('__')[1]}`;
           if (seen.has(id)) continue;
           seen.add(id);
@@ -409,7 +461,7 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
               dataset: DATASET_MANIFEST.dataset.name,
               datasetVersion: DATASET_MANIFEST.dataset.version,
               sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
-              locatedBy: `marker: ${feature}`,
+              locatedBy: site.locatedBy,
             }),
           });
         }

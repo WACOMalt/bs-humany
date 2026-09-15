@@ -1,6 +1,6 @@
 {
   "format": "bs-humany.wrap-radii/1",
-  "generatedAt": "2026-09-15T19:44:56.817Z",
+  "generatedAt": "2026-09-15T21:35:15.949Z",
   "dataset": {
     "name": "Z-Anatomy SkeletalSystem",
     "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",
@@ -17,40 +17,40 @@
       "bone": "humerus_r",
       "feature": "Trochlea_of_humerus__wrap_radius",
       "description": "Radius of the humeral trochlea about the epicondylar axis: the pulley the elbow flexors and extensors turn over (Wu 2005, 3.3 for the axis)",
-      "radius": 0.017963,
-      "vertices": 43,
-      "spread": 0.003002,
-      "halfLength": 0.009569,
+      "radius": 0.012363,
+      "vertices": 148,
+      "spread": 0.00378,
+      "halfLength": 0.008234,
       "rule": "median distance from the Medial_epicondyle_of_humerus to Lateral_epicondyle_of_humerus axis, over mesh within 22 mm of Trochlea_of_humerus, taking the middle 50% of the distribution"
     },
     {
       "bone": "humerus_l",
       "feature": "Trochlea_of_humerus__wrap_radius",
       "description": "Radius of the humeral trochlea about the epicondylar axis: the pulley the elbow flexors and extensors turn over (Wu 2005, 3.3 for the axis)",
-      "radius": 0.017963,
-      "vertices": 43,
-      "spread": 0.003002,
-      "halfLength": 0.009569,
+      "radius": 0.012363,
+      "vertices": 148,
+      "spread": 0.00378,
+      "halfLength": 0.008234,
       "rule": "median distance from the Medial_epicondyle_of_humerus to Lateral_epicondyle_of_humerus axis, over mesh within 22 mm of Trochlea_of_humerus, taking the middle 50% of the distribution"
     },
     {
       "bone": "humerus_r",
       "feature": "Body_of_humerus__wrap_radius",
       "description": "Radius of the humeral shaft about the bone's own long axis: what the flexors lie in front of and the extensors behind, rather than passing through (Wu 2005, 2.3.4 for the axis)",
-      "radius": 0.016389,
-      "vertices": 138,
-      "spread": 0.003441,
-      "halfLength": 0.027054,
+      "radius": 0.019736,
+      "vertices": 146,
+      "spread": 0.003882,
+      "halfLength": 0.028852,
       "rule": "90th percentile distance from the Head_of_humerus to midpoint of Medial_epicondyle_of_humerus and Lateral_epicondyle_of_humerus axis, over mesh within 70 mm of Deltoid_tuberosity"
     },
     {
       "bone": "humerus_l",
       "feature": "Body_of_humerus__wrap_radius",
       "description": "Radius of the humeral shaft about the bone's own long axis: what the flexors lie in front of and the extensors behind, rather than passing through (Wu 2005, 2.3.4 for the axis)",
-      "radius": 0.016389,
-      "vertices": 138,
-      "spread": 0.003441,
-      "halfLength": 0.027054,
+      "radius": 0.019736,
+      "vertices": 146,
+      "spread": 0.003882,
+      "halfLength": 0.028852,
       "rule": "90th percentile distance from the Head_of_humerus to midpoint of Medial_epicondyle_of_humerus and Lateral_epicondyle_of_humerus axis, over mesh within 70 mm of Deltoid_tuberosity"
     }
   ]

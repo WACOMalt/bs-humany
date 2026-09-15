@@ -21,6 +21,7 @@
     "hulls": "jiti src/hulls.ts",
     "lods": "jiti src/lods.ts",
     "centres": "jiti src/centres.ts",
-    "wrap-radii": "jiti src/wrapRadii.ts"
+    "wrap-radii": "jiti src/wrapRadii.ts",
+    "surface-landmarks": "jiti src/surfaceLandmarks.ts"
   }
 }
