@@ -739,6 +739,12 @@ function updateMuscles(sim: Simulation): void {
   must<HTMLElement>('#muscle-flexion').textContent = `${flexion.toFixed(0)} N`;
   must<HTMLElement>('#muscle-extension').textContent = `${extension.toFixed(0)} N`;
   must<HTMLElement>('#muscle-loaded').textContent = `${loaded} of ${units.length} units`;
+  // How many tendons are in contact with a bone right now. A muscle that is wrapping has its
+  // path bent over a surface rather than cutting through it, so this is also the quickest way to
+  // tell whether the overlay's curves are curves.
+  const contacts = sim.musclePath?.contactCount ?? 0;
+  must<HTMLElement>('#muscle-wrapping').textContent =
+    `${contacts} contact${contacts === 1 ? '' : 's'}`;
 }
 
 function updateDiagnostics(sim: Simulation): void {
