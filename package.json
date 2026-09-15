@@ -23,7 +23,8 @@
     "validate:external": "node tools/cli/bin/external-validate.mjs",
     "audit:obligations": "node tools/cli/bin/audit-obligations.mjs",
     "generate:elbow-muscles": "node tools/cli/bin/generate-elbow-muscles.mjs",
-    "generate:via-points": "node tools/cli/bin/generate-muscle-via-points.mjs"
+    "generate:via-points": "node tools/cli/bin/generate-muscle-via-points.mjs",
+    "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
