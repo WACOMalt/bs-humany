@@ -50,7 +50,7 @@ import {
   writeExtension,
 } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
-import { ISB_LANDMARKS, isbLandmarkWorld, landmarkId } from './landmarks.js';
+import { ISB_LANDMARKS, isbLandmarkWorld, landmarkId, markerWorld } from './landmarks.js';
 import { computeWorldTransforms } from './pose.js';
 
 type Direction = 'right' | 'anterior' | 'superior';
@@ -217,8 +217,17 @@ export function buildVirtualLandmarks(): LandmarkDef[] {
 // Frame specifications
 // ---------------------------------------------------------------------------------------------
 
-/** A landmark reference: an ISB abbreviation on a bone, or a virtual landmark id. */
-export type Ref = readonly [bone: string, abbreviation: string] | { readonly virtual: string };
+/**
+ * A landmark reference: an ISB abbreviation on a bone, a virtual landmark id, or a plain marker.
+ *
+ * The marker form exists for features the ISB tables have no abbreviation for but the dataset
+ * marks anyway -- the surgical neck of the humerus, say, which is where the shaft begins and the
+ * head leaves off.
+ */
+export type Ref =
+  | readonly [bone: string, abbreviation: string]
+  | { readonly virtual: string }
+  | { readonly marker: readonly [bone: string, feature: string] };
 
 interface AxisSpec {
   readonly axis: 'x' | 'y' | 'z';
@@ -463,6 +472,7 @@ export const FRAME_SPECS: readonly FrameSpec[] = [
 
 function refId(ref: Ref): string {
   if ('virtual' in ref) return ref.virtual;
+  if ('marker' in ref) return landmarkId(ref.marker[0], ref.marker[1]);
   const isb = ISB_LANDMARKS.find((l) => l.bone === ref[0] && l.abbreviation === ref[1]);
   if (!isb) throw new Error(`No ISB landmark '${ref[1]}' on '${ref[0]}'.`);
   return landmarkId(isb.bone, isb.feature);
@@ -480,6 +490,12 @@ export function refWorld(ref: Ref): P3 {
     const v = VIRTUAL_LANDMARKS.find((x) => x.id === ref.virtual);
     if (!v) throw new Error(`Unknown virtual landmark '${ref.virtual}'.`);
     return virtualLandmarkWorld(v);
+  }
+  if ('marker' in ref) {
+    const [bone, feature] = ref.marker;
+    const p = markerWorld(bone, feature);
+    if (!p) throw new Error(`No marker '${feature}' on '${bone}'.`);
+    return p;
   }
   return isbLandmarkWorld(ref[0], ref[1]);
 }

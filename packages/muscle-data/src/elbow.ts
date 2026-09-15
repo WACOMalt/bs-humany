@@ -43,6 +43,13 @@
  *
  * The sides are in the bone's own frame, where +Z is posterior for this dataset: the olecranon
  * fossa sits at z = 0.055 and the coronoid fossa, in front of it, at z = 0.020.
+ *
+ * They lie against different surfaces, too. The extensors turn over the trochlea, coaxial with
+ * the elbow, which is what holds their moment arm at its radius through the range. The flexors
+ * never reach it -- measured, their paths pass in front of it and clear it at every angle -- so
+ * what they need is the humeral shaft, which they lie along rather than pass through. One surface
+ * each: the solver takes one per span until N1.5 adds the multi-surface solve, and a muscle that
+ * wants both wants a via point between them, which is the other half of OQ-015.
  */
 
 import { cite } from '@bs-humany/hsdl';
@@ -82,7 +89,7 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         path: [
           {
             kind: 'wrap',
-            surface: 'elbow_trochlea_r',
+            surface: 'humerus_shaft_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Biceps brachii'),
           },
@@ -104,7 +111,7 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         path: [
           {
             kind: 'wrap',
-            surface: 'elbow_trochlea_r',
+            surface: 'humerus_shaft_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Biceps brachii'),
           },
@@ -135,7 +142,7 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         path: [
           {
             kind: 'wrap',
-            surface: 'elbow_trochlea_r',
+            surface: 'humerus_shaft_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Brachialis'),
           },
@@ -166,7 +173,7 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         path: [
           {
             kind: 'wrap',
-            surface: 'elbow_trochlea_r',
+            surface: 'humerus_shaft_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Brachioradialis'),
           },

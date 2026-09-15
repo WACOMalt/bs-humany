@@ -51,14 +51,37 @@ export const MIN_VERTICES = 80;
  */
 export const TRIM = 0.25;
 
+/**
+ * One end of an axis: a marker, or the midpoint of two.
+ *
+ * The midpoint form is what a joint axis usually needs. The elbow's is the line through the two
+ * epicondyles, and the humerus's own long axis runs from the head's centre to the point between
+ * them -- which is no marker but is where the bone actually points.
+ */
+type AxisEnd = string | readonly [string, string];
+
 interface Target {
   readonly bone: string;
   /** What the measured radius is published under. */
   readonly feature: string;
   /** The surface the tendon rides on. */
   readonly seedFeature: string;
-  /** Two markers whose line is the joint axis the radius is measured about. */
-  readonly axis: readonly [string, string];
+  /** How far from the seed a vertex may be and still belong to the surface, metres. */
+  readonly seedRadius?: number;
+  /**
+   * What the radius is a radius *of*, which is not the same question for every surface.
+   *
+   * `bearing` for a pulley: where a tendon sits on the surface, which is the middle of the
+   * distance distribution. `enclosing` for a shaft: where the bone *ends*, which is near the top
+   * of it, because a muscle lying along a bone lies outside all of it and not outside its average.
+   *
+   * Using the bearing statistic for a shaft is what made the biceps graze the cylinder instead of
+   * lying on it: the path switched three times between hugging the bone and cutting through it
+   * across a single sweep of the elbow, which reads as the muscle flicking from side to side.
+   */
+  readonly statistic?: 'bearing' | 'enclosing';
+  /** The axis the radius is measured about. */
+  readonly axis: readonly [AxisEnd, AxisEnd];
   readonly description: string;
 }
 
@@ -71,6 +94,20 @@ const TARGETS: readonly Target[] = [
     description:
       'Radius of the humeral trochlea about the epicondylar axis: the pulley the elbow ' +
       'flexors and extensors turn over (Wu 2005, 3.3 for the axis)',
+  },
+  {
+    bone: 'humerus',
+    feature: 'Body_of_humerus__wrap_radius',
+    seedFeature: 'Deltoid_tuberosity',
+    // Generous: the shaft is long, and a radius taken from one narrow band of it would be a
+    // measurement of that band rather than of the bone a muscle lies along.
+    seedRadius: 0.07,
+    statistic: 'enclosing',
+    axis: ['Head_of_humerus', ['Medial_epicondyle_of_humerus', 'Lateral_epicondyle_of_humerus']],
+    description:
+      "Radius of the humeral shaft about the bone's own long axis: what the flexors lie in " +
+      'front of and the extensors behind, rather than passing through (Wu 2005, 2.3.4 for the ' +
+      'axis)',
   },
 ];
 
@@ -146,6 +183,29 @@ export function trimmedRadius(distances: number[]): { radius: number; spread: nu
   };
 }
 
+/**
+ * The percentile of the distance distribution an enclosing radius is read at.
+ *
+ * Not the maximum. A bone has a few vertices further out than the rest -- a tubercle, a ridge, a
+ * stray point on the flare at one end -- and a cylinder sized to the furthest of them would stand
+ * well clear of the shaft everywhere else, holding muscles off the bone rather than against it.
+ * The ninetieth is where the shaft proper ends.
+ */
+export const ENCLOSING_PERCENTILE = 0.9;
+
+/** How far out the bone reaches, for a surface a muscle lies outside rather than bears on. */
+export function enclosingRadius(distances: number[]): { radius: number; spread: number } {
+  const sorted = [...distances].sort((a, b) => a - b);
+  const at = Math.min(sorted.length - 1, Math.floor(sorted.length * ENCLOSING_PERCENTILE));
+  const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+  return {
+    radius: sorted[at] ?? 0,
+    // How much wider the bone's outside is than its middle: what the idealisation is papering
+    // over, reported the same way the bearing statistic reports its own spread.
+    spread: (sorted[at] ?? 0) - median,
+  };
+}
+
 const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')) as {
   readonly dataset: unknown;
   readonly bones: readonly {
@@ -163,6 +223,7 @@ const positions = new Float32Array(bin.buffer, bin.byteOffset, bin.byteLength / 
 const packed = new Map(manifest.bones.map((b) => [b.id, b]));
 
 const round = (x: number) => Math.round(x * 1e6) / 1e6;
+const name = (end: AxisEnd) => (typeof end === 'string' ? end : `midpoint of ${end.join(' and ')}`);
 const measured: WrapRadius[] = [];
 
 for (const target of TARGETS) {
@@ -170,11 +231,22 @@ for (const target of TARGETS) {
     const boneId = `${target.bone}_${side}`;
     const bone = packed.get(boneId);
     const seed = landmarks[boneId]?.[target.seedFeature];
-    const a = landmarks[boneId]?.[target.axis[0]];
-    const b = landmarks[boneId]?.[target.axis[1]];
-    if (!bone || !seed || !a || !b) {
-      throw new Error(`${boneId}: missing mesh, seed ${target.seedFeature}, or an axis marker`);
+    const end = (which: AxisEnd): [number, number, number] => {
+      if (typeof which === 'string') {
+        const p = landmarks[boneId]?.[which];
+        if (!p) throw new Error(`${boneId}: no axis marker '${which}'`);
+        return p;
+      }
+      const p = landmarks[boneId]?.[which[0]];
+      const q = landmarks[boneId]?.[which[1]];
+      if (!p || !q) throw new Error(`${boneId}: no axis markers '${which[0]}'/'${which[1]}'`);
+      return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+    };
+    if (!bone || !seed) {
+      throw new Error(`${boneId}: missing mesh or seed ${target.seedFeature}`);
     }
+    const a = end(target.axis[0]);
+    const b = end(target.axis[1]);
 
     const span = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     const axis = [(b[0] - a[0]) / span, (b[1] - a[1]) / span, (b[2] - a[2]) / span] as const;
@@ -189,7 +261,8 @@ for (const target of TARGETS) {
         positions[at + 1] as number,
         positions[at + 2] as number,
       ] as const;
-      if (Math.hypot(p[0] - seed[0], p[1] - seed[1], p[2] - seed[2]) > SEED_RADIUS) continue;
+      const reach = target.seedRadius ?? SEED_RADIUS;
+      if (Math.hypot(p[0] - seed[0], p[1] - seed[1], p[2] - seed[2]) > reach) continue;
       distances.push(distanceToAxis(p, origin, axis));
       along.push(
         (p[0] - origin[0]) * axis[0] + (p[1] - origin[1]) * axis[1] + (p[2] - origin[2]) * axis[2],
@@ -202,7 +275,8 @@ for (const target of TARGETS) {
       );
     }
 
-    const { radius, spread } = trimmedRadius(distances);
+    const { radius, spread } =
+      target.statistic === 'enclosing' ? enclosingRadius(distances) : trimmedRadius(distances);
     // The extent along the axis, trimmed the same way, so one stray vertex at the rim cannot
     // stretch the cylinder past the surface it stands for.
     const sortedAlong = [...along].sort((a, b) => a - b);
@@ -217,9 +291,14 @@ for (const target of TARGETS) {
       spread: round(spread),
       halfLength: round((highAlong - lowAlong) / 2),
       rule:
-        `median distance from the ${target.axis[0]}-${target.axis[1]} axis to the mesh within ` +
-        `${SEED_RADIUS * 1000} mm of ${target.seedFeature}, over the middle ` +
-        `${Math.round((1 - 2 * TRIM) * 100)}% of the distribution`,
+        target.statistic === 'enclosing'
+          ? `${Math.round(ENCLOSING_PERCENTILE * 100)}th percentile distance from the ` +
+            `${name(target.axis[0])} to ${name(target.axis[1])} axis, over mesh within ` +
+            `${(target.seedRadius ?? SEED_RADIUS) * 1000} mm of ${target.seedFeature}`
+          : `median distance from the ${name(target.axis[0])} to ${name(target.axis[1])} axis, ` +
+            `over mesh within ${(target.seedRadius ?? SEED_RADIUS) * 1000} mm of ` +
+            `${target.seedFeature}, taking the middle ` +
+            `${Math.round((1 - 2 * TRIM) * 100)}% of the distribution`,
     });
   }
 }

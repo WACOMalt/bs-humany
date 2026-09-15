@@ -249,12 +249,29 @@ show -- from 1.2 rad onward.
 
 What is still open, and why this is only half:
 
-- **The flexors do not wrap.** Their straight paths pass in front of the trochlea and clear it, so
-  biceps still peaks at 65 mm against a published 36-40 mm, biceps short head still reverses sign
-  at 2.4 rad, and brachioradialis still reverses at full extension. In life they turn over the
-  radial head and the coronoid region, not the trochlea. A second surface is needed, and the path
-  solver takes one per span until N1.5 adds the multi-surface solve -- so this needs either a via
-  point splitting the span or that ticket.
+- **The flexors do not wrap, and a shaft cylinder does not fix it.** Their straight paths pass in
+  front of the trochlea and clear it, so biceps still peaks at 65 mm against a published 36-40 mm,
+  biceps short head still reverses sign at 2.4 rad, and brachioradialis still reverses at full
+  extension. In life they turn over the radial head and the coronoid region, not the trochlea.
+
+  A humeral shaft cylinder was tried, measured from the mesh, and it is kept -- it is correct
+  geometry and the brachialis does lie on it -- but it does not solve the problem, and the
+  measurements say why. A cylinder is a poor model of a humerus: the bone is narrow mid-shaft and
+  flared at both ends, so a cylinder wide enough to catch the flexors at the ends stands clear of
+  the bone in the middle, and one sized to the middle is grazed rather than lain on. Sized at the
+  median of the shaft surface, 12.9 mm, the long head of biceps switched three times between
+  hugging the bone and cutting through it across a single sweep of the elbow -- which is what a
+  viewer sees as the muscle flicking from side to side. Sized to enclose the shaft, 16.4 mm, it is
+  stable, but the flexors clear it at nearly every angle.
+
+  Two further findings from that work, both fixed: the enclosing radius is the right statistic for
+  a surface a muscle lies *outside* rather than bears on, and a shaft cylinder must span the shaft
+  rather than the whole bone -- run the length of the humerus, its top end reaches the glenoid,
+  where the long head of biceps originates 13.6 mm from the axis, so the origin sat inside the
+  surface and the wrap had no answer to give at all.
+
+  What the flexors actually need is via points holding them against the bone, which is what
+  published models use and what the next item is about.
 - **The via points are still absent.** The source model routes several units through points along
   the shaft. Those shift where a muscle sits without changing what it turns over, so the moment
   arms are right without them, but the lines are straighter than the real ones. They are in

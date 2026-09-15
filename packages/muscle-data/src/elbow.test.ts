@@ -120,7 +120,7 @@ describe('the elbow muscle set', () => {
     }
   });
 
-  it('turns every unit over the elbow, on the side its anatomy puts it', () => {
+  it('lays every unit against the bone, on the side its anatomy puts it', () => {
     // The three heads of triceps run behind the joint axis and the four flexors in front of it.
     // Declaring the side is what stops a path falling to the other side of the bone as the joint
     // moves, which would reverse the muscle's moment arm for a tick (muscle spec 4.3). In this
@@ -134,8 +134,12 @@ describe('the elbow muscle set', () => {
       expect(unit.path, unit.id).toHaveLength(1);
       const wrap = unit.path[0];
       if (wrap?.kind !== 'wrap') throw new Error(`${unit.id} does not wrap`);
-      expect(wrap.surface, unit.id).toBe('elbow_trochlea_r');
       const behind = extensors.includes(unit.id);
+      // The extensors turn over the trochlea, coaxial with the elbow, which is what holds their
+      // moment arm at its radius through the range. The flexors never reach it -- their paths
+      // pass in front and clear it at every angle -- so theirs is the shaft, which they lie
+      // along rather than pass through.
+      expect(wrap.surface, unit.id).toBe(behind ? 'elbow_trochlea_r' : 'humerus_shaft_r');
       expect(Math.sign(wrap.preferredSide.z as number), unit.id).toBe(behind ? 1 : -1);
     }
   });

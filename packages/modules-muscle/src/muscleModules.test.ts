@@ -106,20 +106,30 @@ describe('MusclePathModule', () => {
     s.kernel.dispose();
   });
 
-  it('publishes a length that is the distance between the attachment points', async () => {
-    // A straight-line unit's length has a closed form, and this is the only place the whole chain
-    // -- site expression, bone resolution, follower transform, pose, solver -- is checked end to
-    // end against one.
+  it('publishes a length no shorter than the straight line between the attachments', async () => {
+    // The straight distance is the floor: a path that lies against bone is longer than one that
+    // cuts through it, never shorter. This is still the only place the whole chain -- site
+    // expression, bone resolution, follower transform, pose, solver -- is checked end to end
+    // against a closed form, for the units that clear their surfaces.
     const s = await session();
-    s.kernel.run(1);
+    // Long enough for the body to fall and the arm to bend. At the rest pose the elbow is
+    // extended and every tendon clears its surface, which is correct and makes a poor moment to
+    // ask whether wrapping works.
+    s.kernel.run(600);
+    let wrapped = 0;
     for (let i = 0; i < UNITS; i++) {
       const direct = Math.hypot(
         (s.insertionPoint[3 * i] as number) - (s.originPoint[3 * i] as number),
         (s.insertionPoint[3 * i + 1] as number) - (s.originPoint[3 * i + 1] as number),
         (s.insertionPoint[3 * i + 2] as number) - (s.originPoint[3 * i + 2] as number),
       );
-      expect(s.length[i], muscles.units[i]?.id).toBeCloseTo(direct, 12);
+      expect(s.length[i], muscles.units[i]?.id).toBeGreaterThanOrEqual(direct - 1e-12);
+      if ((s.length[i] as number) > direct + 1e-9) wrapped++;
+      else expect(s.length[i], muscles.units[i]?.id).toBeCloseTo(direct, 12);
     }
+    // And at least one really is taking the long way round a bone, or this would be measuring
+    // straight lines and calling it wrapping.
+    expect(wrapped).toBeGreaterThan(0);
     s.kernel.dispose();
   });
 
@@ -145,14 +155,16 @@ describe('MusclePathModule', () => {
     s.kernel.dispose();
   });
 
-  it('reports no wrap contacts, because this solver does not wrap', async () => {
+  it('reports the tendons in contact with bone, and clears the rest of the buffer', async () => {
     const s = await session();
-    s.kernel.run(10);
-    expect(s.path.contactCount).toBe(0);
+    s.kernel.run(600);
+    expect(s.path.contactCount).toBeGreaterThan(0);
+    expect(s.path.contactCount).toBeLessThanOrEqual(UNITS);
     expect(s.path.contactOverflow).toBe(0);
-    // And the channel says so, rather than leaving a stale unit index for section 8.2 to act on.
+    // Past the live contacts the buffer says so with -1, rather than leaving a stale unit index
+    // for section 8.2 to apply last tick's reaction from.
     const unit = s.kernel.channels.storage(MUSCLE_CONTACT).fields.unit as Int32Array;
-    expect(unit[0]).toBe(-1);
+    expect(unit[s.path.contactCount]).toBe(-1);
     s.kernel.dispose();
   });
 

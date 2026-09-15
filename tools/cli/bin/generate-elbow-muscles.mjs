@@ -170,7 +170,13 @@ function render() {
       );
     }
     if (!groups.has(unit.group)) groups.set(unit.group, []);
-    groups.get(unit.group).push({ ...unit, parameters, wrap: 'elbow_trochlea_r' });
+    // Which surface each unit lies against. The extensors turn over the trochlea, where the
+    // elbow's axis runs, and that is what gives them a moment arm. The flexors never touch it --
+    // their paths pass in front of it -- so what they need is the shaft, which they lie along
+    // rather than pass through. One surface each, which is what the solver takes per span until
+    // N1.5; the flexors' elbow leverage is still the straight-line answer and is OQ-015's.
+    const wrap = unit.side === 'extensor' ? 'elbow_trochlea_r' : 'humerus_shaft_r';
+    groups.get(unit.group).push({ ...unit, parameters, wrap });
   }
 
   const body = [];
@@ -256,6 +262,13 @@ function render() {
  *
  * The sides are in the bone's own frame, where +Z is posterior for this dataset: the olecranon
  * fossa sits at z = 0.055 and the coronoid fossa, in front of it, at z = 0.020.
+ *
+ * They lie against different surfaces, too. The extensors turn over the trochlea, coaxial with
+ * the elbow, which is what holds their moment arm at its radius through the range. The flexors
+ * never reach it -- measured, their paths pass in front of it and clear it at every angle -- so
+ * what they need is the humeral shaft, which they lie along rather than pass through. One surface
+ * each: the solver takes one per span until N1.5 adds the multi-surface solve, and a muscle that
+ * wants both wants a via point between them, which is the other half of OQ-015.
  */
 
 import { cite } from '@bs-humany/hsdl';

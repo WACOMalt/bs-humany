@@ -1,6 +1,6 @@
 {
   "format": "bs-humany.wrap-radii/1",
-  "generatedAt": "2026-09-15T18:20:59.860Z",
+  "generatedAt": "2026-09-15T19:44:56.817Z",
   "dataset": {
     "name": "Z-Anatomy SkeletalSystem",
     "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",
@@ -21,7 +21,7 @@
       "vertices": 43,
       "spread": 0.003002,
       "halfLength": 0.009569,
-      "rule": "median distance from the Medial_epicondyle_of_humerus-Lateral_epicondyle_of_humerus axis to the mesh within 22 mm of Trochlea_of_humerus, over the middle 50% of the distribution"
+      "rule": "median distance from the Medial_epicondyle_of_humerus to Lateral_epicondyle_of_humerus axis, over mesh within 22 mm of Trochlea_of_humerus, taking the middle 50% of the distribution"
     },
     {
       "bone": "humerus_l",
@@ -31,7 +31,27 @@
       "vertices": 43,
       "spread": 0.003002,
       "halfLength": 0.009569,
-      "rule": "median distance from the Medial_epicondyle_of_humerus-Lateral_epicondyle_of_humerus axis to the mesh within 22 mm of Trochlea_of_humerus, over the middle 50% of the distribution"
+      "rule": "median distance from the Medial_epicondyle_of_humerus to Lateral_epicondyle_of_humerus axis, over mesh within 22 mm of Trochlea_of_humerus, taking the middle 50% of the distribution"
+    },
+    {
+      "bone": "humerus_r",
+      "feature": "Body_of_humerus__wrap_radius",
+      "description": "Radius of the humeral shaft about the bone's own long axis: what the flexors lie in front of and the extensors behind, rather than passing through (Wu 2005, 2.3.4 for the axis)",
+      "radius": 0.016389,
+      "vertices": 138,
+      "spread": 0.003441,
+      "halfLength": 0.027054,
+      "rule": "90th percentile distance from the Head_of_humerus to midpoint of Medial_epicondyle_of_humerus and Lateral_epicondyle_of_humerus axis, over mesh within 70 mm of Deltoid_tuberosity"
+    },
+    {
+      "bone": "humerus_l",
+      "feature": "Body_of_humerus__wrap_radius",
+      "description": "Radius of the humeral shaft about the bone's own long axis: what the flexors lie in front of and the extensors behind, rather than passing through (Wu 2005, 2.3.4 for the axis)",
+      "radius": 0.016389,
+      "vertices": 138,
+      "spread": 0.003441,
+      "halfLength": 0.027054,
+      "rule": "90th percentile distance from the Head_of_humerus to midpoint of Medial_epicondyle_of_humerus and Lateral_epicondyle_of_humerus axis, over mesh within 70 mm of Deltoid_tuberosity"
     }
   ]
 }
