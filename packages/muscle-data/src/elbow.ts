@@ -23,15 +23,26 @@
  *
  * ## What is not here yet
  *
- * The paths are empty. Every one of these muscles wraps in the source model -- brachialis over a
- * cylinder, both biceps heads over two ellipsoids each -- and the wrap geometry is in MyoSuite's
- * frames, so it needs the same reconciliation the via points do, and a solver that can wrap
- * (N1.4). Until then these are straight lines from origin to insertion, which is wrong about the
- * moment arm near full flexion in the direction of underestimating it. Recorded as OQ-015.
+ * The via points are. Each unit turns over the elbow and nothing else, where the source model
+ * routes several of them through a few via points along the way as well. A via point shifts where
+ * a muscle sits along the bone without changing what it turns over, so the moment arm is right
+ * and the line is a little straighter than the real one. Those points are in MyoSuite's frames,
+ * which are not ours, so carrying them across needs the reconciliation OQ-015 describes.
  *
  * Pennation is zero for every unit. That is not a gap: the MuJoCo muscle model has no pennation
  * angle at all, so the conversion folded it into the peak force and the force declared here is
  * already the force along the tendon. What it costs is recorded as OQ-014.
+ *
+ * ## Which side of the bone each muscle lies on
+ *
+ * Every unit turns over the humeral trochlea, and each declares which side it lies on: the three
+ * heads of triceps behind the joint axis, the four flexors in front of it. That is an anatomical
+ * fact rather than something to work out per tick, and declaring it is what stops a path falling
+ * to the other side of the bone as the joint moves -- which would reverse the muscle's moment arm
+ * for a tick and turn a flexor into an extensor (muscle spec 4.3).
+ *
+ * The sides are in the bone's own frame, where +Z is posterior for this dataset: the olecranon
+ * fossa sits at z = 0.055 and the coronoid fossa, in front of it, at z = 0.020.
  */
 
 import { cite } from '@bs-humany/hsdl';
@@ -68,7 +79,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Biceps brachii, long head, right',
         origin: 'biceps_brachii_origin_r_supraglenoid_tubercle',
         insertion: 'biceps_brachii_insertion_r_radial_tuberosity',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'elbow_trochlea_r',
+            preferredSide: { x: 0, y: 0, z: -1 },
+            source: gray('Biceps brachii'),
+          },
+        ],
         parameters: {
           maxIsometricForce: 421.718,
           optimalFiberLength: 0.127198,
@@ -83,7 +101,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Biceps brachii, short head, right',
         origin: 'biceps_brachii_origin_r_coracoid_process',
         insertion: 'biceps_brachii_insertion_r_radial_tuberosity',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'elbow_trochlea_r',
+            preferredSide: { x: 0, y: 0, z: -1 },
+            source: gray('Biceps brachii'),
+          },
+        ],
         parameters: {
           maxIsometricForce: 270.82,
           optimalFiberLength: 0.177462,
@@ -107,7 +132,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Brachialis, right',
         origin: 'brachialis_origin_r_anteromedial_surface_of_humerus',
         insertion: 'brachialis_insertion_r_tuberosity_of_ulna',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'elbow_trochlea_r',
+            preferredSide: { x: 0, y: 0, z: -1 },
+            source: gray('Brachialis'),
+          },
+        ],
         parameters: {
           maxIsometricForce: 1168.76,
           optimalFiberLength: 0.0576238,
@@ -131,7 +163,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Brachioradialis, right',
         origin: 'brachioradialis_origin_r_lateral_supracondylar_ridge',
         insertion: 'brachioradialis_insertion_r_radial_styloid_process',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'elbow_trochlea_r',
+            preferredSide: { x: 0, y: 0, z: -1 },
+            source: gray('Brachioradialis'),
+          },
+        ],
         parameters: {
           maxIsometricForce: 272.486,
           optimalFiberLength: 0.101976,
@@ -155,7 +194,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Triceps brachii, long head, right',
         origin: 'triceps_brachii_origin_r_infraglenoid_tubercle',
         insertion: 'triceps_brachii_insertion_r_olecranon',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'elbow_trochlea_r',
+            preferredSide: { x: 0, y: 0, z: 1 },
+            source: gray('Triceps brachii'),
+          },
+        ],
         parameters: {
           maxIsometricForce: 670.069,
           optimalFiberLength: 0.179115,
@@ -170,7 +216,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Triceps brachii, lateral head, right',
         origin: 'triceps_brachii_origin_r_posterior_surface_of_humerus',
         insertion: 'triceps_brachii_insertion_r_olecranon',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'elbow_trochlea_r',
+            preferredSide: { x: 0, y: 0, z: 1 },
+            source: gray('Triceps brachii'),
+          },
+        ],
         parameters: {
           maxIsometricForce: 682.224,
           optimalFiberLength: 0.0636004,
@@ -185,7 +238,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Triceps brachii, medial head, right',
         origin: 'triceps_brachii_origin_r_posterior_surface_of_humerus',
         insertion: 'triceps_brachii_insertion_r_olecranon',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'elbow_trochlea_r',
+            preferredSide: { x: 0, y: 0, z: 1 },
+            source: gray('Triceps brachii'),
+          },
+        ],
         parameters: {
           maxIsometricForce: 660.895,
           optimalFiberLength: 0.0513648,

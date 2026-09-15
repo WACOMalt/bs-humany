@@ -1,5 +1,5 @@
 import type { ScalarExpr } from '@bs-humany/hsdl';
-import { buildAttachmentSites } from '@bs-humany/skeleton';
+import { buildAttachmentSites, buildWrappingSurfaces } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { ELBOW_MUSCLES, ELBOW_UNITS } from './elbow.js';
 import { MUSCLE_SCHEMA_VERSION, type MuscleExtension, MuscleExtensionSchema } from './schema.js';
@@ -33,7 +33,7 @@ describe('the elbow muscle set', () => {
     // from this subject's markers; if a site is ever renamed there, this fails here rather than
     // as a path-solver compile error in a package that cannot say which muscle asked for it.
     const report = validateMuscleExtension(
-      { attachmentSites: buildAttachmentSites(), wrappingSurfaces: [] },
+      { attachmentSites: buildAttachmentSites(), wrappingSurfaces: buildWrappingSurfaces() },
       extension,
     );
     expect(report.problems).toEqual([]);
@@ -120,11 +120,23 @@ describe('the elbow muscle set', () => {
     }
   });
 
-  it('records that the paths are straight lines rather than pretending otherwise', () => {
-    // OQ-015. Every one of these muscles wraps in the source model. An empty path is a stated
-    // limitation, and this asserts that the state of the data matches what the open question says.
+  it('turns every unit over the elbow, on the side its anatomy puts it', () => {
+    // The three heads of triceps run behind the joint axis and the four flexors in front of it.
+    // Declaring the side is what stops a path falling to the other side of the bone as the joint
+    // moves, which would reverse the muscle's moment arm for a tick (muscle spec 4.3). In this
+    // dataset's bone frame +Z is posterior: the olecranon fossa sits behind the coronoid one.
+    const extensors = [
+      'triceps_brachii_long_r',
+      'triceps_brachii_lateral_r',
+      'triceps_brachii_medial_r',
+    ];
     for (const unit of ELBOW_UNITS) {
-      expect(unit.path, unit.id).toEqual([]);
+      expect(unit.path, unit.id).toHaveLength(1);
+      const wrap = unit.path[0];
+      if (wrap?.kind !== 'wrap') throw new Error(`${unit.id} does not wrap`);
+      expect(wrap.surface, unit.id).toBe('elbow_trochlea_r');
+      const behind = extensors.includes(unit.id);
+      expect(Math.sign(wrap.preferredSide.z as number), unit.id).toBe(behind ? 1 : -1);
     }
   });
 });

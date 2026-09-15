@@ -235,7 +235,37 @@ fails it and forces this question to be revisited rather than quietly closed.
 **Closes when:** N1.4 lands and the via points and wrap surfaces are expressed in this project's
 bone frames -- either by reconciling MyoSuite's frames against ours, or by locating the surfaces
 on this subject's own bone geometry the way M5.8 located the collision hulls.
+
+**Half closed, 2026-09-15.** The second route was taken: the humeral trochlea is measured from
+this subject's own mesh (18.0 mm radius about the epicondylar axis, +/- 3.0 mm, half-length
+9.6 mm) and placed on the elbow joint's own axis, so it is coaxial with the joint by construction
+-- 0.000 mm of offset and 0.0000 degrees of tilt. All seven units now turn over it, the flexors in
+front and the extensors behind.
+
+What that fixed: the triceps moment arm used to fall from -20.0 mm at full extension to zero at
+about 2 rad and then reverse sign, so a fully driven triceps held a bent elbow bent. It now holds
+flat at -18.0 mm -- the surface's radius, which is what a pulley gives and what published curves
+show -- from 1.2 rad onward.
+
+What is still open, and why this is only half:
+
+- **The flexors do not wrap.** Their straight paths pass in front of the trochlea and clear it, so
+  biceps still peaks at 65 mm against a published 36-40 mm, biceps short head still reverses sign
+  at 2.4 rad, and brachioradialis still reverses at full extension. In life they turn over the
+  radial head and the coronoid region, not the trochlea. A second surface is needed, and the path
+  solver takes one per span until N1.5 adds the multi-surface solve -- so this needs either a via
+  point splitting the span or that ticket.
+- **The via points are still absent.** The source model routes several units through points along
+  the shaft. Those shift where a muscle sits without changing what it turns over, so the moment
+  arms are right without them, but the lines are straighter than the real ones. They are in
+  MyoSuite's frames, which are not ours.
+- **Several tendons are still slack.** The wrapping lengthened the paths -- the long head of
+  triceps went from 45 mm short of its resting length to 0 at full flexion -- but the lateral and
+  medial heads remain 75-120 mm short and cannot load at any angle. Their parameters were fitted
+  against paths with via points; without those the geometry is still too short.
+
 **Status:** open
+
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4

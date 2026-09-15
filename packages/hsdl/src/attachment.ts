@@ -19,7 +19,7 @@ import { z } from 'zod';
 import { CitationSchema } from './citation.js';
 import { ScalarExprSchema } from './expr.js';
 import { ExtensionsSchema } from './extensions.js';
-import { IdSchema, TransformSchema } from './primitives.js';
+import { IdSchema, TransformExprSchema } from './primitives.js';
 
 export const AttachmentKindSchema = z.enum([
   'muscle_origin',
@@ -68,8 +68,15 @@ export const WrappingSurfaceDefSchema = z
     id: IdSchema,
     bone: IdSchema,
     displayName: z.string().min(1),
-    /** Placement in the bone's local frame. */
-    transform: TransformSchema,
+    /**
+     * Placement in the bone's local frame, as expressions over the morphology parameters.
+     *
+     * Expressions rather than fixed metres for the same reason bone rest transforms are (section
+     * 6.4): a surface pinned to absolute numbers would stay where it was as the body changed size,
+     * so the tendon that turns over it would be riding on nothing at any stature but the one it
+     * was authored at. The radius has to scale with it, and does.
+     */
+    transform: TransformExprSchema,
     shape: z.discriminatedUnion('kind', [
       z
         .object({

@@ -56,6 +56,7 @@ const check = process.argv.includes('--check');
 const UNITS = [
   {
     actuator: 'BIClong',
+    side: 'flexor',
     group: 'biceps_brachii_r',
     groupName: 'Biceps brachii, right',
     taTerm: 'Musculus biceps brachii',
@@ -67,6 +68,7 @@ const UNITS = [
   },
   {
     actuator: 'BICshort',
+    side: 'flexor',
     group: 'biceps_brachii_r',
     id: 'biceps_brachii_short_r',
     name: 'Biceps brachii, short head, right',
@@ -75,6 +77,7 @@ const UNITS = [
   },
   {
     actuator: 'BRA',
+    side: 'flexor',
     group: 'brachialis_r',
     groupName: 'Brachialis, right',
     taTerm: 'Musculus brachialis',
@@ -86,6 +89,7 @@ const UNITS = [
   },
   {
     actuator: 'BRD',
+    side: 'flexor',
     group: 'brachioradialis_r',
     groupName: 'Brachioradialis, right',
     taTerm: 'Musculus brachioradialis',
@@ -97,6 +101,7 @@ const UNITS = [
   },
   {
     actuator: 'TRIlong',
+    side: 'extensor',
     group: 'triceps_brachii_r',
     groupName: 'Triceps brachii, right',
     taTerm: 'Musculus triceps brachii',
@@ -108,6 +113,7 @@ const UNITS = [
   },
   {
     actuator: 'TRIlat',
+    side: 'extensor',
     group: 'triceps_brachii_r',
     id: 'triceps_brachii_lateral_r',
     name: 'Triceps brachii, lateral head, right',
@@ -116,6 +122,7 @@ const UNITS = [
   },
   {
     actuator: 'TRImed',
+    side: 'extensor',
     group: 'triceps_brachii_r',
     id: 'triceps_brachii_medial_r',
     name: 'Triceps brachii, medial head, right',
@@ -163,7 +170,7 @@ function render() {
       );
     }
     if (!groups.has(unit.group)) groups.set(unit.group, []);
-    groups.get(unit.group).push({ ...unit, parameters });
+    groups.get(unit.group).push({ ...unit, parameters, wrap: 'elbow_trochlea_r' });
   }
 
   const body = [];
@@ -183,7 +190,14 @@ function render() {
         displayName: '${unit.name}',
         origin: '${unit.origin}',
         insertion: '${unit.insertion}',
-        path: [],
+        path: [
+          {
+            kind: 'wrap',
+            surface: '${unit.wrap}',
+            preferredSide: { x: 0, y: 0, z: ${unit.side === 'extensor' ? 1 : -1} },
+            source: gray('${unit.name.split(',')[0]}'),
+          },
+        ],
         parameters: {
           maxIsometricForce: ${num(p.maxIsometricForce)},
           optimalFiberLength: ${num(p.optimalFiberLength)},
@@ -222,15 +236,26 @@ function render() {
  *
  * ## What is not here yet
  *
- * The paths are empty. Every one of these muscles wraps in the source model -- brachialis over a
- * cylinder, both biceps heads over two ellipsoids each -- and the wrap geometry is in MyoSuite's
- * frames, so it needs the same reconciliation the via points do, and a solver that can wrap
- * (N1.4). Until then these are straight lines from origin to insertion, which is wrong about the
- * moment arm near full flexion in the direction of underestimating it. Recorded as OQ-015.
+ * The via points are. Each unit turns over the elbow and nothing else, where the source model
+ * routes several of them through a few via points along the way as well. A via point shifts where
+ * a muscle sits along the bone without changing what it turns over, so the moment arm is right
+ * and the line is a little straighter than the real one. Those points are in MyoSuite's frames,
+ * which are not ours, so carrying them across needs the reconciliation OQ-015 describes.
  *
  * Pennation is zero for every unit. That is not a gap: the MuJoCo muscle model has no pennation
  * angle at all, so the conversion folded it into the peak force and the force declared here is
  * already the force along the tendon. What it costs is recorded as OQ-014.
+ *
+ * ## Which side of the bone each muscle lies on
+ *
+ * Every unit turns over the humeral trochlea, and each declares which side it lies on: the three
+ * heads of triceps behind the joint axis, the four flexors in front of it. That is an anatomical
+ * fact rather than something to work out per tick, and declaring it is what stops a path falling
+ * to the other side of the bone as the joint moves -- which would reverse the muscle's moment arm
+ * for a tick and turn a flexor into an extensor (muscle spec 4.3).
+ *
+ * The sides are in the bone's own frame, where +Z is posterior for this dataset: the olecranon
+ * fossa sits at z = 0.055 and the coronoid fossa, in front of it, at z = 0.020.
  */
 
 import { cite } from '@bs-humany/hsdl';

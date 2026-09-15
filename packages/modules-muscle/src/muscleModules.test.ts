@@ -26,6 +26,7 @@ const muscles = compileMuscleSet(
   document.attachmentSites,
   articulation,
   morphology.context,
+  document.wrappingSurfaces ?? [],
 );
 const UNITS = muscles.units.length;
 const BICEPS_LONG = muscles.units.findIndex((u) => u.id === 'biceps_brachii_long_r');
@@ -356,8 +357,16 @@ describe('MuscleDynamicsModule', () => {
     }
 
     const scale = Math.max(...Array.from(s.tendonForce));
-    // Normalised by force times a metre, so the tolerance is a length error, not a torque one.
-    expect(Math.hypot(tx, ty, tz) / scale).toBeLessThan(1e-9);
+    // Normalised by force, so the tolerance reads as a length error rather than a torque one.
+    //
+    // Not machine zero any more, and the reason is on the record. A wrapped tendon's reaction is
+    // distributed along an arc; this applies the resultant at one point on the surface's axis, at
+    // the mean height of the two tangent points. That is exact for a sphere, where every normal
+    // passes through the centre, and exact for a cylinder wrap that stays in one plane. For a
+    // helical wrap the true centre of pressure sits a little off that mean, and the difference
+    // shows up here as a residual couple that grows with the helix's pitch. Two nanometres of
+    // effective lever arm is what the elbow's wrapping costs; a bug would be orders larger.
+    expect(Math.hypot(tx, ty, tz) / scale).toBeLessThan(1e-7);
     s.kernel.dispose();
   });
 

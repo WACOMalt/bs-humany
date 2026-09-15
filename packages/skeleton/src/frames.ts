@@ -218,7 +218,7 @@ export function buildVirtualLandmarks(): LandmarkDef[] {
 // ---------------------------------------------------------------------------------------------
 
 /** A landmark reference: an ISB abbreviation on a bone, or a virtual landmark id. */
-type Ref = readonly [bone: string, abbreviation: string] | { readonly virtual: string };
+export type Ref = readonly [bone: string, abbreviation: string] | { readonly virtual: string };
 
 interface AxisSpec {
   readonly axis: 'x' | 'y' | 'z';
@@ -468,7 +468,14 @@ function refId(ref: Ref): string {
   return landmarkId(isb.bone, isb.feature);
 }
 
-function refWorld(ref: Ref): P3 {
+/**
+ * A landmark reference in dataset world coordinates.
+ *
+ * Exported so that anything placed on a bone's ISB frame -- a wrapping surface, say -- resolves
+ * its landmarks the same way the frames do, rather than growing a second copy of the abbreviation
+ * table and the virtual-landmark rules that would drift from this one.
+ */
+export function refWorld(ref: Ref): P3 {
   if ('virtual' in ref) {
     const v = VIRTUAL_LANDMARKS.find((x) => x.id === ref.virtual);
     if (!v) throw new Error(`Unknown virtual landmark '${ref.virtual}'.`);

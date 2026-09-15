@@ -29,6 +29,7 @@ import { buildLandmarks } from './landmarks.js';
 import { buildCollisionSetup, buildContactRules } from './proxies.js';
 import { SEGMENTATION_PROFILES } from './segmentation.js';
 import { BONES } from './taxonomy.js';
+import { buildWrappingSurfaces } from './wrapSurfaces.js';
 
 /** Build the bone definitions by joining taxonomy entries with their shapes. */
 /**
@@ -212,6 +213,8 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
     },
 
     attachmentSites: options.placement === 'procedural' ? [] : buildAttachmentSites(),
+    // Placed on joint axes, which the procedural layout has none of.
+    wrappingSurfaces: options.placement === 'procedural' ? [] : buildWrappingSurfaces(),
   };
 
   return assertValidDocument(document);

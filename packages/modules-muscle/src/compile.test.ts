@@ -14,7 +14,13 @@ const L3 = compileArticulation(document, 'l3_anatomical', morphology).articulati
 const L1 = compileArticulation(document, 'l1_standard', morphology).articulation;
 
 const set = (articulation = L3) =>
-  compileMuscleSet(ELBOW_MUSCLES, document.attachmentSites, articulation, morphology.context);
+  compileMuscleSet(
+    ELBOW_MUSCLES,
+    document.attachmentSites,
+    articulation,
+    morphology.context,
+    document.wrappingSurfaces ?? [],
+  );
 
 describe('the bone resolver', () => {
   it('maps every bone a segment owns to that segment', () => {
@@ -88,7 +94,13 @@ describe('compiling a muscle set', () => {
     const tall = resolveMorphology({ sex: 0.5, stature: 2.0, mass: 90 });
     const short = resolveMorphology({ sex: 0.5, stature: 1.5, mass: 55 });
     const reach = (context: typeof morphology.context) => {
-      const compiled = compileMuscleSet(ELBOW_MUSCLES, document.attachmentSites, L3, context);
+      const compiled = compileMuscleSet(
+        ELBOW_MUSCLES,
+        document.attachmentSites,
+        L3,
+        context,
+        document.wrappingSurfaces ?? [],
+      );
       const p = compiled.paths[0]?.origin.point;
       if (!p) throw new Error('no path');
       return Math.hypot(p.x, p.y, p.z);
@@ -123,13 +135,38 @@ describe('compiling a muscle set', () => {
   });
 
   it('names the muscle when a site is missing, rather than failing somewhere downstream', () => {
-    expect(() => compileMuscleSet(ELBOW_MUSCLES, [], L3, morphology.context)).toThrow(
-      /biceps_brachii_long_r/,
-    );
+    expect(() =>
+      compileMuscleSet(ELBOW_MUSCLES, [], L3, morphology.context, document.wrappingSurfaces ?? []),
+    ).toThrow(/biceps_brachii_long_r/);
   });
 
-  it('builds no wrap surfaces for a set that declares none', () => {
-    expect(set().surfaces).toEqual([]);
+  it('gives every elbow unit its own copy of the trochlea it turns over', () => {
+    // All seven cross the same joint and wrap the same bone, and each needs its own copy because
+    // the flexors lie in front of it and the extensors behind.
+    const compiled = set();
+    expect(compiled.surfaces).toHaveLength(7);
+    for (const surface of compiled.surfaces) {
+      expect(surface.type, surface.id).toBe('cylinder');
+      expect(surface.bone, surface.id).toBe('humerus_r');
+    }
+    const sides = compiled.surfaces.map((s) => Math.sign(s.preferredSide.z));
+    expect(sides.filter((z) => z < 0)).toHaveLength(4);
+    expect(sides.filter((z) => z > 0)).toHaveLength(3);
+  });
+
+  it('builds no wrap surfaces for a set whose units declare none', () => {
+    const straight = ELBOW_MUSCLES.map((g) => ({
+      ...g,
+      units: g.units.map((u) => ({ ...u, path: [] })),
+    }));
+    const compiled = compileMuscleSet(
+      straight,
+      document.attachmentSites,
+      L3,
+      morphology.context,
+      document.wrappingSurfaces ?? [],
+    );
+    expect(compiled.surfaces).toEqual([]);
   });
 });
 

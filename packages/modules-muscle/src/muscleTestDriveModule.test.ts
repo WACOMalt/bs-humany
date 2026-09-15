@@ -20,6 +20,7 @@ const muscles = compileMuscleSet(
   document.attachmentSites,
   articulation,
   morphology.context,
+  document.wrappingSurfaces ?? [],
 );
 const BICEPS = muscles.units.findIndex((u) => u.id === 'biceps_brachii_long_r');
 const TRICEPS = muscles.units.findIndex((u) => u.id === 'triceps_brachii_long_r');
