@@ -487,14 +487,20 @@ describe('MuscleMomentModule', () => {
   }
 
   it('pairs every unit with the elbow coordinate it crosses', () => {
-    // Seven units, all crossing the same hinge. A unit that crossed nothing would be a muscle
-    // anchored to one bone at both ends, and a unit paired with a coordinate it does not cross
-    // would report leverage it does not have.
+    // Seven units on each arm, all crossing that arm's own hinge. A unit that crossed nothing
+    // would be a muscle anchored to one bone at both ends; a unit paired with a coordinate it
+    // does not cross would report leverage it does not have; and a left unit paired with the
+    // right elbow would be a muscle reaching across the body.
     const moment = new MuscleMomentModule(articulation, muscles);
-    const elbow = moment.pairs.filter((p) => p.jointId === 'elbow_r');
-    expect(elbow).toHaveLength(7);
-    expect(new Set(elbow.map((p) => p.unitId)).size).toBe(7);
-    expect(elbow.every((p) => p.dofId === 'flexion')).toBe(true);
+    for (const side of ['r', 'l']) {
+      const elbow = moment.pairs.filter((p) => p.jointId === `elbow_${side}`);
+      expect(elbow, side).toHaveLength(7);
+      expect(new Set(elbow.map((p) => p.unitId)).size, side).toBe(7);
+      expect(
+        elbow.every((p) => p.dofId === 'flexion' && p.unitId.endsWith(`_${side}`)),
+        side,
+      ).toBe(true);
+    }
   });
 
   it('holds the triceps at the trochlea’s radius instead of letting it reverse', async () => {

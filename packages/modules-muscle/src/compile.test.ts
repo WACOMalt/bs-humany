@@ -72,8 +72,9 @@ describe('the bone resolver', () => {
 describe('compiling a muscle set', () => {
   it('resolves every elbow unit against the L3 skeleton', () => {
     const compiled = set();
-    expect(compiled.units).toHaveLength(7);
-    expect(compiled.paths).toHaveLength(7);
+    // Seven units on each arm.
+    expect(compiled.units).toHaveLength(14);
+    expect(compiled.paths).toHaveLength(14);
     expect(compiled.units.map((u) => u.id)).toEqual(compiled.paths.map((p) => p.id));
   });
 
@@ -126,7 +127,7 @@ describe('compiling a muscle set', () => {
     // forearm bones are followers of one segment, so both biceps heads now insert on a body that
     // also owns the ulna -- which is exactly what a coarse profile means.
     const compiled = set(L1);
-    expect(compiled.units).toHaveLength(7);
+    expect(compiled.units).toHaveLength(14);
     const resolver = compiled.resolver;
     for (const path of compiled.paths) {
       expect(resolver.bodyOf(path.origin.bone), path.id).toBeGreaterThanOrEqual(0);
@@ -141,17 +142,22 @@ describe('compiling a muscle set', () => {
   });
 
   it('gives every elbow unit its own copy of the trochlea it turns over', () => {
-    // All seven cross the same joint and wrap the same bone, and each needs its own copy because
-    // the flexors lie in front of it and the extensors behind.
+    // Seven units on each arm cross the same joint and wrap the same bone, and each needs its own
+    // copy because the flexors lie in front of it and the extensors behind.
     const compiled = set();
-    expect(compiled.surfaces).toHaveLength(7);
+    expect(compiled.surfaces).toHaveLength(14);
     for (const surface of compiled.surfaces) {
       expect(surface.type, surface.id).toBe('cylinder');
-      expect(surface.bone, surface.id).toBe('humerus_r');
+      expect(surface.bone, surface.id).toMatch(/^humerus_[rl]$/);
+      // Each unit's copy is on its own arm: a left muscle wrapping the right humerus would pull
+      // across the body.
+      expect(surface.bone, surface.id).toBe(
+        surface.id.includes('_l__') ? 'humerus_l' : 'humerus_r',
+      );
     }
     const sides = compiled.surfaces.map((s) => Math.sign(s.preferredSide.z));
-    expect(sides.filter((z) => z < 0)).toHaveLength(4);
-    expect(sides.filter((z) => z > 0)).toHaveLength(3);
+    expect(sides.filter((z) => z < 0)).toHaveLength(8);
+    expect(sides.filter((z) => z > 0)).toHaveLength(6);
   });
 
   it('builds no wrap surfaces for a set whose units declare none', () => {

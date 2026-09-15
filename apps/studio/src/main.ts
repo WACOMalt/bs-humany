@@ -223,23 +223,26 @@ const ui = {
 };
 
 /**
- * Which of the seven elbow units flex and which extend.
+ * Which elbow units flex and which extend, on both arms.
  *
  * Split by anatomy rather than by measuring a moment arm, because the sign of a moment arm is
  * what the validation harness checks and using it here would make the panel agree with itself
- * by construction.
+ * by construction. Both arms answer to the same two sliders: a muscle is a flexor on either side.
  */
-const FLEXORS = [
-  'biceps_brachii_long_r',
-  'biceps_brachii_short_r',
-  'brachialis_r',
-  'brachioradialis_r',
-];
-const EXTENSORS = [
-  'triceps_brachii_long_r',
-  'triceps_brachii_lateral_r',
-  'triceps_brachii_medial_r',
-];
+const sides = <T extends string>(...names: T[]): string[] =>
+  names.flatMap((name) => [`${name}_r`, `${name}_l`]);
+
+const FLEXORS = sides(
+  'biceps_brachii_long',
+  'biceps_brachii_short',
+  'brachialis',
+  'brachioradialis',
+);
+const EXTENSORS = sides(
+  'triceps_brachii_long',
+  'triceps_brachii_lateral',
+  'triceps_brachii_medial',
+);
 
 function currentMorphology(): Morphology {
   return {
@@ -776,9 +779,10 @@ function applyMuscleDrive(sim: Simulation | null | undefined): void {
 /**
  * What the muscles are pulling with, grouped the way a person thinks about an elbow.
  *
- * "Loaded" counts the units whose tendon is carrying anything at all. It is here because three
- * of the seven currently are not: their straight-line paths are shorter than their own resting
- * length, so the tendon never takes up (OQ-015, which the wrap geometry closes).
+ * "Loaded" counts the units whose tendon is carrying anything at all. It earned its place when
+ * three of the seven were not: their straight-line paths were shorter than their own resting
+ * length, so the tendon never took up. Via points fixed that and the count now reads full at rest,
+ * which is exactly why it is worth keeping on screen. Both arms are counted together.
  */
 function updateMuscles(sim: Simulation): void {
   const state = sim.muscleState();

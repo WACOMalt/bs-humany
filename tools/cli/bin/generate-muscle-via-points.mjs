@@ -49,6 +49,19 @@
  * Lengths are scaled by the humerus ratio throughout, forearm points included. That assumes the
  * two skeletons have similar proportions; where they do not, a forearm point is out by the
  * difference between the two ratios, which is a few per cent of a bone.
+ *
+ * ## The other arm
+ *
+ * The reference model is a right arm and there is no left one to carry over, so the left side is
+ * this side mirrored. That is a cheaper claim than it sounds: a point here is stored as an offset
+ * from its bone's centroid in the dataset's own axis-aligned frame, and the dataset's two sides
+ * are the same geometry reflected in the sagittal plane, so mirroring a point is negating one
+ * coordinate. The assumption is that the dataset is symmetric, and it is checked rather than
+ * assumed -- each left bone's centroid is compared against its right one's reflection, and the
+ * generator refuses if any pair disagrees by more than `SYMMETRY_TOLERANCE`.
+ *
+ * What the mirror does not touch is which side of a surface a muscle passes: that is stated as an
+ * anterior or posterior direction, and anterior is anterior on both arms.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -66,6 +79,16 @@ const check = process.argv.includes('--check');
 const jiti = createJiti(import.meta.url);
 const frames = await jiti.import(join(ROOT, 'packages/frames/src/index.ts'));
 const skeleton = await jiti.import(join(ROOT, 'packages/skeleton/src/index.ts'));
+
+/**
+ * How far a left bone's centroid may sit from its right one's reflection, metres.
+ *
+ * Two millimetres. The dataset's sides are not identical -- they are a real subject's, and real
+ * skeletons are asymmetric -- but a bone whose centroid is centimetres from its mirror is a bone
+ * that has been packed differently on the two sides, and a point mirrored onto it would land in
+ * the wrong place.
+ */
+const SYMMETRY_TOLERANCE = 0.002;
 
 /** Which of our units is which of the reference model's tendons. */
 const UNITS = [
@@ -267,6 +290,61 @@ for (const spec of UNITS) {
   );
 }
 
+// --- The other arm ------------------------------------------------------------------------------
+
+/**
+ * The same points on the left, by reflecting them in the sagittal plane.
+ *
+ * A point is stored as an offset from its bone's centroid in the dataset's own axis-aligned frame,
+ * where +X is right. So the reflection is a negated X in world, taken back to an offset from the
+ * *left* bone's centroid -- which is why the two centroids have to agree to a mirror for this to
+ * mean anything, and why that is checked.
+ */
+const mirrored = [];
+const asymmetry = [];
+for (const r of rows) {
+  const left = r.bone.replace(/_r$/, '_l');
+  const rightCentroid = centroids.get(r.bone);
+  const leftCentroid = centroids.get(left);
+  if (!leftCentroid) throw new Error(`'${left}' is not in the packed dataset`);
+  const gap = Math.hypot(
+    leftCentroid[0] + rightCentroid[0],
+    leftCentroid[1] - rightCentroid[1],
+    leftCentroid[2] - rightCentroid[2],
+  );
+  if (gap > SYMMETRY_TOLERANCE)
+    asymmetry.push(`${r.bone} vs ${left}: ${(gap * 1000).toFixed(1)} mm`);
+  // Back to world, reflect, and down again onto the left bone.
+  const world = [
+    r.local[0] * stature + rightCentroid[0],
+    r.local[1] * stature + rightCentroid[1],
+    r.local[2] * stature + rightCentroid[2],
+  ];
+  mirrored.push({
+    id: r.id.replace(/_r__via_/, '_l__via_'),
+    unit: r.unit.replace(/_r$/, '_l'),
+    order: r.order,
+    bone: left,
+    site: r.site,
+    local: [
+      round((-world[0] - leftCentroid[0]) / stature),
+      round((world[1] - leftCentroid[1]) / stature),
+      round((world[2] - leftCentroid[2]) / stature),
+    ],
+  });
+}
+if (asymmetry.length > 0) {
+  throw new Error(
+    `The dataset's two sides do not mirror to within ${SYMMETRY_TOLERANCE * 1000} mm, so the ` +
+      `left arm cannot be taken as this one reflected:\n  ${asymmetry.join('\n  ')}`,
+  );
+}
+rows.push(...mirrored);
+console.error(
+  `  mirrored ${mirrored.length} point(s) onto the left arm; the two sides' bone centroids ` +
+    'agree to a reflection',
+);
+
 const body = rows
   .map(
     (r) => `  {
@@ -305,6 +383,13 @@ const rendered = `/**
  *
  * Positions are a fraction of the subject's stature, as every other point in this package is, so
  * they scale with the morphology.
+ *
+ * ## The left arm
+ *
+ * The reference model is a right arm, so the left side is this side reflected in the sagittal
+ * plane. The generator checks the assumption that makes that valid -- every left bone's centroid
+ * against its right one's reflection -- and refuses rather than mirroring onto a bone that is not
+ * where its mirror would be.
  */
 
 /** One point a muscle passes through, in the order it meets them from origin to insertion. */

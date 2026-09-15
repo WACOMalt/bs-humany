@@ -133,79 +133,113 @@ const UNITS = [
   {
     actuator: 'BIClong',
     side: 'flexor',
-    group: 'biceps_brachii_r',
-    groupName: 'Biceps brachii, right',
+    group: 'biceps_brachii_$',
+    groupName: 'Biceps brachii',
     taTerm: 'Musculus biceps brachii',
     innervation: 'Musculocutaneous nerve',
-    id: 'biceps_brachii_long_r',
-    name: 'Biceps brachii, long head, right',
-    origin: 'biceps_brachii_origin_r_supraglenoid_tubercle',
-    insertion: 'biceps_brachii_insertion_r_radial_tuberosity',
+    id: 'biceps_brachii_long_$',
+    name: 'Biceps brachii, long head',
+    origin: 'biceps_brachii_origin_$_supraglenoid_tubercle',
+    insertion: 'biceps_brachii_insertion_$_radial_tuberosity',
   },
   {
     actuator: 'BICshort',
     side: 'flexor',
-    group: 'biceps_brachii_r',
-    id: 'biceps_brachii_short_r',
-    name: 'Biceps brachii, short head, right',
-    origin: 'biceps_brachii_origin_r_coracoid_process',
-    insertion: 'biceps_brachii_insertion_r_radial_tuberosity',
+    group: 'biceps_brachii_$',
+    id: 'biceps_brachii_short_$',
+    name: 'Biceps brachii, short head',
+    origin: 'biceps_brachii_origin_$_coracoid_process',
+    insertion: 'biceps_brachii_insertion_$_radial_tuberosity',
   },
   {
     actuator: 'BRA',
     side: 'flexor',
-    group: 'brachialis_r',
-    groupName: 'Brachialis, right',
+    group: 'brachialis_$',
+    groupName: 'Brachialis',
     taTerm: 'Musculus brachialis',
     innervation: 'Musculocutaneous nerve',
-    id: 'brachialis_r',
-    name: 'Brachialis, right',
-    origin: 'brachialis_origin_r_anteromedial_surface_of_humerus',
-    insertion: 'brachialis_insertion_r_tuberosity_of_ulna',
+    id: 'brachialis_$',
+    name: 'Brachialis',
+    origin: 'brachialis_origin_$_anteromedial_surface_of_humerus',
+    insertion: 'brachialis_insertion_$_tuberosity_of_ulna',
   },
   {
     actuator: 'BRD',
     side: 'flexor',
-    group: 'brachioradialis_r',
-    groupName: 'Brachioradialis, right',
+    group: 'brachioradialis_$',
+    groupName: 'Brachioradialis',
     taTerm: 'Musculus brachioradialis',
     innervation: 'Radial nerve',
-    id: 'brachioradialis_r',
-    name: 'Brachioradialis, right',
-    origin: 'brachioradialis_origin_r_lateral_supracondylar_ridge',
-    insertion: 'brachioradialis_insertion_r_radial_styloid_process',
+    id: 'brachioradialis_$',
+    name: 'Brachioradialis',
+    origin: 'brachioradialis_origin_$_lateral_supracondylar_ridge',
+    insertion: 'brachioradialis_insertion_$_radial_styloid_process',
   },
   {
     actuator: 'TRIlong',
     side: 'extensor',
-    group: 'triceps_brachii_r',
-    groupName: 'Triceps brachii, right',
+    group: 'triceps_brachii_$',
+    groupName: 'Triceps brachii',
     taTerm: 'Musculus triceps brachii',
     innervation: 'Radial nerve',
-    id: 'triceps_brachii_long_r',
-    name: 'Triceps brachii, long head, right',
-    origin: 'triceps_brachii_origin_r_infraglenoid_tubercle',
-    insertion: 'triceps_brachii_insertion_r_olecranon',
+    id: 'triceps_brachii_long_$',
+    name: 'Triceps brachii, long head',
+    origin: 'triceps_brachii_origin_$_infraglenoid_tubercle',
+    insertion: 'triceps_brachii_insertion_$_olecranon',
   },
   {
     actuator: 'TRIlat',
     side: 'extensor',
-    group: 'triceps_brachii_r',
-    id: 'triceps_brachii_lateral_r',
-    name: 'Triceps brachii, lateral head, right',
-    origin: 'triceps_brachii_origin_r_posterior_surface_of_humerus',
-    insertion: 'triceps_brachii_insertion_r_olecranon',
+    group: 'triceps_brachii_$',
+    id: 'triceps_brachii_lateral_$',
+    name: 'Triceps brachii, lateral head',
+    origin: 'triceps_brachii_origin_$_posterior_surface_of_humerus',
+    insertion: 'triceps_brachii_insertion_$_olecranon',
   },
   {
     actuator: 'TRImed',
     side: 'extensor',
-    group: 'triceps_brachii_r',
-    id: 'triceps_brachii_medial_r',
-    name: 'Triceps brachii, medial head, right',
-    origin: 'triceps_brachii_origin_r_posterior_surface_of_humerus',
-    insertion: 'triceps_brachii_insertion_r_olecranon',
+    group: 'triceps_brachii_$',
+    id: 'triceps_brachii_medial_$',
+    name: 'Triceps brachii, medial head',
+    origin: 'triceps_brachii_origin_$_posterior_surface_of_humerus',
+    insertion: 'triceps_brachii_insertion_$_olecranon',
   },
 ];
+
+/**
+ * Every unit on both arms.
+ *
+ * The reference model is a right arm and there is no left one to take parameters from, so the
+ * left side is the right side's parameters on the left side's geometry -- which is the ordinary
+ * assumption of bilateral symmetry, and the only claim in it is that a person's two biceps are
+ * the same muscle. Everything that is *geometry* is already bilateral and measured: the
+ * attachment sites come from each side's own markers, the wrap surfaces from each side's own
+ * mesh, and the via points are mirrored with the dataset's symmetry checked.
+ *
+ * Which side of a surface a muscle passes is not mirrored, because it is stated as an anterior or
+ * posterior direction and anterior is anterior on both arms.
+ */
+function sided() {
+  const out = [];
+  for (const s of ['r', 'l']) {
+    const word = s === 'r' ? 'right' : 'left';
+    for (const unit of UNITS) {
+      const put = (value) => (value === undefined ? undefined : value.replaceAll('$', s));
+      out.push({
+        ...unit,
+        group: put(unit.group),
+        id: put(unit.id),
+        origin: put(unit.origin),
+        insertion: put(unit.insertion),
+        name: `${unit.name}, ${word}`,
+        ...(unit.groupName === undefined ? {} : { groupName: `${unit.groupName}, ${word}` }),
+        side_: s,
+      });
+    }
+  }
+  return out;
+}
 
 function readActuators() {
   const xml = readFileSync(SOURCE, 'utf8');
@@ -237,7 +271,7 @@ const num = (v) => Number(v.toPrecision(6)).toString();
 function render() {
   const actuators = readActuators();
   const groups = new Map();
-  for (const unit of UNITS) {
+  for (const unit of sided()) {
     const parameters = actuators.get(unit.actuator);
     if (parameters === undefined) {
       throw new Error(
@@ -254,7 +288,7 @@ function render() {
     // The trochlea for everyone now. Via points hold each muscle along the shaft, so what is
     // left for a wrap surface is the elbow itself -- and the shaft cylinder, which never suited a
     // muscle running along it, is no longer asked to do that job.
-    const wrap = 'elbow_trochlea_r';
+    const wrap = `elbow_trochlea_${unit.side_}`;
     groups.get(unit.group).push({ ...unit, parameters, wrap });
   }
 
@@ -401,10 +435,10 @@ if (check) {
     );
     process.exit(1);
   }
-  console.log(`generate-elbow-muscles: ok. ${UNITS.length} units match ${MUSCLE_FILE}.`);
+  console.log(`generate-elbow-muscles: ok. ${sided().length} units match ${MUSCLE_FILE}.`);
 } else {
   writeFileSync(OUT, rendered);
   console.log(
-    `generate-elbow-muscles: wrote ${relative(ROOT, OUT)} -- ${UNITS.length} units from ${MUSCLE_FILE}.`,
+    `generate-elbow-muscles: wrote ${relative(ROOT, OUT)} -- ${sided().length} units from ${MUSCLE_FILE}.`,
   );
 }

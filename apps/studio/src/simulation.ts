@@ -73,7 +73,7 @@ export interface SimulationOptions {
    *
    * Off by default, because most of what the studio is used for has nothing to do with muscles
    * and every unit costs a solve per tick. The muscles that are wired up are the seven crossing
-   * the right elbow; the rest of the body has none yet.
+   * each elbow, fourteen in all; the rest of the body has none yet.
    */
   readonly muscles?: boolean | undefined;
 }

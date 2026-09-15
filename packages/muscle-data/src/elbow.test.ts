@@ -44,20 +44,47 @@ describe('the elbow muscle set', () => {
       extension,
     );
     expect(report.problems).toEqual([]);
-    expect(report.unitCount).toBe(7);
+    expect(report.unitCount).toBe(14);
   });
 
   it('covers both biceps heads and all three triceps heads as separate lines of action', () => {
     // M-ADR-005. One line through a triceps is not a simplification of a triceps, it is a
     // different muscle with a moment arm the real one does not have.
-    expect(ELBOW_UNITS).toHaveLength(7);
+    expect(ELBOW_UNITS).toHaveLength(14);
     expect(ELBOW_MUSCLES.map((g) => g.id)).toEqual([
       'biceps_brachii_r',
       'brachialis_r',
       'brachioradialis_r',
       'triceps_brachii_r',
+      'biceps_brachii_l',
+      'brachialis_l',
+      'brachioradialis_l',
+      'triceps_brachii_l',
     ]);
-    expect(ELBOW_MUSCLES.find((g) => g.id === 'triceps_brachii_r')?.units).toHaveLength(3);
+    for (const side of ['r', 'l']) {
+      expect(ELBOW_MUSCLES.find((g) => g.id === `triceps_brachii_${side}`)?.units).toHaveLength(3);
+    }
+  });
+
+  it('carries the same muscle on both arms', () => {
+    // The reference model is a right arm, so the left side is the right side's parameters on the
+    // left side's own geometry. What that claims is bilateral symmetry of the *muscle* -- a
+    // person's two biceps are the same muscle -- and not of the skeleton, which is measured per
+    // side: attachments from each side's markers, wrap surfaces from each side's mesh, via points
+    // mirrored with the dataset's symmetry checked.
+    const right = ELBOW_UNITS.filter((u) => u.id.endsWith('_r'));
+    const left = ELBOW_UNITS.filter((u) => u.id.endsWith('_l'));
+    expect(left).toHaveLength(right.length);
+    for (const unit of right) {
+      const mirror = left.find((u) => u.id === unit.id.replace(/_r$/, '_l'));
+      if (!mirror) throw new Error(`${unit.id} has no left-side counterpart`);
+      expect(plain(mirror.parameters.maxIsometricForce, mirror.id)).toBe(
+        plain(unit.parameters.maxIsometricForce, unit.id),
+      );
+      expect(mirror.origin, mirror.id).toBe(unit.origin.replace(/_r_/, '_l_'));
+      expect(mirror.insertion, mirror.id).toBe(unit.insertion.replace(/_r_/, '_l_'));
+      expect(mirror.path.length, mirror.id).toBe(unit.path.length);
+    }
   });
 
   it('gives every unit a citation naming the actuator it came from', () => {
@@ -105,6 +132,8 @@ describe('the elbow muscle set', () => {
       'brachialis_r',
       'brachioradialis_r',
     ];
+    // One arm's worth, because the claims are about one elbow: two arms would double both sides
+    // of every comparison and mean the same thing less clearly.
     const extensors = [
       'triceps_brachii_long_r',
       'triceps_brachii_lateral_r',
@@ -132,11 +161,11 @@ describe('the elbow muscle set', () => {
     // Declaring the side is what stops a path falling to the other side of the bone as the joint
     // moves, which would reverse the muscle's moment arm for a tick (muscle spec 4.3). In this
     // dataset's bone frame +Z is posterior: the olecranon fossa sits behind the coronoid one.
-    const extensors = [
-      'triceps_brachii_long_r',
-      'triceps_brachii_lateral_r',
-      'triceps_brachii_medial_r',
-    ];
+    // Both arms: an extensor is an extensor on either side, and the side it passes on is stated
+    // as a posterior direction, which is posterior on both.
+    const extensors = ['long', 'lateral', 'medial'].flatMap((head) =>
+      ['r', 'l'].map((side) => `triceps_brachii_${head}_${side}`),
+    );
     for (const unit of ELBOW_UNITS) {
       // Via points along the bones and one wrap at the elbow, in the order the reference model
       // has them. Where the wrap falls among the via points is not decoration: it says which span
@@ -154,7 +183,7 @@ describe('the elbow muscle set', () => {
       // along rather than pass through.
       // Every unit turns over the trochlea now. Via points hold each one along the shaft, which
       // is the job a shaft cylinder was briefly asked to do and was never suited to.
-      expect(wrap.surface, unit.id).toBe('elbow_trochlea_r');
+      expect(wrap.surface, unit.id).toBe(`elbow_trochlea_${unit.id.endsWith('_l') ? 'l' : 'r'}`);
       expect(Math.sign(wrap.preferredSide.z as number), unit.id).toBe(behind ? 1 : -1);
     }
   });
