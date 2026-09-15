@@ -57,13 +57,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import {
-  MUSCLE_FILE,
-  readActuators,
-  renderGroups,
-  requirePhysical,
-  sided,
-} from '../lib/myoArm.mjs';
+import { ARM, readActuators, renderGroups, requirePhysical, sided } from '../lib/myoSuite.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/shoulder.ts');
@@ -166,7 +160,7 @@ function render() {
     const parameters = actuators.get(unit.actuator);
     if (parameters === undefined) {
       throw new Error(
-        `${MUSCLE_FILE} has no actuator named '${unit.actuator}'. The vendored commit may have ` +
+        `${ARM.muscle} has no actuator named '${unit.actuator}'. The vendored commit may have ` +
           'moved; check tools/validate-external/README.md before changing this mapping.',
       );
     }
@@ -223,7 +217,7 @@ const gray = (muscle: string) => cite('gray1918', \`Part IV, Myology: The \${mus
 const myoArm = (actuator: string) =>
   cite(
     'caggiano2022',
-    \`${MUSCLE_FILE}, actuator general name="\${actuator}": gainprm force, and optimal fiber \` +
+    \`${ARM.muscle}, actuator general name="\${actuator}": gainprm force, and optimal fiber \` +
       'length and tendon slack length derived from gainprm range with lengthrange',
   );
 
@@ -254,10 +248,10 @@ if (check) {
     );
     process.exit(1);
   }
-  console.log(`generate-shoulder-muscles: ok. ${sided(UNITS).length} units match ${MUSCLE_FILE}.`);
+  console.log(`generate-shoulder-muscles: ok. ${sided(UNITS).length} units match ${ARM.muscle}.`);
 } else {
   writeFileSync(OUT, rendered);
   console.log(
-    `generate-shoulder-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${MUSCLE_FILE}.`,
+    `generate-shoulder-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${ARM.muscle}.`,
   );
 }

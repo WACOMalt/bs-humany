@@ -96,6 +96,26 @@ const TARGETS: readonly Target[] = [
       'flexors and extensors turn over (Wu 2005, 3.3 for the axis)',
   },
   {
+    // The knee's pulley. The hamstrings and the two heads of gastrocnemius run behind the joint
+    // and turn over the back of the femoral condyles; without a surface there their paths cut the
+    // corner as the knee closes, and the knee closes further than any other joint in the body.
+    //
+    // Coaxial with the joint, for the reason the trochlea is: the condyles sweep about the knee's
+    // own flexion axis, which is the line through the femoral epicondyles (Wu 2002, 2.3).
+    bone: 'femur',
+    feature: 'Condyles_of_femur__wrap_radius',
+    seedFeature: 'Intercondylar_fossa',
+    // The condyles are wide: a seed at the fossa between them has to reach both.
+    seedRadius: 0.035,
+    // A tendon lies outside the condyles rather than bearing in a groove on them, so the radius
+    // is where the bone ends rather than the middle of its distance distribution.
+    statistic: 'enclosing',
+    axis: ['Medial_epicondyle_of_femur', 'Lateral_epicondyle_of_femur'],
+    description:
+      'Radius of the femoral condyles about the epicondylar axis: what the knee flexors turn ' +
+      'over (Wu 2002, 2.3 for the axis)',
+  },
+  {
     bone: 'humerus',
     feature: 'Body_of_humerus__wrap_radius',
     seedFeature: 'Deltoid_tuberosity',

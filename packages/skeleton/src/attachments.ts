@@ -272,7 +272,7 @@ const MUSCLES: readonly MuscleSpec[] = [
     section: 'The Quadriceps femoris',
     bilateral: true,
     origins: [['hip_$', 'Anterior_inferior_iliac_spine']],
-    insertions: [],
+    insertions: [['tibia_$', 'Tibial_tuberosity']],
     ligaments: [['tibia_$', 'Tibial_tuberosity']],
   },
   {
@@ -284,7 +284,31 @@ const MUSCLES: readonly MuscleSpec[] = [
       ['femur_$', 'Linea_aspera'],
       ['femur_$', 'Intertrochanteric_line'],
     ],
-    insertions: [],
+    insertions: [['tibia_$', 'Tibial_tuberosity']],
+    ligaments: [['tibia_$', 'Tibial_tuberosity']],
+  },
+  {
+    id: 'vastus_medialis',
+    muscle: 'Vastus medialis',
+    section: 'The Vastus medialis',
+    bilateral: true,
+    origins: [
+      ['femur_$', 'Medial_supracondylar_line'],
+      ['femur_$', 'Intertrochanteric_line'],
+    ],
+    // Into the patella and through its ligament to the tibia. That is where the force arrives, so
+    // it is the insertion; the ligament entry beside it records the same place as the ligament
+    // attachment it also is.
+    insertions: [['tibia_$', 'Tibial_tuberosity']],
+    ligaments: [['tibia_$', 'Tibial_tuberosity']],
+  },
+  {
+    id: 'vastus_intermedius',
+    muscle: 'Vastus intermedius',
+    section: 'The Vastus intermedius',
+    bilateral: true,
+    origins: [['femur_$', 'Body_of_femur']],
+    insertions: [['tibia_$', 'Tibial_tuberosity']],
     ligaments: [['tibia_$', 'Tibial_tuberosity']],
   },
   {
@@ -330,9 +354,17 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Gastrocnemius',
     section: 'The Gastrocnemius',
     bilateral: true,
+    // The supracondylar lines rather than the condyles themselves, and the difference is the
+    // muscle's whole action. Gray puts the medial head at "the upper and back part of the medial
+    // condyle" and the lateral head "above the lateral condyle" -- above the joint line, which is
+    // what makes gastrocnemius a knee flexor. The dataset's condyle markers sit 23 and 31 mm
+    // *below* the flexion axis, where a point on the femur swings forward as the knee closes: an
+    // origin there lengthens the muscle with flexion and makes it an extensor. The supracondylar
+    // markers are 33 and 39 mm above the axis and 11 mm behind it, which is the right side of
+    // both.
     origins: [
-      ['femur_$', 'Medial_condyle_of_femur'],
-      ['femur_$', 'Lateral_condyle_of_femur'],
+      ['femur_$', 'Medial_supracondylar_line'],
+      ['femur_$', 'Lateral_supracondylar_line'],
     ],
     insertions: [['calcaneus_$', 'Calcaneal_tuberosity']],
   },

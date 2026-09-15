@@ -40,6 +40,9 @@ jobs:
       - name: Generated shoulder data matches its source
         run: pnpm generate:shoulder-muscles --check
 
+      - name: Generated knee data matches its source
+        run: pnpm generate:knee-muscles --check
+
       - name: Generated via points match their source
         run: pnpm generate:via-points --check
 

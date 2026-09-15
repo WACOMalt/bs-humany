@@ -221,6 +221,44 @@ function sideSpecs(s: 'l' | 'r'): SurfaceSpec[] {
       ),
     },
     {
+      // The knee's pulley: the back of the femoral condyles, which the hamstrings and both heads
+      // of gastrocnemius turn over. Without it their paths cut the corner as the knee closes, and
+      // the knee closes further than any other joint in the body -- at 130 degrees a straight line
+      // from the ischium to the tibia passes through the middle of the femur.
+      //
+      // Coaxial with the joint for the same reason the elbow's surface is: the condyles sweep
+      // about the knee's own flexion axis, so a cylinder on that axis presents the same radius to
+      // a tendon at every angle, which is what a pulley is and what published moment arm curves
+      // look like.
+      id: `knee_condyles_${s}`,
+      bone: `femur_${s}`,
+      displayName: `Femoral condyles, ${side}`,
+      centre: { virtual: `femur_${s}__mid_fe` },
+      feature: 'Condyles_of_femur__wrap_radius',
+      along: 'joint',
+      // Epicondyle to epicondyle: how wide the bone is where the surface stands, and wide enough
+      // that the muscles crossing it medially and laterally both stay on it.
+      span: [
+        [`femur_${s}`, 'FE_med'],
+        [`femur_${s}`, 'FE_lat'],
+      ],
+      // The femur's ISB frame (Wu 2002, 4.4): Y from the epicondyles' midpoint up to the hip
+      // centre, Z along the epicondyles. That Z is the knee's flexion axis, which is what the
+      // cylinder has to run along.
+      frame: {
+        origin: [`femur_${s}`, 'HJC'],
+        primaryFrom: { virtual: `femur_${s}__mid_fe` },
+        primaryTo: [`femur_${s}`, 'HJC'],
+        secondaryFrom: [`femur_${s}`, 'FE_med'],
+        secondaryTo: [`femur_${s}`, 'FE_lat'],
+      },
+      source: cite(
+        'wu2002',
+        '2.3, knee: flexion about the femoral epicondylar axis. The radius is measured from the ' +
+          'mesh; only the placement comes from here.',
+      ),
+    },
+    {
       // The shaft the arm muscles lie along rather than pass through. Without it a straight path
       // from the scapula to the forearm cuts clean through the humerus, which is visible the
       // moment a muscle is drawn as anything but a line.

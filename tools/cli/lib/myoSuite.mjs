@@ -1,10 +1,10 @@
 /**
- * Reading the vendored MyoSuite arm: the parts more than one generator needs.
+ * Reading the vendored MyoSuite models: the parts more than one generator needs.
  *
- * The elbow set and the shoulder set come out of the same two files, by the same two derivations,
- * and the only thing that differs between them is which actuators they name and what prose goes
- * at the top of the file they write. So the derivations live here and the tables live with the
- * generator that owns them.
+ * Three sets come out of these files now -- the elbow, the shoulder and the knee -- by the same
+ * two derivations, and the only things that differ are which model they read, which actuators they
+ * name, and what prose goes at the top of the file they write. So the derivations live here and
+ * the tables live with the generator that owns them.
  *
  * ## What MuJoCo states and what has to be derived
  *
@@ -38,27 +38,40 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 export const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
-export const MUSCLE_FILE = 'myoarm_r_muscle.xml';
-export const TENDON_FILE = 'myoarm_r_tendon.xml';
-export const CHAIN_FILE = 'myoarm_r_chain.xml';
+export const ARM = {
+  muscle: 'myoarm_r_muscle.xml',
+  tendon: 'myoarm_r_tendon.xml',
+  chain: 'myoarm_r_chain.xml',
+};
+export const LEGS = {
+  muscle: 'myolegs_muscle.xml',
+  tendon: 'myolegs_tendon.xml',
+  chain: 'myolegs_chain.xml',
+};
 
 /** Hill-type parameters per actuator name, derived from what MuJoCo states. */
-export function readActuators() {
-  const xml = readFileSync(join(MYO_SIM, MUSCLE_FILE), 'utf8');
+export function readActuators(model = ARM) {
+  const xml = readFileSync(join(MYO_SIM, model.muscle), 'utf8');
   const found = new Map();
-  const pattern =
-    /<general\s+name="([A-Za-z0-9_]+)"[^>]*?gainprm="([^"]+)"[^>]*?lengthrange="([^"]+)"/g;
-  for (const match of xml.matchAll(pattern)) {
-    const gain = match[2].trim().split(/\s+/).map(Number);
-    const range = match[3].trim().split(/\s+/).map(Number);
+  // Each actuator element, then its attributes by name: the two models write them in different
+  // orders -- the arm leads with `name`, the legs with `biasprm` -- and a pattern that assumed
+  // either would silently find nothing in the other.
+  const attribute = (element, key) => element.match(new RegExp(`${key}="([^"]+)"`))?.[1];
+  for (const element of xml.match(/<general\b[^>]*\/>/g) ?? []) {
+    const name = attribute(element, 'name');
+    const gainprm = attribute(element, 'gainprm');
+    const lengthrange = attribute(element, 'lengthrange');
+    if (!name || !gainprm || !lengthrange) continue;
+    const gain = gainprm.trim().split(/\s+/).map(Number);
+    const range = lengthrange.trim().split(/\s+/).map(Number);
     const [rmin, rmax, force, , , , vmax] = gain;
     const [lrmin, lrmax] = range;
     if (!(rmax > rmin)) {
-      throw new Error(`${match[1]}: operating range is empty, so the lengths cannot be derived`);
+      throw new Error(`${name}: operating range is empty, so the lengths cannot be derived`);
     }
     const optimalFiberLength = (lrmax - lrmin) / (rmax - rmin);
     const tendonSlackLength = lrmin - optimalFiberLength * rmin;
-    found.set(match[1], {
+    found.set(name, {
       maxIsometricForce: force,
       optimalFiberLength,
       tendonSlackLength,
@@ -74,7 +87,14 @@ export function readActuators() {
   return found;
 }
 
-const TENDON_XML = readFileSync(join(MYO_SIM, TENDON_FILE), 'utf8');
+const TENDON_XML = new Map();
+const tendonXml = (model) => {
+  const cached = TENDON_XML.get(model.tendon);
+  if (cached) return cached;
+  const text = readFileSync(join(MYO_SIM, model.tendon), 'utf8');
+  TENDON_XML.set(model.tendon, text);
+  return text;
+};
 
 /**
  * One reference tendon's path: its elements in order, and where the last wrap geom sits in them.
@@ -82,13 +102,13 @@ const TENDON_XML = readFileSync(join(MYO_SIM, TENDON_FILE), 'utf8');
  * `lastGeom` is -1 for a tendon the reference wraps nothing with, which is a real answer rather
  * than a gap: several of the shoulder muscles run straight from the trunk to the humerus.
  */
-export function referencePath(actuator) {
-  const block = TENDON_XML.match(
+export function referencePath(actuator, model = ARM) {
+  const block = tendonXml(model).match(
     new RegExp(`<spatial[^>]*name="${actuator}_tendon"[\\s\\S]*?</spatial>`),
   );
   if (!block) {
     throw new Error(
-      `${TENDON_FILE} has no tendon named '${actuator}_tendon'. The vendored commit may have ` +
+      `${model.tendon} has no tendon named '${actuator}_tendon'. The vendored commit may have ` +
         'moved; check tools/validate-external/README.md before changing this mapping.',
     );
   }
@@ -109,8 +129,8 @@ export function referencePath(actuator) {
  * A via point knows which reference site it came from, so its place in the reference path is a
  * lookup rather than a guess. A unit whose `wrap` is undefined gets no wrap element at all.
  */
-export function pathElements(unit, viaPointsFor, direction) {
-  const { elements, lastGeom } = referencePath(unit.actuator);
+export function pathElements(unit, viaPointsFor, direction, model = ARM) {
+  const { elements, lastGeom } = referencePath(unit.actuator, model);
   const indexOf = (site) => elements.findIndex((e) => e.kind === 'site' && e.name === site);
   const via = viaPointsFor(unit.id).map((p) => ({
     kind: 'site',
@@ -155,10 +175,10 @@ export function pathElements(unit, viaPointsFor, direction) {
  * Called by each generator for the actuators it names, rather than when they are read, so that a
  * set which does not use an unphysical actuator is not stopped by it.
  */
-export function requirePhysical(actuator, parameters) {
+export function requirePhysical(actuator, parameters, model = ARM) {
   if (parameters.physical) return parameters;
   throw new Error(
-    `${MUSCLE_FILE} actuator '${actuator}' derives an optimal fiber length of ` +
+    `${model.muscle} actuator '${actuator}' derives an optimal fiber length of ` +
       `${(parameters.optimalFiberLength * 1000).toFixed(1)} mm and a tendon slack length of ` +
       `${(parameters.tendonSlackLength * 1000).toFixed(1)} mm, which is not a muscle. Its ` +
       'lengthrange and its operating range disagree in the source; leave it out of the set and ' +
@@ -197,7 +217,7 @@ export const num = (v) => Number(v.toPrecision(6)).toString();
  * The shape is HSDL's `MuscleGroup`, and both generators write the same shape; what differs is
  * which units go in it and the prose around it.
  */
-export function renderGroups(units, viaPointsFor, direction) {
+export function renderGroups(units, viaPointsFor, direction, model = ARM) {
   const groups = new Map();
   for (const unit of units) {
     if (!groups.has(unit.group)) groups.set(unit.group, []);
@@ -215,7 +235,7 @@ export function renderGroups(units, viaPointsFor, direction) {
     units: [`);
     for (const unit of members) {
       const p = unit.parameters;
-      const elements = pathElements(unit, viaPointsFor, direction)
+      const elements = pathElements(unit, viaPointsFor, direction, model)
         .map((e) =>
           e.kind === 'site'
             ? `          { kind: 'site', site: '${e.id}' },\n`
@@ -229,10 +249,17 @@ export function renderGroups(units, viaPointsFor, direction) {
         .join('');
       // A single-element path on one line, which is how the formatter would write it: a
       // generator whose output has to be reformatted cannot check its own output.
+      // One element on one line and none at all as an empty pair, which is how the formatter
+      // would write them: a generator whose output has to be reformatted cannot check its own
+      // output. A unit with no path at all is a straight line from origin to insertion, which
+      // several of the knee flexors are.
+      const lines = elements.split('\n').filter((line) => line.length > 0);
       const path =
-        elements.split('\n').filter((line) => line.length > 0).length === 1
-          ? `[${elements.trim().replace(/,$/, '')}]`
-          : `[\n${elements}        ]`;
+        lines.length === 0
+          ? '[]'
+          : lines.length === 1
+            ? `[${elements.trim().replace(/,$/, '')}]`
+            : `[\n${elements}        ]`;
       body.push(`      {
         id: '${unit.id}',
         displayName: '${unit.name}',
@@ -245,7 +272,7 @@ export function renderGroups(units, viaPointsFor, direction) {
           tendonSlackLength: ${num(p.tendonSlackLength)},
           pennationAngle: 0,
           maxContractionVelocity: ${num(p.maxContractionVelocity)},
-          source: myoArm('${unit.actuator}'),
+          source: ${model === LEGS ? 'myoLegs' : 'myoArm'}('${unit.actuator}'),
         },
       },`);
     }

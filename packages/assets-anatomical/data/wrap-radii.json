@@ -1,6 +1,6 @@
 {
   "format": "bs-humany.wrap-radii/1",
-  "generatedAt": "2026-09-15T19:44:56.817Z",
+  "generatedAt": "2026-09-15T23:37:07.183Z",
   "dataset": {
     "name": "Z-Anatomy SkeletalSystem",
     "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",
@@ -32,6 +32,26 @@
       "spread": 0.003002,
       "halfLength": 0.009569,
       "rule": "median distance from the Medial_epicondyle_of_humerus to Lateral_epicondyle_of_humerus axis, over mesh within 22 mm of Trochlea_of_humerus, taking the middle 50% of the distribution"
+    },
+    {
+      "bone": "femur_r",
+      "feature": "Condyles_of_femur__wrap_radius",
+      "description": "Radius of the femoral condyles about the epicondylar axis: what the knee flexors turn over (Wu 2002, 2.3 for the axis)",
+      "radius": 0.024984,
+      "vertices": 51,
+      "spread": 0.003529,
+      "halfLength": 0.013565,
+      "rule": "90th percentile distance from the Medial_epicondyle_of_femur to Lateral_epicondyle_of_femur axis, over mesh within 35 mm of Intercondylar_fossa"
+    },
+    {
+      "bone": "femur_l",
+      "feature": "Condyles_of_femur__wrap_radius",
+      "description": "Radius of the femoral condyles about the epicondylar axis: what the knee flexors turn over (Wu 2002, 2.3 for the axis)",
+      "radius": 0.024984,
+      "vertices": 51,
+      "spread": 0.003529,
+      "halfLength": 0.013565,
+      "rule": "90th percentile distance from the Medial_epicondyle_of_femur to Lateral_epicondyle_of_femur axis, over mesh within 35 mm of Intercondylar_fossa"
     },
     {
       "bone": "humerus_r",
