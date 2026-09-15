@@ -7,6 +7,7 @@ import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import {
+  DIAGNOSTICS_MOMENT_ARM,
   EFFERENT_ALPHA_MOTOR,
   MUSCLE_CONTACT,
   MUSCLE_FIBER_OUT_OF_RANGE,
@@ -15,6 +16,7 @@ import {
 } from './channels.js';
 import { compileMuscleSet } from './compile.js';
 import { MuscleDynamicsModule } from './muscleDynamicsModule.js';
+import { MuscleMomentModule } from './muscleMomentModule.js';
 import { MusclePathModule } from './musclePathModule.js';
 import { type DrivePattern, MuscleTestDriveModule } from './muscleTestDriveModule.js';
 
@@ -459,5 +461,93 @@ describe('MuscleDynamicsModule', () => {
     expect(Array.from(a.fiberLength)).toEqual(Array.from(b.fiberLength));
     a.kernel.dispose();
     b.kernel.dispose();
+  });
+});
+
+describe('MuscleMomentModule', () => {
+  /** A session with the diagnostics module registered alongside the rest. */
+  async function withMoments() {
+    const kernel = new Kernel({ rateHz: 500, seed: 1 });
+    kernel.register(
+      new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }),
+    );
+    kernel.register(
+      new MuscleTestDriveModule(muscles, [
+        { units: 'all', pattern: { kind: 'constant', level: 0 } },
+      ]),
+    );
+    kernel.register(new MusclePathModule(articulation, muscles));
+    kernel.register(new MuscleDynamicsModule(articulation, muscles));
+    const moment = new MuscleMomentModule(articulation, muscles);
+    kernel.register(moment);
+    await kernel.init();
+    const fields = kernel.channels.storage(DIAGNOSTICS_MOMENT_ARM).fields;
+    return { kernel, moment, arm: fields.arm as Float64Array };
+  }
+
+  it('pairs every unit with the elbow coordinate it crosses', () => {
+    // Seven units, all crossing the same hinge. A unit that crossed nothing would be a muscle
+    // anchored to one bone at both ends, and a unit paired with a coordinate it does not cross
+    // would report leverage it does not have.
+    const moment = new MuscleMomentModule(articulation, muscles);
+    const elbow = moment.pairs.filter((p) => p.jointId === 'elbow_r');
+    expect(elbow).toHaveLength(7);
+    expect(new Set(elbow.map((p) => p.unitId)).size).toBe(7);
+    expect(elbow.every((p) => p.dofId === 'flexion')).toBe(true);
+  });
+
+  it('holds the triceps at the trochlea’s radius instead of letting it reverse', async () => {
+    // The finding this module exists for, as a test. With straight-line paths the triceps moment
+    // arm fell to zero at about 2 rad of flexion and then changed sign, making the extensor a
+    // flexor -- the hard failure of muscle spec 13.2. Wrapping holds it at the surface's radius,
+    // which is what a pulley does and what published curves show.
+    const s = await withMoments();
+    s.kernel.run(400);
+    const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
+    for (const id of [
+      'triceps_brachii_long_r',
+      'triceps_brachii_lateral_r',
+      'triceps_brachii_medial_r',
+    ]) {
+      const at = index.get(id) as number;
+      const arm = s.arm[at] as number;
+      expect(arm, id).toBeLessThan(0);
+      expect(Math.abs(arm), id).toBeGreaterThan(0.01);
+      expect(Math.abs(arm), id).toBeLessThan(0.035);
+    }
+    s.kernel.dispose();
+  });
+
+  it('gives the flexors the opposite sign to the extensors', async () => {
+    const s = await withMoments();
+    s.kernel.run(400);
+    const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
+    const arm = (id: string) => s.arm[index.get(id) as number] as number;
+    expect(arm('biceps_brachii_long_r')).toBeGreaterThan(0);
+    expect(arm('brachialis_r')).toBeGreaterThan(0);
+    expect(arm('triceps_brachii_long_r')).toBeLessThan(0);
+    s.kernel.dispose();
+  });
+
+  it('reports arms of a plausible size for a human elbow', async () => {
+    const s = await withMoments();
+    s.kernel.run(400);
+    for (let i = 0; i < s.moment.pairs.length; i++) {
+      const arm = s.arm[i] as number;
+      expect(Number.isFinite(arm), s.moment.pairs[i]?.unitId).toBe(true);
+      // Nothing at the elbow levers more than a hand's breadth.
+      expect(Math.abs(arm), s.moment.pairs[i]?.unitId).toBeLessThan(0.1);
+    }
+    s.kernel.dispose();
+  });
+
+  it('runs after the path module and writes nothing the simulation reads', async () => {
+    // M-ADR-003: the moment arm is a diagnostic. If anything in the force path ever started
+    // reading this channel, the comparison against cadaver data would stop being independent.
+    const moment = new MuscleMomentModule(articulation, muscles);
+    expect(moment.manifest.phase).toBe('post');
+    expect(moment.manifest.accumulates).toEqual([]);
+    expect(moment.manifest.writes.map((c) => c.id)).toEqual([DIAGNOSTICS_MOMENT_ARM]);
+    expect(moment.manifest.rateDivisor).toBe(10);
   });
 });

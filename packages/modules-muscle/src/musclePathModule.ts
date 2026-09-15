@@ -92,6 +92,7 @@ export class MusclePathModule implements SimModule {
   private pointStart: Int32Array | undefined;
   private pointCount: Int32Array | undefined;
   private polylinePoint: Float64Array | undefined;
+  private polylineBody: Int32Array | undefined;
 
   /**
    * Scratch the solver writes into, allocated once.
@@ -178,7 +179,9 @@ export class MusclePathModule implements SimModule {
     this.insertionDirection = out.fields.insertionDirection as Float64Array;
     this.pointStart = out.fields.pointStart as Int32Array;
     this.pointCount = out.fields.pointCount as Int32Array;
-    this.polylinePoint = ctx.write(MUSCLE_POLYLINE).fields.point as Float64Array;
+    const polyline = ctx.write(MUSCLE_POLYLINE);
+    this.polylinePoint = polyline.fields.point as Float64Array;
+    this.polylineBody = polyline.fields.body as Int32Array;
 
     const contacts = ctx.write(MUSCLE_CONTACT);
     this.contactUnit = contacts.fields.unit as Int32Array;
@@ -225,14 +228,16 @@ export class MusclePathModule implements SimModule {
   /** Copy the solved polyline out, with each unit's offset and count beside it. */
   private publishPolyline(): void {
     const point = this.polylinePoint;
+    const body = this.polylineBody;
     const start = this.pointStart;
     const count = this.pointCount;
-    if (!point || !start || !count) return;
+    if (!point || !body || !start || !count) return;
     for (let i = 0; i < this.units; i++) {
       start[i] = this.polyline.start[i] as number;
       count[i] = this.polyline.count[i] as number;
     }
     point.set(this.polyline.point);
+    body.set(this.polyline.body);
   }
 
   /** Copy the solver's contacts out, and say how many did not fit rather than losing them quietly. */

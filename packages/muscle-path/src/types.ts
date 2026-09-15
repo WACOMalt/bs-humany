@@ -226,6 +226,15 @@ export interface PathPolylineBuffer {
   readonly count: Int32Array;
   /** `3 * capacity`, world metres. */
   readonly point: Float64Array;
+  /**
+   * `capacity`, the body each point is carried by.
+   *
+   * An attachment point moves with the bone it is pinned to; a point on an arc moves with the
+   * bone whose surface it lies on. Without this a reader has the shape of the path but not what
+   * moves it, and cannot work out a moment arm -- which is the derivative of the length with
+   * respect to a coordinate, and so entirely a question of which points that coordinate carries.
+   */
+  readonly body: Int32Array;
 }
 
 export function createPathPolylineBuffer(units: number, capacity: number): PathPolylineBuffer {
@@ -234,6 +243,7 @@ export function createPathPolylineBuffer(units: number, capacity: number): PathP
     start: new Int32Array(units),
     count: new Int32Array(units),
     point: new Float64Array(3 * capacity),
+    body: new Int32Array(capacity),
   };
 }
 

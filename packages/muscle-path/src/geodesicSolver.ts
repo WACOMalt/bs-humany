@@ -309,7 +309,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
         outPolyline.count[p] = 0;
         // Every span writes the point it starts from, so the last point of the path is added once
         // at the end rather than twice at the seam between spans.
-        this.emit(p, 3 * 0);
+        this.emit(p, 3 * 0, this.pointBody[from] as number);
       }
 
       for (let i = 0; i + 1 < n; i++) {
@@ -323,8 +323,8 @@ export class GeodesicPathSolver implements IMusclePathSolver {
           rate += this.spanRate;
           // The arc, then the point the span ends at: the straight run off the surface to the
           // next attachment. Without it the drawing stops on the bone.
-          this.emitArc(p);
-          this.emit(p, 3 * (i + 1));
+          this.emitArc(p, this.surfaceBody[surface] as number);
+          this.emit(p, 3 * (i + 1), this.pointBody[from + i + 1] as number);
           if (i === 0) this.copyDirection(outTerminals.originDirection, p, this.spanFirstDirection);
           if (i + 2 === n) {
             this.copyDirection(outTerminals.insertionDirection, p, this.spanLastDirection);
@@ -363,7 +363,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
             outTerminals.originDirection[3 * p + 1] = uy;
             outTerminals.originDirection[3 * p + 2] = uz;
           }
-          this.emit(p, 3 * (i + 1));
+          this.emit(p, 3 * (i + 1), this.pointBody[from + i + 1] as number);
           if (i + 2 === n) {
             outTerminals.insertionDirection[3 * p] = -ux;
             outTerminals.insertionDirection[3 * p + 1] = -uy;
@@ -372,7 +372,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
           // A zero-length segment still has an endpoint, and a polyline that skipped it would be
           // a point short of the attachments it is supposed to join.
         } else {
-          this.emit(p, 3 * (i + 1));
+          this.emit(p, 3 * (i + 1), this.pointBody[from + i + 1] as number);
           if (i === 0) {
             this.zeroDirection(outTerminals.originDirection, p);
             this.zeroDirection(outTerminals.insertionDirection, p);
@@ -398,13 +398,14 @@ export class GeodesicPathSolver implements IMusclePathSolver {
   /** The surface frame of the span being wrapped, for turning arc samples back into the world. */
   private readonly spanFrame = new Float64Array(7);
 
-  /** Copy one already-resolved world point into the polyline. */
-  private emit(path: number, at: number): void {
+  /** Copy one already-resolved world point into the polyline, with the body that carries it. */
+  private emit(path: number, at: number, body: number): void {
     const out = this.polyline;
     if (out === undefined || this.written >= out.capacity) return;
     out.point[3 * this.written] = this.world[at] as number;
     out.point[3 * this.written + 1] = this.world[at + 1] as number;
     out.point[3 * this.written + 2] = this.world[at + 2] as number;
+    out.body[this.written] = body;
     this.written++;
     out.count[path] = (out.count[path] as number) + 1;
   }
@@ -417,7 +418,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
    * only thing in `solve` that exists purely for a reader: the fiber model never sees these
    * points, and a caller that passes no buffer never computes them.
    */
-  private emitArc(path: number): void {
+  private emitArc(path: number, body: number): void {
     const out = this.polyline;
     if (out === undefined) return;
     for (let i = 0; i <= ARC_SAMPLES; i++) {
@@ -439,6 +440,8 @@ export class GeodesicPathSolver implements IMusclePathSolver {
         (this.spanFrame[5] as number) + (this.spanFirstScratch[1] as number);
       out.point[3 * this.written + 2] =
         (this.spanFrame[6] as number) + (this.spanFirstScratch[2] as number);
+      // An arc point is carried by the bone whose surface it lies on, not by either attachment.
+      out.body[this.written] = body;
       this.written++;
       out.count[path] = (out.count[path] as number) + 1;
     }

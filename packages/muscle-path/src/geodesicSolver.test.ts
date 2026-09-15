@@ -587,6 +587,7 @@ describe('the polyline a solver draws', () => {
       out,
     );
     const points: number[][] = [];
+    const bodies: number[] = [];
     const from = out.start[0] as number;
     for (let i = 0; i < (out.count[0] as number); i++) {
       points.push([
@@ -594,8 +595,9 @@ describe('the polyline a solver draws', () => {
         out.point[3 * (from + i) + 1] as number,
         out.point[3 * (from + i) + 2] as number,
       ]);
+      bodies.push(out.body[from + i] as number);
     }
-    return { report, points, length: length[0] as number };
+    return { report, points, bodies, length: length[0] as number };
   }
 
   const walked = (points: number[][]) => {
@@ -664,6 +666,26 @@ describe('the polyline a solver draws', () => {
     const { report, points } = polyline([path], [KNUCKLE, TROCHLEA], 0);
     expect(points.length).toBeLessThanOrEqual(report.polylineCapacity);
     expect(report.polylineCapacity).toBe(3 + 2 * 13);
+  });
+
+  it('says which body carries each point, arc included', () => {
+    // A moment arm is entirely a question of which points a coordinate carries, so a polyline
+    // without this is a shape with no mechanics attached. An arc point belongs to the bone whose
+    // surface it lies on -- not to either attachment, which is the case worth pinning down.
+    const { points, bodies } = polyline([wrappingPath('knuckle')], [KNUCKLE], 0);
+    expect(bodies).toHaveLength(points.length);
+    expect(bodies[0]).toBe(0);
+    expect(bodies[bodies.length - 1]).toBe(1);
+    // The sphere is on the parent, so every point between the two attachments rides the parent.
+    expect(bodies.slice(1, -1).every((b) => b === 0)).toBe(true);
+  });
+
+  it('attributes arc points to the moving bone when the surface is on it', () => {
+    const moving: WrapSurface = { ...KNUCKLE, id: 'moving', bone: 'child' };
+    const { bodies } = polyline([wrappingPath('moving')], [moving], 0);
+    expect(bodies[0]).toBe(0);
+    expect(bodies[bodies.length - 1]).toBe(1);
+    expect(bodies.slice(1, -1).every((b) => b === 1)).toBe(true);
   });
 
   it('falls back to the straight run when the surface is not in the way', () => {

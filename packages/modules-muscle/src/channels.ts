@@ -31,6 +31,7 @@ export const MUSCLE_PATH = 'muscle.path';
 export const MUSCLE_CONTACT = 'muscle.contact';
 export const MUSCLE_POLYLINE = 'muscle.polyline';
 export const MUSCLE_STATE = 'muscle.state';
+export const DIAGNOSTICS_MOMENT_ARM = 'diagnostics.momentArm';
 export const EFFERENT_ALPHA_MOTOR = 'efferent.alphaMotor';
 export const EFFERENT_GAMMA_MOTOR = 'efferent.gammaMotor';
 
@@ -104,7 +105,15 @@ export function musclePolylineSpec(capacity: number): ChannelSpec {
     id: MUSCLE_POLYLINE,
     version: MUSCLE_CHANNEL_VERSION,
     layout: 'SoA',
-    fields: [{ name: 'point', dtype: 'f64', components: 3 }],
+    fields: [
+      { name: 'point', dtype: 'f64', components: 3 },
+      /**
+       * The body carrying each point: the bone an attachment is pinned to, or the bone whose
+       * surface an arc point lies on. Without it a reader has the path's shape but not what moves
+       * it, and a moment arm is entirely a question of which points a coordinate carries.
+       */
+      { name: 'body', dtype: 'i32', components: 1 },
+    ],
     elementCount: capacity,
     mode: 'single-writer',
     backing: 'shared',
@@ -146,6 +155,37 @@ export function muscleStateSpec(units: number): ChannelSpec {
 export const MUSCLE_OK = 0;
 export const MUSCLE_EQUILIBRIUM_FAILED = 1;
 export const MUSCLE_FIBER_OUT_OF_RANGE = 2;
+
+/**
+ * How much leverage each muscle has over each joint coordinate it crosses.
+ *
+ * One element per (unit, coordinate) pair rather than a matrix, because the matrix would be
+ * almost all zeros: a muscle crosses one or two joints out of a hundred. The pairs are fixed at
+ * compile time, so a reader can look up which row is which once and then read the arms every
+ * tick.
+ *
+ * Output only (M-ADR-003). Nothing in the simulation reads it, which is what makes it worth
+ * having: a quantity the simulation depends on can only tell you the model is self-consistent,
+ * while one it does not can be held against a cadaver measurement with nothing circular in the
+ * comparison.
+ */
+export function diagnosticsMomentArmSpec(pairs: number): ChannelSpec {
+  return {
+    id: DIAGNOSTICS_MOMENT_ARM,
+    version: MUSCLE_CHANNEL_VERSION,
+    layout: 'SoA',
+    fields: [
+      { name: 'unit', dtype: 'i32', components: 1 },
+      /** Index into the articulation's flat DoF list. */
+      { name: 'dof', dtype: 'i32', components: 1 },
+      /** Metres. Positive when the muscle's tension drives the coordinate positive. */
+      { name: 'arm', dtype: 'f64', components: 1 },
+    ],
+    elementCount: Math.max(1, pairs),
+    mode: 'single-writer',
+    backing: 'shared',
+  };
+}
 
 /**
  * Motor drive, 0 to 1 per unit.

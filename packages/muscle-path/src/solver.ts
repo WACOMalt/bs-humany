@@ -274,6 +274,7 @@ export class ViaPointPathSolver implements IMusclePathSolver {
           outPolyline.point[3 * written] = this.world[3 * i] as number;
           outPolyline.point[3 * written + 1] = this.world[3 * i + 1] as number;
           outPolyline.point[3 * written + 2] = this.world[3 * i + 2] as number;
+          outPolyline.body[written] = this.pointBody[from + i] as number;
         }
       }
 

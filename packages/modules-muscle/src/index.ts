@@ -10,5 +10,6 @@
 export * from './channels.js';
 export * from './compile.js';
 export * from './muscleDynamicsModule.js';
+export * from './muscleMomentModule.js';
 export * from './musclePathModule.js';
 export * from './muscleTestDriveModule.js';
