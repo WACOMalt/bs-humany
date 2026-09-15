@@ -999,7 +999,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M5.7` External validation tool (§13.6): comparison harness vs. Rajagopal/MyoSuite in CI, vs. MyoSkeleton locally, producing a committed discrepancy report. ✅ `pnpm validate:external`, reference vendored at a pinned commit, report in `docs/validation/external.md`, `--check` in CI. Found OQ-012: the neck ranges came from a joint the reference has commented out.
 `M5.8` `assets-anatomical` pack hardening: decimated LODs, convex hulls for collision proxies, streaming, attribution and CC BY-SA notices propagated (ADR-005, ADR-009). *The pack is a measurement source as of ADR-011; the 0.4 one-way-consumer criterion is withdrawn.*
 `M5.9` Module authoring guide + a worked example module. ✅ `docs/guides/module-authoring.md`, worked through `VestibularModule` in `@bs-humany/modules-sensing`, which implements the `sense.vestibular` channel of §14.1.
-`M5.10` §14.5 audit: verify all ten obligations, with evidence, as a documented gate.
+`M5.10` §14.5 audit: verify all ten obligations, with evidence, as a documented gate. ✅ `pnpm audit:obligations`, report in `docs/validation/obligations.md`, `--check` in CI. Obligation 10 needed a change policy, now in CONTRIBUTING.
 `M5.11` Performance pass against M3.19 baselines.
 `M5.12` Documentation and validation report publication.
 

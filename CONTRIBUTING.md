@@ -81,6 +81,33 @@ citation.
 SI everywhere, always. Metres, kilograms, radians, seconds, newtons. **No degrees in the data
 model** — degrees exist only in UI display code, converted at the boundary. Right-handed, Y-up.
 
+## Bone ids are a public ABI
+
+A bone id (`femur_r`, `vertebra_l3`, `phalanx_proximal_2_l`) is the name everything outside this
+repository uses to talk about a bone: a saved session, an exported animation, an HSDL document
+somebody else wrote, a module that attaches something to the sternum. Renaming one silently
+breaks all of them, and unlike a function signature nothing will fail to compile.
+
+So they are treated as an ABI. Spec section 14.5 obligation 10, and `pnpm audit:obligations`
+checks the rules below hold.
+
+**The rules.**
+
+- **Never rename a bone id in place.** Adding a bone is fine. Removing or renaming one is a
+  breaking change to the data model and needs a major version of `@bs-humany/skeleton`.
+- **To rename, add the new id and keep the old one as an alias** for at least one minor version,
+  with the alias listed in `taxonomy.ts` and resolved by `getBone`. Announce the removal in the
+  release notes of the version that deprecates it, not the one that removes it.
+- **Ids are anatomical, not project-specific**, so they do not change when the project does
+  (ADR-010). They are lower snake case, sided with a `_r` or `_l` suffix, and numbered from the
+  proximal or superior end where a series exists.
+- **The TA2 code is the anchor.** Where an id is ambiguous, the bone's `ta` field is what
+  identifies it against Terminologia Anatomica, and that field is what a cross-reference should
+  use rather than the id.
+
+Nothing is aliased today because nothing has been renamed. The mechanism exists so that the first
+rename is a considered change rather than an accident.
+
 ## Tests you are expected to write
 
 - Frame conversions: round-trips plus known-value fixtures against published examples.
