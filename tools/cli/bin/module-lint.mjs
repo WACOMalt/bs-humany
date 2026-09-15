@@ -27,6 +27,7 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const SIMULATION_PACKAGES = [
   'packages/kernel',
   'packages/modules-mechanics',
+  'packages/modules-sensing',
   'packages/backend-rapier',
   'packages/backend-mujoco',
   'packages/compiler',

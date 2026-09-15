@@ -854,6 +854,7 @@ humansim/
 │   ├── backend-rapier/
 │   ├── backend-mujoco/
 │   ├── modules-mechanics/ physics, passive joints, skeleton posing, grab, metrics
+│   ├── modules-sensing/   vestibular sensing; the worked example of the module contract
 │   ├── render-three/      three.js rendering + debug overlays
 │   ├── scenarios/         scenario definitions + golden trajectory fixtures
 │   └── testkit/           plausibility assertions, conformance harness, trajectory hashing
@@ -997,7 +998,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M5.6` Runtime articulation recompile-and-restore, benchmarked (§14.5 item 9).
 `M5.7` External validation tool (§13.6): comparison harness vs. Rajagopal/MyoSuite in CI, vs. MyoSkeleton locally, producing a committed discrepancy report. ✅ `pnpm validate:external`, reference vendored at a pinned commit, report in `docs/validation/external.md`, `--check` in CI. Found OQ-012: the neck ranges came from a joint the reference has commented out.
 `M5.8` `assets-anatomical` pack hardening: decimated LODs, convex hulls for collision proxies, streaming, attribution and CC BY-SA notices propagated (ADR-005, ADR-009). *The pack is a measurement source as of ADR-011; the 0.4 one-way-consumer criterion is withdrawn.*
-`M5.9` Module authoring guide + a worked example module.
+`M5.9` Module authoring guide + a worked example module. ✅ `docs/guides/module-authoring.md`, worked through `VestibularModule` in `@bs-humany/modules-sensing`, which implements the `sense.vestibular` channel of §14.1.
 `M5.10` §14.5 audit: verify all ten obligations, with evidence, as a documented gate.
 `M5.11` Performance pass against M3.19 baselines.
 `M5.12` Documentation and validation report publication.

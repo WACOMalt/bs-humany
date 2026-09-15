@@ -66,7 +66,7 @@ Project: `bs-humany`. Workspace scope: `@bs-humany/*`. Where a globally-unique i
 - `docs/spec/` — the technical specification. Read §0 first.
 - `docs/adr/` — architecture decision records. Do not relitigate these without flagging it.
 - `docs/sources/bibliography.md` — every parameter citation.
-- `docs/guides/` — how to extend HSDL, export a run to Blender, and deploy the studio as a container.
+- `docs/guides/` — how to write a module, extend HSDL, export a run to Blender, and deploy the studio as a container.
 - `CONTRIBUTING.md` — **read before your first change.** Especially §11.
 
 ## Licensing

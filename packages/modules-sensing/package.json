@@ -1,0 +1,27 @@
+{
+  "name": "@bs-humany/modules-sensing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sensory modules. Vestibular sensing, and the worked example of the module contract.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@bs-humany/compiler": "workspace:*",
+    "@bs-humany/kernel": "workspace:*",
+    "@bs-humany/modules-mechanics": "workspace:*"
+  },
+  "devDependencies": {
+    "@bs-humany/anthropometry": "workspace:*",
+    "@bs-humany/backend-mujoco": "workspace:*",
+    "@bs-humany/frames": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*"
+  }
+}
