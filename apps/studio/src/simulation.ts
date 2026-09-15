@@ -19,6 +19,7 @@ import {
   compileArticulation,
   transferJointState,
 } from '@bs-humany/compiler';
+import { BoneCapture } from '@bs-humany/export-gltf';
 import type { Quat, Vec3 } from '@bs-humany/frames';
 import type { HsdlDocument } from '@bs-humany/hsdl';
 import {
@@ -40,7 +41,6 @@ import {
   SkeletonPoseModule,
 } from '@bs-humany/modules-mechanics';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
-import { BoneCapture } from './capture.js';
 
 export type BackendId = 'rapier' | 'mujoco';
 

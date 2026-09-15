@@ -1000,7 +1000,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M5.8` `assets-anatomical` pack hardening: decimated LODs, convex hulls for collision proxies, streaming, attribution and CC BY-SA notices propagated (ADR-005, ADR-009). *The pack is a measurement source as of ADR-011; the 0.4 one-way-consumer criterion is withdrawn.*
 `M5.9` Module authoring guide + a worked example module. ✅ `docs/guides/module-authoring.md`, worked through `VestibularModule` in `@bs-humany/modules-sensing`, which implements the `sense.vestibular` channel of §14.1.
 `M5.10` §14.5 audit: verify all ten obligations, with evidence, as a documented gate. ✅ `pnpm audit:obligations`, report in `docs/validation/obligations.md`, `--check` in CI. Obligation 10 needed a change policy, now in CONTRIBUTING.
-`M5.11` Performance pass against M3.19 baselines.
+`M5.11` Performance pass against M3.19 baselines. ✅ Measured in `docs/validation/benchmarks.md`: every module this project wrote is 5% of an L3 tick and collision against the hull proxies is 55% of the rest, so L3 runs at 0.8x real time and that is accepted rather than fixed. L0 to L2 run in real time.
 `M5.12` Documentation and validation report publication.
 
 ### Critical path

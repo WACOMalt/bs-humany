@@ -25,6 +25,16 @@ export interface CaptureView {
 }
 
 export class BoneCapture {
+  /**
+   * Bytes this capture may hold. Injectable so a test can reach the limit without allocating a
+   * quarter of a gigabyte to prove it stops.
+   */
+  private readonly budgetBytes: number;
+
+  constructor(budgetBytes: number = CAPTURE_BUDGET_BYTES) {
+    this.budgetBytes = budgetBytes;
+  }
+
   private bones = 0;
   private firstTick = 0;
   private frames = 0;
@@ -48,8 +58,17 @@ export class BoneCapture {
     this.full = false;
   }
 
-  /** Record the transforms of tick `tick`. A tick that does not follow the last starts over. */
+  /**
+   * Record the transforms of tick `tick`. A tick that does not follow the last starts over.
+   *
+   * Once the budget is reached nothing more is taken and what is already held is kept, which
+   * means the capture holds the beginning of a long run rather than a sliding window. The
+   * alternative -- letting the continuity check see the gap the refusal leaves and start over --
+   * threw the whole capture away on the tick after the budget was hit, and then again, and
+   * again.
+   */
   append(tick: number, position: Float64Array, orientation: Float64Array): void {
+    if (this.full) return;
     const bones = position.length / 3;
     if (this.frames === 0 || bones !== this.bones) {
       this.clear();
@@ -60,7 +79,7 @@ export class BoneCapture {
       this.bones = bones;
       this.firstTick = tick;
     }
-    if (this.full || this.bytes + bones * 28 > CAPTURE_BUDGET_BYTES) {
+    if (this.bytes + bones * 28 > this.budgetBytes) {
       this.full = true;
       return;
     }

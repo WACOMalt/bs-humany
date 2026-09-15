@@ -35,6 +35,41 @@ Generated 2026-09-14 on linux-x64, Node v22.22.2.
 | l3_anatomical | mujoco | 500 | 109 | 185 | 1.266 | 1.6x |
 | l3_anatomical | mujoco | 1000 | 109 | 185 | 1.325 | 0.8x |
 
+## Where the time goes at L3
+
+Milestone M5.11. Measured 2026-09-15 at 1000 Hz on the L3 profile, 109 bodies and 189 degrees of
+freedom, by timing each module's own `step` against the whole tick and then ablating the backend.
+
+| | ms / tick |
+|---|---|
+| Whole kernel tick | 1.64 |
+| `PhysicsModule`, which is the backend step | 1.46 |
+| `SkeletonPoseModule`, posing all 206 bones | 0.035 |
+| `MetricsModule` | 0.028 |
+| `PassiveJointModule` | 0.026 |
+| `CouplingModule` (stands down on MuJoCo) | 0.000 |
+
+Every module this project wrote costs 0.09 ms together, or 5% of the tick. The rest is inside
+MuJoCo, and within that it is collision:
+
+| | ms / step |
+|---|---|
+| As it runs | 1.38 |
+| With nothing colliding | 0.62 |
+| With only the ground colliding | 0.62 |
+| At 4 solver iterations instead of 8 | 1.35 |
+| At 20 solver iterations | 1.36 |
+
+So 55% of the backend step is collision against the 333 convex hull proxies, and the constraint
+solver's iteration count barely registers: there is no accuracy being bought back by spending
+fewer iterations. Optimising the modules would be optimising 5% of the problem.
+
+L3 therefore runs at about 0.8x real time at its own 1000 Hz rate, and L0 through L2 run in real
+time with room to spare. **That is accepted rather than fixed.** L3 exists to be correct, not
+quick: it is what the validation, the audit and the Blender export are run against, and none of
+those care about wall-clock. The lever if it ever matters is the hull count, which is a fidelity
+decision (M5.8) rather than a coding one, and taking it would be trading the accuracy L3 is for.
+
 ## Recompile and restore
 
 Spec 14.5 item 9. Milliseconds to compile the same profile at a new morphology, build a fresh
