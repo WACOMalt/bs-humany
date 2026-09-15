@@ -227,13 +227,18 @@ export function renderGroups(units, viaPointsFor, direction) {
           },\n`,
         )
         .join('');
+      // A single-element path on one line, which is how the formatter would write it: a
+      // generator whose output has to be reformatted cannot check its own output.
+      const path =
+        elements.split('\n').filter((line) => line.length > 0).length === 1
+          ? `[${elements.trim().replace(/,$/, '')}]`
+          : `[\n${elements}        ]`;
       body.push(`      {
         id: '${unit.id}',
         displayName: '${unit.name}',
         origin: '${unit.origin}',
         insertion: '${unit.insertion}',
-        path: [
-${elements}        ],
+        path: ${path},
         parameters: {
           maxIsometricForce: ${num(p.maxIsometricForce)},
           optimalFiberLength: ${num(p.optimalFiberLength)},

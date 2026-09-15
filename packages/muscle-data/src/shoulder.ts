@@ -20,17 +20,18 @@
  * frames have not been reconciled with ours the way the arm's have. A straight line from the
  * sternum to the humerus would be worse than nothing, so they wait for that work.
  *
- * ## The humeral head
+ * ## No wrap surface
  *
- * All nine turn over it, and it is a sphere rather than a cylinder because the head is one: its
- * radius is the articular fit that located the shoulder's joint centre, over 681 vertices with a
- * residual of about a millimetre. A sphere centred on the joint centre has the same moment arm
- * about every axis through it, which is what a ball joint means.
+ * These paths are held by via points alone. The head of the humerus is in the skeleton as a
+ * measured sphere and was tried here first, and every unit came off it again: swept through
+ * twenty-four shoulder poses, half never touched it and half touched it between a fifth and two
+ * fifths of the time. A wrap that comes and goes changes a path by centimetres from one tick to
+ * the next, and a tendon that stiff turns that into kilonewtons -- the arm twitches and its
+ * rotation flips.
  *
- * Which side each unit passes on is declared rather than discovered, because a path that fell to
- * the other side of the head between one tick and the next would reverse that muscle's action.
- * The sides are mirrored in X for the left arm and not in Y or Z: lateral is opposite on the two
- * sides of a body, and superior and anterior are not.
+ * The anatomy agrees with the measurement. The cuff inserts *on* the head, at the tubercles,
+ * barely outside it: those muscles lie against the head and attach rather than turning over it,
+ * and their leverage is where the tubercle stands rather than a radius.
  */
 
 import { cite } from '@bs-humany/hsdl';
@@ -62,12 +63,6 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         insertion: 'deltoid_insertion_r_deltoid_tuberosity',
         path: [
           { kind: 'site', site: 'deltoid_anterior_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: 0.7, y: 0, z: -0.7 },
-            source: gray('Deltoid'),
-          },
           { kind: 'site', site: 'deltoid_anterior_r__via_2' },
         ],
         parameters: {
@@ -86,12 +81,6 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         insertion: 'deltoid_insertion_r_deltoid_tuberosity',
         path: [
           { kind: 'site', site: 'deltoid_middle_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: 1, y: 0, z: 0 },
-            source: gray('Deltoid'),
-          },
           { kind: 'site', site: 'deltoid_middle_r__via_2' },
         ],
         parameters: {
@@ -108,15 +97,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Deltoid, posterior part, right',
         origin: 'deltoid_origin_r_spine_of_scapula',
         insertion: 'deltoid_insertion_r_deltoid_tuberosity',
-        path: [
-          { kind: 'site', site: 'deltoid_posterior_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: 0.7, y: 0, z: 0.7 },
-            source: gray('Deltoid'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'deltoid_posterior_r__via_1' }],
         parameters: {
           maxIsometricForce: 163.23,
           optimalFiberLength: 0.11111,
@@ -140,15 +121,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Supraspinatus, right',
         origin: 'supraspinatus_origin_r_supraspinous_fossa',
         insertion: 'supraspinatus_insertion_r_greater_tubercle',
-        path: [
-          { kind: 'site', site: 'supraspinatus_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: 0, y: 1, z: 0 },
-            source: gray('Supraspinatus'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'supraspinatus_r__via_1' }],
         parameters: {
           maxIsometricForce: 339.132,
           optimalFiberLength: 0.0895907,
@@ -172,15 +145,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Infraspinatus, right',
         origin: 'infraspinatus_origin_r_infraspinous_fossa',
         insertion: 'infraspinatus_insertion_r_greater_tubercle',
-        path: [
-          { kind: 'site', site: 'infraspinatus_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: 0, y: 0, z: 1 },
-            source: gray('Infraspinatus'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'infraspinatus_r__via_1' }],
         parameters: {
           maxIsometricForce: 2150.71,
           optimalFiberLength: 0.102288,
@@ -204,15 +169,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Subscapularis, right',
         origin: 'subscapularis_origin_r_subscapular_fossa',
         insertion: 'subscapularis_insertion_r_lesser_tubercle',
-        path: [
-          { kind: 'site', site: 'subscapularis_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: 0, y: 0, z: -1 },
-            source: gray('Subscapularis'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'subscapularis_r__via_1' }],
         parameters: {
           maxIsometricForce: 1174.3,
           optimalFiberLength: 0.0769059,
@@ -236,15 +193,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Teres minor, right',
         origin: 'teres_minor_origin_r_lateral_border_of_scapula',
         insertion: 'teres_minor_insertion_r_greater_tubercle',
-        path: [
-          { kind: 'site', site: 'teres_minor_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: 0, y: 0, z: 1 },
-            source: gray('Teres minor'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'teres_minor_r__via_1' }],
         parameters: {
           maxIsometricForce: 539,
           optimalFiberLength: 0.137461,
@@ -270,12 +219,6 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         insertion: 'teres_major_insertion_r_crest_of_lesser_tubercle',
         path: [
           { kind: 'site', site: 'teres_major_r__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_r',
-            preferredSide: { x: -1, y: 0, z: 0 },
-            source: gray('Teres major'),
-          },
           { kind: 'site', site: 'teres_major_r__via_2' },
         ],
         parameters: {
@@ -303,12 +246,6 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         insertion: 'deltoid_insertion_l_deltoid_tuberosity',
         path: [
           { kind: 'site', site: 'deltoid_anterior_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: -0.7, y: 0, z: -0.7 },
-            source: gray('Deltoid'),
-          },
           { kind: 'site', site: 'deltoid_anterior_l__via_2' },
         ],
         parameters: {
@@ -327,12 +264,6 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         insertion: 'deltoid_insertion_l_deltoid_tuberosity',
         path: [
           { kind: 'site', site: 'deltoid_middle_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: -1, y: 0, z: 0 },
-            source: gray('Deltoid'),
-          },
           { kind: 'site', site: 'deltoid_middle_l__via_2' },
         ],
         parameters: {
@@ -349,15 +280,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Deltoid, posterior part, left',
         origin: 'deltoid_origin_l_spine_of_scapula',
         insertion: 'deltoid_insertion_l_deltoid_tuberosity',
-        path: [
-          { kind: 'site', site: 'deltoid_posterior_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: -0.7, y: 0, z: 0.7 },
-            source: gray('Deltoid'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'deltoid_posterior_l__via_1' }],
         parameters: {
           maxIsometricForce: 163.23,
           optimalFiberLength: 0.11111,
@@ -381,15 +304,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Supraspinatus, left',
         origin: 'supraspinatus_origin_l_supraspinous_fossa',
         insertion: 'supraspinatus_insertion_l_greater_tubercle',
-        path: [
-          { kind: 'site', site: 'supraspinatus_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: 0, y: 1, z: 0 },
-            source: gray('Supraspinatus'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'supraspinatus_l__via_1' }],
         parameters: {
           maxIsometricForce: 339.132,
           optimalFiberLength: 0.0895907,
@@ -413,15 +328,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Infraspinatus, left',
         origin: 'infraspinatus_origin_l_infraspinous_fossa',
         insertion: 'infraspinatus_insertion_l_greater_tubercle',
-        path: [
-          { kind: 'site', site: 'infraspinatus_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: 0, y: 0, z: 1 },
-            source: gray('Infraspinatus'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'infraspinatus_l__via_1' }],
         parameters: {
           maxIsometricForce: 2150.71,
           optimalFiberLength: 0.102288,
@@ -445,15 +352,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Subscapularis, left',
         origin: 'subscapularis_origin_l_subscapular_fossa',
         insertion: 'subscapularis_insertion_l_lesser_tubercle',
-        path: [
-          { kind: 'site', site: 'subscapularis_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: 0, y: 0, z: -1 },
-            source: gray('Subscapularis'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'subscapularis_l__via_1' }],
         parameters: {
           maxIsometricForce: 1174.3,
           optimalFiberLength: 0.0769059,
@@ -477,15 +376,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Teres minor, left',
         origin: 'teres_minor_origin_l_lateral_border_of_scapula',
         insertion: 'teres_minor_insertion_l_greater_tubercle',
-        path: [
-          { kind: 'site', site: 'teres_minor_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: 0, y: 0, z: 1 },
-            source: gray('Teres minor'),
-          },
-        ],
+        path: [{ kind: 'site', site: 'teres_minor_l__via_1' }],
         parameters: {
           maxIsometricForce: 539,
           optimalFiberLength: 0.137461,
@@ -511,12 +402,6 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         insertion: 'teres_major_insertion_l_crest_of_lesser_tubercle',
         path: [
           { kind: 'site', site: 'teres_major_l__via_1' },
-          {
-            kind: 'wrap',
-            surface: 'humeral_head_l',
-            preferredSide: { x: 1, y: 0, z: 0 },
-            source: gray('Teres major'),
-          },
           { kind: 'site', site: 'teres_major_l__via_2' },
         ],
         parameters: {

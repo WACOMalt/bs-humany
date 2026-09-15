@@ -40,6 +40,10 @@ export interface CompiledMuscleUnit {
   readonly parameters: MusculotendonParameters;
   readonly activationTime: number;
   readonly deactivationTime: number;
+  /** The unit's path length at the rest pose, metres: what its tendon was fitted to. */
+  readonly restLength: number;
+  /** The tendon slack length the data states, before it was fitted to this skeleton. */
+  readonly statedTendonSlackLength: number;
 }
 
 export interface CompiledMuscleSet {
@@ -191,15 +195,25 @@ export function compileMuscleSet(
       });
 
       const p = unit.parameters;
+      const optimalFiberLength = scalar(p.optimalFiberLength, context);
+      const pennationAngle = scalar(p.pennationAngle, context);
+      const statedTendonSlackLength = scalar(p.tendonSlackLength, context);
+      const restLength = restPathLength(
+        paths[paths.length - 1] as MusclePath,
+        articulation,
+        resolver,
+      );
       units.push({
         id: unit.id,
         displayName: unit.displayName,
         group: group.id,
+        restLength,
+        statedTendonSlackLength,
         parameters: {
           maxIsometricForce: scalar(p.maxIsometricForce, context),
-          optimalFiberLength: scalar(p.optimalFiberLength, context),
-          tendonSlackLength: scalar(p.tendonSlackLength, context),
-          pennationAngle: scalar(p.pennationAngle, context),
+          optimalFiberLength,
+          tendonSlackLength: fittedTendonSlack(restLength, optimalFiberLength, pennationAngle),
+          pennationAngle,
           maxContractionVelocity:
             p.maxContractionVelocity === undefined
               ? DEFAULT_MAX_CONTRACTION_VELOCITY
@@ -213,6 +227,96 @@ export function compileMuscleSet(
   }
 
   return { units, paths, surfaces, resolver };
+}
+
+/**
+ * The least tendon a unit may be given, metres.
+ *
+ * A millimetre. Not physical -- it is a floor under a division: the fiber model normalises tendon
+ * length by the slack length, so a slack length of zero is not a stiff tendon but a NaN.
+ */
+export const MINIMUM_TENDON_SLACK = 0.001;
+
+/**
+ * The tendon slack length this skeleton implies, rather than the one the source model states.
+ *
+ * Of the four musculotendon parameters, three are properties of the *tissue* -- how much force
+ * the fibers make, how long they are at their best, what angle they sit at -- and they cross from
+ * one skeleton to another unchanged. Tendon slack length is not one of them. It is a length
+ * measured on the model it came from: how far it is from that muscle's origin to its insertion on
+ * *those* bones, less what the fibers take up. Carried onto different bones it is a statement
+ * about the wrong body.
+ *
+ * Ours are different bones. Measured against the source model's own paths, this skeleton's are 25
+ * to 75 mm longer through the rotator cuff and teres major and about 50 longer at the biceps, and
+ * what that does with a transcribed tendon length is not subtle: the difference lands on the
+ * tendon, which is the stiffest thing in the model. The posterior deltoid sat 34 mm past its own
+ * resting length and pulled a kilonewton at rest, the arm twitched, and the rotation flipped.
+ *
+ * So the tendon is fitted here, to the one pose every model agrees on: at the rest pose the fiber
+ * sits at its optimal length and the tendon at exactly slack, carrying nothing. That is the
+ * standard step when a musculoskeletal model is scaled to a new skeleton, and it is the same
+ * quantity being computed -- the length of that tendon on this body.
+ *
+ * What is not fitted: peak force, optimal fiber length, pennation, maximum contraction velocity.
+ * Those stay exactly as cited, which is what keeps the provenance honest -- the tissue is the
+ * source's and the geometry is ours, which is the split this project already draws for
+ * attachments.
+ *
+ * The rest length is taken along the straight path through the via points, without wrapping. A
+ * wrap only ever lengthens a path, so a unit that wraps at rest is fitted slightly short and
+ * begins with its tendon a little stretched; the alternative is running the geodesic solver
+ * inside a compile step, which is a great deal of machinery for a millimetre.
+ */
+export function fittedTendonSlack(
+  restLength: number,
+  optimalFiberLength: number,
+  pennationAngle: number,
+): number {
+  const fiberAlongTendon = optimalFiberLength * Math.cos(pennationAngle);
+  const fitted = restLength - fiberAlongTendon;
+  // Shorter than its own fibers at rest: the muscle is bunched, and there is no tendon to speak
+  // of. Keep the floor rather than the stated length, which would be longer than the whole unit.
+  return fitted > MINIMUM_TENDON_SLACK ? fitted : MINIMUM_TENDON_SLACK;
+}
+
+/**
+ * How long a path is at the rest pose, following it through its via points.
+ *
+ * Wrapping is not solved here: see `fittedTendonSlack` for why a straight run through the via
+ * points is enough for what this is used for.
+ */
+function restPathLength(
+  path: MusclePath,
+  articulation: CompiledArticulation,
+  resolver: BoneResolver,
+): number {
+  const world = (bone: string, point: Vec3): Vec3 => {
+    const segment = articulation.segments[resolver.bodyOf(bone)];
+    if (!segment) return point;
+    const local = resolver.toBodyLocal(bone, point);
+    const { translation: t, rotation: q } = segment.restWorld;
+    const tx = 2 * (q.y * local.z - q.z * local.y);
+    const ty = 2 * (q.z * local.x - q.x * local.z);
+    const tz = 2 * (q.x * local.y - q.y * local.x);
+    return {
+      x: t.x + local.x + q.w * tx + (q.y * tz - q.z * ty),
+      y: t.y + local.y + q.w * ty + (q.z * tx - q.x * tz),
+      z: t.z + local.z + q.w * tz + (q.x * ty - q.y * tx),
+    };
+  };
+  const points: Vec3[] = [world(path.origin.bone, path.origin.point)];
+  for (const element of path.elements) {
+    if (element.kind === 'viaPoint') points.push(world(element.site.bone, element.site.point));
+  }
+  points.push(world(path.insertion.bone, path.insertion.point));
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1] as Vec3;
+    const b = points[i] as Vec3;
+    total += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+  }
+  return total;
 }
 
 /**

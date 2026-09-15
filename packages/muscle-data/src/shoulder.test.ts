@@ -65,32 +65,18 @@ describe('the shoulder muscle set', () => {
     }
   });
 
-  it('runs every unit over the head of the humerus on its own side', () => {
+  it('wraps nothing, because nothing here uses a surface steadily', () => {
+    // The humeral head is in the skeleton as a measured sphere and these units were run over it
+    // first. Swept through twenty-four shoulder poses, half never touched it and half touched it
+    // between a fifth and two fifths of the time -- and a wrap that comes and goes changes a path
+    // by centimetres from one tick to the next, which a stiff tendon turns into kilonewtons. The
+    // arm twitched and its rotation flipped. The cuff inserts *on* the head, at the tubercles,
+    // barely outside it: those muscles lie against it and attach rather than turning over it.
     for (const unit of SHOULDER_UNITS) {
-      const wraps = unit.path.filter((element) => element.kind === 'wrap');
-      expect(wraps, unit.id).toHaveLength(1);
-      const wrap = wraps[0];
-      if (wrap?.kind !== 'wrap') throw new Error(`${unit.id} does not wrap`);
-      const side = unit.id.endsWith('_l') ? 'l' : 'r';
-      expect(wrap.surface, unit.id).toBe(`humeral_head_${side}`);
-    }
-  });
-
-  it('mirrors which side of the head a muscle passes on in X, and only in X', () => {
-    // The elbow's sides are anterior and posterior, which point the same way on both arms. The
-    // shoulder's include lateral and medial, which do not: a middle deltoid declared laterally on
-    // both sides would have the left one passing through the chest.
-    for (const unit of SHOULDER_UNITS.filter((u) => u.id.endsWith('_r'))) {
-      const mirror = SHOULDER_UNITS.find((u) => u.id === unit.id.replace(/_r$/, '_l'));
-      if (!mirror) throw new Error(`${unit.id} has no left-side counterpart`);
-      const ours = unit.path.find((e) => e.kind === 'wrap');
-      const theirs = mirror.path.find((e) => e.kind === 'wrap');
-      if (ours?.kind !== 'wrap' || theirs?.kind !== 'wrap') throw new Error('missing wrap');
-      // Negated, and `toBe` would fail on the difference between +0 and -0 for a muscle that
-      // passes over the top rather than to one side.
-      expect(theirs.preferredSide.x, unit.id).toBeCloseTo(-(ours.preferredSide.x as number), 12);
-      expect(theirs.preferredSide.y, unit.id).toBe(ours.preferredSide.y);
-      expect(theirs.preferredSide.z, unit.id).toBe(ours.preferredSide.z);
+      expect(
+        unit.path.filter((element) => element.kind === 'wrap'),
+        unit.id,
+      ).toHaveLength(0);
     }
   });
 
@@ -98,14 +84,13 @@ describe('the shoulder muscle set', () => {
     // The reference model lists most shoulder tendons from the humerus inward and the elbow ones
     // from the girdle outward. Carried in the reference's order, the anterior deltoid ran down to
     // a point on the humerus, back up above it and down again -- half as long again as the muscle,
-    // with its fiber at twice optimal and a force that overflowed. Each via point here is at most
-    // a bone's length from the one before it, which a doubling-back path cannot manage.
+    // with its fiber at twice optimal and a force that overflowed.
     for (const unit of SHOULDER_UNITS) {
       const sites = unit.path.filter((e) => e.kind === 'site');
-      expect(sites.length, unit.id).toBeLessThanOrEqual(3);
+      expect(sites.length, unit.id).toBeLessThanOrEqual(2);
     }
     const deltoid = SHOULDER_UNITS.find((u) => u.id === 'deltoid_anterior_r');
-    expect(deltoid?.path.map((e) => e.kind)).toEqual(['site', 'wrap', 'site']);
+    expect(deltoid?.path.map((e) => e.kind)).toEqual(['site', 'site']);
   });
 
   it('gives every unit a citation naming the actuator it came from', () => {

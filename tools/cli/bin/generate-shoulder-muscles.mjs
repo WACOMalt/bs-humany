@@ -30,18 +30,27 @@
  * Until it is, those two would be straight lines from the sternum to the humerus, which is worse
  * than not having them.
  *
- * ## One surface, and which side of it
+ * ## No wrap surface, and why not
  *
- * Every unit turns over the head of the humerus, a sphere whose radius is the articular fit that
- * located the shoulder's joint centre. That is what the reference does too, with rather more
- * surfaces: several of these paths wrap two or three geoms apiece, at the head and again at the
- * acromion or the shaft. The solver takes one per span until N1.5, so each unit gets the head --
- * the surface all nine share, and the one whose radius sets their leverage.
+ * These units ran over the head of the humerus at first -- a sphere, measured by the articular fit
+ * that located the shoulder's joint centre -- and every one of them was taken off it again. Not
+ * because the surface is wrong, but because none of them uses it steadily.
  *
- * Which side of it each passes on is anatomy, and unlike the elbow it is not the same on both
- * arms: the elbow's sides are anterior and posterior, which are the same direction on either
- * side of the body, while the shoulder's include lateral and medial, which are opposite. So the
- * left side's declarations are mirrored in X, and only in X.
+ * Swept through twenty-four shoulder poses, four of the units never touched it and the other four
+ * touched it between a fifth and two fifths of the time. A wrap that engages on one tick and not
+ * the next changes a path by centimetres, and a tendon that stiff turns centimetres into
+ * kilonewtons: what it looks like is the arm twitching and its rotation flipping, which is what it
+ * did. The same lesson as the humeral shaft cylinder in OQ-015 -- a muscle that only grazes a
+ * surface is worse off with it than without it.
+ *
+ * The anatomy agrees. The four cuff muscles insert *on* the head, at the tubercles, ten to fifteen
+ * millimetres outside a sphere of twenty-four: they lie against it and attach rather than turning
+ * over it, and their leverage comes from where the tubercle stands, not from a radius. The deltoid
+ * drapes over the head laterally and is held there by the via points carried from the reference.
+ *
+ * The surface itself stays in the skeleton. It is correct geometry, measured, and the muscle that
+ * genuinely rides it -- the long head of biceps in its groove -- is a path this set does not yet
+ * carry.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -65,13 +74,7 @@ const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'),
 );
 
-/**
- * Which actuator becomes which unit, which of our attachment sites it binds to, and which side of
- * the humeral head it passes on.
- *
- * `side` is in the dataset's own frame for the right arm, where +X is lateral, +Y superior and
- * +Z posterior. The left arm's is this mirrored in X.
- */
+/** Which actuator becomes which unit, and which of our attachment sites it binds to. */
 const UNITS = [
   {
     actuator: 'DELT1',
@@ -83,7 +86,6 @@ const UNITS = [
     name: 'Deltoid, anterior part',
     origin: 'deltoid_origin_$_acromial_end',
     insertion: 'deltoid_insertion_$_deltoid_tuberosity',
-    side: { x: 0.7, y: 0, z: -0.7 },
   },
   {
     actuator: 'DELT2',
@@ -92,7 +94,6 @@ const UNITS = [
     name: 'Deltoid, middle part',
     origin: 'deltoid_origin_$_acromion',
     insertion: 'deltoid_insertion_$_deltoid_tuberosity',
-    side: { x: 1, y: 0, z: 0 },
   },
   {
     actuator: 'DELT3',
@@ -101,7 +102,6 @@ const UNITS = [
     name: 'Deltoid, posterior part',
     origin: 'deltoid_origin_$_spine_of_scapula',
     insertion: 'deltoid_insertion_$_deltoid_tuberosity',
-    side: { x: 0.7, y: 0, z: 0.7 },
   },
   {
     actuator: 'SUPSP',
@@ -113,8 +113,6 @@ const UNITS = [
     name: 'Supraspinatus',
     origin: 'supraspinatus_origin_$_supraspinous_fossa',
     insertion: 'supraspinatus_insertion_$_greater_tubercle',
-    // Over the top of the head, which is what makes it the muscle that starts an abduction.
-    side: { x: 0, y: 1, z: 0 },
   },
   {
     actuator: 'INFSP',
@@ -126,7 +124,6 @@ const UNITS = [
     name: 'Infraspinatus',
     origin: 'infraspinatus_origin_$_infraspinous_fossa',
     insertion: 'infraspinatus_insertion_$_greater_tubercle',
-    side: { x: 0, y: 0, z: 1 },
   },
   {
     actuator: 'SUBSC',
@@ -138,8 +135,6 @@ const UNITS = [
     name: 'Subscapularis',
     origin: 'subscapularis_origin_$_subscapular_fossa',
     insertion: 'subscapularis_insertion_$_lesser_tubercle',
-    // In front of the head: the one cuff muscle on the anterior side, and the internal rotator.
-    side: { x: 0, y: 0, z: -1 },
   },
   {
     actuator: 'TMIN',
@@ -151,7 +146,6 @@ const UNITS = [
     name: 'Teres minor',
     origin: 'teres_minor_origin_$_lateral_border_of_scapula',
     insertion: 'teres_minor_insertion_$_greater_tubercle',
-    side: { x: 0, y: 0, z: 1 },
   },
   {
     actuator: 'TMAJ',
@@ -163,8 +157,6 @@ const UNITS = [
     name: 'Teres major',
     origin: 'teres_major_origin_$_inferior_angle_of_scapula',
     insertion: 'teres_major_insertion_$_crest_of_lesser_tubercle',
-    // Round the inside of the humerus to the lesser tubercle, which is why it rotates the arm in.
-    side: { x: -1, y: 0, z: 0 },
   },
 ];
 
@@ -179,14 +171,9 @@ function render() {
       );
     }
     requirePhysical(unit.actuator, parameters);
-    return {
-      ...unit,
-      parameters,
-      wrap: `humeral_head_${unit.side_}`,
-      // Lateral on the left arm is the other way along X; anterior and superior are not.
-      preferredSide:
-        unit.side_ === 'r' ? unit.side : { x: -unit.side.x, y: unit.side.y, z: unit.side.z },
-    };
+    // No wrap: the via points hold each path where it belongs, and the head is a surface these
+    // muscles graze rather than ride. See the note at the top of this file.
+    return { ...unit, parameters };
   });
   const body = renderGroups(units, viaPointsFor, VIA_PATH_DIRECTION);
 
@@ -212,17 +199,18 @@ function render() {
  * frames have not been reconciled with ours the way the arm's have. A straight line from the
  * sternum to the humerus would be worse than nothing, so they wait for that work.
  *
- * ## The humeral head
+ * ## No wrap surface
  *
- * All nine turn over it, and it is a sphere rather than a cylinder because the head is one: its
- * radius is the articular fit that located the shoulder's joint centre, over 681 vertices with a
- * residual of about a millimetre. A sphere centred on the joint centre has the same moment arm
- * about every axis through it, which is what a ball joint means.
+ * These paths are held by via points alone. The head of the humerus is in the skeleton as a
+ * measured sphere and was tried here first, and every unit came off it again: swept through
+ * twenty-four shoulder poses, half never touched it and half touched it between a fifth and two
+ * fifths of the time. A wrap that comes and goes changes a path by centimetres from one tick to
+ * the next, and a tendon that stiff turns that into kilonewtons -- the arm twitches and its
+ * rotation flips.
  *
- * Which side each unit passes on is declared rather than discovered, because a path that fell to
- * the other side of the head between one tick and the next would reverse that muscle's action.
- * The sides are mirrored in X for the left arm and not in Y or Z: lateral is opposite on the two
- * sides of a body, and superior and anterior are not.
+ * The anatomy agrees with the measurement. The cuff inserts *on* the head, at the tubercles,
+ * barely outside it: those muscles lie against the head and attach rather than turning over it,
+ * and their leverage is where the tubercle stands rather than a radius.
  */
 
 import { cite } from '@bs-humany/hsdl';

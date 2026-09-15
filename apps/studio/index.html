@@ -146,12 +146,12 @@
           <input type="range" id="flexorDrive" min="0" max="100" step="1" value="0" />
           <label for="extensorDrive">Extensor drive <output id="extensorDrive-value">0%</output></label>
           <input type="range" id="extensorDrive" min="0" max="100" step="1" value="0" />
-          <p class="note">Thirty-two units across both arms: seven at each elbow (both heads of
-          biceps, brachialis, brachioradialis, all three heads of triceps) and nine at each
-          shoulder (the three heads of deltoid, the rotator cuff, teres major, coracobrachialis).
-          Parameters from the MyoSuite arm model, attachments from each side's own markers. The
-          sliders drive the elbow; the shoulder muscles are along for the ride until the
-          range-of-motion scenarios land.</p>
+          <p class="note">Thirty units across both arms: seven at each elbow (both heads of biceps,
+          brachialis, brachioradialis, all three heads of triceps) and eight at each shoulder (the
+          three heads of deltoid, the rotator cuff, teres major). Force and fiber length come from
+          the MyoSuite arm model; attachments come from each side's own markers, and each tendon's
+          slack length is fitted to the path it has on this skeleton. The sliders drive the elbow;
+          the shoulder muscles are along for the ride until the range-of-motion scenarios land.</p>
           <dl class="readout" id="muscle-readout">
             <dt title="Summed over the elbow flexors, which is what the flexor slider drives">Flexion force</dt><dd id="muscle-flexion">&mdash;</dd>
             <dt title="Summed over the elbow extensors, which is what the extensor slider drives">Extension force</dt><dd id="muscle-extension">&mdash;</dd>

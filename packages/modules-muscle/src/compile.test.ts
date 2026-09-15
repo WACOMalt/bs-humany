@@ -2,11 +2,17 @@ import { resolveMorphology } from '@bs-humany/anthropometry';
 import { compileArticulation } from '@bs-humany/compiler';
 import { cite } from '@bs-humany/hsdl';
 import type { WrappingSurfaceDef } from '@bs-humany/hsdl';
-import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
+import { ELBOW_MUSCLES, ELBOW_UNITS } from '@bs-humany/muscle-data';
 import type { MuscleGroup } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
-import { articulationBoneResolver, compileMuscleSet, wrapSurfaceId } from './compile.js';
+import {
+  MINIMUM_TENDON_SLACK,
+  articulationBoneResolver,
+  compileMuscleSet,
+  fittedTendonSlack,
+  wrapSurfaceId,
+} from './compile.js';
 
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
@@ -133,6 +139,50 @@ describe('compiling a muscle set', () => {
       expect(resolver.bodyOf(path.origin.bone), path.id).toBeGreaterThanOrEqual(0);
       expect(resolver.bodyOf(path.insertion.bone), path.id).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('fits each tendon to this skeleton rather than carrying the source\u2019s', () => {
+    // Three of the four musculotendon parameters are properties of the tissue and cross from one
+    // skeleton to another unchanged. Tendon slack length is not: it is a length measured on the
+    // model it came from, and ours are different bones. The rotator cuff is where that shows --
+    // the source gives infraspinatus a 5 mm tendon, which on this skeleton leaves it 25 mm short
+    // of its own path, and the difference lands on the stiffest thing in the model.
+    const compiled = set();
+    for (let i = 0; i < compiled.units.length; i++) {
+      const unit = compiled.units[i];
+      if (!unit) continue;
+      const { optimalFiberLength, tendonSlackLength, pennationAngle } = unit.parameters;
+      // At the rest pose the fiber sits at its optimal length and the tendon at exactly slack.
+      expect(
+        tendonSlackLength + optimalFiberLength * Math.cos(pennationAngle),
+        unit.id,
+      ).toBeCloseTo(unit.restLength, 9);
+      expect(tendonSlackLength, unit.id).toBeGreaterThanOrEqual(MINIMUM_TENDON_SLACK);
+    }
+  });
+
+  it('leaves the tissue parameters exactly as cited', () => {
+    // The other half of the same claim: what is fitted is the geometry, and the force a muscle
+    // makes and the length its fibers work best at are the source's, unrounded.
+    const compiled = set();
+    const stated = new Map(ELBOW_UNITS.map((u) => [u.id, u.parameters]));
+    for (const unit of compiled.units) {
+      const source = stated.get(unit.id);
+      if (!source) continue;
+      expect(unit.parameters.maxIsometricForce, unit.id).toBe(source.maxIsometricForce);
+      expect(unit.parameters.optimalFiberLength, unit.id).toBe(source.optimalFiberLength);
+      expect(unit.statedTendonSlackLength, unit.id).toBe(source.tendonSlackLength);
+    }
+  });
+
+  it('keeps a bunched muscle off a division by zero', () => {
+    // A unit whose rest path is shorter than its own fibers has no tendon to speak of, and the
+    // model normalises tendon length by the slack length -- so zero is not a stiff tendon, it is
+    // a NaN traveling into the solver.
+    expect(fittedTendonSlack(0.05, 0.2, 0)).toBe(MINIMUM_TENDON_SLACK);
+    expect(fittedTendonSlack(0.3, 0.2, 0)).toBeCloseTo(0.1, 12);
+    // Pennation shortens what the fibers take along the tendon, so it lengthens what is left.
+    expect(fittedTendonSlack(0.3, 0.2, 0.3)).toBeGreaterThan(fittedTendonSlack(0.3, 0.2, 0));
   });
 
   it('names the muscle when a site is missing, rather than failing somewhere downstream', () => {

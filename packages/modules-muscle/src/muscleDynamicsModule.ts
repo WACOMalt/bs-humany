@@ -61,7 +61,9 @@ import {
   type MusculotendonParameters,
   equilibriumFiberLength,
   solveEquilibrium,
+  solveRigidTendon,
   stepActivation,
+  tendonShare,
 } from '@bs-humany/muscle-model';
 import {
   EFFERENT_ALPHA_MOTOR,
@@ -79,6 +81,29 @@ import type { CompiledMuscleSet } from './compile.js';
 import { MUSCLE_PATH_MODULE_ID } from './musclePathModule.js';
 
 export const MUSCLE_DYNAMICS_MODULE_ID = 'bsums.xyz.bs-humany.muscle.dynamics';
+
+/**
+ * Below this share of a unit's length, its tendon is solved as rigid rather than as a spring.
+ *
+ * The elastic model divides a unit's length between fiber and tendon, and how sharply the tendon
+ * answers a change in that division goes as one over its slack length: a tendon of 4.7 mm, which
+ * is what the source's numbers give this skeleton's infraspinatus, is a spring of about 1.6e7
+ * newtons per metre. Explicit integration cannot follow a spring that stiff at two milliseconds a
+ * tick -- the fiber can move two millimetres in a tick and the path can move five, so the tendon
+ * is asked to absorb the difference and answers with everything it has. On screen that is an arm
+ * twitching and flipping its own rotation, which is exactly what it did.
+ *
+ * So a unit whose tendon is a small enough share of its length is solved the other way, with the
+ * tendon fixed and the fiber following the path. Millard et al. (2013) put the choice in these
+ * terms: the rigid approximation's error *is* the tendon strain it refuses to model, so a muscle
+ * whose tendon is a small share of its length loses little by it. Fifteen per cent, with a tendon
+ * strain of five, is under a per cent of the unit's length -- well under a millimetre for the
+ * muscles it catches, which are the four of the rotator cuff with almost no free tendon at all.
+ *
+ * `tendonShare` is the same quantity the rigid model's own documentation names as the one to read
+ * before choosing.
+ */
+export const RIGID_TENDON_SHARE = 0.15;
 
 /** Fiber lengths outside this are held, and the tick is flagged, rather than left to diverge. */
 const FIBER_FLOOR = 0.1;
@@ -121,6 +146,9 @@ export class MuscleDynamicsModule implements SimModule {
   private readonly scratchActivation: { activationTime: number; deactivationTime: number };
 
   private length: Float64Array | undefined;
+  private pathVelocity: Float64Array | undefined;
+  /** Per unit: whether its tendon is too short to integrate as a spring at this step size. */
+  private readonly rigid: Uint8Array;
   private pathPoint: Float64Array | undefined;
   private pathPointBody: Int32Array | undefined;
   private pointStart: Int32Array | undefined;
@@ -155,6 +183,7 @@ export class MuscleDynamicsModule implements SimModule {
     this.activationTime = new Float64Array(n);
     this.deactivationTime = new Float64Array(n);
     this.fiberLength = new Float64Array(n);
+    this.rigid = new Uint8Array(n);
 
     for (let i = 0; i < n; i++) {
       const unit = muscles.units[i] as CompiledMuscleSet['units'][number];
@@ -167,6 +196,7 @@ export class MuscleDynamicsModule implements SimModule {
       this.damping[i] = p.damping;
       this.activationTime[i] = unit.activationTime;
       this.deactivationTime[i] = unit.deactivationTime;
+      this.rigid[i] = tendonShare(p) < RIGID_TENDON_SHARE ? 1 : 0;
     }
 
     this.com = new Float64Array(3 * articulation.segments.length);
@@ -235,6 +265,7 @@ export class MuscleDynamicsModule implements SimModule {
   private bind(ctx: ModuleInitContext): void {
     const path = ctx.read(MUSCLE_PATH);
     this.length = path.fields.length as Float64Array;
+    this.pathVelocity = path.fields.velocity as Float64Array;
 
     this.pointStart = path.fields.pointStart as Int32Array;
     this.pointCount = path.fields.pointCount as Int32Array;
@@ -261,8 +292,14 @@ export class MuscleDynamicsModule implements SimModule {
     this.poseOrientation = pose.fields.orientation as Float64Array;
   }
 
+  /** True when this unit is solved with a rigid tendon rather than an elastic one. */
+  isRigid(unit: number): boolean {
+    return this.rigid[unit] === 1;
+  }
+
   step(ctx: ModuleStepContext): void {
     const length = this.length;
+    const pathVelocity = this.pathVelocity;
     const excitation = this.excitation;
     const activationOut = this.outActivation;
     const fiberLengthOut = this.outFiberLength;
@@ -289,8 +326,9 @@ export class MuscleDynamicsModule implements SimModule {
       const unitLength = length[i] as number;
 
       // The first tick after init or a restore: put each fiber where the forces already balance,
-      // so the muscle does not twitch at t = 0 on a transient nobody asked for.
-      if (!this.primed) {
+      // so the muscle does not twitch at t = 0 on a transient nobody asked for. A rigid unit has
+      // no fiber state to prime -- its length is the path's, every tick.
+      if (!this.primed && this.rigid[i] === 0) {
         this.fiberLength[i] = equilibriumFiberLength(
           activationOut[i] as number,
           unitLength,
@@ -310,24 +348,56 @@ export class MuscleDynamicsModule implements SimModule {
 
       state.activation = activation;
       state.fiberLength = this.fiberLength[i] as number;
-      const solution = solveEquilibrium(state, unitLength, parameters as MusculotendonParameters);
 
-      // Semi-implicit: the fiber advances on the activation this tick produced, not last tick's.
-      const advanced =
-        state.fiberLength + solution.fiberVelocity * parameters.maxContractionVelocity * dt;
-      const outOfRange = advanced < FIBER_FLOOR || advanced > FIBER_CEILING;
-      this.fiberLength[i] =
-        advanced < FIBER_FLOOR ? FIBER_FLOOR : advanced > FIBER_CEILING ? FIBER_CEILING : advanced;
+      // A unit with almost no free tendon is solved the other way round: the tendon is held at its
+      // slack length and the fiber takes the whole path, which is arithmetic rather than an
+      // integration and cannot produce the stiffness spike that a 5 mm tendon does. See
+      // RIGID_TENDON_SHARE.
+      let fiberNormalised: number;
+      let fiberVelocity: number;
+      let tendonNormalised: number;
+      let fiberForceNormalised: number;
+      let failed: boolean;
+      if (this.rigid[i] === 1) {
+        const rigidSolution = solveRigidTendon(
+          activation,
+          unitLength,
+          (pathVelocity?.[i] as number) ?? 0,
+          parameters as MusculotendonParameters,
+        );
+        fiberNormalised = rigidSolution.fiberLength;
+        fiberVelocity = rigidSolution.fiberVelocity;
+        tendonNormalised = rigidSolution.tendonForce;
+        fiberForceNormalised = rigidSolution.fiberForce;
+        failed = rigidSolution.outOfRange;
+        this.fiberLength[i] = fiberNormalised;
+      } else {
+        const solution = solveEquilibrium(state, unitLength, parameters as MusculotendonParameters);
+        // Semi-implicit: the fiber advances on the activation this tick produced, not last tick's.
+        const advanced =
+          state.fiberLength + solution.fiberVelocity * parameters.maxContractionVelocity * dt;
+        this.fiberLength[i] =
+          advanced < FIBER_FLOOR
+            ? FIBER_FLOOR
+            : advanced > FIBER_CEILING
+              ? FIBER_CEILING
+              : advanced;
+        fiberNormalised = this.fiberLength[i] as number;
+        fiberVelocity = solution.fiberVelocity;
+        tendonNormalised = solution.tendonForce;
+        fiberForceNormalised = solution.fiberForce;
+        failed = solution.failed;
+      }
+      const outOfRange = fiberNormalised < FIBER_FLOOR || fiberNormalised > FIBER_CEILING;
 
-      const force = solution.tendonForce * parameters.maxIsometricForce;
+      const force = tendonNormalised * parameters.maxIsometricForce;
       activationOut[i] = activation;
       fiberLengthOut[i] = this.fiberLength[i] as number;
-      fiberVelocityOut[i] = solution.fiberVelocity;
+      fiberVelocityOut[i] = fiberVelocity;
       tendonForceOut[i] = force;
-      fiberForceOut[i] = solution.fiberForce * parameters.maxIsometricForce;
+      fiberForceOut[i] = fiberForceNormalised * parameters.maxIsometricForce;
       diagnostic[i] =
-        (solution.failed ? MUSCLE_EQUILIBRIUM_FAILED : 0) |
-        (outOfRange ? MUSCLE_FIBER_OUT_OF_RANGE : 0);
+        (failed ? MUSCLE_EQUILIBRIUM_FAILED : 0) | (outOfRange ? MUSCLE_FIBER_OUT_OF_RANGE : 0);
 
       this.applyPathForce(i, force);
     }
