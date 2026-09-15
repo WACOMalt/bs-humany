@@ -221,6 +221,17 @@ geometry and the via points are in MyoSuite's body frames, which are not this pr
 need the frame reconciliation the scalar parameters did not; and the path solver cannot wrap yet,
 which is ticket N1.4. A straight line holds the muscle closer to the joint axis than it runs, so
 it understates the moment arm, most at full flexion where the wrapping is doing the most work.
+
+**Worse than that, measured.** Running the units through `muscle.dynamics` at L3 (N3.2) shows the
+error is not confined to the moment arm. A straight path is also *shorter* than the wrapped one,
+and the tendon slack lengths were fitted against the wrapped paths, so for three of the seven
+units the whole path is shorter than the tendon slack length plus the fibers: the tendon never
+loads and the muscle makes no force at all however hard it is driven. Biceps long head runs
+0.302 m against a resting length of 0.404 m; the lateral and medial heads of triceps run 0.093 m
+against 0.196 m and 0.183 m. The four that do load -- biceps short head, brachialis,
+brachioradialis and the long head of triceps -- behave correctly. A test in
+`packages/modules-muscle` asserts exactly which three are slack, so that authoring the wraps
+fails it and forces this question to be revisited rather than quietly closed.
 **Closes when:** N1.4 lands and the via points and wrap surfaces are expressed in this project's
 bone frames -- either by reconciling MyoSuite's frames against ours, or by locating the surfaces
 on this subject's own bone geometry the way M5.8 located the collision hulls.

@@ -1,0 +1,30 @@
+{
+  "name": "@bs-humany/modules-muscle",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Kernel modules for muscle: path solving and musculotendon dynamics.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@bs-humany/compiler": "workspace:*",
+    "@bs-humany/hsdl": "workspace:*",
+    "@bs-humany/kernel": "workspace:*",
+    "@bs-humany/modules-mechanics": "workspace:*",
+    "@bs-humany/muscle-data": "workspace:*",
+    "@bs-humany/muscle-model": "workspace:*",
+    "@bs-humany/muscle-path": "workspace:*"
+  },
+  "devDependencies": {
+    "@bs-humany/anthropometry": "workspace:*",
+    "@bs-humany/backend-mujoco": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*"
+  }
+}

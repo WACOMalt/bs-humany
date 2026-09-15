@@ -28,6 +28,7 @@ const SIMULATION_PACKAGES = [
   'packages/kernel',
   'packages/modules-mechanics',
   'packages/modules-sensing',
+  'packages/modules-muscle',
   'packages/backend-rapier',
   'packages/backend-mujoco',
   'packages/compiler',

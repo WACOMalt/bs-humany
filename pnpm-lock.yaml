@@ -204,6 +204,40 @@ importers:
         specifier: workspace:*
         version: link:../skeleton
 
+  packages/modules-muscle:
+    dependencies:
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../hsdl
+      '@bs-humany/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@bs-humany/modules-mechanics':
+        specifier: workspace:*
+        version: link:../modules-mechanics
+      '@bs-humany/muscle-data':
+        specifier: workspace:*
+        version: link:../muscle-data
+      '@bs-humany/muscle-model':
+        specifier: workspace:*
+        version: link:../muscle-model
+      '@bs-humany/muscle-path':
+        specifier: workspace:*
+        version: link:../muscle-path
+    devDependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../anthropometry
+      '@bs-humany/backend-mujoco':
+        specifier: workspace:*
+        version: link:../backend-mujoco
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
+
   packages/modules-sensing:
     dependencies:
       '@bs-humany/compiler':

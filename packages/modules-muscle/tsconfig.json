@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../compiler" },
+    { "path": "../hsdl" },
+    { "path": "../kernel" },
+    { "path": "../modules-mechanics" },
+    { "path": "../muscle-data" },
+    { "path": "../muscle-model" },
+    { "path": "../muscle-path" },
+    { "path": "../anthropometry" },
+    { "path": "../backend-mujoco" },
+    { "path": "../skeleton" }
+  ]
+}

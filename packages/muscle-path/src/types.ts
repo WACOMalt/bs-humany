@@ -153,6 +153,45 @@ export interface PathContactBuffer {
   readonly direction: Float64Array;
 }
 
+/**
+ * Where each unit's two ends are, and which way they pull, after a solve.
+ *
+ * Section 8.2 applies the tendon force at the origin along the first segment and at the insertion
+ * along the last. A consumer therefore needs four things per unit that the length alone does not
+ * carry: the two world points, the two directions, and the two bodies to push. The solver has all
+ * of it in hand while it walks the path, and recomputing it downstream would mean a second module
+ * resolving poses the path solver has already resolved.
+ *
+ * It is a separate buffer from the length and velocity because those two are what the *fiber*
+ * model needs and these six are what the *force application* needs. A solver fills both; a
+ * consumer that only integrates fibers can ignore this one.
+ */
+export interface PathTerminalBuffer {
+  /** `N`, index of the body the origin is fixed to. */
+  readonly originBody: Int32Array;
+  /** `N`, index of the body the insertion is fixed to. */
+  readonly insertionBody: Int32Array;
+  /** `3 * N`, world metres. */
+  readonly originPoint: Float64Array;
+  /** `3 * N`, world metres. */
+  readonly insertionPoint: Float64Array;
+  /** `3 * N`, unit, from the origin toward the next point on the path. */
+  readonly originDirection: Float64Array;
+  /** `3 * N`, unit, from the insertion toward the previous point on the path. */
+  readonly insertionDirection: Float64Array;
+}
+
+export function createPathTerminalBuffer(units: number): PathTerminalBuffer {
+  return {
+    originBody: new Int32Array(units),
+    insertionBody: new Int32Array(units),
+    originPoint: new Float64Array(3 * units),
+    insertionPoint: new Float64Array(3 * units),
+    originDirection: new Float64Array(3 * units),
+    insertionDirection: new Float64Array(3 * units),
+  };
+}
+
 export function createPathContactBuffer(capacity: number): PathContactBuffer {
   return {
     capacity,

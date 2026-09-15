@@ -9,7 +9,12 @@ import {
   hingeResolver,
   setHinge,
 } from './testHinge.js';
-import { type MusclePath, type WrapSurface, createPathContactBuffer } from './types.js';
+import {
+  type MusclePath,
+  type WrapSurface,
+  createPathContactBuffer,
+  createPathTerminalBuffer,
+} from './types.js';
 
 /** A surface that exists, so that "cannot represent it" and "never heard of it" stay distinct. */
 const HUMERAL_HEAD: WrapSurface = {
@@ -45,8 +50,9 @@ function solved(
   const length = new Float64Array(paths.length);
   const velocity = new Float64Array(paths.length);
   const contacts = createPathContactBuffer(8);
-  solver.solve(state.pose, state.velocity, length, velocity, contacts);
-  return { solver, report, state, length, velocity, contacts };
+  const terminals = createPathTerminalBuffer(paths.length);
+  solver.solve(state.pose, state.velocity, length, velocity, contacts, terminals);
+  return { solver, report, state, length, velocity, contacts, terminals };
 }
 
 describe('the via-point solver', () => {
@@ -158,8 +164,90 @@ describe('the via-point solver', () => {
     solver.compile([SPANNING], []);
     const state = createHinge();
     setHinge(state, 0);
-    solver.solve(state.pose, state.velocity, new Float64Array(1), new Float64Array(1), contacts);
+    solver.solve(
+      state.pose,
+      state.velocity,
+      new Float64Array(1),
+      new Float64Array(1),
+      contacts,
+      createPathTerminalBuffer(1),
+    );
     expect(contacts.count).toBe(0);
+  });
+});
+
+describe('where each end pulls', () => {
+  it('reports the two world points and the bodies they are fixed to', () => {
+    const { terminals } = solved([SPANNING], 0);
+    expect(terminals.originBody[0]).toBe(0);
+    expect(terminals.insertionBody[0]).toBe(1);
+    expect([...terminals.originPoint]).toEqual([ORIGIN_POINT.x, ORIGIN_POINT.y, ORIGIN_POINT.z]);
+    expect(terminals.insertionPoint[0]).toBeCloseTo(INSERTION_POINT.x, 12);
+  });
+
+  it('points each end at the other, for a unit with nothing in between', () => {
+    // Section 8.2: the origin is pulled along the first segment and the insertion along the last.
+    // On a straight unit those are the same segment traversed both ways, so the two directions
+    // must be exact opposites -- which is also the statement that the pair of forces is balanced.
+    const { terminals } = solved([SPANNING], 0.3);
+    const o = [...terminals.originDirection];
+    const i = [...terminals.insertionDirection];
+    for (let axis = 0; axis < 3; axis++) {
+      expect(i[axis], `axis ${axis}`).toBeCloseTo(-(o[axis] as number), 12);
+    }
+    expect(Math.hypot(...o)).toBeCloseTo(1, 12);
+  });
+
+  it('points at the neighbouring via point, not at the far end, once there is one', () => {
+    // The distinction that matters for the wrench: a muscle rounding a via point pulls its origin
+    // toward that point, not toward its insertion. Getting this wrong puts the force along a line
+    // the tendon does not occupy, and the error is invisible until the moment arm is measured.
+    const path: MusclePath = {
+      id: 'kinked',
+      origin: { bone: 'parent', point: { x: 0, y: 0, z: 0 } },
+      elements: [{ kind: 'viaPoint', site: { bone: 'parent', point: { x: 0, y: 1, z: 0 } } }],
+      insertion: { bone: 'parent', point: { x: 1, y: 1, z: 0 } },
+    };
+    const { terminals } = solved([path], 0);
+    expect([...terminals.originDirection].map((v) => Math.round(v * 1e12) / 1e12)).toEqual([
+      0, 1, 0,
+    ]);
+    expect([...terminals.insertionDirection].map((v) => Math.round(v * 1e12) / 1e12)).toEqual([
+      -1, 0, 0,
+    ]);
+  });
+
+  it('writes zeros rather than NaNs for a degenerate segment', () => {
+    // Two coincident via points have no direction. A zero vector applies no force, which is the
+    // right answer; a NaN would reach the solver and take the simulation with it.
+    const path: MusclePath = {
+      id: 'degenerate',
+      origin: { bone: 'parent', point: { x: 0.1, y: 0.2, z: 0.3 } },
+      elements: [],
+      insertion: { bone: 'parent', point: { x: 0.1, y: 0.2, z: 0.3 } },
+    };
+    const { terminals, length } = solved([path], 0);
+    expect(length[0]).toBe(0);
+    expect([...terminals.originDirection]).toEqual([0, 0, 0]);
+    expect([...terminals.insertionDirection]).toEqual([0, 0, 0]);
+  });
+
+  it('keeps the directions consistent with the length as the pose changes', () => {
+    // The origin direction times the path length must land on the insertion, for a straight unit.
+    // It ties the two outputs together: they are derived from the same world points or they are
+    // not talking about the same path.
+    for (const angle of [-0.9, 0, 0.5, 1.4]) {
+      const { terminals, length } = solved([SPANNING], angle);
+      for (let axis = 0; axis < 3; axis++) {
+        const walked =
+          (terminals.originPoint[axis] as number) +
+          (terminals.originDirection[axis] as number) * (length[0] as number);
+        expect(walked, `axis ${axis} at ${angle}`).toBeCloseTo(
+          terminals.insertionPoint[axis] as number,
+          12,
+        );
+      }
+    }
   });
 });
 
@@ -207,6 +295,7 @@ describe('path velocity', () => {
       new Float64Array(1),
       reference,
       createPathContactBuffer(4),
+      createPathTerminalBuffer(1),
     );
 
     for (let body = 0; body < 2; body++) {
@@ -221,6 +310,7 @@ describe('path velocity', () => {
       new Float64Array(1),
       moving,
       createPathContactBuffer(4),
+      createPathTerminalBuffer(1),
     );
     expect(moving[0]).toBeCloseTo(reference[0] as number, 12);
   });

@@ -33,6 +33,7 @@ import type {
   PathCompileReport,
   PathContactBuffer,
   PathSolverCapabilities,
+  PathTerminalBuffer,
   Vec3,
   WrapSurface,
 } from './types.js';
@@ -41,13 +42,23 @@ export interface IMusclePathSolver {
   readonly id: string;
   readonly capabilities: PathSolverCapabilities;
   compile(paths: readonly MusclePath[], surfaces: readonly WrapSurface[]): PathCompileReport;
-  /** Writes path length and path velocity for every unit. No allocation. */
+  /**
+   * Writes path length and path velocity for every unit, and where each end pulls. No allocation.
+   *
+   * The muscle spec's sketch of this interface (section 5.1) names only length, velocity and
+   * contacts. `outTerminals` is the fourth output, and it is here because section 8.2 needs it and
+   * the module contract will not let the consumer go and get it: a module reads channels, never
+   * another module, so everything force application needs has to leave the solver through an
+   * output buffer and reach the channel. The solver already has these six numbers in hand while
+   * it walks the path, so producing them costs nothing beyond the write.
+   */
   solve(
     pose: PoseBuffer,
     velocity: VelocityBuffer,
     outLength: Float64Array,
     outVelocity: Float64Array,
     outContacts: PathContactBuffer,
+    outTerminals: PathTerminalBuffer,
   ): void;
 }
 
@@ -172,6 +183,7 @@ export class ViaPointPathSolver implements IMusclePathSolver {
     outLength: Float64Array,
     outVelocity: Float64Array,
     outContacts: PathContactBuffer,
+    outTerminals: PathTerminalBuffer,
   ): void {
     // The via-point solver never wraps, so it reports no contacts -- but it must still say so,
     // rather than leaving whatever the previous solver wrote for section 8.2 to apply again.
@@ -242,6 +254,19 @@ export class ViaPointPathSolver implements IMusclePathSolver {
 
       outLength[p] = length;
       outVelocity[p] = rate;
+
+      // Where the two ends are and which way they pull, for section 8.2. The origin pulls toward
+      // the next point on the path and the insertion toward the previous one, which for a
+      // straight unit is each toward the other.
+      outTerminals.originBody[p] = this.pointBody[from] as number;
+      outTerminals.insertionBody[p] = this.pointBody[to - 1] as number;
+      const last = n - 1;
+      for (let axis = 0; axis < 3; axis++) {
+        outTerminals.originPoint[3 * p + axis] = this.world[axis] as number;
+        outTerminals.insertionPoint[3 * p + axis] = this.world[3 * last + axis] as number;
+      }
+      writeUnit(outTerminals.originDirection, p, this.world, 0, Math.min(1, last));
+      writeUnit(outTerminals.insertionDirection, p, this.world, last, Math.max(0, last - 1));
     }
   }
 
@@ -291,4 +316,29 @@ export class ViaPointPathSolver implements IMusclePathSolver {
     const to = this.pathStart[index + 1] as number;
     return Array.from(this.pointBody.slice(from, to));
   }
+}
+
+/**
+ * Writes the unit vector from point `from` toward point `toward` into slot `index`.
+ *
+ * A degenerate segment -- two coincident via points, or a one-point path that cannot happen but
+ * would be a zero vector if it did -- writes zeros rather than NaNs. A zero direction applies no
+ * force, which is the right answer for a segment with no direction; a NaN would reach the solver
+ * and take the whole simulation with it.
+ */
+function writeUnit(
+  out: Float64Array,
+  index: number,
+  points: Float64Array,
+  from: number,
+  toward: number,
+): void {
+  const dx = (points[3 * toward] as number) - (points[3 * from] as number);
+  const dy = (points[3 * toward + 1] as number) - (points[3 * from + 1] as number);
+  const dz = (points[3 * toward + 2] as number) - (points[3 * from + 2] as number);
+  const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const scale = length > 0 ? 1 / length : 0;
+  out[3 * index] = dx * scale;
+  out[3 * index + 1] = dy * scale;
+  out[3 * index + 2] = dz * scale;
 }

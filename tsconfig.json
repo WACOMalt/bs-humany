@@ -46,6 +46,9 @@
     },
     {
       "path": "./packages/muscle-data"
+    },
+    {
+      "path": "./packages/modules-muscle"
     }
   ]
 }
