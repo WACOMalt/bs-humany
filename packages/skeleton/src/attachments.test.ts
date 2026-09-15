@@ -1,6 +1,6 @@
 import { validateDocument } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
-import { attachmentGaps, buildAttachmentSites } from './attachments.js';
+import { attachmentGaps, buildAttachmentSites, buildMuscleViaPointSites } from './attachments.js';
 import { buildDocument } from './document.js';
 
 describe('attachment sites', () => {
@@ -9,8 +9,15 @@ describe('attachment sites', () => {
   it('validate as part of the document and cover both sides of the major muscles', () => {
     const document = buildDocument();
     expect(validateDocument(document).issues.filter((i) => i.severity === 'error')).toEqual([]);
-    expect(document.attachmentSites.length).toBe(sites.length);
+    // The document carries the muscle attachments and the via points a muscle passes through.
+    // They are built separately because they come from different places: an attachment is Gray's
+    // anatomical statement located on this subject's markers, a via point is the reference
+    // model's own path carried into our frames.
+    const via = buildMuscleViaPointSites();
+    expect(document.attachmentSites.length).toBe(sites.length + via.length);
     expect(sites.length).toBeGreaterThan(100);
+    expect(via.length).toBeGreaterThan(0);
+    expect(via.every((v) => v.kind === 'tendon_via_point')).toBe(true);
     const structures = new Set(sites.map((s) => s.structure));
     for (const name of [
       'Deltoideus',

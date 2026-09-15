@@ -129,6 +129,13 @@
         <label class="checkbox"><input type="checkbox" id="floor" checked /> Floor collision</label>
         <label class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
         <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
+        <label class="checkbox"><input type="checkbox" id="fullFidelity" /> Full fidelity &mdash; never drop a tick</label>
+        <div class="control" id="fidelity-control" hidden>
+          <label for="ticksPerFrame">Ticks per frame <output id="ticksPerFrame-value">17</output></label>
+          <input type="range" id="ticksPerFrame" min="1" max="50" step="1" value="17" />
+          <p class="note">Wall-clock time is ignored: every tick runs, and the simulation plays
+          slower than life rather than skipping. At 1 it advances a frame at a time.</p>
+        </div>
         <label class="checkbox"><input type="checkbox" id="muscles" /> Elbow muscles</label>
         <div class="control" id="muscle-control" hidden>
           <label for="flexorDrive">Flexor drive <output id="flexorDrive-value">0%</output></label>
@@ -164,6 +171,7 @@
           <dt>Joint drift</dt><dd id="diag-drift">—</dd>
           <dt>Nearest stop</dt><dd id="diag-limits">—</dd>
           <dt>Contacts</dt><dd id="diag-contacts">—</dd>
+          <dt>Tick rate</dt><dd id="diag-rate">—</dd>
           <dt>Cost / tick</dt><dd id="diag-cost">—</dd>
         </dl>
         <div class="control">

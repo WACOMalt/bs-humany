@@ -23,11 +23,10 @@
  *
  * ## What is not here yet
  *
- * The via points are. Each unit turns over the elbow and nothing else, where the source model
- * routes several of them through a few via points along the way as well. A via point shifts where
- * a muscle sits along the bone without changing what it turns over, so the moment arm is right
- * and the line is a little straighter than the real one. Those points are in MyoSuite's frames,
- * which are not ours, so carrying them across needs the reconciliation OQ-015 describes.
+ * The via points on the scapula and the forearm are. Each unit is held along the humerus by the
+ * points `muscleViaPoints.ts` carries over, and turns over the trochlea at the elbow; the source
+ * model routes some units through a few further points on the bones either side of that, which
+ * would need the same frame construction repeated for those bones.
  *
  * Pennation is zero for every unit. That is not a gap: the MuJoCo muscle model has no pennation
  * angle at all, so the conversion folded it into the peak force and the force declared here is
@@ -87,9 +86,17 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'biceps_brachii_origin_r_supraglenoid_tubercle',
         insertion: 'biceps_brachii_insertion_r_radial_tuberosity',
         path: [
+          { kind: 'site', site: 'biceps_brachii_long_r__via_1' },
+          { kind: 'site', site: 'biceps_brachii_long_r__via_2' },
+          { kind: 'site', site: 'biceps_brachii_long_r__via_3' },
+          { kind: 'site', site: 'biceps_brachii_long_r__via_4' },
+          { kind: 'site', site: 'biceps_brachii_long_r__via_5' },
+          { kind: 'site', site: 'biceps_brachii_long_r__via_6' },
+          { kind: 'site', site: 'biceps_brachii_long_r__via_7' },
+          { kind: 'site', site: 'biceps_brachii_long_r__via_8' },
           {
             kind: 'wrap',
-            surface: 'humerus_shaft_r',
+            surface: 'elbow_trochlea_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Biceps brachii'),
           },
@@ -109,9 +116,14 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'biceps_brachii_origin_r_coracoid_process',
         insertion: 'biceps_brachii_insertion_r_radial_tuberosity',
         path: [
+          { kind: 'site', site: 'biceps_brachii_short_r__via_1' },
+          { kind: 'site', site: 'biceps_brachii_short_r__via_2' },
+          { kind: 'site', site: 'biceps_brachii_short_r__via_3' },
+          { kind: 'site', site: 'biceps_brachii_short_r__via_4' },
+          { kind: 'site', site: 'biceps_brachii_short_r__via_5' },
           {
             kind: 'wrap',
-            surface: 'humerus_shaft_r',
+            surface: 'elbow_trochlea_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Biceps brachii'),
           },
@@ -142,7 +154,7 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         path: [
           {
             kind: 'wrap',
-            surface: 'humerus_shaft_r',
+            surface: 'elbow_trochlea_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Brachialis'),
           },
@@ -171,9 +183,10 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'brachioradialis_origin_r_lateral_supracondylar_ridge',
         insertion: 'brachioradialis_insertion_r_radial_styloid_process',
         path: [
+          { kind: 'site', site: 'brachioradialis_r__via_1' },
           {
             kind: 'wrap',
-            surface: 'humerus_shaft_r',
+            surface: 'elbow_trochlea_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Brachioradialis'),
           },
@@ -202,6 +215,10 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'triceps_brachii_origin_r_infraglenoid_tubercle',
         insertion: 'triceps_brachii_insertion_r_olecranon',
         path: [
+          { kind: 'site', site: 'triceps_brachii_long_r__via_1' },
+          { kind: 'site', site: 'triceps_brachii_long_r__via_2' },
+          { kind: 'site', site: 'triceps_brachii_long_r__via_3' },
+          { kind: 'site', site: 'triceps_brachii_long_r__via_4' },
           {
             kind: 'wrap',
             surface: 'elbow_trochlea_r',
@@ -224,6 +241,9 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'triceps_brachii_origin_r_posterior_surface_of_humerus',
         insertion: 'triceps_brachii_insertion_r_olecranon',
         path: [
+          { kind: 'site', site: 'triceps_brachii_lateral_r__via_1' },
+          { kind: 'site', site: 'triceps_brachii_lateral_r__via_2' },
+          { kind: 'site', site: 'triceps_brachii_lateral_r__via_3' },
           {
             kind: 'wrap',
             surface: 'elbow_trochlea_r',
@@ -246,6 +266,9 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'triceps_brachii_origin_r_posterior_surface_of_humerus',
         insertion: 'triceps_brachii_insertion_r_olecranon',
         path: [
+          { kind: 'site', site: 'triceps_brachii_medial_r__via_1' },
+          { kind: 'site', site: 'triceps_brachii_medial_r__via_2' },
+          { kind: 'site', site: 'triceps_brachii_medial_r__via_3' },
           {
             kind: 'wrap',
             surface: 'elbow_trochlea_r',

@@ -22,12 +22,23 @@
  * the centre of mass to the attachment, crossed into the force, is the torque, and leaving it out
  * would give a muscle that translated bones without turning them.
  *
- * ## Wrap reactions
+ * ## Every point the tendon touches, not just the two ends
  *
- * Section 8.2 step 4: a muscle that wraps a bone pushes on that bone, and without the reaction
- * the joint force is wrong. It is the step implementations skip. This module applies it for every
- * contact `muscle.contact` reports -- which is none of them until a wrapping solver exists, but
- * the code is here and tested against synthetic contacts, so N1.4 does not have to remember.
+ * Section 8.2 step 4 asks for the reaction where a muscle wraps a bone, and the same argument
+ * applies wherever a tendon changes direction: a via point is a place the tendon presses on the
+ * bone just as much as an arc is. So the force is applied at every point of the published path,
+ * not at its ends.
+ *
+ * That is not a refinement, it is the difference between conserving momentum and not. A massless
+ * string under tension `F` pulls each interior point with `F (u_prev + u_next)` and each end with
+ * `F u` toward its neighbour; summed over the path, every segment contributes equal and opposite
+ * at its two ends and the total is exactly zero. Pull only the ends of a path with a kink in it
+ * and the remainder is a net force on the body from nowhere -- which is what a muscle module does
+ * when via points are added and this is not.
+ *
+ * It also replaces the resultant-at-one-point approximation a wrap used to get: an arc's reaction
+ * is now the sum of what each sampled point carries, which is a discretised distributed load
+ * rather than a single force placed at an estimated centre of pressure.
  *
  * ## What it is not
  *
@@ -55,10 +66,10 @@ import {
 import {
   EFFERENT_ALPHA_MOTOR,
   MUSCLE_CHANNEL_VERSION,
-  MUSCLE_CONTACT,
   MUSCLE_EQUILIBRIUM_FAILED,
   MUSCLE_FIBER_OUT_OF_RANGE,
   MUSCLE_PATH,
+  MUSCLE_POLYLINE,
   MUSCLE_STATE,
   efferentAlphaMotorSpec,
   efferentGammaMotorSpec,
@@ -110,17 +121,10 @@ export class MuscleDynamicsModule implements SimModule {
   private readonly scratchActivation: { activationTime: number; deactivationTime: number };
 
   private length: Float64Array | undefined;
-  private originBody: Int32Array | undefined;
-  private insertionBody: Int32Array | undefined;
-  private originPoint: Float64Array | undefined;
-  private insertionPoint: Float64Array | undefined;
-  private originDirection: Float64Array | undefined;
-  private insertionDirection: Float64Array | undefined;
-  private contactUnit: Int32Array | undefined;
-  private contactBody: Int32Array | undefined;
-  private contactPoint: Float64Array | undefined;
-  private contactDirection: Float64Array | undefined;
-  private contactCapacity = 0;
+  private pathPoint: Float64Array | undefined;
+  private pathPointBody: Int32Array | undefined;
+  private pointStart: Int32Array | undefined;
+  private pointCount: Int32Array | undefined;
   private excitation: Float64Array | undefined;
   private outActivation: Float64Array | undefined;
   private outFiberLength: Float64Array | undefined;
@@ -195,7 +199,7 @@ export class MuscleDynamicsModule implements SimModule {
       dependsOn: [{ id: MUSCLE_PATH_MODULE_ID, version: '1.0.0' }],
       reads: [
         { id: MUSCLE_PATH, version: MUSCLE_CHANNEL_VERSION },
-        { id: MUSCLE_CONTACT, version: MUSCLE_CHANNEL_VERSION },
+        { id: MUSCLE_POLYLINE, version: MUSCLE_CHANNEL_VERSION },
         { id: EFFERENT_ALPHA_MOTOR, version: MUSCLE_CHANNEL_VERSION },
         // For the centre of mass each body's wrench torque is taken about.
         { id: BODY_POSE, version: CHANNEL_VERSION },
@@ -231,19 +235,12 @@ export class MuscleDynamicsModule implements SimModule {
   private bind(ctx: ModuleInitContext): void {
     const path = ctx.read(MUSCLE_PATH);
     this.length = path.fields.length as Float64Array;
-    this.originBody = path.fields.originBody as Int32Array;
-    this.insertionBody = path.fields.insertionBody as Int32Array;
-    this.originPoint = path.fields.originPoint as Float64Array;
-    this.insertionPoint = path.fields.insertionPoint as Float64Array;
-    this.originDirection = path.fields.originDirection as Float64Array;
-    this.insertionDirection = path.fields.insertionDirection as Float64Array;
 
-    const contact = ctx.read(MUSCLE_CONTACT);
-    this.contactUnit = contact.fields.unit as Int32Array;
-    this.contactBody = contact.fields.body as Int32Array;
-    this.contactPoint = contact.fields.point as Float64Array;
-    this.contactDirection = contact.fields.direction as Float64Array;
-    this.contactCapacity = this.contactUnit.length;
+    this.pointStart = path.fields.pointStart as Int32Array;
+    this.pointCount = path.fields.pointCount as Int32Array;
+    const polyline = ctx.read(MUSCLE_POLYLINE);
+    this.pathPoint = polyline.fields.point as Float64Array;
+    this.pathPointBody = polyline.fields.body as Int32Array;
 
     this.excitation = ctx.read(EFFERENT_ALPHA_MOTOR).fields.excitation as Float64Array;
 
@@ -332,79 +329,61 @@ export class MuscleDynamicsModule implements SimModule {
         (solution.failed ? MUSCLE_EQUILIBRIUM_FAILED : 0) |
         (outOfRange ? MUSCLE_FIBER_OUT_OF_RANGE : 0);
 
-      this.applyTerminalForce(i, force);
+      this.applyPathForce(i, force);
     }
 
     this.primed = true;
-    this.applyWrapReactions(tendonForceOut);
   }
 
   /**
-   * Pull the origin and the insertion toward each other along the path.
+   * Push on every bone this tendon touches, along its whole path.
    *
-   * Equal and opposite by construction for a straight unit, because the two directions are
-   * opposites; for a path with via points each end is pulled along its own segment, and the
-   * difference between the two is carried by whatever the path is routed over. Until wrapping
-   * exists, the via points are on bones and the bones take it.
+   * Each point is pulled by the tension in the segments meeting there: the ends toward their one
+   * neighbour, every interior point toward both. Summed over the path each segment contributes
+   * equal and opposite at its two ends, so the total force and the total torque are exactly zero
+   * -- which is what section 13.4 asks of a muscle and what pulling only the ends of a kinked
+   * path fails to give.
    */
-  private applyTerminalForce(unit: number, force: number): void {
+  private applyPathForce(unit: number, force: number): void {
     if (force === 0) return;
-    const originBody = this.originBody;
-    const insertionBody = this.insertionBody;
-    const originPoint = this.originPoint;
-    const insertionPoint = this.insertionPoint;
-    const originDirection = this.originDirection;
-    const insertionDirection = this.insertionDirection;
-    if (!originBody || !insertionBody || !originPoint || !insertionPoint) return;
-    if (!originDirection || !insertionDirection) return;
+    const point = this.pathPoint;
+    const body = this.pathPointBody;
+    const start = this.pointStart;
+    const count = this.pointCount;
+    if (!point || !body || !start || !count) return;
 
-    this.push(
-      originBody[unit] as number,
-      originPoint[3 * unit] as number,
-      originPoint[3 * unit + 1] as number,
-      originPoint[3 * unit + 2] as number,
-      force * (originDirection[3 * unit] as number),
-      force * (originDirection[3 * unit + 1] as number),
-      force * (originDirection[3 * unit + 2] as number),
-    );
-    this.push(
-      insertionBody[unit] as number,
-      insertionPoint[3 * unit] as number,
-      insertionPoint[3 * unit + 1] as number,
-      insertionPoint[3 * unit + 2] as number,
-      force * (insertionDirection[3 * unit] as number),
-      force * (insertionDirection[3 * unit + 1] as number),
-      force * (insertionDirection[3 * unit + 2] as number),
-    );
-  }
+    const from = start[unit] as number;
+    const points = count[unit] as number;
+    if (points < 2) return;
 
-  /**
-   * Section 8.2 step 4, the step implementations skip.
-   *
-   * The path solver reports, for each wrap, the world point and the direction the reaction acts
-   * along -- the resultant of the two adjacent segment directions. The magnitude is the tendon
-   * force, because the tendon is a single string under one tension along its whole length.
-   */
-  private applyWrapReactions(tendonForce: Float64Array): void {
-    const unit = this.contactUnit;
-    const body = this.contactBody;
-    const point = this.contactPoint;
-    const direction = this.contactDirection;
-    if (!unit || !body || !point || !direction) return;
-
-    for (let c = 0; c < this.contactCapacity; c++) {
-      const which = unit[c] as number;
-      if (which < 0) break;
-      const force = tendonForce[which] as number;
-      if (force === 0) continue;
+    for (let i = 0; i < points; i++) {
+      const at = 3 * (from + i);
+      let dx = 0;
+      let dy = 0;
+      let dz = 0;
+      // Toward the previous point, and toward the next: a unit vector for each neighbour there is.
+      for (const step of [-1, 1]) {
+        const other = i + step;
+        if (other < 0 || other >= points) continue;
+        const to = 3 * (from + other);
+        const ux = (point[to] as number) - (point[at] as number);
+        const uy = (point[to + 1] as number) - (point[at + 1] as number);
+        const uz = (point[to + 2] as number) - (point[at + 2] as number);
+        const length = Math.sqrt(ux * ux + uy * uy + uz * uz);
+        if (length <= 0) continue;
+        dx += ux / length;
+        dy += uy / length;
+        dz += uz / length;
+      }
+      if (dx === 0 && dy === 0 && dz === 0) continue;
       this.push(
-        body[c] as number,
-        point[3 * c] as number,
-        point[3 * c + 1] as number,
-        point[3 * c + 2] as number,
-        force * (direction[3 * c] as number),
-        force * (direction[3 * c + 1] as number),
-        force * (direction[3 * c + 2] as number),
+        body[from + i] as number,
+        point[at] as number,
+        point[at + 1] as number,
+        point[at + 2] as number,
+        force * dx,
+        force * dy,
+        force * dz,
       );
     }
   }

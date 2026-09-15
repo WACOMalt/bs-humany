@@ -215,6 +215,8 @@ const ui = {
   showContacts: must<HTMLInputElement>('#showContacts'),
   showMuscles: must<HTMLInputElement>('#showMuscles'),
   muscles: must<HTMLInputElement>('#muscles'),
+  fullFidelity: must<HTMLInputElement>('#fullFidelity'),
+  ticksPerFrame: must<HTMLInputElement>('#ticksPerFrame'),
   flexorDrive: must<HTMLInputElement>('#flexorDrive'),
   extensorDrive: must<HTMLInputElement>('#extensorDrive'),
 };
@@ -604,6 +606,7 @@ async function startSimulation(
     if (!ui.gravity.checked) sim.setGravity(false);
     if (!ui.floor.checked) sim.setGroundCollision(false);
     applyMuscleDrive(sim);
+    applyFidelity(sim);
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
     if (carry) {
       const unmatched = sim.carryFrom(carry.state, carry.ticks);
@@ -706,6 +709,22 @@ function muscleTension(
   return tensionScratch;
 }
 
+/** Push the fidelity controls into the running simulation. Safe before a run, and on change. */
+function applyFidelity(sim: Simulation | null | undefined): void {
+  if (!sim) return;
+  sim.fullFidelity = ui.fullFidelity.checked;
+  sim.ticksPerFrame = Number(ui.ticksPerFrame.value);
+}
+
+ui.fullFidelity.addEventListener('change', () => {
+  must<HTMLElement>('#fidelity-control').hidden = !ui.fullFidelity.checked;
+  applyFidelity(simulation);
+});
+ui.ticksPerFrame.addEventListener('input', () => {
+  must<HTMLElement>('#ticksPerFrame-value').textContent = ui.ticksPerFrame.value;
+  applyFidelity(simulation);
+});
+
 /** Push both sliders into the drive module. Safe to call before a run, and on every change. */
 function applyMuscleDrive(sim: Simulation | null | undefined): void {
   const drive = sim?.muscleDrive;
@@ -771,6 +790,15 @@ function updateDiagnostics(sim: Simulation): void {
     sim.physics.contactsSeen > contacts.count
       ? `${contacts.count} shown of ${sim.physics.contactsSeen}`
       : String(contacts.count);
+  // What the solver is actually managing, against what the profile asks for. Below the declared
+  // rate in the normal mode means simulated time is being discarded to keep up with the clock.
+  const declared = sim.declaredRateHz;
+  const achieved = sim.achievedRateHz;
+  must<HTMLElement>('#diag-rate').textContent =
+    achieved > 0
+      ? `${achieved.toFixed(0)} Hz of ${declared.toFixed(0)} declared` +
+        (achieved < declared * 0.95 ? ` (${((achieved / declared) * 100).toFixed(0)}%)` : '')
+      : `${declared.toFixed(0)} Hz declared`;
   updateMuscles(sim);
 }
 
@@ -1157,9 +1185,14 @@ function animate(): void {
     setSimulationStatus(
       simulation.paused
         ? `Paused at ${seconds} s.`
-        : plan.clamped
-          ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
-          : `Running, ${seconds} s simulated.`,
+        : simulation.fullFidelity
+          ? // Not a warning: this is the mode doing what it was asked to. Saying how many ticks a
+            // frame carries is what tells you how far from real time you are.
+            `Running, ${seconds} s simulated at full fidelity, ` +
+            `${simulation.ticksPerFrame} tick${simulation.ticksPerFrame === 1 ? '' : 's'} a frame.`
+          : plan.clamped
+            ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
+            : `Running, ${seconds} s simulated.`,
       plan.clamped,
     );
   }

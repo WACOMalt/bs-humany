@@ -15,6 +15,7 @@ import landmarksJson from '@bs-humany/assets-anatomical/data/landmarks.json' wit
 import { type AttachmentSiteDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
 import { PROVENANCE_NS, landmarkId } from './landmarks.js';
+import { MUSCLE_VIA_POINTS } from './muscleViaPoints.js';
 
 type Table = Record<string, Record<string, [number, number, number]>>;
 const RAW: Table = landmarksJson as unknown as Table;
@@ -419,4 +420,48 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
     }
   }
   return out;
+}
+
+/**
+ * Via points, as attachment sites the muscle data can name.
+ *
+ * A muscle lies along the bones it passes rather than running straight between its attachments.
+ * These are where it touches, carried over from the reference model by the frame construction in
+ * `muscleViaPoints.ts` -- which is generated, so the numbers here are never typed by hand.
+ *
+ * Cited to the reference model rather than to Gray, because that is where they come from: Gray
+ * says which bony features a muscle attaches to, and says nothing about where along a shaft a
+ * tendon happens to lie. The sites this sits beside are the other way round -- Gray's anatomical
+ * statement, located on this subject's markers.
+ */
+export function buildMuscleViaPointSites(): AttachmentSiteDef[] {
+  const centroids = new Map(DATASET_MANIFEST.bones.map((b) => [b.id, b.centroid]));
+  for (const point of MUSCLE_VIA_POINTS) {
+    if (!centroids.has(point.bone)) {
+      throw new Error(`Via point '${point.id}' is on '${point.bone}', which is not packed.`);
+    }
+  }
+  return MUSCLE_VIA_POINTS.map((point) => ({
+    id: point.id,
+    bone: point.bone,
+    kind: 'tendon_via_point' as const,
+    displayName: `${point.unit}, via point ${point.order}`,
+    position: {
+      x: mul(point.local[0], param('stature')),
+      y: mul(point.local[1], param('stature')),
+      z: mul(point.local[2], param('stature')),
+    },
+    structure: point.unit,
+    source: cite(
+      'caggiano2022',
+      `myoarm_r_chain.xml, site ${point.referenceSite}, carried into this skeleton's humerus ` +
+        'frame by the construction in muscleViaPoints.ts',
+    ),
+    ext: writeExtension(undefined, PROVENANCE_NS, {
+      dataset: DATASET_MANIFEST.dataset.name,
+      datasetVersion: DATASET_MANIFEST.dataset.version,
+      sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
+      locatedBy: `reference site ${point.referenceSite}, through the humerus ISB frame`,
+    }),
+  }));
 }

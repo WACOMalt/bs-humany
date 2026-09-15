@@ -38,12 +38,16 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createJiti } from 'jiti';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const MUSCLE_FILE = 'myoarm_r_muscle.xml';
 const SOURCE = join(ROOT, 'tools/validate-external/myo_sim', MUSCLE_FILE);
 const OUT = join(ROOT, 'packages/muscle-data/src/elbow.ts');
 const check = process.argv.includes('--check');
+
+const jiti = createJiti(import.meta.url);
+const { viaPointsFor } = await jiti.import(join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'));
 
 /**
  * Which actuator becomes which unit, and which of our attachment sites it binds to.
@@ -175,7 +179,10 @@ function render() {
     // their paths pass in front of it -- so what they need is the shaft, which they lie along
     // rather than pass through. One surface each, which is what the solver takes per span until
     // N1.5; the flexors' elbow leverage is still the straight-line answer and is OQ-015's.
-    const wrap = unit.side === 'extensor' ? 'elbow_trochlea_r' : 'humerus_shaft_r';
+    // The trochlea for everyone now. Via points hold each muscle along the shaft, so what is
+    // left for a wrap surface is the elbow itself -- and the shaft cylinder, which never suited a
+    // muscle running along it, is no longer asked to do that job.
+    const wrap = 'elbow_trochlea_r';
     groups.get(unit.group).push({ ...unit, parameters, wrap });
   }
 
@@ -197,7 +204,9 @@ function render() {
         origin: '${unit.origin}',
         insertion: '${unit.insertion}',
         path: [
-          {
+${viaPointsFor(unit.id)
+  .map((p) => `          { kind: 'site', site: '${p.id}' },\n`)
+  .join('')}          {
             kind: 'wrap',
             surface: '${unit.wrap}',
             preferredSide: { x: 0, y: 0, z: ${unit.side === 'extensor' ? 1 : -1} },
@@ -242,11 +251,10 @@ function render() {
  *
  * ## What is not here yet
  *
- * The via points are. Each unit turns over the elbow and nothing else, where the source model
- * routes several of them through a few via points along the way as well. A via point shifts where
- * a muscle sits along the bone without changing what it turns over, so the moment arm is right
- * and the line is a little straighter than the real one. Those points are in MyoSuite's frames,
- * which are not ours, so carrying them across needs the reconciliation OQ-015 describes.
+ * The via points on the scapula and the forearm are. Each unit is held along the humerus by the
+ * points \`muscleViaPoints.ts\` carries over, and turns over the trochlea at the elbow; the source
+ * model routes some units through a few further points on the bones either side of that, which
+ * would need the same frame construction repeated for those bones.
  *
  * Pennation is zero for every unit. That is not a gap: the MuJoCo muscle model has no pennation
  * angle at all, so the conversion folded it into the peak force and the force declared here is

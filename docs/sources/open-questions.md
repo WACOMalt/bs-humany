@@ -212,77 +212,64 @@ two stay consistent. Taking the angles alone would double-count the pennation th
 include.
 **Status:** open
 
-### OQ-015 — The elbow muscle paths are straight lines, with the wrapping not yet modelled
-**Needed for:** `packages/muscle-data/src/elbow.ts`, `packages/muscle-path`
-**Provisional value:** every unit runs straight from origin to insertion. Every one of them wraps
-in the source model -- brachialis over a cylinder, each biceps head over two ellipsoids, both with
-via points between -- and two things are missing before that can be carried over. The wrap
-geometry and the via points are in MyoSuite's body frames, which are not this project's, so they
-need the frame reconciliation the scalar parameters did not; and the path solver cannot wrap yet,
-which is ticket N1.4. A straight line holds the muscle closer to the joint axis than it runs, so
-it understates the moment arm, most at full flexion where the wrapping is doing the most work.
+### OQ-015 — Muscle path geometry carried over from the reference model
+**Needed for:** `packages/muscle-data/src/elbow.ts`, `packages/skeleton/src/muscleViaPoints.ts`
+**Largely closed, 2026-09-15.** Two pieces of geometry were missing and both are now in: the
+surface each muscle turns over at the elbow, and the points each one passes through along the way.
 
-**Worse than that, measured.** Running the units through `muscle.dynamics` at L3 (N3.2) shows the
-error is not confined to the moment arm. A straight path is also *shorter* than the wrapped one,
-and the tendon slack lengths were fitted against the wrapped paths, so for three of the seven
-units the whole path is shorter than the tendon slack length plus the fibers: the tendon never
-loads and the muscle makes no force at all however hard it is driven. Biceps long head runs
-0.302 m against a resting length of 0.404 m; the lateral and medial heads of triceps run 0.093 m
-against 0.196 m and 0.183 m. The four that do load -- biceps short head, brachialis,
-brachioradialis and the long head of triceps -- behave correctly. A test in
-`packages/modules-muscle` asserts exactly which three are slack, so that authoring the wraps
-fails it and forces this question to be revisited rather than quietly closed.
-**Closes when:** N1.4 lands and the via points and wrap surfaces are expressed in this project's
-bone frames -- either by reconciling MyoSuite's frames against ours, or by locating the surfaces
-on this subject's own bone geometry the way M5.8 located the collision hulls.
+*The trochlea.* Measured from this subject's mesh at 18.0 mm radius about the epicondylar axis and
+placed on the elbow's own axis, so it is coaxial with the joint by construction -- 0.000 mm of
+offset, 0.0000 degrees of tilt. Before it, the triceps moment arm fell from -20 mm at full
+extension to zero at about 2 rad and then reversed sign, so a fully driven triceps held a bent
+elbow bent. It now holds flat at -18 mm across the range, which is what a pulley gives and what
+published curves show.
 
-**Half closed, 2026-09-15.** The second route was taken: the humeral trochlea is measured from
-this subject's own mesh (18.0 mm radius about the epicondylar axis, +/- 3.0 mm, half-length
-9.6 mm) and placed on the elbow joint's own axis, so it is coaxial with the joint by construction
--- 0.000 mm of offset and 0.0000 degrees of tilt. All seven units now turn over it, the flexors in
-front and the extensors behind.
+*The via points.* Carried over from the reference model by asking both models for the same
+anatomical construction -- the glenohumeral centre, the bone's long axis, the elbow's flexion axis,
+which is the humerus frame the ISB defines -- and taking the rotation between the two answers.
+Nothing is transcribed: a coordinate lifted from one frame into another means nothing where it
+lands. The two humeri differ by 4.4% in length and the points are scaled by that ratio.
 
-What that fixed: the triceps moment arm used to fall from -20.0 mm at full extension to zero at
-about 2 rad and then reverse sign, so a fully driven triceps held a bent elbow bent. It now holds
-flat at -18.0 mm -- the surface's radius, which is what a pulley gives and what published curves
-show -- from 1.2 rad onward.
+What it bought, measured:
 
-What is still open, and why this is only half:
+- **Biceps peaks at 39 mm**, against a published 36 to 40. It was 65 mm, and reversed sign at deep
+  flexion because the last stretch of path ran from the humerus straight to the radial tuberosity
+  and crossed the axis. Carrying the reference model's two points on the radius fixed both.
+- **Every tendon now loads.** Three of the seven used to be shorter than their own resting length,
+  so they made no force however hard they were driven. The longer paths take up.
+- **The muscles lie along the bones** rather than cutting through them.
 
-- **The flexors do not wrap, and a shaft cylinder does not fix it.** Their straight paths pass in
-  front of the trochlea and clear it, so biceps still peaks at 65 mm against a published 36-40 mm,
-  biceps short head still reverses sign at 2.4 rad, and brachioradialis still reverses at full
-  extension. In life they turn over the radial head and the coronoid region, not the trochlea.
+A wrapping surface was tried for the shaft first and is the wrong tool for a muscle running along
+a bone; the measurements are below, and the shaft cylinder is kept because it is correct geometry
+even though no muscle now uses it.
 
-  A humeral shaft cylinder was tried, measured from the mesh, and it is kept -- it is correct
-  geometry and the brachialis does lie on it -- but it does not solve the problem, and the
-  measurements say why. A cylinder is a poor model of a humerus: the bone is narrow mid-shaft and
-  flared at both ends, so a cylinder wide enough to catch the flexors at the ends stands clear of
-  the bone in the middle, and one sized to the middle is grazed rather than lain on. Sized at the
-  median of the shaft surface, 12.9 mm, the long head of biceps switched three times between
-  hugging the bone and cutting through it across a single sweep of the elbow -- which is what a
-  viewer sees as the muscle flicking from side to side. Sized to enclose the shaft, 16.4 mm, it is
-  stable, but the flexors clear it at nearly every angle.
+**Still open, and why:**
 
-  Two further findings from that work, both fixed: the enclosing radius is the right statistic for
-  a surface a muscle lies *outside* rather than bears on, and a shaft cylinder must span the shaft
-  rather than the whole bone -- run the length of the humerus, its top end reaches the glenoid,
-  where the long head of biceps originates 13.6 mm from the axis, so the origin sat inside the
-  surface and the wrap had no answer to give at all.
+- **Brachialis and brachioradialis are wrong.** Brachialis peaks at 47 mm against a published 20,
+  brachioradialis at 21 mm against a published 50 to 60, and brachioradialis goes slightly negative
+  at full extension where published data is positive throughout. Neither has via points -- their
+  reference paths have none -- and both wrap a surface on the forearm that has not been carried
+  over: a cylinder on the ulna for brachialis, an ellipsoid at the elbow for brachioradialis. The
+  second needs OQ-016 as well as the frame construction repeating for the forearm bones.
+- **Forearm and scapula wrap surfaces.** The same construction that carried the via points would
+  carry these; the muscles that need them are the two above.
+- **The proportional assumption.** Forearm points are scaled by the *humerus* ratio, because one
+  frame carries the whole arm. Where the two skeletons' proportions differ, a forearm point is out
+  by the difference between the two ratios -- a few per cent of a bone.
 
-  What the flexors actually need is via points holding them against the bone, which is what
-  published models use and what the next item is about.
-- **The via points are still absent.** The source model routes several units through points along
-  the shaft. Those shift where a muscle sits without changing what it turns over, so the moment
-  arms are right without them, but the lines are straighter than the real ones. They are in
-  MyoSuite's frames, which are not ours.
-- **Several tendons are still slack.** The wrapping lengthened the paths -- the long head of
-  triceps went from 45 mm short of its resting length to 0 at full flexion -- but the lateral and
-  medial heads remain 75-120 mm short and cannot load at any angle. Their parameters were fitted
-  against paths with via points; without those the geometry is still too short.
-
+**What the shaft cylinder experiment showed**, kept because it is the reason via points were the
+answer. A cylinder is a poor model of a humerus: narrow through the shaft, flared at both ends, so
+one wide enough to catch a muscle near the ends stands clear of the bone in the middle. At 12.9 mm,
+the median of the shaft surface, the long head of biceps switched three times between hugging the
+bone and cutting through it across one sweep of the elbow -- the length stays continuous through
+that, but the drawn path goes from fifteen points to two, which reads as the muscle flicking from
+side to side. At 16.4 mm, sized to enclose the shaft, it is stable and the flexors clear it at
+nearly every angle. Two fixes came out of it: an enclosing percentile is the right statistic for a
+surface a muscle lies *outside* rather than bears on, and a shaft cylinder must span the shaft
+rather than the whole bone -- run the length of the humerus, its top reaches the glenoid, where the
+long head of biceps originates 13.6 mm from the axis, inside the surface, where the wrap geometry
+has no answer and silently gave none.
 **Status:** open
-
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4

@@ -19,7 +19,7 @@ import {
   provisional,
 } from '@bs-humany/hsdl';
 import { mul, param } from '@bs-humany/hsdl';
-import { buildAttachmentSites } from './attachments.js';
+import { buildAttachmentSites, buildMuscleViaPointSites } from './attachments.js';
 import { buildConstraints } from './constraints.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { buildFrameDefs, buildVirtualLandmarks } from './frames.js';
@@ -212,7 +212,10 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
       ],
     },
 
-    attachmentSites: options.placement === 'procedural' ? [] : buildAttachmentSites(),
+    attachmentSites:
+      options.placement === 'procedural'
+        ? []
+        : [...buildAttachmentSites(), ...buildMuscleViaPointSites()],
     // Placed on joint axes, which the procedural layout has none of.
     wrappingSurfaces: options.placement === 'procedural' ? [] : buildWrappingSurfaces(),
   };

@@ -145,6 +145,36 @@ export class Simulation {
   paused = false;
   clamped = false;
   lastStepMs = 0;
+  /**
+   * Run every tick, however long it takes, instead of keeping up with the clock.
+   *
+   * Normally a frame advances by however much real time has passed, and when the machine cannot
+   * keep up the surplus is discarded -- the simulation runs in slow motion and says so. That is
+   * the right default for something you are steering by hand. It is the wrong one for watching
+   * what a muscle does, because the ticks that get dropped are simulated time that never happened
+   * and the run is no longer the run you would get twice.
+   *
+   * With this on, wall-clock time is ignored: each rendered frame advances exactly
+   * `ticksPerFrame` ticks. The simulation plays slower than life on a slow machine rather than
+   * skipping, and at one tick per frame it plays a frame at a time.
+   */
+  fullFidelity = false;
+  /** Ticks advanced per rendered frame while `fullFidelity` is on. */
+  ticksPerFrame: number;
+  /**
+   * Ticks actually run per second of wall-clock time, over the last half second.
+   *
+   * Not the same as the profile's rate, and the difference is worth seeing. The profile says what
+   * a second of *simulated* time is divided into; this says how fast that simulated time is being
+   * produced. They agree only when the machine is keeping up. Below the declared rate in the
+   * normal mode means time is being discarded to stay with the clock; in full fidelity nothing is
+   * discarded and this is simply how fast the simulation is running, which may be slower than
+   * life and is then the honest answer rather than a fault.
+   */
+  achievedRateHz = 0;
+  /** Wall-clock seconds and ticks accumulated toward the next `achievedRateHz` reading. */
+  private rateWindowSeconds = 0;
+  private rateWindowTicks = 0;
   /** Every bone's transform at every tick, for the Blender export. */
   readonly capture = new BoneCapture();
   /** The morphology the articulation was compiled at. */
@@ -223,6 +253,9 @@ export class Simulation {
       this.kernel.register(this.muscleDynamics);
     }
 
+    // Real time at sixty frames a second, which is where a full-fidelity run starts before
+    // anyone turns it down to watch something closely.
+    this.ticksPerFrame = Math.max(1, Math.round(rate / 60));
     this.snapshotEvery = Math.max(1, Math.round((options.snapshotEverySeconds ?? 0.1) * rate));
     this.recordEvery = options.recordEveryTicks ?? Math.round(rate / 50);
     this.recording = {
@@ -268,13 +301,46 @@ export class Simulation {
   /** Advance by wall-clock elapsed seconds, in fixed ticks, unless paused. */
   advance(elapsedSeconds: number): FrameStepPlan {
     if (!this.started || this.paused) return { ticks: 0, alpha: 0, remainder: 0, clamped: false };
+    if (this.fullFidelity) {
+      const ticks = Math.max(1, Math.round(this.ticksPerFrame));
+      const started = performance.now();
+      for (let i = 0; i < ticks; i++) this.tick();
+      this.lastStepMs = (performance.now() - started) / ticks;
+      this.measureRate(elapsedSeconds, ticks);
+      // Nothing was dropped, so nothing is clamped; the accumulator is cleared because the
+      // wall-clock time it was holding is no longer what drives the run.
+      this.accumulator = 0;
+      this.clamped = false;
+      return { ticks, alpha: 0, remainder: 0, clamped: false };
+    }
     const plan = accumulateFrame(this.accumulator, elapsedSeconds, this.dt);
     this.accumulator = plan.remainder;
     const started = performance.now();
     for (let i = 0; i < plan.ticks; i++) this.tick();
     this.lastStepMs = plan.ticks > 0 ? (performance.now() - started) / plan.ticks : this.lastStepMs;
     this.clamped = plan.clamped;
+    this.measureRate(elapsedSeconds, plan.ticks);
     return plan;
+  }
+
+  /**
+   * How fast simulated time is being produced, averaged over half a second.
+   *
+   * Averaged because a per-frame figure is mostly the browser's frame jitter. Half a second is
+   * long enough to be steady and short enough to react while someone is watching it.
+   */
+  private measureRate(elapsedSeconds: number, ticks: number): void {
+    this.rateWindowSeconds += elapsedSeconds;
+    this.rateWindowTicks += ticks;
+    if (this.rateWindowSeconds < 0.5) return;
+    this.achievedRateHz = this.rateWindowTicks / this.rateWindowSeconds;
+    this.rateWindowSeconds = 0;
+    this.rateWindowTicks = 0;
+  }
+
+  /** The rate the fidelity profile asks the solver to step at. */
+  get declaredRateHz(): number {
+    return 1 / this.dt;
   }
 
   /** One fixed tick: script, kernel, timeline, recording. */
