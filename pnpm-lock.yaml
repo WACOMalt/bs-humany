@@ -59,6 +59,12 @@ importers:
       '@bs-humany/modules-mechanics':
         specifier: workspace:*
         version: link:../../packages/modules-mechanics
+      '@bs-humany/modules-muscle':
+        specifier: workspace:*
+        version: link:../../packages/modules-muscle
+      '@bs-humany/muscle-data':
+        specifier: workspace:*
+        version: link:../../packages/muscle-data
       '@bs-humany/render-three':
         specifier: workspace:*
         version: link:../../packages/render-three

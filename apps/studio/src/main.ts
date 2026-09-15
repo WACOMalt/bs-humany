@@ -213,7 +213,29 @@ const ui = {
   showAxes: must<HTMLInputElement>('#showAxes'),
   showCom: must<HTMLInputElement>('#showCom'),
   showContacts: must<HTMLInputElement>('#showContacts'),
+  muscles: must<HTMLInputElement>('#muscles'),
+  flexorDrive: must<HTMLInputElement>('#flexorDrive'),
+  extensorDrive: must<HTMLInputElement>('#extensorDrive'),
 };
+
+/**
+ * Which of the seven elbow units flex and which extend.
+ *
+ * Split by anatomy rather than by measuring a moment arm, because the sign of a moment arm is
+ * what the validation harness checks and using it here would make the panel agree with itself
+ * by construction.
+ */
+const FLEXORS = [
+  'biceps_brachii_long_r',
+  'biceps_brachii_short_r',
+  'brachialis_r',
+  'brachioradialis_r',
+];
+const EXTENSORS = [
+  'triceps_brachii_long_r',
+  'triceps_brachii_lateral_r',
+  'triceps_brachii_medial_r',
+];
 
 function currentMorphology(): Morphology {
   return {
@@ -573,12 +595,14 @@ async function startSimulation(
       scenario: chosen,
       dropHeight: Number(ui.dropHeight.value),
       groundHeight: groundY,
+      muscles: ui.muscles.checked,
     });
     await sim.start();
     // A fresh backend always starts with gravity and a solid floor; both toggles are session
     // settings rather than run ones.
     if (!ui.gravity.checked) sim.setGravity(false);
     if (!ui.floor.checked) sim.setGroundCollision(false);
+    applyMuscleDrive(sim);
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
     if (carry) {
       const unmatched = sim.carryFrom(carry.state, carry.ticks);
@@ -642,6 +666,41 @@ for (const input of [ui.showProxies, ui.showAxes, ui.showCom, ui.showContacts]) 
   input.addEventListener('change', applyOverlayVisibility);
 }
 
+/** Push both sliders into the drive module. Safe to call before a run, and on every change. */
+function applyMuscleDrive(sim: Simulation | null | undefined): void {
+  const drive = sim?.muscleDrive;
+  if (!drive) return;
+  const flexion = Number(ui.flexorDrive.value) / 100;
+  const extension = Number(ui.extensorDrive.value) / 100;
+  for (const unit of FLEXORS) drive.setOverride(unit, flexion);
+  for (const unit of EXTENSORS) drive.setOverride(unit, extension);
+}
+
+/**
+ * What the muscles are pulling with, grouped the way a person thinks about an elbow.
+ *
+ * "Loaded" counts the units whose tendon is carrying anything at all. It is here because three
+ * of the seven currently are not: their straight-line paths are shorter than their own resting
+ * length, so the tendon never takes up (OQ-015, which the wrap geometry closes).
+ */
+function updateMuscles(sim: Simulation): void {
+  const state = sim.muscleState();
+  const units = sim.muscles?.units;
+  if (!state || !units) return;
+  let flexion = 0;
+  let extension = 0;
+  let loaded = 0;
+  for (let i = 0; i < units.length; i++) {
+    const force = state.tendonForce[i] ?? 0;
+    if (force > 0) loaded++;
+    if (FLEXORS.includes(units[i]?.id ?? '')) flexion += force;
+    else extension += force;
+  }
+  must<HTMLElement>('#muscle-flexion').textContent = `${flexion.toFixed(0)} N`;
+  must<HTMLElement>('#muscle-extension').textContent = `${extension.toFixed(0)} N`;
+  must<HTMLElement>('#muscle-loaded').textContent = `${loaded} of ${units.length} units`;
+}
+
 function updateDiagnostics(sim: Simulation): void {
   const energy = sim.channel('diagnostics.energy').fields;
   const limits = sim.channel('diagnostics.limits').fields;
@@ -666,6 +725,22 @@ function updateDiagnostics(sim: Simulation): void {
     sim.physics.contactsSeen > contacts.count
       ? `${contacts.count} shown of ${sim.physics.contactsSeen}`
       : String(contacts.count);
+  updateMuscles(sim);
+}
+
+ui.muscles.addEventListener('change', () => {
+  must<HTMLElement>('#muscle-control').hidden = !ui.muscles.checked;
+  // The modules are registered when a run starts, so turning this on mid-run changes nothing
+  // until the next one. Saying so beats a checkbox that appears to do nothing.
+  if (simulation && ui.muscles.checked && !simulation.muscles) {
+    setSimulationStatus('Muscles start with the next run.');
+  }
+});
+for (const slider of [ui.flexorDrive, ui.extensorDrive]) {
+  slider.addEventListener('input', () => {
+    must<HTMLElement>(`#${slider.id}-value`).textContent = `${slider.value}%`;
+    applyMuscleDrive(simulation);
+  });
 }
 
 ui.drop.addEventListener('click', () => {

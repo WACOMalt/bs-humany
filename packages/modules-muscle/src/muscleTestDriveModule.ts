@@ -79,6 +79,16 @@ export class MuscleTestDriveModule implements SimModule {
   private readonly c: Float64Array;
   private readonly scriptTime: Float64Array;
   private readonly scriptLevel: Float64Array;
+  /**
+   * A level set from outside, per unit, or NaN where the unit's pattern still applies.
+   *
+   * This is what a slider talks to. A pattern is fixed when the module is built, which is right
+   * for a benchmark and useless for a person turning a muscle on to see what happens -- and
+   * turning a muscle on to see what happens is exactly what this module is for until nerves
+   * exist. Held as numbers rather than a map so `step` stays allocation-free.
+   */
+  private readonly overrideLevel: Float64Array;
+  private readonly indexOf: Map<string, number>;
 
   private excitation: Float64Array | undefined;
 
@@ -94,6 +104,8 @@ export class MuscleTestDriveModule implements SimModule {
     this.c = new Float64Array(n);
 
     const index = new Map(muscles.units.map((u, i) => [u.id, i]));
+    this.indexOf = index;
+    this.overrideLevel = new Float64Array(n).fill(Number.NaN);
     const times: number[] = [];
     const levels: number[] = [];
 
@@ -166,6 +178,29 @@ export class MuscleTestDriveModule implements SimModule {
     };
   }
 
+  /**
+   * Drive one unit at a level of your choosing, or hand it back to its pattern with `null`.
+   *
+   * Takes effect on the next tick and needs no restart, because the drive is recomputed every
+   * tick from scratch -- the accumulator is zeroed at the top of each one, so there is no stale
+   * value to clear.
+   */
+  setOverride(unitId: string, level: number | null): void {
+    const at = this.indexOf.get(unitId);
+    if (at === undefined) {
+      throw new Error(`No muscle unit '${unitId}' in this set.`);
+    }
+    this.overrideLevel[at] = level === null ? Number.NaN : level;
+  }
+
+  /** The level a unit is being driven at from outside, or null where its pattern still applies. */
+  overrideFor(unitId: string): number | null {
+    const at = this.indexOf.get(unitId);
+    if (at === undefined) return null;
+    const level = this.overrideLevel[at] as number;
+    return Number.isNaN(level) ? null : level;
+  }
+
   init(ctx: ModuleInitContext): void {
     this.bind(ctx);
   }
@@ -185,6 +220,11 @@ export class MuscleTestDriveModule implements SimModule {
 
     for (let i = 0; i < this.units; i++) {
       let level: number;
+      const forced = this.overrideLevel[i] as number;
+      if (!Number.isNaN(forced)) {
+        excitation[i] = (excitation[i] as number) + (forced < 0 ? 0 : forced > 1 ? 1 : forced);
+        continue;
+      }
       switch (this.kind[i]) {
         case KIND.sine:
           level =

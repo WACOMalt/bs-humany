@@ -40,6 +40,15 @@ import {
   PhysicsModule,
   SkeletonPoseModule,
 } from '@bs-humany/modules-mechanics';
+import {
+  type CompiledMuscleSet,
+  MUSCLE_STATE,
+  MuscleDynamicsModule,
+  MusclePathModule,
+  MuscleTestDriveModule,
+  compileMuscleSet,
+} from '@bs-humany/modules-muscle';
+import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
 
 export type BackendId = 'rapier' | 'mujoco';
@@ -57,6 +66,14 @@ export interface SimulationOptions {
   readonly snapshotEverySeconds?: number | undefined;
   /** Sampled trajectory recording cadence, ticks. 0 disables recording. */
   readonly recordEveryTicks?: number | undefined;
+  /**
+   * Run the elbow muscles (N3.7).
+   *
+   * Off by default, because most of what the studio is used for has nothing to do with muscles
+   * and every unit costs a solve per tick. The muscles that are wired up are the seven crossing
+   * the right elbow; the rest of the body has none yet.
+   */
+  readonly muscles?: boolean | undefined;
 }
 
 export interface BoneTransformsView {
@@ -102,6 +119,11 @@ export class Simulation {
   readonly passive: PassiveJointModule | undefined;
   readonly grab: GrabModule;
   readonly metrics: MetricsModule;
+  /** The muscle set, and the three modules that run it. Undefined when muscles are off. */
+  readonly muscles: CompiledMuscleSet | undefined;
+  readonly muscleDrive: MuscleTestDriveModule | undefined;
+  readonly musclePath: MusclePathModule | undefined;
+  readonly muscleDynamics: MuscleDynamicsModule | undefined;
   readonly backendId: BackendId;
   readonly capabilities: BackendCapabilities;
   readonly scenario: Scenario | undefined;
@@ -179,6 +201,28 @@ export class Simulation {
       this.passive = new PassiveJointModule(this.articulation);
       this.kernel.register(this.passive);
     }
+    if (options.muscles) {
+      // The muscle set is resolved against this articulation, so it follows the fidelity profile
+      // and the morphology without being re-authored: bone ids are the stable interface.
+      this.muscles = compileMuscleSet(
+        ELBOW_MUSCLES,
+        document.attachmentSites,
+        this.articulation,
+        morphology.context,
+        document.wrappingSurfaces ?? [],
+      );
+      // Every unit starts relaxed. The drive is a live override the panel writes to, rather than
+      // a pattern, because what this is for is turning a muscle on and watching what happens.
+      this.muscleDrive = new MuscleTestDriveModule(this.muscles, [
+        { units: 'all', pattern: { kind: 'constant', level: 0 } },
+      ]);
+      this.musclePath = new MusclePathModule(this.articulation, this.muscles);
+      this.muscleDynamics = new MuscleDynamicsModule(this.articulation, this.muscles);
+      this.kernel.register(this.muscleDrive);
+      this.kernel.register(this.musclePath);
+      this.kernel.register(this.muscleDynamics);
+    }
+
     this.snapshotEvery = Math.max(1, Math.round((options.snapshotEverySeconds ?? 0.1) * rate));
     this.recordEvery = options.recordEveryTicks ?? Math.round(rate / 50);
     this.recording = {
@@ -360,6 +404,30 @@ export class Simulation {
     this.timeline.splice(0, this.timeline.length, { tick: ticks, snapshot });
     this.pose.step();
     this.metrics.step();
+  }
+
+  /**
+   * What each muscle is doing this tick, in the order `muscles.units` lists them.
+   *
+   * Newtons and optimal fiber lengths, straight off `muscle.state`. Undefined when muscles are
+   * off, rather than an empty reading that looks like a relaxed body.
+   */
+  muscleState():
+    | {
+        readonly activation: Float64Array;
+        readonly fiberLength: Float64Array;
+        readonly tendonForce: Float64Array;
+        readonly diagnostic: Int32Array;
+      }
+    | undefined {
+    if (!this.muscles) return undefined;
+    const fields = this.channel(MUSCLE_STATE).fields;
+    return {
+      activation: fields.activation as Float64Array,
+      fiberLength: fields.fiberLength as Float64Array,
+      tendonForce: fields.tendonForce as Float64Array,
+      diagnostic: fields.diagnostic as unknown as Int32Array,
+    };
   }
 
   channel(id: string): {
