@@ -43,6 +43,9 @@
     },
     {
       "path": "./packages/muscle-path"
+    },
+    {
+      "path": "./packages/muscle-data"
     }
   ]
 }
