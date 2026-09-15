@@ -177,3 +177,20 @@ citation whose element is absent.
 carries the joints, or a published table with a compatible licence -- and the ranges are cited
 to it. Related to OQ-010, which covers the per-level cervical split.
 **Status:** open
+
+### OQ-013 — The Millard benchmark force profiles are figures, not tables
+**Needed for:** `packages/muscle-model/src/benchmark.test.ts`, muscle spec 13.3
+**Provisional value:** the N0.5 gate reproduces the benchmark protocol -- one muscle, constant
+activation, sinusoidal length change -- and asserts every property of the result that can be
+stated exactly: the closed-form isometric force at optimal fiber length, the published
+rigid-tendon error band, the insensitivity to the damping coefficient that M-ADR-001 rests on,
+first-order convergence of the integrator, and the plausibility rules of 13.4. What it does not
+do is overlay the force trace on Millard's published curves, because those curves are figures and
+the digitised traces are not in hand. Tracing numbers off a printed figure and asserting against
+them would produce a test that measures the tracing rather than the model, which is the kind of
+number CONTRIBUTING rule 3 exists to keep out.
+**Closes when:** the benchmark's own trajectories and parameters are obtained in numeric form --
+from the paper's supplementary material, from the OpenSim implementation the paper describes, or
+by a direct comparison run against that implementation -- and the trace is compared point by
+point with a stated tolerance.
+**Status:** open

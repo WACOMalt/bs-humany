@@ -233,3 +233,69 @@ line a muscle attaches to. Used for the attachment sites of M5.3, where the data
 that feature is the *location* and Gray is the *statement* that the muscle attaches there
 (ADR-011's split between what a landmark is and where this subject has it). Locators name the
 muscle's section in Part IV, Myology.
+
+---
+
+## Musculotendon dynamics
+
+### `millard2013` — T1
+Millard, M., Uchida, T., Seth, A., & Delp, S. L. (2013). Flexing computational muscle: modeling
+and simulation of musculotendon dynamics. *Journal of Biomechanical Engineering*, 135(2), 021005.
+
+Compares the equilibrium, damped equilibrium and rigid-tendon musculotendon formulations for both
+speed and accuracy. The damped equilibrium model is the one this project implements (M-ADR-001):
+same accuracy as the undamped equilibrium model, no singularity at zero activation, and much
+faster at the low activations a relaxed body spends its time in. Supplies the fiber damping
+coefficient and the benchmark cases the fiber implementation is validated against.
+
+### `zajac1989` — T1
+Zajac, F. E. (1989). Muscle and tendon: properties, models, scaling, and application to
+biomechanics and motor control. *Critical Reviews in Biomedical Engineering*, 17(4), 359–411.
+
+The normalisation this project's fiber model uses throughout: force by maximum isometric force,
+length by optimal fiber length, velocity by maximum contraction velocity. Also the statement of
+the pennation relationship and of constant fiber width during contraction.
+
+### `thelen2003` — T1
+Thelen, D. G. (2003). Adjustment of muscle mechanics model parameters to simulate dynamic
+contractions in older adults. *Journal of Biomechanical Engineering*, 125(1), 70–77.
+
+Closed-form characteristic curves, and the activation and deactivation time constants. Widely
+reimplemented, which makes the numbers checkable against several independent sources.
+
+### `degroote2016` — T1
+De Groote, F., Kinney, A. L., Rao, A. V., & Fregly, B. J. (2016). Evaluation of direct
+collocation optimal control problem formulations for solving the muscle redundancy problem.
+*Annals of Biomedical Engineering*, 44(10), 2922–2936.
+
+States the four characteristic curves in closed form, with every coefficient printed, chosen to
+be twice differentiable so that gradient-based solvers can use them. That is the same requirement
+this module has for its implicit integrator, and unlike a Bezier-spline formulation the
+coefficients can be transcribed and checked. The curve implementations follow this paper.
+
+## Muscle path and wrapping
+
+### `scholz2015` — T1
+Scholz, A., Sherman, M., Stavness, I., Delp, S., & Kecskeméthy, A. (2015). A fast multi-obstacle
+muscle wrapping method using natural geodesic variations. *Multibody System Dynamics*, 36(2),
+195–219.
+
+The multi-surface path solver this module targets: each geodesic parameterised by start point,
+start direction and length, solved by Newton's method on a global path error with an explicit
+banded Jacobian.
+
+### `garner2000` — T1
+Garner, B. A., & Pandy, M. G. (2000). The obstacle-set method for representing muscle paths in
+musculoskeletal models. *Computer Methods in Biomechanics and Biomedical Engineering*, 3(1), 1–30.
+
+The closed-form two-surface wrapping method, and the source of the observation that its case
+distinctions break moment-arm continuity.
+
+### `holzbaur2005` — T1
+Holzbaur, K. R. S., Murray, W. M., & Delp, S. L. (2005). A model of the upper extremity for
+simulating musculoskeletal surgery and analyzing neuromuscular control. *Annals of Biomedical
+Engineering*, 33(6), 829–840.
+
+Upper-limb muscle paths and Hill-type parameters. The parameter source for the elbow, which is
+the first region this module drives (muscle spec open question 1).
+
