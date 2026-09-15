@@ -1,0 +1,19 @@
+{
+  "name": "@bs-humany/muscle-volume",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tier V: procedural muscle volumes swept along the solved muscle path.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@bs-humany/hsdl": "workspace:*"
+  }
+}

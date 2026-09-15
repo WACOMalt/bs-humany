@@ -286,3 +286,42 @@ cylinders and ellipsoids and claimed that matched MuJoCo; it now allows spheres 
 start point, start direction and length and solves numerically, so the ellipsoid belongs there
 rather than in a second, worse iterative solver written here and thrown away.
 **Status:** open
+
+### OQ-017 — The specific tension of muscle tissue
+**Needed for:** `packages/muscle-volume/src/sweep.ts`
+**Provisional value:** 0.3 MPa. It converts a muscle's maximum isometric force into a
+cross-sectional area, and so into the volume the drawn belly encloses. Published values cluster
+between roughly 0.2 and 0.35 MPa and the spread is real rather than disagreement: it depends on
+the preparation, the species, and how the area was measured. A number in the middle of a
+published range is not the same thing as a number read out of a paper, so it is recorded here
+rather than cited.
+
+What the uncertainty costs is bounded and stated. Tier V writes only to the render channel
+(M-ADR-004), so the consequence is that every muscle is drawn some per cent too thick or too
+thin, uniformly across the model. It does not reach the dynamics. And the thing the tier exists
+to show -- that a contracting muscle thickens -- does not depend on it at all: the bulge comes
+from holding the belly's volume constant as the fibers shorten, whatever that volume is.
+**Closes when:** a specific tension with a stated preparation and measurement method is cited, or
+the muscle meshes come from an anatomical asset pack and their volumes are measured rather than
+derived (section 9.4 allows for that as an upgrade).
+**Status:** open
+
+### OQ-018 — How much a muscle belly's volume moves with contraction
+**Needed for:** `packages/muscle-volume/src/sweep.ts`
+**Provisional value:** three per cent at full activation and full contraction velocity. Muscle
+tissue is water and does not compress, so the tissue volume is fixed; a belly is not only tissue,
+and how much blood it holds depends on what it is doing. Shortening under load squeezes it out --
+the muscle pump -- so a concentric contraction measures slightly smaller; lengthening under load
+raises intramuscular tension without that expulsion and can measure slightly larger; held at
+length, nothing moves.
+
+The magnitude is the uncertain part. Published figures vary with the method -- ultrasound, MRI
+and plethysmography do not agree closely, and they are measuring somewhat different things. Three
+per cent is a small number chosen to be visible without being assertive.
+
+Like OQ-017 this reaches only the render channel (M-ADR-004), and it is separable: the geometry
+that makes a shortening belly thicken knows nothing about it, and a caller wanting the classical
+incompressible idealisation simply does not apply it.
+**Closes when:** a figure with a stated measurement method is cited, or the effect is judged not
+worth drawing and the modulation is removed rather than left at a guess.
+**Status:** open

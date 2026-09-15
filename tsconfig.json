@@ -49,6 +49,9 @@
     },
     {
       "path": "./packages/modules-muscle"
+    },
+    {
+      "path": "./packages/muscle-volume"
     }
   ]
 }
