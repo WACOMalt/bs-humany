@@ -627,10 +627,19 @@ describe('MuscleVolumeModule', () => {
     expect(rateDivisorFor(60, DEFAULT_UPDATE_HZ)).toBe(1);
   });
 
-  it('declares the rate it was given, and writes only to the renderer', () => {
-    // M-ADR-004 alongside the rate: a module with no accumulator cannot reach the force path.
-    const volume = new MuscleVolumeModule(articulation, muscles, { simulationRateHz: 500 });
-    expect(volume.manifest.rateDivisor).toBe(4);
+  it('sweeps every tick unless asked not to, so a stepped tick shows its own shape', () => {
+    // What a step is for: seeing the state the simulation is in. A mesh on a divisor would show
+    // the shape from a few ticks back, and the muscles would sit still for most steps.
+    const volume = new MuscleVolumeModule(articulation, muscles);
+    expect(volume.manifest.rateDivisor).toBe(1);
+    // And the way out, for a set large enough to need one.
+    const thrifty = new MuscleVolumeModule(articulation, muscles, { simulationRateHz: 500 });
+    expect(thrifty.manifest.rateDivisor).toBe(4);
+  });
+
+  it('writes only to the renderer, whatever its rate', () => {
+    // M-ADR-004: a module that declares no accumulator cannot reach the force path at all.
+    const volume = new MuscleVolumeModule(articulation, muscles);
     expect(volume.manifest.accumulates).toEqual([]);
     expect(volume.manifest.phase).toBe('post');
   });

@@ -270,12 +270,10 @@ export class Simulation {
       ]);
       this.musclePath = new MusclePathModule(this.articulation, this.muscles);
       this.muscleDynamics = new MuscleDynamicsModule(this.articulation, this.muscles);
-      // Told the rate it is running at, so the sweep lands above the display's rate rather than
-      // at a fixed tenth of the physics rate -- which at 500 Hz is 50 a second, and reads as the
-      // flesh lagging the bones.
-      this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles, {
-        simulationRateHz: rate,
-      });
+      // Swept every tick, on purpose: the studio is where someone steps a tick at a time to see
+      // what the simulation is doing, and a mesh refreshed on one tick in ten would show them the
+      // shape from three ticks ago. It costs 144 microseconds a tick for fourteen units.
+      this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles);
       this.kernel.register(this.muscleDrive);
       this.kernel.register(this.musclePath);
       this.kernel.register(this.muscleDynamics);
