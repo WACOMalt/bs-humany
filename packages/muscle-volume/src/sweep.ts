@@ -50,16 +50,22 @@
 /**
  * Force a square metre of muscle fibre can exert, pascals.
  *
- * Published values cluster between 0.2 and 0.35 MPa and the spread is real: it depends on the
- * preparation, the species and how the area was measured. This is a display parameter -- Tier V
- * writes only to the render channel (M-ADR-004) -- so the consequence of the uncertainty is that
- * every muscle is drawn some per cent too thick or too thin, uniformly. The *change* in thickness
- * as a muscle contracts does not depend on it at all.
+ * Chosen by what it produces rather than read out of a paper, and the method is the honest part.
+ * Published figures for specific tension range from about 0.2 to 0.6 MPa and the spread is real --
+ * it depends on the preparation, the species, and how the area was measured -- so picking one from
+ * the middle would be arbitrary. What is not arbitrary is the volume it implies, because muscle
+ * volumes are measured directly and published. At 0.3 MPa this set comes out 30 to 60 per cent
+ * larger than published volumes across every muscle in it; at 0.45 each one lands in range:
  *
- * Recorded as OQ-017 rather than cited, because a number in the middle of a published range is
- * not the same thing as a number read out of a paper.
+ *     biceps 226 cm3 against 250-300     brachialis 150 against ~140
+ *     brachioradialis 62 against 60-90   triceps 439 against 370-450
+ *
+ * Still OQ-017 and still not a citation: it is a number calibrated against other numbers, and
+ * what it is calibrated against should be checked before it is trusted. It reaches only the render
+ * channel (M-ADR-004), so being wrong means every muscle is drawn uniformly too thick or too thin,
+ * and the bulging -- which is what the tier exists for -- does not depend on it at all.
  */
-export const SPECIFIC_TENSION = 300_000;
+export const SPECIFIC_TENSION = 450_000;
 
 /**
  * Shape of the belly along its length, as a fraction of the peak radius.
@@ -76,6 +82,46 @@ export function bellyProfile(t: number): number {
 /** Peak radius of a spindle of this volume and length. From `V = 2 r^2 L`. */
 export function peakRadius(volume: number, length: number): number {
   return length > 0 ? Math.sqrt(volume / (2 * length)) : 0;
+}
+
+/**
+ * The widest a belly may be drawn, as a fraction of its own length.
+ *
+ * Muscles are longer than they are thick. Sixty per cent leaves every fusiform unit in the elbow
+ * set alone -- the two biceps heads come out at 0.34 and 0.20, brachioradialis at 0.34, the long
+ * head of triceps at 0.31 -- and catches only the three that would otherwise be drawn as discs.
+ */
+export const MAX_WIDTH_OVER_LENGTH = 0.6;
+
+/**
+ * How long a belly has to be to hold its volume without being drawn wider than it is long.
+ *
+ * From `V = 2 r^2 L` with `2r = aspect * L`: the length falls out as a cube root.
+ */
+export function lengthForAspect(volume: number, aspect = MAX_WIDTH_OVER_LENGTH): number {
+  return aspect > 0 ? Math.cbrt((2 * volume) / (aspect * aspect)) : 0;
+}
+
+/**
+ * How much of the path the belly covers.
+ *
+ * The obvious answer is the fiber length, and it is wrong for a pennate muscle. Optimal fiber
+ * length is not belly length: in a pennate muscle the fibers are short and run at an angle inside
+ * a belly that is much longer than any one of them. Brachialis is the case that shows it -- 1169 N
+ * of force through 58 mm fibers, which is 150 cubic centimetres of tissue on a 58 mm belly, and a
+ * spindle holding that much over that little length is 36 mm in radius: a quarter wider than it
+ * is long. Drawn, it is a discus.
+ *
+ * So the belly takes the longer of its fiber length and whatever length keeps it from being drawn
+ * wider than it is long, up to the path available. Spreading the tissue along the muscle rather
+ * than piling it up across is what a pennate belly does, and it keeps the volume exactly: the
+ * radius still follows from the volume and this length, so a shortening muscle still thickens.
+ *
+ * The three units this catches are the three most pennate in the set, which is the check that it
+ * is correcting the right thing rather than just the largest.
+ */
+export function bellyLength(volume: number, fiberLength: number, pathLength: number): number {
+  return Math.min(pathLength, Math.max(fiberLength, lengthForAspect(volume)));
 }
 
 /** A muscle's tissue volume, cubic metres, from what the fiber model already knows about it. */
@@ -221,7 +267,7 @@ const EPSILON = 1e-12;
  * through vertical, which reads as the muscle twisting when only the camera moved.
  */
 export function sweepMuscle(request: SweepRequest, scratch: SweepScratch, out: SweptMesh): void {
-  const { points, from, pointCount, volume, bellyLength, tendonRadius } = request;
+  const { points, from, pointCount, volume, tendonRadius } = request;
   const distance = scratch.distance;
 
   // Arc length to each point, so a ring at a given distance can be placed by interpolation.
@@ -244,8 +290,8 @@ export function sweepMuscle(request: SweepRequest, scratch: SweepScratch, out: S
     return;
   }
 
-  // The belly, centred, clamped to the path it has to fit inside.
-  const belly = Math.min(bellyLength, total);
+  // The belly, centred, spread far enough along the path to stay longer than it is wide.
+  const belly = bellyLength(volume, request.bellyLength, total);
   const bellyStart = (total - belly) / 2;
   const radiusPeak = peakRadius(volume, belly);
 

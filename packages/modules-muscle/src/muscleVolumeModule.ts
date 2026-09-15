@@ -185,16 +185,17 @@ export class MuscleVolumeModule implements SimModule {
 
     const stride = this.mesh.vertexCount;
     for (let i = 0; i < this.units; i++) {
-      // The belly spans the fibers, which are a normalised length: multiplying by the optimal
-      // fiber length turns it back into metres along the path.
-      const belly = (fiberLength[i] as number) * (this.optimalFiber[i] as number);
+      // What the fibers measure, in metres: `muscle.state` publishes the length normalised, so
+      // the optimal fiber length turns it back. It is the belly's lower bound rather than its
+      // length -- a pennate belly is far longer than its fibers, and `sweepMuscle` spreads it.
+      const fibers = (fiberLength[i] as number) * (this.optimalFiber[i] as number);
       const volume = perfusedVolume(
         this.tissue[i] as number,
         activation[i] as number,
         fiberVelocity[i] as number,
       );
 
-      this.sweepInto(i, belly, volume);
+      this.sweepInto(i, fibers, volume);
 
       const at = 3 * i * stride;
       for (let v = 0; v < 3 * stride; v++) {

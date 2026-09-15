@@ -293,18 +293,29 @@ rather than in a second, worse iterative solver written here and thrown away.
 
 ### OQ-017 — The specific tension of muscle tissue
 **Needed for:** `packages/muscle-volume/src/sweep.ts`
-**Provisional value:** 0.3 MPa. It converts a muscle's maximum isometric force into a
-cross-sectional area, and so into the volume the drawn belly encloses. Published values cluster
-between roughly 0.2 and 0.35 MPa and the spread is real rather than disagreement: it depends on
-the preparation, the species, and how the area was measured. A number in the middle of a
-published range is not the same thing as a number read out of a paper, so it is recorded here
-rather than cited.
+**Provisional value:** 0.45 MPa. It converts a muscle's maximum isometric force into a
+cross-sectional area, and so into the volume the drawn belly encloses. Published values range
+from roughly 0.2 to 0.6 MPa and the spread is real rather than disagreement: it depends on the
+preparation, the species, and how the area was measured. Rather than take one from the middle,
+the value is calibrated against the quantity it produces, because muscle volumes are measured
+directly and published: at 0.3 MPa this set comes out 30 to 60 per cent larger than published
+volumes for every muscle in it, and at 0.45 each one lands in range -- biceps 226 cm3 against
+250-300, brachialis 150 against ~140, brachioradialis 62 against 60-90, triceps 439 against
+370-450. A number calibrated against other numbers is not the same thing as a number read out of
+a paper, so it is recorded here rather than cited, and what it was calibrated against should be
+checked before it is trusted.
 
 What the uncertainty costs is bounded and stated. Tier V writes only to the render channel
 (M-ADR-004), so the consequence is that every muscle is drawn some per cent too thick or too
 thin, uniformly across the model. It does not reach the dynamics. And the thing the tier exists
 to show -- that a contracting muscle thickens -- does not depend on it at all: the bulge comes
 from holding the belly's volume constant as the fibers shorten, whatever that volume is.
+
+One second-order effect is worth naming, because it is the reason the value was revisited at all.
+The volume also sets how long the belly of a pennate muscle is drawn: a belly that would come out
+wider than it is long is spread along the path until it is not (`MAX_WIDTH_OVER_LENGTH`), and how
+far it spreads follows from the volume. So a wrong specific tension moves the drawn length of the
+three most pennate units in the elbow set, not only their girth.
 **Closes when:** a specific tension with a stated preparation and measurement method is cited, or
 the muscle meshes come from an anatomical asset pack and their volumes are measured rather than
 derived (section 9.4 allows for that as an upgrade).

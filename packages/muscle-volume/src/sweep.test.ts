@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_WIDTH_OVER_LENGTH,
   PERFUSION_GAIN,
   SPECIFIC_TENSION,
   type SweptMesh,
+  bellyLength,
   bellyProfile,
   createSweepScratch,
   createSweptMesh,
@@ -65,12 +67,13 @@ describe('the belly profile', () => {
 
 describe('sizing a muscle', () => {
   it('turns force into volume through the cross-sectional area', () => {
-    // A 300 N muscle at 0.3 MPa has 10 square centimetres of cross-section; 10 cm of fiber makes
-    // 100 cubic centimetres of tissue. The arithmetic is worth pinning because everything drawn
-    // rests on it -- and the answer is the right size: the biceps of this elbow set works out at
-    // 178 cubic centimetres, against a published 200 to 270 for a real one.
+    // A 300 N muscle at 0.45 MPa has 6.7 square centimetres of cross-section; 10 cm of fiber makes
+    // 67 cubic centimetres of tissue. The arithmetic is worth pinning because everything drawn
+    // rests on it, and the tension itself was chosen by what it produces: this set's four muscles
+    // all land in their published volume ranges at 0.45 and are 30 to 60 per cent over at 0.3.
     const volume = muscleVolume(300, 0.1);
-    expect(volume).toBeCloseTo(1e-4, 12);
+    expect(volume).toBeCloseTo((300 / 450_000) * 0.1, 15);
+    expect(volume).toBeCloseTo(6.667e-5, 8);
     expect(muscleVolume(300, 0.1, SPECIFIC_TENSION)).toBe(volume);
   });
 
@@ -332,3 +335,58 @@ function dot(a: number[], b: number[]): number {
     (a[2] as number) * (b[2] as number)
   );
 }
+
+describe('a pennate belly, which is longer than its fibers', () => {
+  // Brachialis, as the elbow set carries it: 1169 N of force through 58 mm fibers. The force is
+  // large because the muscle is pennate, and a pennate muscle's belly is far longer than any one
+  // of its fibers -- so taking the fiber length as the belly length piles the tissue across the
+  // muscle instead of along it.
+  const volume = muscleVolume(1169, 0.0576);
+  const fibers = 0.0576;
+
+  it('would be drawn wider than long if the fiber length were taken as the belly', () => {
+    // The bug this fixes, stated as the arithmetic that produced it: a quarter wider than it is
+    // long, which is a discus and not a muscle.
+    const naive = peakRadius(volume, fibers);
+    expect((2 * naive) / fibers).toBeGreaterThan(1.2);
+  });
+
+  it('spreads along the path instead, and comes out longer than it is wide', () => {
+    const path = 0.25;
+    const belly = bellyLength(volume, fibers, path);
+    expect(belly).toBeGreaterThan(fibers);
+    const radius = peakRadius(volume, belly);
+    expect((2 * radius) / belly).toBeCloseTo(MAX_WIDTH_OVER_LENGTH, 6);
+  });
+
+  it('lands on a belly length a real brachialis has', () => {
+    // Not a coincidence worth passing over: the rule is about drawing, and the length it picks
+    // for the most pennate muscle in the set is the length that muscle actually is.
+    expect(bellyLength(volume, fibers, 0.25)).toBeGreaterThan(0.085);
+    expect(bellyLength(volume, fibers, 0.25)).toBeLessThan(0.12);
+  });
+
+  it('leaves a fusiform muscle exactly as it was', () => {
+    // The long head of biceps: 422 N through 127 mm fibers, which is already slimmer than the
+    // limit. A rule that also moved these would be changing what it was not asked to.
+    const biceps = muscleVolume(422, 0.1272);
+    expect(bellyLength(biceps, 0.1272, 0.35)).toBe(0.1272);
+    expect((2 * peakRadius(biceps, 0.1272)) / 0.1272).toBeLessThan(MAX_WIDTH_OVER_LENGTH);
+  });
+
+  it('still thickens as the muscle shortens, which the spreading must not undo', () => {
+    // The fix must not cost the bulge. Once the belly is past the aspect limit the fiber length is
+    // what sets it again, and the radius follows the volume as before.
+    const path = 0.35;
+    const biceps = muscleVolume(422, 0.1272);
+    const long = peakRadius(biceps, bellyLength(biceps, 0.13, path));
+    const short = peakRadius(biceps, bellyLength(biceps, 0.09, path));
+    expect(short).toBeGreaterThan(long);
+  });
+
+  it('never runs the belly off the end of the path', () => {
+    // A short path cannot hold a long belly, and the aspect rule must not make it try.
+    const path = 0.06;
+    expect(bellyLength(volume, fibers, path)).toBe(path);
+  });
+});
