@@ -131,13 +131,14 @@
         <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
         <label class="checkbox"><input type="checkbox" id="fullFidelity" /> Run in simulated time, not real time</label>
         <div class="control" id="fidelity-control" hidden>
-          <label for="ticksPerFrame">Ticks per frame <output id="ticksPerFrame-value">17</output></label>
-          <input type="range" id="ticksPerFrame" min="1" max="120" step="1" value="17" />
-          <p class="note">A fixed step never skips a tick &mdash; what the default drops when it
-          falls behind is elapsed <em>real</em> time, so the simulation runs slow rather than
-          coarse. This stops it chasing the clock at all: each frame advances exactly this many
-          ticks, so the run is reproducible and the playback speed is yours to set. At 1 it
-          advances a frame at a time.</p>
+          <label for="targetRate">Simulated rate <output id="targetRate-value">1000 Hz</output></label>
+          <input type="range" id="targetRate" min="10" max="2000" step="10" value="1000" />
+          <p class="note">Simulated time produced per second of real time. Set it to the profile's
+          own rate for life speed, lower for slow motion with every tick still taken. A fixed step
+          never skips a tick &mdash; what the default drops when it falls behind is elapsed
+          <em>real</em> time &mdash; and this does not discard either: ask for more than the
+          machine can sustain and it falls behind rather than skipping. Pause and use Step to go a
+          tick at a time.</p>
         </div>
         <label class="checkbox"><input type="checkbox" id="muscles" /> Elbow muscles</label>
         <div class="control" id="muscle-control" hidden>

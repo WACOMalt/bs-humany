@@ -106,6 +106,15 @@ export interface Recording {
  * (ADR-003 reassessment, 2026-09-13): the studio never offers it, but nothing stops a scripted
  * session from asking for it.
  */
+/**
+ * Ticks one rendered frame may run in simulated-time mode.
+ *
+ * The same guard the wall-clock path has, for the same reason: without a ceiling a slow frame
+ * schedules more work, which makes the next frame slower still. Sixty at 1000 Hz is 60 ms of
+ * simulated time in one frame, which is far more than a display can use and still bounded.
+ */
+const MAX_TICKS_PER_FRAME = 60;
+
 function makeBackend(id: BackendId): IPhysicsBackend {
   return id === 'rapier' ? new RapierBackend() : new MujocoBackend();
 }
@@ -160,8 +169,17 @@ export class Simulation {
    * the same scenario were always identical; this makes them take the same number of frames too.
    */
   fullFidelity = false;
-  /** Ticks advanced per rendered frame while `fullFidelity` is on. */
-  ticksPerFrame: number;
+  /**
+   * Simulated seconds to produce per second of wall-clock time, expressed as a tick rate.
+   *
+   * Set it to the profile's own rate and the simulation runs at life speed; set it lower and it
+   * runs in slow motion, every tick still taken. Nothing is discarded to hit the target: the
+   * remainder carries between frames, so asking for a rate the machine cannot sustain makes the
+   * simulation fall behind rather than skip, and `achievedRateHz` is where that shows.
+   */
+  targetRateHz: number;
+  /** Ticks left owing from earlier frames. Bounded, so a slow machine cannot build a backlog. */
+  private owed = 0;
   /**
    * Ticks actually run per second of wall-clock time, over the last half second.
    *
@@ -254,9 +272,8 @@ export class Simulation {
       this.kernel.register(this.muscleDynamics);
     }
 
-    // Real time at sixty frames a second, which is where a full-fidelity run starts before
-    // anyone turns it down to watch something closely.
-    this.ticksPerFrame = Math.max(1, Math.round(rate / 60));
+    // Life speed, which is where a run starts before anyone slows it down to watch something.
+    this.targetRateHz = rate;
     this.snapshotEvery = Math.max(1, Math.round((options.snapshotEverySeconds ?? 0.1) * rate));
     this.recordEvery = options.recordEveryTicks ?? Math.round(rate / 50);
     this.recording = {
@@ -303,13 +320,22 @@ export class Simulation {
   advance(elapsedSeconds: number): FrameStepPlan {
     if (!this.started || this.paused) return { ticks: 0, alpha: 0, remainder: 0, clamped: false };
     if (this.fullFidelity) {
-      const ticks = Math.max(1, Math.round(this.ticksPerFrame));
+      this.owed += Math.max(0, this.targetRateHz) * elapsedSeconds;
+      // A ceiling on one frame's work, so a slow frame cannot schedule a slower one. What it does
+      // not do is throw the surplus away: it stays owed, and the simulation catches up on the
+      // frames that have room.
+      const ticks = Math.min(Math.floor(this.owed), MAX_TICKS_PER_FRAME);
+      this.owed -= ticks;
+      // Beyond a frame's worth of backlog the machine is simply not keeping up with the rate it
+      // was asked for, and holding more would only make the lag grow without bound. Capping it
+      // means the simulation runs as fast as it can; `achievedRateHz` says how fast that is.
+      this.owed = Math.min(this.owed, MAX_TICKS_PER_FRAME);
+
       const started = performance.now();
       for (let i = 0; i < ticks; i++) this.tick();
-      this.lastStepMs = (performance.now() - started) / ticks;
+      if (ticks > 0) this.lastStepMs = (performance.now() - started) / ticks;
       this.measureRate(elapsedSeconds, ticks);
-      // Nothing was dropped, so nothing is clamped; the accumulator is cleared because the
-      // wall-clock time it was holding is no longer what drives the run.
+      // The wall-clock accumulator belongs to the other mode and is not what drives this one.
       this.accumulator = 0;
       this.clamped = false;
       return { ticks, alpha: 0, remainder: 0, clamped: false };

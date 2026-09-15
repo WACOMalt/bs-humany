@@ -216,7 +216,7 @@ const ui = {
   showMuscles: must<HTMLInputElement>('#showMuscles'),
   muscles: must<HTMLInputElement>('#muscles'),
   fullFidelity: must<HTMLInputElement>('#fullFidelity'),
-  ticksPerFrame: must<HTMLInputElement>('#ticksPerFrame'),
+  targetRate: must<HTMLInputElement>('#targetRate'),
   flexorDrive: must<HTMLInputElement>('#flexorDrive'),
   extensorDrive: must<HTMLInputElement>('#extensorDrive'),
 };
@@ -606,7 +606,11 @@ async function startSimulation(
     if (!ui.gravity.checked) sim.setGravity(false);
     if (!ui.floor.checked) sim.setGroundCollision(false);
     applyMuscleDrive(sim);
+    // A fresh run opens at the profile's own rate, which is life speed, unless the slider has
+    // been moved off it.
+    if (!fidelityTouched) ui.targetRate.value = String(Math.round(sim.declaredRateHz));
     applyFidelity(sim);
+    showTargetRate();
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
     if (carry) {
       const unmatched = sim.carryFrom(carry.state, carry.ticks);
@@ -713,36 +717,41 @@ function muscleTension(
 function applyFidelity(sim: Simulation | null | undefined): void {
   if (!sim) return;
   sim.fullFidelity = ui.fullFidelity.checked;
-  sim.ticksPerFrame = Number(ui.ticksPerFrame.value);
+  sim.targetRateHz = Number(ui.targetRate.value);
 }
 
 ui.fullFidelity.addEventListener('change', () => {
   must<HTMLElement>('#fidelity-control').hidden = !ui.fullFidelity.checked;
-  showTicksPerFrame();
+  showTargetRate();
   applyFidelity(simulation);
 });
-ui.ticksPerFrame.addEventListener('input', () => {
-  showTicksPerFrame();
+/** Whether the rate has been set by hand, so a new run does not overwrite the choice. */
+let fidelityTouched = false;
+ui.targetRate.addEventListener('input', () => {
+  fidelityTouched = true;
+  showTargetRate();
   applyFidelity(simulation);
 });
 
 /**
- * The slider reads in ticks a frame and also in the hertz that comes to, so it can be compared
- * with the rate the fidelity profile declares.
+ * The rate, and what it comes to as a speed.
  *
- * The conversion needs a frame rate, and the honest one is the rate this display is managing
- * rather than a nominal sixty: on a machine drawing at fifty, seventeen ticks a frame makes 850 Hz
- * of simulated time a second and saying 1020 would be a fiction.
+ * Against the profile's own rate rather than against a fixed number, because that is what makes
+ * it a speed: a thousand hertz is life speed on L3 and twice life speed on L1, and a reader
+ * should not have to remember which profile they picked to know which they are watching.
  */
-function showTicksPerFrame(): void {
-  const ticks = Number(ui.ticksPerFrame.value);
-  const fps = displayFps > 0 ? displayFps : 60;
-  must<HTMLElement>('#ticksPerFrame-value').textContent =
-    `${ticks} a frame · ~${Math.round(ticks * fps)} Hz`;
+function showTargetRate(): void {
+  const target = Number(ui.targetRate.value);
+  const declared = simulation?.declaredRateHz ?? 1000;
+  const speed = target / declared;
+  const label =
+    Math.abs(speed - 1) < 0.005
+      ? 'life speed'
+      : speed < 1
+        ? `1/${(1 / speed).toFixed(speed > 0.1 ? 1 : 0)} speed`
+        : `${speed.toFixed(1)}x speed`;
+  must<HTMLElement>('#targetRate-value').textContent = `${target} Hz · ${label}`;
 }
-
-/** Frames a second this display is managing, smoothed, for the conversion above. */
-let displayFps = 0;
 
 /** Push both sliders into the drive module. Safe to call before a run, and on every change. */
 function applyMuscleDrive(sim: Simulation | null | undefined): void {
@@ -1170,7 +1179,6 @@ function animate(): void {
   lastFrame = now;
   // Smoothed, because a raw per-frame number is unreadable.
   frameMs += (elapsed - frameMs) * 0.08;
-  displayFps = frameMs > 0 ? 1000 / frameMs : 0;
 
   if (ui.spin.checked) controls.orbit(0.0032);
   controls.update();
@@ -1206,10 +1214,10 @@ function animate(): void {
       simulation.paused
         ? `Paused at ${seconds} s.`
         : simulation.fullFidelity
-          ? // Not a warning: this is the mode doing what it was asked to. Saying how many ticks a
-            // frame carries is what tells you how far from real time you are.
-            `Running, ${seconds} s simulated in simulated time, ` +
-            `${simulation.ticksPerFrame} tick${simulation.ticksPerFrame === 1 ? '' : 's'} a frame.`
+          ? // Not a warning: the mode is doing what it was asked to. What is worth saying is the
+            // rate asked for, because the Tick rate readout says what is being managed and the
+            // difference between the two is whether the machine is keeping up.
+            `Running, ${seconds} s simulated, asking for ${Math.round(simulation.targetRateHz)} Hz.`
           : plan.clamped
             ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
             : `Running, ${seconds} s simulated.`,
