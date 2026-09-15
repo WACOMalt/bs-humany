@@ -14,6 +14,7 @@ import {
   type MusclePath,
   type WrapSurface,
   createPathContactBuffer,
+  createPathPolylineBuffer,
   createPathTerminalBuffer,
 } from './types.js';
 import { createWrapResult, wrapSphere } from './wrap.js';
@@ -565,5 +566,129 @@ describe('what the geodesic solver refuses', () => {
     expect(solver.capabilities.finiteCylinders).toBe(true);
     expect(solver.capabilities.requiresSiteBetweenWraps).toBe(true);
     expect(solver.capabilities.continuousMomentArm).toBe(true);
+  });
+});
+
+describe('the polyline a solver draws', () => {
+  function polyline(paths: readonly MusclePath[], surfaces: readonly WrapSurface[], angle: number) {
+    const solver = new GeodesicPathSolver(hingeResolver);
+    const report = solver.compile(paths, surfaces);
+    const state = createHinge();
+    setHinge(state, angle, 0);
+    const length = new Float64Array(paths.length);
+    const out = createPathPolylineBuffer(paths.length, report.polylineCapacity);
+    solver.solve(
+      state.pose,
+      state.velocity,
+      length,
+      new Float64Array(paths.length),
+      createPathContactBuffer(8),
+      createPathTerminalBuffer(paths.length),
+      out,
+    );
+    const points: number[][] = [];
+    const from = out.start[0] as number;
+    for (let i = 0; i < (out.count[0] as number); i++) {
+      points.push([
+        out.point[3 * (from + i)] as number,
+        out.point[3 * (from + i) + 1] as number,
+        out.point[3 * (from + i) + 2] as number,
+      ]);
+    }
+    return { report, points, length: length[0] as number };
+  }
+
+  const walked = (points: number[][]) => {
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1] as number[];
+      const b = points[i] as number[];
+      total += Math.hypot(
+        (b[0] as number) - (a[0] as number),
+        (b[1] as number) - (a[1] as number),
+        (b[2] as number) - (a[2] as number),
+      );
+    }
+    return total;
+  };
+
+  it('is just the attachment points when nothing is in the way', () => {
+    const { points, length } = polyline([STRAIGHT], [], 0);
+    expect(points).toHaveLength(2);
+    expect(walked(points)).toBeCloseTo(length, 12);
+  });
+
+  it('measures the length the fiber model is being given', () => {
+    // The check that makes a drawing worth looking at. If the picture and the number came apart,
+    // the muscle on screen would not be the muscle being simulated, and every judgement made by
+    // eye from here on would be about the wrong thing.
+    const { points, length } = polyline([wrappingPath('knuckle')], [KNUCKLE], 0);
+    expect(points.length).toBeGreaterThan(2);
+    // Chords cut the corner slightly, so the walk is a touch short of the exact arc.
+    expect(walked(points)).toBeCloseTo(length, 4);
+    expect(walked(points)).toBeLessThanOrEqual(length + 1e-12);
+  });
+
+  it('runs from the origin to the insertion, with the surface in between', () => {
+    const { points } = polyline([wrappingPath('knuckle')], [KNUCKLE], 0);
+    const first = points[0] as number[];
+    const last = points[points.length - 1] as number[];
+    expect(first[0]).toBeCloseTo(ORIGIN_POINT.x, 12);
+    expect(first[1]).toBeCloseTo(ORIGIN_POINT.y, 12);
+    expect(last[0]).toBeCloseTo(INSERTION_POINT.x, 12);
+    // Everything between the tangent points sits on the sphere.
+    const onSurface = points.filter(
+      (p) => Math.abs(Math.hypot(p[0] as number, p[1] as number, p[2] as number) - 0.05) < 1e-9,
+    );
+    expect(onSurface.length).toBeGreaterThan(5);
+  });
+
+  it('draws a cylinder wrap too', () => {
+    const { points, length } = polyline([wrappingPath('trochlea')], [TROCHLEA], 0);
+    expect(points.length).toBeGreaterThan(2);
+    expect(walked(points)).toBeCloseTo(length, 4);
+  });
+
+  it('fits the capacity the compile report asked for', () => {
+    // The caller should never have to guess a buffer size, and a solver that overran one would
+    // silently draw a shorter muscle than it is simulating.
+    const path: MusclePath = {
+      ...STRAIGHT,
+      id: 'two-spans',
+      elements: [
+        { kind: 'wrap', surface: 'knuckle' },
+        { kind: 'viaPoint', site: { bone: 'parent', point: { x: 0, y: 0.09, z: 0 } } },
+        { kind: 'wrap', surface: 'trochlea' },
+      ],
+    };
+    const { report, points } = polyline([path], [KNUCKLE, TROCHLEA], 0);
+    expect(points.length).toBeLessThanOrEqual(report.polylineCapacity);
+    expect(report.polylineCapacity).toBe(3 + 2 * 13);
+  });
+
+  it('falls back to the straight run when the surface is not in the way', () => {
+    const { points, length } = polyline([wrappingPath('pebble')], [PEBBLE], 0);
+    expect(points).toHaveLength(2);
+    expect(walked(points)).toBeCloseTo(length, 12);
+  });
+
+  it('costs nothing when nobody asks for it', () => {
+    // No buffer, no sampling. A headless run integrating fibers has no use for these points.
+    const solver = new GeodesicPathSolver(hingeResolver);
+    solver.compile([wrappingPath('knuckle')], [KNUCKLE]);
+    const state = createHinge();
+    setHinge(state, 0, 0);
+    const length = new Float64Array(1);
+    expect(() =>
+      solver.solve(
+        state.pose,
+        state.velocity,
+        length,
+        new Float64Array(1),
+        createPathContactBuffer(4),
+        createPathTerminalBuffer(1),
+      ),
+    ).not.toThrow();
+    expect(length[0]).toBeGreaterThan(0);
   });
 });

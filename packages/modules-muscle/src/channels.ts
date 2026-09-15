@@ -29,6 +29,7 @@ export const MUSCLE_CHANNEL_VERSION = '1.0.0';
 
 export const MUSCLE_PATH = 'muscle.path';
 export const MUSCLE_CONTACT = 'muscle.contact';
+export const MUSCLE_POLYLINE = 'muscle.polyline';
 export const MUSCLE_STATE = 'muscle.state';
 export const EFFERENT_ALPHA_MOTOR = 'efferent.alphaMotor';
 export const EFFERENT_GAMMA_MOTOR = 'efferent.gammaMotor';
@@ -56,6 +57,9 @@ export function musclePathSpec(units: number): ChannelSpec {
       { name: 'originDirection', dtype: 'f64', components: 3 },
       /** Unit, world, from the insertion toward the previous point on the path. */
       { name: 'insertionDirection', dtype: 'f64', components: 3 },
+      /** Where this unit's points begin in `muscle.polyline`, and how many it wrote. */
+      { name: 'pointStart', dtype: 'i32', components: 1 },
+      { name: 'pointCount', dtype: 'i32', components: 1 },
     ],
     elementCount: units,
     mode: 'single-writer',
@@ -78,6 +82,29 @@ export function muscleContactSpec(capacity = DEFAULT_MUSCLE_CONTACT_CAPACITY): C
       /** Unit, world: the resultant of the two adjacent segment directions. */
       { name: 'direction', dtype: 'f64', components: 3 },
     ],
+    elementCount: capacity,
+    mode: 'single-writer',
+    backing: 'shared',
+  };
+}
+
+/**
+ * Every point of every muscle's path, end to end, for anything that draws one.
+ *
+ * A second channel rather than more fields on `muscle.path`, because a channel has one element
+ * count and a path's point count is not one per unit -- a straight unit has two and a wrapped one
+ * has fifteen. `muscle.path` carries the offset and count into this, the same way a contact list
+ * is indexed.
+ *
+ * It exists for readers, not for the solver. The length the fiber model integrates is the exact
+ * arc length, never a sum of these chords, so the picture can be coarse without the physics being.
+ */
+export function musclePolylineSpec(capacity: number): ChannelSpec {
+  return {
+    id: MUSCLE_POLYLINE,
+    version: MUSCLE_CHANNEL_VERSION,
+    layout: 'SoA',
+    fields: [{ name: 'point', dtype: 'f64', components: 3 }],
     elementCount: capacity,
     mode: 'single-writer',
     backing: 'shared',

@@ -32,6 +32,7 @@ import type {
   PathCompileProblem,
   PathCompileReport,
   PathContactBuffer,
+  PathPolylineBuffer,
   PathSolverCapabilities,
   PathTerminalBuffer,
   Vec3,
@@ -59,6 +60,8 @@ export interface IMusclePathSolver {
     outVelocity: Float64Array,
     outContacts: PathContactBuffer,
     outTerminals: PathTerminalBuffer,
+    /** Optional. Given one, the solver also writes where every path runs, point by point. */
+    outPolyline?: PathPolylineBuffer,
   ): void;
 }
 
@@ -174,7 +177,13 @@ export class ViaPointPathSolver implements IMusclePathSolver {
     this.world = new Float64Array(3 * longest);
     this.worldVelocity = new Float64Array(3 * longest);
 
-    return { pathCount: paths.length, pointCount: bodies.length, problems };
+    return {
+      pathCount: paths.length,
+      pointCount: bodies.length,
+      // Straight lines throughout, so a path needs exactly its attachment points.
+      polylineCapacity: bodies.length,
+      problems,
+    };
   }
 
   solve(
@@ -184,10 +193,12 @@ export class ViaPointPathSolver implements IMusclePathSolver {
     outVelocity: Float64Array,
     outContacts: PathContactBuffer,
     outTerminals: PathTerminalBuffer,
+    outPolyline?: PathPolylineBuffer,
   ): void {
     // The via-point solver never wraps, so it reports no contacts -- but it must still say so,
     // rather than leaving whatever the previous solver wrote for section 8.2 to apply again.
     outContacts.count = 0;
+    let written = 0;
 
     const count = this.pathStart.length - 1;
     for (let p = 0; p < count; p++) {
@@ -254,6 +265,17 @@ export class ViaPointPathSolver implements IMusclePathSolver {
 
       outLength[p] = length;
       outVelocity[p] = rate;
+
+      // A straight-line path is its own polyline: the attachment points, in order.
+      if (outPolyline !== undefined) {
+        outPolyline.start[p] = written;
+        outPolyline.count[p] = n;
+        for (let i = 0; i < n && written < outPolyline.capacity; i++, written++) {
+          outPolyline.point[3 * written] = this.world[3 * i] as number;
+          outPolyline.point[3 * written + 1] = this.world[3 * i + 1] as number;
+          outPolyline.point[3 * written + 2] = this.world[3 * i + 2] as number;
+        }
+      }
 
       // Where the two ends are and which way they pull, for section 8.2. The origin pulls toward
       // the next point on the path and the insertion toward the previous one, which for a

@@ -213,6 +213,7 @@ const ui = {
   showAxes: must<HTMLInputElement>('#showAxes'),
   showCom: must<HTMLInputElement>('#showCom'),
   showContacts: must<HTMLInputElement>('#showContacts'),
+  showMuscles: must<HTMLInputElement>('#showMuscles'),
   muscles: must<HTMLInputElement>('#muscles'),
   flexorDrive: must<HTMLInputElement>('#flexorDrive'),
   extensorDrive: must<HTMLInputElement>('#extensorDrive'),
@@ -611,7 +612,9 @@ async function startSimulation(
         console.warn('DoFs without a counterpart, left at neutral:', unmatched);
     }
     simulation = sim;
-    overlays = createOverlays(sim.articulation);
+    overlays = createOverlays(sim.articulation, {
+      musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
+    });
     scene.add(overlays.root);
     applyOverlayVisibility();
     showFurniture(sim);
@@ -661,9 +664,46 @@ function applyOverlayVisibility(): void {
   overlays.axes.visible = ui.showAxes.checked;
   overlays.com.visible = ui.showCom.checked;
   overlays.contacts.visible = ui.showContacts.checked;
+  overlays.muscles.visible = ui.showMuscles.checked;
 }
-for (const input of [ui.showProxies, ui.showAxes, ui.showCom, ui.showContacts]) {
+for (const input of [ui.showProxies, ui.showAxes, ui.showCom, ui.showContacts, ui.showMuscles]) {
   input.addEventListener('change', applyOverlayVisibility);
+}
+
+/**
+ * The muscle paths and how hard each is pulling, for the overlay.
+ *
+ * Tension is the fraction of the unit's own maximum isometric force, so a small muscle working
+ * hard reads as hard as a big one. Absolute newtons would colour the whole arm by which muscle
+ * happens to be the strongest.
+ */
+function muscleOverlay(sim: Simulation) {
+  const state = sim.muscleState();
+  const units = sim.muscles?.units;
+  if (!state || !units) return undefined;
+  const path = sim.channel('muscle.path').fields;
+  const tension = muscleTension(state.tendonForce, units);
+  return {
+    count: units.length,
+    pointStart: path.pointStart as unknown as Int32Array,
+    pointCount: path.pointCount as unknown as Int32Array,
+    point: sim.channel('muscle.polyline').fields.point as Float64Array,
+    tension,
+  };
+}
+
+/** Scratch for the tension fractions, grown once to fit whatever set is running. */
+let tensionScratch = new Float64Array(0);
+function muscleTension(
+  force: ArrayLike<number>,
+  units: readonly { readonly parameters: { readonly maxIsometricForce: number } }[],
+): Float64Array {
+  if (tensionScratch.length !== units.length) tensionScratch = new Float64Array(units.length);
+  for (let i = 0; i < units.length; i++) {
+    const maximum = units[i]?.parameters.maxIsometricForce ?? 1;
+    tensionScratch[i] = maximum > 0 ? (force[i] ?? 0) / maximum : 0;
+  }
+  return tensionScratch;
 }
 
 /** Push both sliders into the drive module. Safe to call before a run, and on every change. */
@@ -1097,6 +1137,7 @@ function animate(): void {
         contactPoint: contacts.fields.point as Float64Array,
         contactNormal: contacts.fields.normal as Float64Array,
         contactCapacity: (contacts.fields.point as Float64Array).length / 3,
+        muscles: muscleOverlay(simulation),
       });
     }
     updateDiagnostics(simulation);

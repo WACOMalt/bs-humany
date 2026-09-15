@@ -34,11 +34,13 @@ import type {
   IMusclePathSolver,
   PathCompileReport,
   PathContactBuffer,
+  PathPolylineBuffer,
   PathTerminalBuffer,
 } from '@bs-humany/muscle-path';
 import {
   GeodesicPathSolver,
   createPathContactBuffer,
+  createPathPolylineBuffer,
   createPathTerminalBuffer,
 } from '@bs-humany/muscle-path';
 import {
@@ -46,8 +48,10 @@ import {
   MUSCLE_CHANNEL_VERSION,
   MUSCLE_CONTACT,
   MUSCLE_PATH,
+  MUSCLE_POLYLINE,
   muscleContactSpec,
   musclePathSpec,
+  musclePolylineSpec,
 } from './channels.js';
 import type { CompiledMuscleSet } from './compile.js';
 
@@ -85,6 +89,9 @@ export class MusclePathModule implements SimModule {
   private contactBody: Int32Array | undefined;
   private contactPoint: Float64Array | undefined;
   private contactDirection: Float64Array | undefined;
+  private pointStart: Int32Array | undefined;
+  private pointCount: Int32Array | undefined;
+  private polylinePoint: Float64Array | undefined;
 
   /**
    * Scratch the solver writes into, allocated once.
@@ -95,6 +102,7 @@ export class MusclePathModule implements SimModule {
    */
   private readonly terminals: PathTerminalBuffer;
   private readonly contacts: PathContactBuffer;
+  private readonly polyline: PathPolylineBuffer;
 
   /** How many contacts the last tick could not fit. Zero in every case the via-point solver sees. */
   contactOverflow = 0;
@@ -110,6 +118,9 @@ export class MusclePathModule implements SimModule {
     this.compileReport = this.solver.compile(muscles.paths, muscles.surfaces);
     this.terminals = createPathTerminalBuffer(this.units);
     this.contacts = createPathContactBuffer(this.capacity);
+    // The compile report says exactly how many points the paths can need, so nothing here has to
+    // pick a size and hope.
+    this.polyline = createPathPolylineBuffer(this.units, this.compileReport.polylineCapacity);
 
     this.manifest = {
       id: MUSCLE_PATH_MODULE_ID,
@@ -124,9 +135,14 @@ export class MusclePathModule implements SimModule {
       writes: [
         { id: MUSCLE_PATH, version: MUSCLE_CHANNEL_VERSION },
         { id: MUSCLE_CONTACT, version: MUSCLE_CHANNEL_VERSION },
+        { id: MUSCLE_POLYLINE, version: MUSCLE_CHANNEL_VERSION },
       ],
       accumulates: [],
-      gives: [musclePathSpec(this.units), muscleContactSpec(this.capacity)] satisfies ChannelSpec[],
+      gives: [
+        musclePathSpec(this.units),
+        muscleContactSpec(this.capacity),
+        musclePolylineSpec(this.compileReport.polylineCapacity),
+      ] satisfies ChannelSpec[],
     };
   }
 
@@ -160,6 +176,9 @@ export class MusclePathModule implements SimModule {
     this.insertionPoint = out.fields.insertionPoint as Float64Array;
     this.originDirection = out.fields.originDirection as Float64Array;
     this.insertionDirection = out.fields.insertionDirection as Float64Array;
+    this.pointStart = out.fields.pointStart as Int32Array;
+    this.pointCount = out.fields.pointCount as Int32Array;
+    this.polylinePoint = ctx.write(MUSCLE_POLYLINE).fields.point as Float64Array;
 
     const contacts = ctx.write(MUSCLE_CONTACT);
     this.contactUnit = contacts.fields.unit as Int32Array;
@@ -184,7 +203,7 @@ export class MusclePathModule implements SimModule {
     if (!originDirection || !insertionDirection) return;
 
     const terminals = this.terminals;
-    this.solver.solve(pose, velocity, length, rate, this.contacts, terminals);
+    this.solver.solve(pose, velocity, length, rate, this.contacts, terminals, this.polyline);
 
     const n = this.units;
     for (let i = 0; i < n; i++) {
@@ -199,7 +218,21 @@ export class MusclePathModule implements SimModule {
       }
     }
 
+    this.publishPolyline();
     this.publishContacts();
+  }
+
+  /** Copy the solved polyline out, with each unit's offset and count beside it. */
+  private publishPolyline(): void {
+    const point = this.polylinePoint;
+    const start = this.pointStart;
+    const count = this.pointCount;
+    if (!point || !start || !count) return;
+    for (let i = 0; i < this.units; i++) {
+      start[i] = this.polyline.start[i] as number;
+      count[i] = this.polyline.count[i] as number;
+    }
+    point.set(this.polyline.point);
   }
 
   /** Copy the solver's contacts out, and say how many did not fit rather than losing them quietly. */

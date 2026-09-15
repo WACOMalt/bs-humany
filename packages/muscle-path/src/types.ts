@@ -129,6 +129,14 @@ export interface PathCompileProblem {
 export interface PathCompileReport {
   readonly pathCount: number;
   readonly pointCount: number;
+  /**
+   * Points a polyline buffer needs to hold every path at once.
+   *
+   * Computed rather than guessed: the solver knows how many attachment points each path has and
+   * how many of its spans can wrap, so the exact figure is available at compile time and a caller
+   * never has to pick a capacity and hope.
+   */
+  readonly polylineCapacity: number;
   readonly problems: readonly PathCompileProblem[];
 }
 
@@ -189,6 +197,43 @@ export function createPathTerminalBuffer(units: number): PathTerminalBuffer {
     insertionPoint: new Float64Array(3 * units),
     originDirection: new Float64Array(3 * units),
     insertionDirection: new Float64Array(3 * units),
+  };
+}
+
+/**
+ * How finely a wrapped arc is sampled when a solver is asked for the polyline.
+ *
+ * Twelve segments is smooth at the scale a muscle is drawn and cheap enough that nothing needed
+ * to be made optional to afford it. It affects drawing only: the length the fiber model uses is
+ * the exact arc length, never a sum of these chords.
+ */
+export const ARC_SAMPLES = 12;
+
+/**
+ * The whole path of every unit, point by point, for anything that needs to draw it or reason
+ * about where it runs rather than just how long it is.
+ *
+ * Separate from the terminal buffer because the two answer different questions and have different
+ * costs. Force application needs six numbers per unit and gets them every tick; a drawing needs
+ * the entire polyline, which is an order of magnitude more data and is of no use to the solver.
+ * A caller that does not pass one of these is not charged for it.
+ */
+export interface PathPolylineBuffer {
+  readonly capacity: number;
+  /** `N`, where each path's points begin in `point`. */
+  readonly start: Int32Array;
+  /** `N`, how many points each path wrote. */
+  readonly count: Int32Array;
+  /** `3 * capacity`, world metres. */
+  readonly point: Float64Array;
+}
+
+export function createPathPolylineBuffer(units: number, capacity: number): PathPolylineBuffer {
+  return {
+    capacity,
+    start: new Int32Array(units),
+    count: new Int32Array(units),
+    point: new Float64Array(3 * capacity),
   };
 }
 

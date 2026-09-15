@@ -37,6 +37,17 @@ export interface OverlayChannels {
   readonly contactPoint: Float64Array;
   readonly contactNormal: Float64Array;
   readonly contactCapacity: number;
+  /** Muscle paths, absent when no muscles are running. */
+  readonly muscles?:
+    | {
+        readonly count: number;
+        readonly pointStart: Int32Array;
+        readonly pointCount: Int32Array;
+        readonly point: Float64Array;
+        /** Tendon force as a fraction of the unit's maximum, 0 to 1. */
+        readonly tension: Float64Array;
+      }
+    | undefined;
 }
 
 export interface Overlays {
@@ -45,6 +56,7 @@ export interface Overlays {
   readonly axes: Group;
   readonly com: Group;
   readonly contacts: Group;
+  readonly muscles: Group;
   update(channels: OverlayChannels): void;
   dispose(): void;
 }
@@ -58,14 +70,34 @@ const _matrix = new Matrix4();
 const _cold = new Color(0x3ddc84);
 const _hot = new Color(0xff3b30);
 const _tint = new Color();
+/**
+ * A relaxed muscle and a fully loaded one.
+ *
+ * Pale blue reads as slack against bone without competing with it, and is kept light enough to
+ * stay visible on a dark ground -- a muscle making no force is still a muscle, and one that
+ * vanished when it relaxed would make the slack units impossible to inspect, which is exactly
+ * what needs inspecting. The red is the same signal red the contact overlay uses, so a hot muscle
+ * and a hard contact look like the same kind of event.
+ */
+const _slack = new Color(0xa8c8e8);
+const _taut = new Color(0xff3b30);
 
-export function createOverlays(model: CompiledArticulation): Overlays {
+export interface OverlayOptions {
+  /** Points a muscle polyline may need, from the path solver's compile report. */
+  readonly musclePolylineCapacity?: number | undefined;
+}
+
+export function createOverlays(
+  model: CompiledArticulation,
+  options: OverlayOptions = {},
+): Overlays {
   const root = new Group();
   const proxies = new Group();
   const axes = new Group();
   const com = new Group();
   const contacts = new Group();
-  root.add(proxies, axes, com, contacts);
+  const muscles = new Group();
+  root.add(proxies, axes, com, contacts, muscles);
 
   // --- Proxies: one wireframe per segment, children placed at the proxy transform -------------
   const proxyMaterial = new MeshBasicMaterial({
@@ -152,6 +184,25 @@ export function createOverlays(model: CompiledArticulation): Overlays {
   normalLines.frustumCulled = false;
   contacts.add(contactPoints, normalLines);
 
+  // --- Muscles: one line strip per unit, drawn as segments and tinted by tension --------------
+  //
+  // Segments rather than a strip per muscle because every unit shares one geometry: a hundred
+  // small objects would be a hundred draw calls, and the point of the overlay is to be cheap
+  // enough to leave on.
+  const muscleCapacity = options.musclePolylineCapacity ?? 0;
+  const musclePositions = new Float32Array(Math.max(1, muscleCapacity) * 6);
+  const muscleColors = new Float32Array(Math.max(1, muscleCapacity) * 6);
+  const muscleGeometry = new BufferGeometry();
+  muscleGeometry.setAttribute('position', new BufferAttribute(musclePositions, 3));
+  muscleGeometry.setAttribute('color', new BufferAttribute(muscleColors, 3));
+  muscleGeometry.setDrawRange(0, 0);
+  const muscleLines = new LineSegments(
+    muscleGeometry,
+    new LineBasicMaterial({ vertexColors: true }),
+  );
+  muscleLines.frustumCulled = false;
+  muscles.add(muscleLines);
+
   const jointOrigin = new Vector3();
   const jointRotation = new Quaternion();
   const axisVector = new Vector3();
@@ -162,6 +213,7 @@ export function createOverlays(model: CompiledArticulation): Overlays {
     axes,
     com,
     contacts,
+    muscles,
     update(ch) {
       const total = model.totalMass;
       let cx = 0;
@@ -261,6 +313,32 @@ export function createOverlays(model: CompiledArticulation): Overlays {
         normalGeometry.setDrawRange(0, 2 * n);
         contactGeometry.getAttribute('position').needsUpdate = true;
         normalGeometry.getAttribute('position').needsUpdate = true;
+      }
+
+      if (muscles.visible && ch.muscles && muscleCapacity > 0) {
+        const m = ch.muscles;
+        let vertex = 0;
+        for (let unit = 0; unit < m.count; unit++) {
+          const from = m.pointStart[unit] ?? 0;
+          const points = m.pointCount[unit] ?? 0;
+          _tint.copy(_slack).lerp(_taut, Math.min(1, Math.max(0, m.tension[unit] ?? 0)));
+          for (let i = 0; i + 1 < points; i++) {
+            if (vertex + 2 > muscleCapacity * 2) break;
+            for (const end of [i, i + 1]) {
+              const at = 3 * (from + end);
+              musclePositions[3 * vertex] = m.point[at] ?? 0;
+              musclePositions[3 * vertex + 1] = m.point[at + 1] ?? 0;
+              musclePositions[3 * vertex + 2] = m.point[at + 2] ?? 0;
+              muscleColors[3 * vertex] = _tint.r;
+              muscleColors[3 * vertex + 1] = _tint.g;
+              muscleColors[3 * vertex + 2] = _tint.b;
+              vertex++;
+            }
+          }
+        }
+        muscleGeometry.setDrawRange(0, vertex);
+        muscleGeometry.getAttribute('position').needsUpdate = true;
+        muscleGeometry.getAttribute('color').needsUpdate = true;
       }
       _matrix.identity();
     },

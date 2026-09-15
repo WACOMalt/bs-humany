@@ -46,12 +46,20 @@ import type {
   PathCompileProblem,
   PathCompileReport,
   PathContactBuffer,
+  PathPolylineBuffer,
   PathSolverCapabilities,
   PathTerminalBuffer,
   Vec3,
   WrapSurface,
 } from './types.js';
-import { type WrapResult, createWrapResult, wrapCylinder, wrapSphere } from './wrap.js';
+import { ARC_SAMPLES } from './types.js';
+import {
+  type WrapResult,
+  createWrapResult,
+  sampleWrapArc,
+  wrapCylinder,
+  wrapSphere,
+} from './wrap.js';
 
 /** No surface on this span. */
 const NO_SURFACE = -1;
@@ -104,6 +112,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
     const starts: number[] = [0];
     const spans: number[] = [];
     const spanStarts: number[] = [0];
+    let wrappable = 0;
     this.pathIds = [];
 
     const index = new Map(surfaces.map((s, i) => [s.id, i]));
@@ -176,7 +185,10 @@ export class GeodesicPathSolver implements IMusclePathSolver {
         bodies.push(body);
         locals.push(local.x, local.y, local.z);
       }
-      for (const surface of perSpan) spans.push(surface);
+      for (const surface of perSpan) {
+        spans.push(surface);
+        if (surface !== NO_SURFACE) wrappable++;
+      }
       longest = Math.max(longest, sites.length);
       starts.push(bodies.length);
       spanStarts.push(spans.length);
@@ -190,7 +202,15 @@ export class GeodesicPathSolver implements IMusclePathSolver {
     this.world = new Float64Array(3 * longest);
     this.worldVelocity = new Float64Array(3 * longest);
 
-    return { pathCount: paths.length, pointCount: bodies.length, problems };
+    return {
+      pathCount: paths.length,
+      pointCount: bodies.length,
+      // Every attachment point, plus what a wrap adds where one is declared: two tangent points
+      // and the samples between them. Counting the spans that *could* wrap rather than those that
+      // do means the buffer is right whatever the pose.
+      polylineCapacity: bodies.length + wrappable * (ARC_SAMPLES + 1),
+      problems,
+    };
   }
 
   /** Flatten the surfaces, rotating each declared side into its own surface's frame. */
@@ -268,8 +288,11 @@ export class GeodesicPathSolver implements IMusclePathSolver {
     outVelocity: Float64Array,
     outContacts: PathContactBuffer,
     outTerminals: PathTerminalBuffer,
+    outPolyline?: PathPolylineBuffer,
   ): void {
     outContacts.count = 0;
+    this.polyline = outPolyline;
+    this.written = 0;
     const count = this.pathStart.length - 1;
 
     for (let p = 0; p < count; p++) {
@@ -281,6 +304,13 @@ export class GeodesicPathSolver implements IMusclePathSolver {
       let length = 0;
       let rate = 0;
       const spanBase = this.spanStart[p] as number;
+      if (outPolyline !== undefined) {
+        outPolyline.start[p] = this.written;
+        outPolyline.count[p] = 0;
+        // Every span writes the point it starts from, so the last point of the path is added once
+        // at the end rather than twice at the seam between spans.
+        this.emit(p, 3 * 0);
+      }
 
       for (let i = 0; i + 1 < n; i++) {
         const surface = this.spanSurface[spanBase + i] as number;
@@ -291,6 +321,10 @@ export class GeodesicPathSolver implements IMusclePathSolver {
         if (wrapped) {
           length += this.wrap.length;
           rate += this.spanRate;
+          // The arc, then the point the span ends at: the straight run off the surface to the
+          // next attachment. Without it the drawing stops on the bone.
+          this.emitArc(p);
+          this.emit(p, 3 * (i + 1));
           if (i === 0) this.copyDirection(outTerminals.originDirection, p, this.spanFirstDirection);
           if (i + 2 === n) {
             this.copyDirection(outTerminals.insertionDirection, p, this.spanLastDirection);
@@ -329,14 +363,20 @@ export class GeodesicPathSolver implements IMusclePathSolver {
             outTerminals.originDirection[3 * p + 1] = uy;
             outTerminals.originDirection[3 * p + 2] = uz;
           }
+          this.emit(p, 3 * (i + 1));
           if (i + 2 === n) {
             outTerminals.insertionDirection[3 * p] = -ux;
             outTerminals.insertionDirection[3 * p + 1] = -uy;
             outTerminals.insertionDirection[3 * p + 2] = -uz;
           }
-        } else if (i === 0) {
-          this.zeroDirection(outTerminals.originDirection, p);
-          this.zeroDirection(outTerminals.insertionDirection, p);
+          // A zero-length segment still has an endpoint, and a polyline that skipped it would be
+          // a point short of the attachments it is supposed to join.
+        } else {
+          this.emit(p, 3 * (i + 1));
+          if (i === 0) {
+            this.zeroDirection(outTerminals.originDirection, p);
+            this.zeroDirection(outTerminals.insertionDirection, p);
+          }
         }
       }
 
@@ -351,6 +391,60 @@ export class GeodesicPathSolver implements IMusclePathSolver {
       }
     }
   }
+
+  /** Where the polyline is going this solve, and how far into it we are. */
+  private polyline: PathPolylineBuffer | undefined;
+  private written = 0;
+  /** The surface frame of the span being wrapped, for turning arc samples back into the world. */
+  private readonly spanFrame = new Float64Array(7);
+
+  /** Copy one already-resolved world point into the polyline. */
+  private emit(path: number, at: number): void {
+    const out = this.polyline;
+    if (out === undefined || this.written >= out.capacity) return;
+    out.point[3 * this.written] = this.world[at] as number;
+    out.point[3 * this.written + 1] = this.world[at + 1] as number;
+    out.point[3 * this.written + 2] = this.world[at + 2] as number;
+    this.written++;
+    out.count[path] = (out.count[path] as number) + 1;
+  }
+
+  /**
+   * Walk the arc of the span just solved into the polyline, in world coordinates.
+   *
+   * The first tangent point is written, then the samples, then the second -- the two straight runs
+   * either side are the segments the caller writes, so the whole path joins up. Sampling is the
+   * only thing in `solve` that exists purely for a reader: the fiber model never sees these
+   * points, and a caller that passes no buffer never computes them.
+   */
+  private emitArc(path: number): void {
+    const out = this.polyline;
+    if (out === undefined) return;
+    for (let i = 0; i <= ARC_SAMPLES; i++) {
+      if (this.written >= out.capacity) return;
+      sampleWrapArc(this.wrap, i / ARC_SAMPLES, this.arcScratch, 0);
+      this.rotateInto(
+        this.spanFrame[0] as number,
+        this.spanFrame[1] as number,
+        this.spanFrame[2] as number,
+        this.spanFrame[3] as number,
+        this.arcScratch[0] as number,
+        this.arcScratch[1] as number,
+        this.arcScratch[2] as number,
+        this.spanFirstScratch,
+      );
+      out.point[3 * this.written] =
+        (this.spanFrame[4] as number) + (this.spanFirstScratch[0] as number);
+      out.point[3 * this.written + 1] =
+        (this.spanFrame[5] as number) + (this.spanFirstScratch[1] as number);
+      out.point[3 * this.written + 2] =
+        (this.spanFrame[6] as number) + (this.spanFirstScratch[2] as number);
+      this.written++;
+      out.count[path] = (out.count[path] as number) + 1;
+    }
+  }
+
+  private readonly arcScratch = new Float64Array(3);
 
   /** Scratch carried between `solveWrappedSpan` and its caller, to avoid returning an object. */
   private spanRate = 0;
@@ -465,6 +559,15 @@ export class GeodesicPathSolver implements IMusclePathSolver {
       );
     }
     if (this.wrap.status !== 'wrapped') return false;
+
+    // Remember the surface's world frame so the arc samples can be turned back out into it.
+    this.spanFrame[0] = qx;
+    this.spanFrame[1] = qy;
+    this.spanFrame[2] = qz;
+    this.spanFrame[3] = qw;
+    this.spanFrame[4] = originX;
+    this.spanFrame[5] = originY;
+    this.spanFrame[6] = originZ;
 
     // Unit vectors from each end toward its own tangent point, in the surface frame.
     let ux = this.wrap.ax - ax;

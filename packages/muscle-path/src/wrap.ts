@@ -74,6 +74,21 @@ export interface WrapResult {
   px: number;
   py: number;
   pz: number;
+  /**
+   * The arc, as an axis to turn about and a signed angle to turn through.
+   *
+   * Both shapes' geodesics are the same motion in this description: sweep the first tangent point
+   * about an axis while sliding it along that axis at a constant rate. On a sphere the axis is
+   * the normal of the plane the great circle lies in and there is no sliding, because both tangent
+   * points sit in that plane. On a cylinder the axis is the cylinder's own and the sliding is the
+   * helix's rise. One parameterisation covers both, which is what lets anything downstream draw an
+   * arc without knowing which shape it came from.
+   */
+  nx: number;
+  ny: number;
+  nz: number;
+  /** Radians, signed in the right-handed sense about the axis above. */
+  sweep: number;
 }
 
 export function createWrapResult(): WrapResult {
@@ -90,7 +105,46 @@ export function createWrapResult(): WrapResult {
     px: 0,
     py: 0,
     pz: 0,
+    nx: 0,
+    ny: 0,
+    nz: 1,
+    sweep: 0,
   };
+}
+
+/**
+ * A point along a wrapped arc, at fraction `t` from the first tangent point to the second.
+ *
+ * For drawing, and for anything else that needs the path between the two points rather than just
+ * their positions. Works from the axis-and-sweep description, so it needs no knowledge of which
+ * shape produced the result: turn the part of the first tangent point that is square to the axis,
+ * and slide the part that is along it.
+ *
+ * Writes three numbers into `out` at `at`, in the surface's own frame.
+ */
+export function sampleWrapArc(result: WrapResult, t: number, out: Float64Array, at: number): void {
+  const { nx, ny, nz, ax, ay, az, bx, by, bz } = result;
+  const alongA = ax * nx + ay * ny + az * nz;
+  const alongB = bx * nx + by * ny + bz * nz;
+  const along = alongA + (alongB - alongA) * t;
+
+  // The part of the first tangent point square to the axis, which is what turns.
+  const rx = ax - nx * alongA;
+  const ry = ay - ny * alongA;
+  const rz = az - nz * alongA;
+
+  // Rodrigues, about a unit axis.
+  const angle = result.sweep * t;
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const cx = ny * rz - nz * ry;
+  const cy = nz * rx - nx * rz;
+  const cz = nx * ry - ny * rx;
+  const d = (1 - c) * (nx * rx + ny * ry + nz * rz);
+
+  out[at] = rx * c + cx * s + nx * d + nx * along;
+  out[at + 1] = ry * c + cy * s + ny * d + ny * along;
+  out[at + 2] = rz * c + cz * s + nz * d + nz * along;
 }
 
 /** Below this the two points are treated as coincident and no wrap is attempted. */
@@ -235,6 +289,13 @@ export function wrapSphere(
   out.status = 'wrapped';
   out.arcLength = radius * sweep;
   out.length = tangentP + out.arcLength + tangentQ;
+  // The plane's normal, oriented so that turning about it by a positive angle goes the way the
+  // chosen arc goes. `forward` measures angles toward +e2, which is the right-handed sense about
+  // the normal; `back` is the other way round, so the sweep is negative there.
+  out.nx = nx;
+  out.ny = ny;
+  out.nz = nz;
+  out.sweep = forward ? sweep : -sweep;
   out.ax = radius * (ca * e1x + sa * e2x);
   out.ay = radius * (ca * e1y + sa * e2y);
   out.az = radius * (ca * e1z + sa * e2z);
@@ -351,6 +412,10 @@ export function wrapCylinder(
   }
 
   out.status = 'wrapped';
+  out.nx = 0;
+  out.ny = 0;
+  out.nz = 1;
+  out.sweep = preferCcw ? sweep : -sweep;
   out.length = Math.sqrt(totalFlat * totalFlat + rise * rise);
   // The arc's own share of that hypotenuse.
   out.arcLength = (out.length * arcFlat) / totalFlat;

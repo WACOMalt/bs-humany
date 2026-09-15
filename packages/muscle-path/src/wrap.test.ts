@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { type WrapResult, createWrapResult, wrapCylinder, wrapSphere } from './wrap.js';
+import {
+  type WrapResult,
+  createWrapResult,
+  sampleWrapArc,
+  wrapCylinder,
+  wrapSphere,
+} from './wrap.js';
 
 const R = 1;
 
@@ -303,5 +309,92 @@ describe('wrapping a cylinder', () => {
     expect(r.px).toBe(0);
     expect(r.py).toBe(0);
     expect(r.pz).toBeCloseTo((r.az + r.bz) / 2, 12);
+  });
+});
+
+describe('sampling a wrapped arc', () => {
+  const scratch = new Float64Array(3);
+  const at = (r: WrapResult, t: number) => {
+    sampleWrapArc(r, t, scratch, 0);
+    return [scratch[0] as number, scratch[1] as number, scratch[2] as number];
+  };
+
+  it('starts at the first tangent point and ends at the second', () => {
+    // The two conditions that make this a parameterisation of *this* arc rather than some other
+    // curve between the same two points.
+    for (const r of [
+      sphere([-2, 0.4, 0], [2.5, -0.3, 0.2]),
+      cylinder([-2, 0.3, -0.4], [2.2, -0.2, 0.6]),
+    ]) {
+      expect(r.status).toBe('wrapped');
+      const start = at(r, 0);
+      const end = at(r, 1);
+      expect(start[0]).toBeCloseTo(r.ax, 12);
+      expect(start[1]).toBeCloseTo(r.ay, 12);
+      expect(start[2]).toBeCloseTo(r.az, 12);
+      expect(end[0]).toBeCloseTo(r.bx, 9);
+      expect(end[1]).toBeCloseTo(r.by, 9);
+      expect(end[2]).toBeCloseTo(r.bz, 9);
+    }
+  });
+
+  it('stays on the sphere the whole way round', () => {
+    const r = sphere([-2, 0.4, 0], [2.5, -0.3, 0.2]);
+    for (let i = 0; i <= 20; i++) {
+      const p = at(r, i / 20);
+      expect(Math.hypot(...p), `at t=${i / 20}`).toBeCloseTo(R, 9);
+    }
+  });
+
+  it('stays on the cylinder, climbing at a constant rate', () => {
+    const r = cylinder([-2, 0.3, -0.4], [2.2, -0.2, 0.6]);
+    let previous: number | null = null;
+    for (let i = 0; i <= 20; i++) {
+      const p = at(r, i / 20);
+      expect(Math.hypot(p[0] as number, p[1] as number), `at t=${i / 20}`).toBeCloseTo(R, 9);
+      if (previous !== null) {
+        // Equal steps in t give equal rises: that is what makes the helix a geodesic.
+        expect((p[2] as number) - previous).toBeCloseTo((r.bz - r.az) / 20, 12);
+      }
+      previous = p[2] as number;
+    }
+  });
+
+  it('measures out the arc length the wrap reported', () => {
+    // Summing the sampled chords has to converge on the reported arc length. It ties the number
+    // the fiber model uses to the curve anything else will draw -- if they disagreed, the picture
+    // would not be of the muscle being simulated.
+    for (const r of [
+      sphere([-2, 0.4, 0], [2.5, -0.3, 0.2]),
+      cylinder([-2, 0.3, -0.4], [2.2, -0.2, 0.6]),
+    ]) {
+      let walked = 0;
+      let previous = at(r, 0);
+      for (let i = 1; i <= 2000; i++) {
+        const p = at(r, i / 2000);
+        walked += Math.hypot(
+          (p[0] as number) - (previous[0] as number),
+          (p[1] as number) - (previous[1] as number),
+          (p[2] as number) - (previous[2] as number),
+        );
+        previous = p;
+      }
+      expect(walked).toBeCloseTo(r.arcLength, 6);
+    }
+  });
+
+  it('goes the way the declared side sent it, not always the short way', () => {
+    // A long-way-round wrap sweeps past where the short one would have stopped. Sampling has to
+    // follow it there, or a drawing would show a path the solver is not simulating.
+    const p = [-2, 0.5, 0] as const;
+    const q = [1.5, 1.2, 0] as const;
+    const near = cylinder(p, q, R, 10, [0, 1]);
+    const far = cylinder(p, q, R, 10, [0, -1]);
+    expect(Math.abs(far.sweep)).toBeGreaterThan(Math.abs(near.sweep));
+    expect(Math.sign(far.sweep)).toBe(-Math.sign(near.sweep));
+    // Half way round the long arc is on the far side of the cylinder from half way round the short.
+    const midNear = at(near, 0.5);
+    const midFar = at(far, 0.5);
+    expect(Math.sign(midNear[1] as number)).not.toBe(Math.sign(midFar[1] as number));
   });
 });
