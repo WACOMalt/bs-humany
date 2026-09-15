@@ -791,11 +791,17 @@ function updateMuscles(sim: Simulation): void {
   let flexion = 0;
   let extension = 0;
   let loaded = 0;
+  let strained = 0;
   for (let i = 0; i < units.length; i++) {
     const force = state.tendonForce[i] ?? 0;
     if (force > 0) loaded++;
-    if (FLEXORS.includes(units[i]?.id ?? '')) flexion += force;
-    else extension += force;
+    if ((state.diagnostic[i] ?? 0) !== 0) strained++;
+    // Only the elbow, because these two numbers are what the two sliders drive. Before the
+    // shoulder set arrived "not a flexor" meant "an extensor"; now it would mean the deltoid too,
+    // and the readout would say a hanging arm's extensors were pulling ten kilonewtons.
+    const id = units[i]?.id ?? '';
+    if (FLEXORS.includes(id)) flexion += force;
+    else if (EXTENSORS.includes(id)) extension += force;
   }
   must<HTMLElement>('#muscle-flexion').textContent = `${flexion.toFixed(0)} N`;
   must<HTMLElement>('#muscle-extension').textContent = `${extension.toFixed(0)} N`;
@@ -806,6 +812,12 @@ function updateMuscles(sim: Simulation): void {
   const contacts = sim.musclePath?.contactCount ?? 0;
   must<HTMLElement>('#muscle-wrapping').textContent =
     `${contacts} contact${contacts === 1 ? '' : 's'}`;
+  // Units whose equilibrium did not solve cleanly. It is on screen rather than in a log because
+  // it is the one number that says "the force you are reading is a fallback": a muscle whose path
+  // is longer than its parameters expect sits at the top of its tendon curve, where the model
+  // holds it rather than extrapolating, and the force it reports is the cap.
+  must<HTMLElement>('#muscle-strained').textContent =
+    strained === 0 ? 'none' : `${strained} of ${units.length} units`;
 }
 
 function updateDiagnostics(sim: Simulation): void {

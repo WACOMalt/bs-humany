@@ -35,6 +35,7 @@ import radiiJson from '@bs-humany/assets-anatomical/data/wrap-radii.json' with {
 import { frameFromLandmarkPoints } from '@bs-humany/frames';
 import type { Quat } from '@bs-humany/frames';
 import { type WrappingSurfaceDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
+import { ARTICULAR_CENTRES } from './articularCentres.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { type Ref, refWorld } from './frames.js';
 import { PROVENANCE_NS } from './landmarks.js';
@@ -75,6 +76,21 @@ const RADII: readonly RadiusRow[] = (
   radiiJson as unknown as { readonly radii: readonly RadiusRow[] }
 ).radii;
 
+/** The fitted sphere for a bone's articular surface, or a thrown error naming what is missing. */
+export function articularFit(
+  bone: string,
+  feature: string,
+): { radius: number; residual: number; inliers: number; rule: string } {
+  const found = ARTICULAR_CENTRES.find((c) => c.bone === bone && c.feature === feature);
+  if (!found) {
+    throw new Error(
+      `No fitted articular centre for '${feature}' on '${bone}'. Run ` +
+        '`pnpm --filter @bs-humany/ingest centres` to fit it from the meshes.',
+    );
+  }
+  return found;
+}
+
 /** The measured radius for a bone's surface, or a thrown error naming what is missing. */
 export function wrapRadius(bone: string, feature: string): RadiusRow {
   const found = RADII.find((r) => r.bone === bone && r.feature === feature);
@@ -105,6 +121,15 @@ interface SurfaceSpec {
   readonly id: string;
   readonly bone: string;
   readonly displayName: string;
+  /**
+   * A sphere, whose radius comes from a fitted articular centre rather than a measured extent.
+   *
+   * The humeral head is the case. It is a ball, and the fit that found the shoulder's joint
+   * centre found its radius at the same time, from the same vertices, with the residual on the
+   * record -- so there is nothing left for a wrap-radius measurement to add, and asking a second
+   * tool the same question would only give the two answers a chance to disagree.
+   */
+  readonly sphere?: { readonly feature: string } | undefined;
   /** Where the cylinder's centre goes: one landmark, or the midpoint of two. */
   readonly centre: Ref | readonly [Ref, Ref];
   readonly feature: string;
@@ -131,6 +156,37 @@ interface SurfaceSpec {
 function sideSpecs(s: 'l' | 'r'): SurfaceSpec[] {
   const side = s === 'r' ? 'right' : 'left';
   return [
+    {
+      // What every muscle crossing the shoulder turns over. The deltoid rides it from three
+      // directions at once, the cuff wraps it to reach the tubercles, and without it their paths
+      // cut straight through the head of the humerus to the glenoid -- which is both visibly
+      // wrong and the difference between a muscle that can abduct the arm and one that cannot.
+      //
+      // A sphere here rather than a cylinder, because the head is one: the articular fit that
+      // located the shoulder's joint centre also measured its radius, over 681 vertices with a
+      // residual of 1.07 mm. Coaxial placement does not arise -- a sphere centred on the joint
+      // centre *is* the joint, so a path over it has the same moment arm about every axis, which
+      // is what a ball joint means.
+      id: `humeral_head_${s}`,
+      bone: `humerus_${s}`,
+      displayName: `Head of humerus, ${side}`,
+      centre: [`humerus_${s}`, 'GH'],
+      feature: 'Head_of_humerus__articular_centre',
+      sphere: { feature: 'Head_of_humerus__articular_centre' },
+      along: 'joint',
+      frame: {
+        origin: [`humerus_${s}`, 'GH'],
+        primaryFrom: { virtual: `humerus_${s}__mid_el_em` },
+        primaryTo: [`humerus_${s}`, 'GH'],
+        secondaryFrom: [`humerus_${s}`, 'EM'],
+        secondaryTo: [`humerus_${s}`, 'EL'],
+      },
+      source: cite(
+        'wu2002',
+        '2.2, shoulder: the glenohumeral centre is the centre of the humeral head. The radius ' +
+          'is the same fit that found the centre; only the naming comes from here.',
+      ),
+    },
     {
       id: `elbow_trochlea_${s}`,
       bone: `humerus_${s}`,
@@ -226,7 +282,10 @@ export function buildWrappingSurfaces(): WrappingSurfaceDef[] {
       const centroid = centroids.get(spec.bone);
       if (!centroid)
         throw new Error(`Wrap surface '${spec.id}' is on unpacked bone '${spec.bone}'.`);
-      const measured = wrapRadius(spec.bone, spec.feature);
+      // A sphere takes its radius from the articular fit that found the joint centre; everything
+      // else from the wrap-radius measurement about its own axis.
+      const fitted = spec.sphere ? articularFit(spec.bone, spec.sphere.feature) : undefined;
+      const measured = fitted ? undefined : wrapRadius(spec.bone, spec.feature);
 
       const frame = frameFromLandmarkPoints({
         origin: vec(refWorld(spec.frame.origin)),
@@ -238,10 +297,16 @@ export function buildWrappingSurfaces(): WrappingSurfaceDef[] {
         secondaryAxis: 'z',
       });
 
+      // A centre is one landmark or the midpoint of two, and an ISB landmark is itself a pair --
+      // `['humerus_r', 'GH']` -- so the two forms have to be told apart rather than counted. A
+      // pair of *strings* is one landmark; a pair of anything else is two.
+      const isRef = (where: unknown): boolean =>
+        !Array.isArray(where) || typeof where[0] === 'string';
       const midpoint = (where: Ref | readonly [Ref, Ref]): readonly [number, number, number] => {
-        if (Array.isArray(where)) {
-          const a = refWorld(where[0] as Ref);
-          const b = refWorld(where[1] as Ref);
+        if (!isRef(where)) {
+          const pair = where as readonly [Ref, Ref];
+          const a = refWorld(pair[0]);
+          const b = refWorld(pair[1]);
           return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
         }
         return refWorld(where as Ref);
@@ -260,19 +325,29 @@ export function buildWrappingSurfaces(): WrappingSurfaceDef[] {
           translation: { x: scaled(0), y: scaled(1), z: scaled(2) },
           rotation: spec.along === 'long' ? compose(frame.rotation, Z_ONTO_Y) : frame.rotation,
         },
-        shape: {
-          kind: 'cylinder',
-          radius: metres(measured.radius),
-          length: metres(spanLength(spec) ?? measured.halfLength * 2 * LENGTH_MARGIN),
-        },
+        shape: fitted
+          ? { kind: 'sphere', radius: metres(fitted.radius) }
+          : {
+              kind: 'cylinder',
+              radius: metres((measured as RadiusRow).radius),
+              length: metres(
+                spanLength(spec) ?? (measured as RadiusRow).halfLength * 2 * LENGTH_MARGIN,
+              ),
+            },
         source: spec.source,
         ext: writeExtension(undefined, PROVENANCE_NS, {
           dataset: DATASET_MANIFEST.dataset.name,
           datasetVersion: DATASET_MANIFEST.dataset.version,
           sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
-          locatedBy: `${measured.rule}; placed on the ${spec.centre} axis`,
-          radiusSpread: measured.spread,
-          radiusVertices: measured.vertices,
+          locatedBy: fitted
+            ? `${fitted.rule}; centred on the fitted joint centre`
+            : `${(measured as RadiusRow).rule}; placed on the ${spec.centre} axis`,
+          ...(fitted
+            ? { radiusResidual: fitted.residual, radiusVertices: fitted.inliers }
+            : {
+                radiusSpread: (measured as RadiusRow).spread,
+                radiusVertices: (measured as RadiusRow).vertices,
+              }),
         }),
       });
     }

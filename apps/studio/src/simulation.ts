@@ -50,7 +50,7 @@ import {
   RENDER_MUSCLE_MESH,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
-import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
+import { ELBOW_MUSCLES, SHOULDER_MUSCLES } from '@bs-humany/muscle-data';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
 
 export type BackendId = 'rapier' | 'mujoco';
@@ -72,8 +72,8 @@ export interface SimulationOptions {
    * Run the elbow muscles (N3.7).
    *
    * Off by default, because most of what the studio is used for has nothing to do with muscles
-   * and every unit costs a solve per tick. The muscles that are wired up are the seven crossing
-   * each elbow, fourteen in all; the rest of the body has none yet.
+   * and every unit costs a solve per tick. What is wired up is both arms: seven units across each
+   * elbow and nine across each shoulder, thirty-two in all. The rest of the body has none yet.
    */
   readonly muscles?: boolean | undefined;
 }
@@ -270,7 +270,7 @@ export class Simulation {
       // The muscle set is resolved against this articulation, so it follows the fidelity profile
       // and the morphology without being re-authored: bone ids are the stable interface.
       this.muscles = compileMuscleSet(
-        ELBOW_MUSCLES,
+        [...ELBOW_MUSCLES, ...SHOULDER_MUSCLES],
         document.attachmentSites,
         this.articulation,
         morphology.context,

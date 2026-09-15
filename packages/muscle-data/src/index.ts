@@ -8,4 +8,5 @@
 
 export * from './elbow.js';
 export * from './schema.js';
+export * from './shoulder.js';
 export * from './validate.js';

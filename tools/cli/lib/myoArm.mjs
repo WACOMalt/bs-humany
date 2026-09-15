@@ -57,11 +57,18 @@ export function readActuators() {
       throw new Error(`${match[1]}: operating range is empty, so the lengths cannot be derived`);
     }
     const optimalFiberLength = (lrmax - lrmin) / (rmax - rmin);
+    const tendonSlackLength = lrmin - optimalFiberLength * rmin;
     found.set(match[1], {
       maxIsometricForce: force,
       optimalFiberLength,
-      tendonSlackLength: lrmin - optimalFiberLength * rmin,
+      tendonSlackLength,
       maxContractionVelocity: vmax,
+      // Coracobrachialis is the case: its lengthrange and its operating range imply a 312 mm
+      // fiber on a tendon 45 mm shorter than nothing. The derivation is MuJoCo's own and the
+      // arithmetic is right, so what it says is that the source's two statements about that
+      // actuator do not agree -- and a negative slack length is not a value to carry, because the
+      // model divides tendon length by it.
+      physical: tendonSlackLength > 0 && optimalFiberLength > 0,
     });
   }
   return found;
@@ -102,7 +109,7 @@ export function referencePath(actuator) {
  * A via point knows which reference site it came from, so its place in the reference path is a
  * lookup rather than a guess. A unit whose `wrap` is undefined gets no wrap element at all.
  */
-export function pathElements(unit, viaPointsFor) {
+export function pathElements(unit, viaPointsFor, direction) {
   const { elements, lastGeom } = referencePath(unit.actuator);
   const indexOf = (site) => elements.findIndex((e) => e.kind === 'site' && e.name === site);
   const via = viaPointsFor(unit.id).map((p) => ({
@@ -111,10 +118,16 @@ export function pathElements(unit, viaPointsFor) {
     at: indexOf(p.referenceSite),
   }));
   if (!unit.wrap) return via;
+  // The reference states the surface's position among its own elements, and the via points are
+  // already in our order -- which for most of the shoulder is the reference's reversed. So "after
+  // the surface" is a larger index one way round and a smaller one the other, and reading it the
+  // wrong way puts the obstacle on the wrong span.
+  const reversed = direction?.[unit.id] === 'reversed';
+  const past = (at) => (reversed ? at < lastGeom : at > lastGeom);
   const out = [];
   let placed = false;
   for (const point of via) {
-    if (!placed && lastGeom >= 0 && point.at > lastGeom) {
+    if (!placed && lastGeom >= 0 && past(point.at)) {
       out.push({ kind: 'wrap' });
       placed = true;
     }
@@ -136,6 +149,23 @@ export function pathElements(unit, viaPointsFor) {
  *
  * A `$` in an id takes the side. Names take ", right" or ", left".
  */
+/**
+ * Refuse an actuator whose derived lengths are not a muscle.
+ *
+ * Called by each generator for the actuators it names, rather than when they are read, so that a
+ * set which does not use an unphysical actuator is not stopped by it.
+ */
+export function requirePhysical(actuator, parameters) {
+  if (parameters.physical) return parameters;
+  throw new Error(
+    `${MUSCLE_FILE} actuator '${actuator}' derives an optimal fiber length of ` +
+      `${(parameters.optimalFiberLength * 1000).toFixed(1)} mm and a tendon slack length of ` +
+      `${(parameters.tendonSlackLength * 1000).toFixed(1)} mm, which is not a muscle. Its ` +
+      'lengthrange and its operating range disagree in the source; leave it out of the set and ' +
+      'say so, rather than carrying the number.',
+  );
+}
+
 export function sided(units) {
   const out = [];
   for (const s of ['r', 'l']) {
@@ -167,7 +197,7 @@ export const num = (v) => Number(v.toPrecision(6)).toString();
  * The shape is HSDL's `MuscleGroup`, and both generators write the same shape; what differs is
  * which units go in it and the prose around it.
  */
-export function renderGroups(units, viaPointsFor) {
+export function renderGroups(units, viaPointsFor, direction) {
   const groups = new Map();
   for (const unit of units) {
     if (!groups.has(unit.group)) groups.set(unit.group, []);
@@ -185,7 +215,7 @@ export function renderGroups(units, viaPointsFor) {
     units: [`);
     for (const unit of members) {
       const p = unit.parameters;
-      const elements = pathElements(unit, viaPointsFor)
+      const elements = pathElements(unit, viaPointsFor, direction)
         .map((e) =>
           e.kind === 'site'
             ? `          { kind: 'site', site: '${e.id}' },\n`

@@ -294,6 +294,45 @@ long head of biceps originates 13.6 mm from the axis, inside the surface, where 
 has no answer and silently gave none.
 **Status:** open
 
+### OQ-020 — Muscle parameters state the source model's path lengths, not ours
+**Needed for:** `packages/muscle-data/src/elbow.ts`, `packages/muscle-data/src/shoulder.ts`
+**Provisional value:** MyoSuite's scalars as they stand. Optimal fiber length and tendon slack
+length are derived from the source model's own operating range and length range, and a length
+range is a statement about *its* skeleton: how long that muscle's path is, on those bones, at
+those attachments. Ours are our own -- Gray's anatomy on this subject's markers -- so the two
+disagree, and the muscle sits somewhere else on its curves than the source intended.
+
+Measured, at a neutral pose, ours against the reference model's own path lengths computed the
+same way:
+
+    deltoid anterior   223 mm   209      supraspinatus     120 mm   120
+    deltoid middle     197      210      infraspinatus     127      102
+    deltoid posterior  189      154      subscapularis     146      110
+    triceps lateral    213      167      teres minor       181      126
+    biceps long        485      429      teres major       231      156
+
+The deltoid and supraspinatus agree; the rotator cuff and teres major are 25 to 75 mm long, which
+is a third of their own length. A path longer than its parameters expect puts the tendon high on
+its force-length curve, where it is very stiff, so a muscle that should be slack at rest pulls
+thousands of newtons.
+
+Two things bound what that costs. The tendon curve refuses to extrapolate past ten per cent
+strain (`TENDON_MAX_STRAIN`), so the worst a unit can report is about seven and a half times its
+own maximum force rather than the 1e44 newtons an unclamped exponential gives; and the fiber
+solver flags the unit, which the studio shows as "out of range". One unit in thirty is there at
+rest: subscapularis.
+
+The remedy is standard and needs no new constant, because both models can be run here: rescale
+optimal fiber and tendon slack so the normalised fiber covers the same operating range over the
+joint's range of motion that the source's does. What it costs is provenance -- the scalars become
+derived rather than transcribed -- which is a decision rather than a fix, and it is recorded here
+until it is made. A guard belongs with it: a derived fiber length far from the source's means the
+*path* is wrong, and rescaling would hide that in a parameter.
+**Closes when:** the rescaling lands with that guard, or the attachment regions are measured from
+the meshes rather than taken from label anchors (see the note in OQ-015) and the lengths agree
+without it.
+**Status:** open
+
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4
 **Provisional value:** none. A path that names an ellipsoid wrap surface is refused at compile

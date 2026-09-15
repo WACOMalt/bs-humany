@@ -32,14 +32,22 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { MUSCLE_FILE, readActuators, renderGroups, sided } from '../lib/myoArm.mjs';
+import {
+  MUSCLE_FILE,
+  readActuators,
+  renderGroups,
+  requirePhysical,
+  sided,
+} from '../lib/myoArm.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/elbow.ts');
 const check = process.argv.includes('--check');
 
 const jiti = createJiti(import.meta.url);
-const { viaPointsFor } = await jiti.import(join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'));
+const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'),
+);
 
 /**
  * Which actuator becomes which unit, and which of our attachment sites it binds to.
@@ -137,6 +145,7 @@ function render() {
           'moved; check tools/validate-external/README.md before changing this mapping.',
       );
     }
+    requirePhysical(unit.actuator, parameters);
     return {
       ...unit,
       parameters,
@@ -146,7 +155,7 @@ function render() {
       preferredSide: { x: 0, y: 0, z: unit.side === 'extensor' ? 1 : -1 },
     };
   });
-  const body = renderGroups(units, viaPointsFor);
+  const body = renderGroups(units, viaPointsFor, VIA_PATH_DIRECTION);
 
   return `/**
  * The elbow muscle parameter set -- ticket N2.5, and the data the N3.7 demo runs on.

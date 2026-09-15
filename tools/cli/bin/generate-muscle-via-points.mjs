@@ -50,6 +50,19 @@
  * two skeletons have similar proportions; where they do not, a forearm point is out by the
  * difference between the two ratios, which is a few per cent of a bone.
  *
+ * ## Which way round a path runs
+ *
+ * The reference model does not agree with itself about which end of a tendon comes first: the
+ * elbow muscles are listed from the girdle outward and most of the shoulder muscles from the
+ * humerus inward. `order` here means "counting from *our* origin", because that is what a path
+ * solver walks, so a unit whose reference path starts at the far end has its points reversed.
+ *
+ * Which end is ours is the one thing that cannot be read off the reference, so each unit names
+ * the bone its origin is on and the reversal follows. It is not cosmetic: carried in the
+ * reference's order, the anterior deltoid ran from the clavicle down to a point on the humerus,
+ * back up to a point above it, and down again to its insertion -- a path half as long again as
+ * the muscle, with the fiber at twice its optimal length and a force that overflowed.
+ *
  * ## The other arm
  *
  * The reference model is a right arm and there is no left one to carry over, so the left side is
@@ -92,13 +105,21 @@ const SYMMETRY_TOLERANCE = 0.002;
 
 /** Which of our units is which of the reference model's tendons. */
 const UNITS = [
-  { unit: 'biceps_brachii_long_r', tendon: 'BIClong' },
-  { unit: 'biceps_brachii_short_r', tendon: 'BICshort' },
-  { unit: 'brachialis_r', tendon: 'BRA' },
-  { unit: 'brachioradialis_r', tendon: 'BRD' },
-  { unit: 'triceps_brachii_long_r', tendon: 'TRIlong' },
-  { unit: 'triceps_brachii_lateral_r', tendon: 'TRIlat' },
-  { unit: 'triceps_brachii_medial_r', tendon: 'TRImed' },
+  { unit: 'deltoid_anterior_r', tendon: 'DELT1', from: 'clavicle_r' },
+  { unit: 'deltoid_middle_r', tendon: 'DELT2', from: 'scapula_r' },
+  { unit: 'deltoid_posterior_r', tendon: 'DELT3', from: 'scapula_r' },
+  { unit: 'supraspinatus_r', tendon: 'SUPSP', from: 'scapula_r' },
+  { unit: 'infraspinatus_r', tendon: 'INFSP', from: 'scapula_r' },
+  { unit: 'subscapularis_r', tendon: 'SUBSC', from: 'scapula_r' },
+  { unit: 'teres_minor_r', tendon: 'TMIN', from: 'scapula_r' },
+  { unit: 'teres_major_r', tendon: 'TMAJ', from: 'scapula_r' },
+  { unit: 'biceps_brachii_long_r', tendon: 'BIClong', from: 'scapula_r' },
+  { unit: 'biceps_brachii_short_r', tendon: 'BICshort', from: 'scapula_r' },
+  { unit: 'brachialis_r', tendon: 'BRA', from: 'humerus_r' },
+  { unit: 'brachioradialis_r', tendon: 'BRD', from: 'humerus_r' },
+  { unit: 'triceps_brachii_long_r', tendon: 'TRIlong', from: 'scapula_r' },
+  { unit: 'triceps_brachii_lateral_r', tendon: 'TRIlat', from: 'humerus_r' },
+  { unit: 'triceps_brachii_medial_r', tendon: 'TRImed', from: 'humerus_r' },
 ];
 
 /**
@@ -115,6 +136,12 @@ function viaPoints(tendon) {
   const block = tendonBlock(tendon);
   const path = [...block.matchAll(/<(?:site|geom) (?:site|geom)="([^"]+)"/g)].map((m) => m[1]);
   return path.filter((name, i) => i > 0 && i < path.length - 1 && sites.has(name));
+}
+
+/** Every site of a reference tendon, ends included: what says which way round its path runs. */
+function allSites(tendon) {
+  const block = tendonBlock(tendon);
+  return [...block.matchAll(/<site site="([^"]+)"/g)].map((m) => m[1]);
 }
 
 // --- The reference model's humerus ---------------------------------------------------------
@@ -159,6 +186,7 @@ const elbowAxis = attribute(xml, /<joint axis="([^"]+)" name="elbow_flexion_r"/)
  * frame correspondence carries the whole arm rather than needing one per bone.
  */
 const BODIES = [
+  { body: 'clavicle_r', bone: 'clavicle_r' },
   { body: 'scapula_r', bone: 'scapula_r' },
   { body: 'humerus_r', bone: 'humerus_r' },
   { body: 'ulna_r', bone: 'ulna_r' },
@@ -172,9 +200,13 @@ const sites = new Map();
       xml.slice(xml.indexOf(`<body name="${name}"`)),
       new RegExp(`^<body name="${name}"[^>]*pos="([^"]+)"`),
     );
+  // The scapula and the humerus sit at the same origin as each other in this chain; the clavicle
+  // is a body further out, so its sites are back along the phantom body between them.
+  const phantom = bodyPos('clavphant_r');
   const offset = new Map([
     ['scapula_r', [0, 0, 0]],
     ['humerus_r', [0, 0, 0]],
+    ['clavicle_r', [-phantom[0], -phantom[1], -phantom[2]]],
   ]);
   offset.set('ulna_r', bodyPos('ulna_r'));
   const forearm = offset.get('ulna_r');
@@ -259,8 +291,14 @@ const stature = skeleton.DATASET_MANIFEST.subjectStature;
 
 const round = (v) => Number(v.toPrecision(6));
 const rows = [];
+const direction = new Map();
 for (const spec of UNITS) {
   const names = viaPoints(spec.tendon);
+  // Reversed when the reference's first site is not on the bone our origin is on.
+  const first = allSites(spec.tendon)[0];
+  const reversed = first !== undefined && sites.get(first)?.bone !== spec.from;
+  if (reversed) names.reverse();
+  direction.set(spec.unit, reversed ? 'reversed' : 'forward');
   let index = 0;
   for (const name of names) {
     index++;
@@ -345,6 +383,10 @@ console.error(
     'agree to a reflection',
 );
 
+const directionBody = [...direction.entries()]
+  .flatMap(([unit, how]) => [`  ${unit}: '${how}',`, `  ${unit.replace(/_r$/, '_l')}: '${how}',`])
+  .join('\n');
+
 const body = rows
   .map(
     (r) => `  {
@@ -415,6 +457,20 @@ ${body}
 export function viaPointsFor(unit: string): readonly MuscleViaPoint[] {
   return MUSCLE_VIA_POINTS.filter((p) => p.unit === unit).sort((a, b) => a.order - b.order);
 }
+
+/**
+ * Which way round the reference model lists each unit's path, relative to ours.
+ *
+ * The reference does not agree with itself: the elbow tendons run from the girdle outward and
+ * most of the shoulder tendons from the humerus inward. The points above are already in our
+ * order, origin first. This says which way they were turned to get there, which is what tells a
+ * muscle generator where in the path a wrap surface belongs -- the reference states that as a
+ * position among its own elements, and a position read the wrong way round puts the obstacle on
+ * the wrong span.
+ */
+export const VIA_PATH_DIRECTION: Readonly<Record<string, 'forward' | 'reversed'>> = {
+${directionBody}
+};
 `;
 
 const existing = (() => {

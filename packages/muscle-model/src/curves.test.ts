@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   PASSIVE_STRAIN,
+  TENDON_FORCE_MAXIMUM,
+  TENDON_LENGTH_MAXIMUM,
   activeForceLength,
   activeForceLengthSlope,
   forceVelocity,
@@ -185,13 +187,31 @@ describe('tendon force-length', () => {
     }
   });
 
-  it('reports the slope the curve actually has', () => {
-    for (const length of sweep(0.98, 1.1, 25)) {
+  it('reports the slope the curve actually has, over the strains it is fitted for', () => {
+    // Up to the cap and not through it: past ten per cent strain the curve is held flat, so a
+    // numerical derivative that straddles the cap measures the clamp rather than the curve.
+    for (const length of sweep(0.98, TENDON_LENGTH_MAXIMUM - 0.005, 25)) {
       expect(tendonForceLengthSlope(length), `at ${length}`).toBeCloseTo(
         numericalSlope(tendonForceLength, length),
         4,
       );
     }
+  });
+
+  it('refuses to extrapolate past the strain a tendon survives', () => {
+    // The curve is a fit over a few per cent of strain; a tendon ruptures between six and ten.
+    // Asked about half again its slack length the unclamped exponential answers with 1e18 times
+    // the muscle's maximum force, and a solver given that number throws the body out of the
+    // scene. It is not a hypothetical: a muscle set carried onto a skeleton whose bones are not
+    // the source's has paths its parameters do not expect, and this is how that surfaces.
+    expect(tendonForceLength(1.5)).toBe(TENDON_FORCE_MAXIMUM);
+    expect(tendonForceLength(3)).toBe(TENDON_FORCE_MAXIMUM);
+    expect(tendonForceLengthSlope(1.5)).toBe(0);
+    // Large, and finite: about seven and a half times the muscle's own maximum force.
+    expect(TENDON_FORCE_MAXIMUM).toBeGreaterThan(5);
+    expect(TENDON_FORCE_MAXIMUM).toBeLessThan(10);
+    // And the inverse cannot be asked for a length the curve will not produce.
+    expect(inverseTendonForceLength(1e9)).toBeCloseTo(TENDON_LENGTH_MAXIMUM, 12);
   });
 });
 

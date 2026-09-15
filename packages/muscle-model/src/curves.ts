@@ -158,13 +158,41 @@ export const TENDON_STRAIN_AT_SCALE = 0.995;
 /** Chosen so the curve is exactly zero at slack, rather than the published -0.012. */
 export const TENDON_OFFSET = TENDON_SCALE * Math.exp(TENDON_SHAPE * (1 - TENDON_STRAIN_AT_SCALE));
 
+/**
+ * The strain past which the curve is not extrapolated.
+ *
+ * Ten per cent, which is past where a real tendon tears: they rupture somewhere between six and
+ * ten, and one Fmax is carried at about five. So the curve is a fit over a few per cent of strain,
+ * and beyond that it is not a description of anything -- it is an exponential, and an exponential
+ * asked about a length it was never fitted for answers with a number.
+ *
+ * That is not hypothetical. A muscle whose path is longer than its parameters expect -- a set
+ * carried onto a skeleton whose bones are not the source's, which is every set here -- puts the
+ * tendon at one and a half times its slack length, and the unclamped curve answers with 1e18
+ * newtons. At twice, 1e44. The solver takes that seriously and the body leaves the scene.
+ *
+ * Holding the force at the cap and letting the fiber solver report its diagnostic says the same
+ * thing usefully: this muscle is being asked for a length it does not have, and here is a large
+ * force rather than an infinite one.
+ */
+export const TENDON_MAX_STRAIN = 0.1;
+
+/** The largest normalised tendon length the curve is evaluated at. */
+export const TENDON_LENGTH_MAXIMUM = 1 + TENDON_MAX_STRAIN;
+
+/** The force at that length: about seven and a half times the muscle's own maximum. */
+export const TENDON_FORCE_MAXIMUM =
+  TENDON_SCALE * Math.exp(TENDON_SHAPE * (TENDON_LENGTH_MAXIMUM - TENDON_STRAIN_AT_SCALE)) -
+  TENDON_OFFSET;
+
 export function tendonForceLength(tendonLength: number): number {
-  return (
-    TENDON_SCALE * Math.exp(TENDON_SHAPE * (tendonLength - TENDON_STRAIN_AT_SCALE)) - TENDON_OFFSET
-  );
+  const length = Math.min(tendonLength, TENDON_LENGTH_MAXIMUM);
+  return TENDON_SCALE * Math.exp(TENDON_SHAPE * (length - TENDON_STRAIN_AT_SCALE)) - TENDON_OFFSET;
 }
 
+/** Zero past the cap, because the force is constant there: the curve has stopped being a curve. */
 export function tendonForceLengthSlope(tendonLength: number): number {
+  if (tendonLength > TENDON_LENGTH_MAXIMUM) return 0;
   return (
     TENDON_SCALE * TENDON_SHAPE * Math.exp(TENDON_SHAPE * (tendonLength - TENDON_STRAIN_AT_SCALE))
   );
@@ -175,5 +203,6 @@ export function tendonForceLengthSlope(tendonLength: number): number {
  * start the fiber state somewhere sensible rather than guessing.
  */
 export function inverseTendonForceLength(force: number): number {
-  return Math.log((force + TENDON_OFFSET) / TENDON_SCALE) / TENDON_SHAPE + TENDON_STRAIN_AT_SCALE;
+  const carried = Math.min(force, TENDON_FORCE_MAXIMUM);
+  return Math.log((carried + TENDON_OFFSET) / TENDON_SCALE) / TENDON_SHAPE + TENDON_STRAIN_AT_SCALE;
 }
