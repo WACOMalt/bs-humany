@@ -70,6 +70,63 @@ function worldMesh(
   return { positions, indices: mesh.indices };
 }
 
+/** One ring's rest pose, from the first captured frame: where the bind mesh is authored. */
+function ringRest(
+  rings: { position: Float32Array; orientation: Float32Array },
+  at: number,
+): Transform {
+  return {
+    translation: {
+      x: rings.position[3 * at] ?? 0,
+      y: rings.position[3 * at + 1] ?? 0,
+      z: rings.position[3 * at + 2] ?? 0,
+    },
+    rotation: {
+      x: rings.orientation[4 * at] ?? 0,
+      y: rings.orientation[4 * at + 1] ?? 0,
+      z: rings.orientation[4 * at + 2] ?? 0,
+      w: rings.orientation[4 * at + 3] ?? 1,
+    },
+  };
+}
+
+/**
+ * One muscle's bind mesh, rebuilt from the first frame's ring transforms.
+ *
+ * Not captured: reconstructed, because it is exactly what the sweep would have produced. A ring's
+ * vertices are a circle of its own radius in its own frame, so the ring transforms captured for
+ * the animation already say where every vertex was at bind time, and capturing the vertices as
+ * well would be storing the same fact twice.
+ *
+ * Each vertex is bound to its own ring at full weight, which is what makes the skin exact rather
+ * than an approximation of the sweep.
+ */
+function bindMesh(
+  rings: { position: Float32Array; orientation: Float32Array; radius: Float32Array },
+  unit: number,
+  ringCount: number,
+  segments: number,
+): { positions: Float32Array; vertexJoint: Uint16Array } {
+  const positions = new Float32Array(ringCount * segments * 3);
+  const vertexJoint = new Uint16Array(ringCount * segments);
+  for (let ring = 0; ring < ringCount; ring++) {
+    const at = unit * ringCount + ring;
+    const rest = ringRest(rings, at);
+    const radius = rings.radius[at] ?? 0;
+    for (let s = 0; s < segments; s++) {
+      const angle = (2 * Math.PI * s) / segments;
+      const local = { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: 0 };
+      const world = transformPoint(rest, local);
+      const v = ring * segments + s;
+      positions[3 * v] = world.x;
+      positions[3 * v + 1] = world.y;
+      positions[3 * v + 2] = world.z;
+      vertexJoint[v] = ring;
+    }
+  }
+  return { positions, vertexJoint };
+}
+
 export function buildBlenderExport(
   simulation: Simulation,
   document: HsdlDocument,
@@ -173,11 +230,66 @@ export function buildBlenderExport(
     });
   }
 
+  // Muscles, as skinned bellies: one joint per ring, and a mesh bound to them a ring at a time.
+  // A belly is swept anew every tick, so it is rigid in no bone and cannot be a node with a mesh
+  // the way a bone is -- but it is rigid ring by ring, and that is exactly what a skin expresses.
+  const muscleRings = simulation.muscleCapture.view();
+  const volume = simulation.muscleVolume;
+  const units = simulation.muscles?.units;
+  const muscleFrames = muscleRings.frames === capture.frames ? capture.frames : 0;
+  const ringNodes: number[][] = [];
+  if (volume && units && muscleFrames > 0 && muscleRings.rings === units.length * volume.rings) {
+    const muscleRoot =
+      nodes.push({
+        id: 'muscles',
+        parent: -1,
+        restWorld: IDENTITY_TRANSFORM,
+        animated: false,
+        extras: { role: 'muscle bellies, skinned to one joint per cross-section' },
+      }) - 1;
+    for (let unit = 0; unit < units.length; unit++) {
+      const id = units[unit]?.id ?? `unit_${unit}`;
+      const joints: number[] = [];
+      for (let ring = 0; ring < volume.rings; ring++) {
+        const at = unit * volume.rings + ring;
+        joints.push(
+          nodes.push({
+            id: `muscle__${id}__ring${String(ring).padStart(2, '0')}`,
+            parent: muscleRoot,
+            restWorld: ringRest(muscleRings, at),
+            // The ring is authored as a unit circle and drawn at its own radius, so its bind
+            // scale is that radius and its keyframes are the radius it has at each frame.
+            bindScale: muscleRings.radius[at] || 1,
+            extras: { role: 'muscle cross-section', unit: id, ring },
+          }) - 1,
+        );
+      }
+      ringNodes.push(joints);
+      const bind = bindMesh(muscleRings, unit, volume.rings, volume.segments);
+      nodes.push({
+        id: `muscle__${id}`,
+        parent: muscleRoot,
+        restWorld: IDENTITY_TRANSFORM,
+        animated: false,
+        mesh: { positions: bind.positions, indices: volume.index },
+        skin: { joints, vertexJoint: bind.vertexJoint },
+        extras: {
+          role: 'muscle belly',
+          unit: id,
+          rings: volume.rings,
+          segments: volume.segments,
+          displayName: units[unit]?.displayName,
+        },
+      });
+    }
+  }
+
   // Keyframes in node order; a bone the pose channel does not carry stays at rest, as does
   // scene geometry.
   const n = nodes.length;
   const position = new Float32Array(capture.frames * n * 3);
   const orientation = new Float32Array(capture.frames * n * 4);
+  const scale = new Float32Array(capture.frames * n * 3).fill(1);
   for (let f = 0; f < capture.frames; f++) {
     nodes.forEach((node, i) => {
       const c = channelIndex.get(node.id);
@@ -199,12 +311,37 @@ export function buildBlenderExport(
       );
     });
   }
+  // The ring joints' own keyframes, which the loop above could not fill: they are not bones and
+  // the pose channel does not carry them.
+  ringNodes.forEach((joints, unit) => {
+    joints.forEach((node, ring) => {
+      const at = unit * (volume?.rings ?? 0) + ring;
+      for (let f = 0; f < muscleFrames; f++) {
+        const from = (f * muscleRings.rings + at) * 3;
+        const fromQ = (f * muscleRings.rings + at) * 4;
+        const to = (f * n + node) * 3;
+        const toQ = (f * n + node) * 4;
+        position[to] = muscleRings.position[from] ?? 0;
+        position[to + 1] = muscleRings.position[from + 1] ?? 0;
+        position[to + 2] = muscleRings.position[from + 2] ?? 0;
+        orientation[toQ] = muscleRings.orientation[fromQ] ?? 0;
+        orientation[toQ + 1] = muscleRings.orientation[fromQ + 1] ?? 0;
+        orientation[toQ + 2] = muscleRings.orientation[fromQ + 2] ?? 0;
+        orientation[toQ + 3] = muscleRings.orientation[fromQ + 3] ?? 1;
+        const radius = muscleRings.radius[f * muscleRings.rings + at] ?? 1;
+        scale[to] = radius;
+        scale[to + 1] = radius;
+        scale[to + 2] = radius;
+      }
+    });
+  });
+
   const times = Float64Array.from({ length: capture.frames }, (_, f) => f / rate);
 
   const stem = `bs-humany-${simulation.recording.scenario}-${simulation.articulation.profileId}-${rate}hz`;
   const glb = buildAnimatedGlb({
     nodes,
-    animation: { times, position, orientation },
+    animation: { times, position, orientation, scale },
     generator: 'bs-humany studio (export-gltf)',
     extras: {
       rateHz: rate,
@@ -219,7 +356,10 @@ export function buildBlenderExport(
       hierarchy:
         'bones nested by anatomical parent, each carrying its own rigid mesh; a joint__<id> ' +
         'node at every joint centre, parented to the bone the pivot is fixed in; the ground ' +
-        'and the scenario furniture under a static "scene" root',
+        'and the scenario furniture under a static "scene" root; muscle bellies under a ' +
+        '"muscles" root, each a skinned mesh bound one ring at a time to a joint per ' +
+        'cross-section, which carries both the bend of the path and the swell of the belly',
+      muscles: ringNodes.length,
       attribution: attributionText(assets.manifest),
       dataLicense: assets.manifest.dataset.license,
     },

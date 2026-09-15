@@ -221,3 +221,185 @@ describe('scene furniture', () => {
     expect(still2?.translation).toEqual([1, 0.5, 0]);
   });
 });
+
+describe('a skinned, scaling mesh', () => {
+  // A muscle belly in miniature: two rings on a straight path, the second of which moves along
+  // and swells. The point of the test is that the deformation survives the round trip -- not that
+  // the bytes are as expected, but that a reader applying glTF's own skinning rule to what was
+  // written gets the vertices back.
+  const identityQuat = { x: 0, y: 0, z: 0, w: 1 };
+  const SEGMENTS = 4;
+  const ringVertices = (centre: number, radius: number): number[] => {
+    const out: number[] = [];
+    for (let s = 0; s < SEGMENTS; s++) {
+      const a = (2 * Math.PI * s) / SEGMENTS;
+      out.push(radius * Math.cos(a), radius * Math.sin(a), centre);
+    }
+    return out;
+  };
+
+  const bindRadius = [0.02, 0.03];
+  const skinNodes: ExportNode[] = [
+    { id: 'belly', parent: -1, restWorld: { translation: vec3(0, 0, 0), rotation: identityQuat } },
+    {
+      id: 'ring0',
+      parent: 0,
+      restWorld: { translation: vec3(0, 0, 0), rotation: identityQuat },
+      bindScale: bindRadius[0],
+    },
+    {
+      id: 'ring1',
+      parent: 0,
+      restWorld: { translation: vec3(0, 0, 0.1), rotation: identityQuat },
+      bindScale: bindRadius[1],
+    },
+    {
+      id: 'belly.mesh',
+      parent: 0,
+      restWorld: { translation: vec3(0, 0, 0), rotation: identityQuat },
+      animated: false,
+      mesh: {
+        positions: Float32Array.from([
+          ...ringVertices(0, bindRadius[0] as number),
+          ...ringVertices(0.1, bindRadius[1] as number),
+        ]),
+        indices: Uint32Array.from([0, 1, 4, 1, 5, 4, 1, 2, 5, 2, 6, 5]),
+      },
+      skin: {
+        joints: [1, 2],
+        vertexJoint: Uint16Array.from([0, 0, 0, 0, 1, 1, 1, 1]),
+      },
+    },
+  ];
+
+  const skinFrames = 3;
+  const skinTimes = Float64Array.from({ length: skinFrames }, (_, f) => f / 500);
+  const skinPosition = new Float32Array(skinFrames * skinNodes.length * 3);
+  const skinOrientation = new Float32Array(skinFrames * skinNodes.length * 4);
+  const skinScale = new Float32Array(skinFrames * skinNodes.length * 3).fill(1);
+  // Ring 1 slides toward ring 0 and thickens, which is what a shortening belly does.
+  for (let f = 0; f < skinFrames; f++) {
+    skinNodes.forEach((_, i) => {
+      const at = (f * skinNodes.length + i) * 3;
+      const q = (f * skinNodes.length + i) * 4;
+      skinPosition[at + 2] = i === 2 ? 0.1 - 0.01 * f : 0;
+      skinOrientation[q + 3] = 1;
+      if (i === 1 || i === 2) {
+        const radius = (bindRadius[i - 1] as number) * (1 + 0.1 * f);
+        skinScale[at] = radius;
+        skinScale[at + 1] = radius;
+        skinScale[at + 2] = radius;
+      }
+    });
+  }
+
+  const glb = buildAnimatedGlb({
+    nodes: skinNodes,
+    animation: {
+      times: skinTimes,
+      position: skinPosition,
+      orientation: skinOrientation,
+      scale: skinScale,
+    },
+  });
+  const { json, binary } = readGlb(glb);
+  const accessorFloats = (index: number): Float32Array => {
+    const accessor = (json.accessors as Record<string, number>[])[index] as unknown as {
+      bufferView: number;
+      count: number;
+      type: string;
+    };
+    const view = (json.bufferViews as Record<string, number>[])[accessor.bufferView] as unknown as {
+      byteOffset: number;
+      byteLength: number;
+    };
+    return new Float32Array(
+      binary.buffer.slice(
+        binary.byteOffset + view.byteOffset,
+        binary.byteOffset + view.byteOffset + view.byteLength,
+      ),
+    );
+  };
+
+  it('writes one skin, with a joint per ring and a matrix for each', () => {
+    const skins = json.skins as { joints: number[]; inverseBindMatrices: number }[];
+    expect(skins).toHaveLength(1);
+    expect(skins[0]?.joints).toEqual([1, 2]);
+    expect(accessorFloats(skins[0]?.inverseBindMatrices as number)).toHaveLength(32);
+  });
+
+  it('binds every vertex to one joint at full weight', () => {
+    const mesh = (json.meshes as { primitives: { attributes: Record<string, number> }[] }[])[0];
+    const attributes = mesh?.primitives[0]?.attributes as Record<string, number>;
+    expect(attributes.JOINTS_0).toBeDefined();
+    const weights = accessorFloats(attributes.WEIGHTS_0 as number);
+    for (let v = 0; v < 8; v++) {
+      expect(weights[4 * v], `vertex ${v}`).toBe(1);
+      expect(weights[4 * v + 1] as number, `vertex ${v}`).toBe(0);
+    }
+  });
+
+  it('keyframes scale only where something changes size', () => {
+    const channels = (
+      json.animations as { channels: { target: { node: number; path: string } }[] }[]
+    )[0]?.channels as { target: { node: number; path: string } }[];
+    const scaled = channels.filter((c) => c.target.path === 'scale').map((c) => c.target.node);
+    // The two rings, and neither the belly root nor the mesh node.
+    expect(scaled.sort()).toEqual([1, 2]);
+  });
+
+  it('puts the vertices back where the sweep had them, through glTF’s own skinning rule', () => {
+    // The check that matters, and the one that would catch a transposed matrix: take the inverse
+    // bind matrices *out of the file*, apply glTF's skinning rule with the joint transforms that
+    // were written, and see whether the vertices land where the sweep put them. With one joint at
+    // full weight that is `skinned = jointWorld * inverseBind * bindVertex`.
+    const skins = json.skins as { joints: number[]; inverseBindMatrices: number }[];
+    const matrices = accessorFloats(skins[0]?.inverseBindMatrices as number);
+    const apply = (m: Float32Array, o: number, v: readonly number[]): number[] => [
+      (m[o] ?? 0) * v[0]! + (m[o + 4] ?? 0) * v[1]! + (m[o + 8] ?? 0) * v[2]! + (m[o + 12] ?? 0),
+      (m[o + 1] ?? 0) * v[0]! +
+        (m[o + 5] ?? 0) * v[1]! +
+        (m[o + 9] ?? 0) * v[2]! +
+        (m[o + 13] ?? 0),
+      (m[o + 2] ?? 0) * v[0]! +
+        (m[o + 6] ?? 0) * v[1]! +
+        (m[o + 10] ?? 0) * v[2]! +
+        (m[o + 14] ?? 0),
+    ];
+
+    const frame = 2;
+    const nodesCount = skinNodes.length;
+    for (const [joint, node] of [
+      [0, 1],
+      [1, 2],
+    ] as const) {
+      const at = (frame * nodesCount + node) * 3;
+      const radius = skinScale[at] as number;
+      const along = skinPosition[at + 2] as number;
+      for (let s = 0; s < SEGMENTS; s++) {
+        const v = joint * SEGMENTS + s;
+        const bind = [
+          skinNodes[3]?.mesh?.positions[3 * v] as number,
+          skinNodes[3]?.mesh?.positions[3 * v + 1] as number,
+          skinNodes[3]?.mesh?.positions[3 * v + 2] as number,
+        ];
+        // Into the joint's frame by the matrix the writer produced...
+        const inJoint = apply(matrices, 16 * joint, bind);
+        // ...and out again by the joint's animated transform: a uniform scale and a translation,
+        // the rotation being identity throughout this scene.
+        const skinned = [inJoint[0]! * radius, inJoint[1]! * radius, inJoint[2]! * radius + along];
+
+        const angle = (2 * Math.PI * s) / SEGMENTS;
+        expect(skinned[0] as number, `ring ${joint} vertex ${s}`).toBeCloseTo(
+          radius * Math.cos(angle),
+          6,
+        );
+        expect(skinned[1] as number, `ring ${joint} vertex ${s}`).toBeCloseTo(
+          radius * Math.sin(angle),
+          6,
+        );
+        expect(skinned[2] as number, `ring ${joint} vertex ${s}`).toBeCloseTo(along, 6);
+      }
+    }
+  });
+});

@@ -6,6 +6,11 @@
  * rate to the simulation rate first puts every tick on its own integer frame, which is the
  * fidelity the export promises; the script does that, imports the file, and sets the frame
  * range to the capture.
+ *
+ * The rest of what it does is tidying that the format cannot carry. glTF has no way to say "this
+ * empty is a joint centre, draw it small and hide it", or "this mesh is a muscle belly, shade it
+ * smooth and give it flesh rather than bone"; all of that is Blender's, so it is done here rather
+ * than left for whoever opens the file.
  */
 
 export interface BlenderScriptOptions {
@@ -87,6 +92,50 @@ for ob in imported:
 layer = bpy.context.view_layer.layer_collection.children.get(joints.name)
 if layer is not None:
     layer.hide_viewport = True
+
+# The muscles come in as skinned meshes with an armature apiece: one bone per cross-section,
+# carrying both the bend of the path and the swell of the belly. Blender draws an armature's
+# bones as octahedra over the mesh they deform, which buries the muscle in wireframe, so the
+# armatures are drawn as sticks and moved to their own collection; the bellies get smooth
+# shading and a red material, because a swept tube flat-shaded looks like a segmented worm.
+muscles = bpy.data.collections.new("Muscles")
+scene.collection.children.link(muscles)
+rigs = bpy.data.collections.new("Muscle rigs")
+scene.collection.children.link(rigs)
+
+flesh = bpy.data.materials.new("bs-humany muscle")
+flesh.use_nodes = True
+surface = flesh.node_tree.nodes.get("Principled BSDF")
+if surface is not None:
+    surface.inputs["Base Color"].default_value = (0.62, 0.16, 0.16, 1.0)
+    roughness = surface.inputs.get("Roughness")
+    if roughness is not None:
+        roughness.default_value = 0.55
+
+def move_to(ob, collection):
+    for c in list(ob.users_collection):
+        c.objects.unlink(ob)
+    collection.objects.link(ob)
+
+for ob in imported:
+    if ob.type == "MESH" and ob.name.startswith("muscle__"):
+        move_to(ob, muscles)
+        ob.data.materials.clear()
+        ob.data.materials.append(flesh)
+        for polygon in ob.data.polygons:
+            polygon.use_smooth = True
+        # The sweep already gives every ring its own frame, so the seam where the tube closes is
+        # the only place two vertices sit on top of each other. Merging them stops the smooth
+        # shading breaking along that seam.
+        ob.data.validate()
+    elif ob.type == "ARMATURE":
+        move_to(ob, rigs)
+        ob.data.display_type = "STICK"
+        ob.show_in_front = False
+
+rigLayer = bpy.context.view_layer.layer_collection.children.get(rigs.name)
+if rigLayer is not None:
+    rigLayer.hide_viewport = True
 
 scene.frame_set(0)
 print("bs-humany: imported", path, "at", ${rate}, "fps,", ${options.frames}, "frames")

@@ -22,6 +22,27 @@ import {
   transformPoint,
 } from '@bs-humany/frames';
 
+/**
+ * A rigid binding of a mesh's vertices to a chain of joints, one joint per vertex.
+ *
+ * What it is for: a muscle belly. Its mesh is swept along the path every tick, so it is not rigid
+ * in any bone and cannot be exported the way a bone is -- but it is rigid ring by ring, because a
+ * ring's vertices are a circle in that ring's own frame and only the ring moves. Give each ring a
+ * joint and each vertex its ring, and the whole deformation -- the path bending, the belly
+ * thickening -- is carried by joint transforms, which is what glTF animates and what Blender
+ * imports as an armature.
+ *
+ * One joint per vertex at full weight rather than blended weights: a blend would smooth across
+ * rings that the sweep already placed exactly, and smoothing an exact answer is not an
+ * improvement.
+ */
+export interface ExportSkin {
+  /** Node indices of the joints, in the order `vertexJoint` addresses them. */
+  readonly joints: readonly number[];
+  /** Which joint each vertex belongs to, as an index into `joints`. */
+  readonly vertexJoint: Uint16Array;
+}
+
 export interface ExportNode {
   /** Stable id; becomes the node name. */
   readonly id: string;
@@ -29,10 +50,26 @@ export interface ExportNode {
   readonly parent: number;
   /** World transform in the rest pose. */
   readonly restWorld: Transform;
-  /** Rigid mesh in world coordinates at rest, or none. It is moved into the node's frame. */
+  /**
+   * Rigid mesh in world coordinates at rest, or none. It is moved into the node's frame.
+   *
+   * A skinned mesh is the exception: its vertices stay in the bind space they were given, because
+   * glTF ignores a skinned node's own transform and places every vertex through its joints.
+   */
   readonly mesh?:
     | { readonly positions: Float32Array | Float64Array; readonly indices: Uint32Array }
     | undefined;
+  /** Binds this node's mesh to joints, for geometry that deforms rather than moves. */
+  readonly skin?: ExportSkin | undefined;
+  /**
+   * How much bigger this node's geometry is at bind time than the unit it is authored in.
+   *
+   * Only meaningful for a joint. A muscle ring is authored as a unit circle and drawn at its own
+   * radius, so its bind scale is that radius and its scale keyframes are the radius it has at
+   * each frame; the inverse bind matrix has to undo the one to make the other mean anything.
+   * Defaults to 1, which is every node that is not a ring.
+   */
+  readonly bindScale?: number | undefined;
   /** Free-form metadata written to the node's `extras`. */
   readonly extras?: Readonly<Record<string, unknown>> | undefined;
   /**
@@ -49,6 +86,16 @@ export interface ExportAnimation {
   readonly position: Float32Array | Float64Array;
   /** World orientations, `frames * nodes * 4`, x y z w. */
   readonly orientation: Float32Array | Float64Array;
+  /**
+   * Local scales, `frames * nodes * 3`, or none for a scene where nothing changes size.
+   *
+   * Local rather than world, unlike the other two, and the asymmetry is deliberate: position and
+   * orientation are stated in the world because a bone's pose is a world fact, and the writer
+   * takes them into each node's parent. A scale is not a pose -- it says how much bigger this
+   * node's own geometry is drawn than it was at bind time -- and composing one down a chain of
+   * rigid parents would mean nothing. A node with no scale keyframes stays at 1.
+   */
+  readonly scale?: Float32Array | Float64Array | undefined;
 }
 
 export interface ExportInput {
@@ -65,6 +112,7 @@ const CHUNK_JSON = 0x4e4f534a;
 const CHUNK_BIN = 0x004e4942;
 const FLOAT = 5126;
 const UNSIGNED_INT = 5125;
+const UNSIGNED_SHORT = 5123;
 const ARRAY_BUFFER = 34962;
 const ELEMENT_ARRAY_BUFFER = 34963;
 
@@ -72,7 +120,7 @@ interface Accessor {
   bufferView: number;
   componentType: number;
   count: number;
-  type: 'SCALAR' | 'VEC3' | 'VEC4';
+  type: 'SCALAR' | 'VEC3' | 'VEC4' | 'MAT4';
   min?: number[];
   max?: number[];
 }
@@ -86,7 +134,7 @@ class BinaryBuilder {
   private byteLength = 0;
 
   add(
-    data: Float32Array | Uint32Array,
+    data: Float32Array | Uint32Array | Uint16Array,
     type: Accessor['type'],
     componentType: number,
     target?: number,
@@ -107,7 +155,7 @@ class BinaryBuilder {
       this.parts.push(new Uint8Array(pad));
       this.byteLength += pad;
     }
-    const components = type === 'SCALAR' ? 1 : type === 'VEC3' ? 3 : 4;
+    const components = type === 'SCALAR' ? 1 : type === 'VEC3' ? 3 : type === 'VEC4' ? 4 : 16;
     this.accessors.push({
       bufferView: view,
       componentType,
@@ -127,6 +175,59 @@ class BinaryBuilder {
     }
     return out;
   }
+}
+
+/** True when a node's scale stream is ever anything but one, to within a part in ten thousand. */
+function scaleVaries(
+  scale: Float32Array | Float64Array,
+  frames: number,
+  n: number,
+  node: number,
+): boolean {
+  for (let f = 0; f < frames; f++) {
+    const at = (f * n + node) * 3;
+    for (let c = 0; c < 3; c++) {
+      if (Math.abs((scale[at + c] ?? 1) - 1) > 1e-4) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The inverse of a joint's bind pose, column-major, as glTF wants it.
+ *
+ * Built by hand rather than through a matrix library because it is the only matrix in this file:
+ * the inverse of a rotation, a translation and a uniform scale is the transpose of the rotation
+ * over the scale, applied to the negated translation.
+ */
+function inverseBindMatrix(rest: Transform, bindScale: number): Float32Array {
+  const { x, y, z, w } = rest.rotation;
+  // Rotation matrix, column-major: columns are the rotated basis vectors.
+  const r = [
+    1 - 2 * (y * y + z * z),
+    2 * (x * y + z * w),
+    2 * (x * z - y * w),
+    2 * (x * y - z * w),
+    1 - 2 * (x * x + z * z),
+    2 * (y * z + x * w),
+    2 * (x * z + y * w),
+    2 * (y * z - x * w),
+    1 - 2 * (x * x + y * y),
+  ];
+  const s = 1 / (bindScale || 1);
+  const t = rest.translation;
+  // Transposed rotation, scaled: the inverse of R*S.
+  const m = new Float32Array(16);
+  for (let col = 0; col < 3; col++) {
+    for (let row = 0; row < 3; row++) {
+      m[4 * col + row] = (r[3 * row + col] ?? 0) * s;
+    }
+  }
+  m[12] = -((m[0] ?? 0) * t.x + (m[4] ?? 0) * t.y + (m[8] ?? 0) * t.z);
+  m[13] = -((m[1] ?? 0) * t.x + (m[5] ?? 0) * t.y + (m[9] ?? 0) * t.z);
+  m[14] = -((m[2] ?? 0) * t.x + (m[6] ?? 0) * t.y + (m[10] ?? 0) * t.z);
+  m[15] = 1;
+  return m;
 }
 
 function boundsOf(data: Float32Array, components: number): { min: number[]; max: number[] } {
@@ -156,8 +257,18 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
       `animation holds ${animation.position.length / 3} positions and ${animation.orientation.length / 4} orientations for ${frames} frames of ${n} nodes`,
     );
   }
+  if (animation.scale && animation.scale.length !== frames * n * 3) {
+    throw new Error(
+      `animation holds ${animation.scale.length / 3} scales for ${frames} frames of ${n} nodes`,
+    );
+  }
   nodes.forEach((node, i) => {
     if (node.parent >= i) throw new Error(`node ${node.id}: parent must come before child`);
+    for (const joint of node.skin?.joints ?? []) {
+      if (joint < 0 || joint >= nodes.length) {
+        throw new Error(`node ${node.id}: joint ${joint} is not a node in this scene`);
+      }
+    }
   });
   for (let f = 1; f < frames; f++) {
     if ((animation.times[f] ?? 0) <= (animation.times[f - 1] ?? 0)) {
@@ -172,6 +283,7 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
   const gltfNodes: Record<string, unknown>[] = [];
   const meshes: Record<string, unknown>[] = [];
   const samplers: { input: number; output: number; interpolation: 'LINEAR' }[] = [];
+  const skins: { name: string; joints: number[]; inverseBindMatrices: number }[] = [];
   const channels: { sampler: number; target: { node: number; path: string } }[] = [];
   const children: number[][] = nodes.map(() => []);
   nodes.forEach((node, i) => {
@@ -235,6 +347,21 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
         target: { node: i, path: 'translation' },
       });
       channels.push({ sampler: sampler(rotationAccessor), target: { node: i, path: 'rotation' } });
+      // Only for nodes that actually change size: a stream of ones for every bone in the body
+      // would double the animation for nothing.
+      if (animation.scale && scaleVaries(animation.scale, frames, n, i)) {
+        const scale = new Float32Array(frames * 3);
+        for (let f = 0; f < frames; f++) {
+          const at = (f * n + i) * 3;
+          scale[3 * f] = animation.scale[at] ?? 1;
+          scale[3 * f + 1] = animation.scale[at + 1] ?? 1;
+          scale[3 * f + 2] = animation.scale[at + 2] ?? 1;
+        }
+        channels.push({
+          sampler: sampler(bin.add(scale, 'VEC3', FLOAT)),
+          target: { node: i, path: 'scale' },
+        });
+      }
     }
 
     const gltfNode: Record<string, unknown> = {
@@ -250,19 +377,25 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
     if ((children[i]?.length ?? 0) > 0) gltfNode.children = children[i];
     if (node.extras) gltfNode.extras = node.extras;
     if (node.mesh && node.mesh.indices.length >= 3) {
-      // The mesh is given at rest in world coordinates; the node draws it from its own frame.
-      const toLocal = invert(node.restWorld);
       const count = node.mesh.positions.length / 3;
       const local = new Float32Array(count * 3);
-      for (let v = 0; v < count; v++) {
-        const p = transformPoint(toLocal, {
-          x: node.mesh.positions[3 * v] ?? 0,
-          y: node.mesh.positions[3 * v + 1] ?? 0,
-          z: node.mesh.positions[3 * v + 2] ?? 0,
-        });
-        local[3 * v] = p.x;
-        local[3 * v + 1] = p.y;
-        local[3 * v + 2] = p.z;
+      if (node.skin) {
+        // A skinned mesh stays in the bind space it was given: glTF ignores the transform of the
+        // node that carries it and places every vertex through its joints instead.
+        for (let v = 0; v < count * 3; v++) local[v] = node.mesh.positions[v] ?? 0;
+      } else {
+        // The mesh is given at rest in world coordinates; the node draws it from its own frame.
+        const toLocal = invert(node.restWorld);
+        for (let v = 0; v < count; v++) {
+          const p = transformPoint(toLocal, {
+            x: node.mesh.positions[3 * v] ?? 0,
+            y: node.mesh.positions[3 * v + 1] ?? 0,
+            z: node.mesh.positions[3 * v + 2] ?? 0,
+          });
+          local[3 * v] = p.x;
+          local[3 * v + 1] = p.y;
+          local[3 * v + 2] = p.z;
+        }
       }
       const positionAccessor = bin.add(local, 'VEC3', FLOAT, ARRAY_BUFFER, boundsOf(local, 3));
       const indexAccessor = bin.add(
@@ -271,12 +404,36 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
         UNSIGNED_INT,
         ELEMENT_ARRAY_BUFFER,
       );
+      const attributes: Record<string, number> = { POSITION: positionAccessor };
+      if (node.skin) {
+        const joints = new Uint16Array(count * 4);
+        const weights = new Float32Array(count * 4);
+        for (let v = 0; v < count; v++) {
+          joints[4 * v] = node.skin.vertexJoint[v] ?? 0;
+          weights[4 * v] = 1;
+        }
+        attributes.JOINTS_0 = bin.add(joints, 'VEC4', UNSIGNED_SHORT, ARRAY_BUFFER);
+        attributes.WEIGHTS_0 = bin.add(weights, 'VEC4', FLOAT, ARRAY_BUFFER);
+        // The inverse bind matrix takes a vertex from bind space into the joint's own frame, so
+        // the joint's later transform carries it from there. It inverts the joint's rest pose
+        // including its scale, which is what lets a ring's radius be animated at all.
+        const matrices = new Float32Array(node.skin.joints.length * 16);
+        node.skin.joints.forEach((jointNode, j) => {
+          const rest = nodes[jointNode]?.restWorld ?? node.restWorld;
+          const bind = nodes[jointNode]?.bindScale ?? 1;
+          matrices.set(inverseBindMatrix(rest, bind), 16 * j);
+        });
+        gltfNode.skin =
+          skins.push({
+            name: `${node.id}.skin`,
+            joints: [...node.skin.joints],
+            inverseBindMatrices: bin.add(matrices, 'MAT4', FLOAT),
+          }) - 1;
+      }
       gltfNode.mesh =
         meshes.push({
           name: `${node.id}.mesh`,
-          primitives: [
-            { attributes: { POSITION: positionAccessor }, indices: indexAccessor, mode: 4 },
-          ],
+          primitives: [{ attributes, indices: indexAccessor, mode: 4 }],
         }) - 1;
     }
     gltfNodes.push(gltfNode);
@@ -292,6 +449,7 @@ export function buildAnimatedGlb(input: ExportInput): Uint8Array {
     ],
     nodes: gltfNodes,
     meshes,
+    ...(skins.length > 0 ? { skins } : {}),
     animations: [{ name: input.animationName ?? 'simulation', samplers, channels }],
     accessors: bin.accessors,
     bufferViews: bin.bufferViews,
