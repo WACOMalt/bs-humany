@@ -1,0 +1,37 @@
+{
+  "format": "bs-humany.wrap-radii/1",
+  "generatedAt": "2026-09-15T18:20:59.860Z",
+  "dataset": {
+    "name": "Z-Anatomy SkeletalSystem",
+    "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",
+    "license": "CC-BY-SA-4.0",
+    "attribution": [
+      "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan",
+      "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+    ],
+    "sourceFile": "SkeletalSystem100.fbx",
+    "sourceSha256": "294a649765cd060a62a4095da52b9c8ef2d97769aa447e196448aa5f7d596dea"
+  },
+  "radii": [
+    {
+      "bone": "humerus_r",
+      "feature": "Trochlea_of_humerus__wrap_radius",
+      "description": "Radius of the humeral trochlea about the epicondylar axis: the pulley the elbow flexors and extensors turn over (Wu 2005, 3.3 for the axis)",
+      "radius": 0.017963,
+      "vertices": 43,
+      "spread": 0.003002,
+      "halfLength": 0.009569,
+      "rule": "median distance from the Medial_epicondyle_of_humerus-Lateral_epicondyle_of_humerus axis to the mesh within 22 mm of Trochlea_of_humerus, over the middle 50% of the distribution"
+    },
+    {
+      "bone": "humerus_l",
+      "feature": "Trochlea_of_humerus__wrap_radius",
+      "description": "Radius of the humeral trochlea about the epicondylar axis: the pulley the elbow flexors and extensors turn over (Wu 2005, 3.3 for the axis)",
+      "radius": 0.017963,
+      "vertices": 43,
+      "spread": 0.003002,
+      "halfLength": 0.009569,
+      "rule": "median distance from the Medial_epicondyle_of_humerus-Lateral_epicondyle_of_humerus axis to the mesh within 22 mm of Trochlea_of_humerus, over the middle 50% of the distribution"
+    }
+  ]
+}
