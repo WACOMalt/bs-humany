@@ -53,7 +53,15 @@ export type AttachmentSiteDef = z.infer<typeof AttachmentSiteDefSchema>;
 /**
  * A surface a muscle or tendon path routes around.
  *
- * Cylinders and ellipsoids only, matching what MuJoCo's tendon wrapping supports natively.
+ * Spheres, cylinders and ellipsoids. The first two are what MuJoCo's tendon wrapping supports
+ * natively, and between them they cover every wrap surface in the reference arm model -- a
+ * geodesic is a great circle on one and a helix on the other, so both have closed forms and both
+ * are implemented (muscle module N1.4).
+ *
+ * The ellipsoid has neither: geodesics on it have no closed form and need an iterative solve.
+ * It stays in the schema because published OpenSim models use them and the data should be
+ * expressible before the solver catches up, but a path that names one is refused rather than
+ * approximated. See OQ-016 and ticket N1.5.
  */
 export const WrappingSurfaceDefSchema = z
   .object({
@@ -63,6 +71,12 @@ export const WrappingSurfaceDefSchema = z
     /** Placement in the bone's local frame. */
     transform: TransformSchema,
     shape: z.discriminatedUnion('kind', [
+      z
+        .object({
+          kind: z.literal('sphere'),
+          radius: ScalarExprSchema,
+        })
+        .strict(),
       z
         .object({
           kind: z.literal('cylinder'),

@@ -8,5 +8,7 @@
  */
 
 export * from './momentArm.js';
+export * from './geodesicSolver.js';
 export * from './solver.js';
 export * from './types.js';
+export * from './wrap.js';

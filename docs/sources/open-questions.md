@@ -236,3 +236,23 @@ fails it and forces this question to be revisited rather than quietly closed.
 bone frames -- either by reconciling MyoSuite's frames against ours, or by locating the surfaces
 on this subject's own bone geometry the way M5.8 located the collision hulls.
 **Status:** open
+
+### OQ-016 — Geodesics on an ellipsoid, which have no closed form
+**Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4
+**Provisional value:** none. A path that names an ellipsoid wrap surface is refused at compile
+time rather than approximated. The sphere and the cylinder both have closed-form geodesics -- a
+great circle on one, a helix on the other -- so N1.4 implements those exactly, in trigonometry
+rather than iteration. An ellipsoid has neither, and the usual shortcut of scaling it to a sphere,
+solving there and scaling back does not give a geodesic at all, because scaling does not preserve
+them; it gives a plausible path that is not the shortest one and whose moment arm is wrong by an
+amount nobody has measured.
+
+It also has no consumer yet. MuJoCo's tendon wrapping supports spheres and cylinders and nothing
+else, so the vendored reference arm model's wrap geometry is entirely spheres and cylinders -- the
+geoms with "ellipsoid" in their names carry no `type` attribute, which makes them MuJoCo's default,
+a sphere. Finding that is also what corrected the HSDL wrapping-surface schema, which allowed
+cylinders and ellipsoids and claimed that matched MuJoCo; it now allows spheres as well.
+**Closes when:** N1.5 lands. Natural Geodesic Variations already parameterises a geodesic by its
+start point, start direction and length and solves numerically, so the ellipsoid belongs there
+rather than in a second, worse iterative solver written here and thrown away.
+**Status:** open

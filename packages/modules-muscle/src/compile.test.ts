@@ -1,9 +1,12 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { compileArticulation } from '@bs-humany/compiler';
+import { cite } from '@bs-humany/hsdl';
+import type { WrappingSurfaceDef } from '@bs-humany/hsdl';
 import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
+import type { MuscleGroup } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
-import { articulationBoneResolver, compileMuscleSet } from './compile.js';
+import { articulationBoneResolver, compileMuscleSet, wrapSurfaceId } from './compile.js';
 
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
@@ -123,5 +126,164 @@ describe('compiling a muscle set', () => {
     expect(() => compileMuscleSet(ELBOW_MUSCLES, [], L3, morphology.context)).toThrow(
       /biceps_brachii_long_r/,
     );
+  });
+
+  it('builds no wrap surfaces for a set that declares none', () => {
+    expect(set().surfaces).toEqual([]);
+  });
+});
+
+/**
+ * The elbow set has no wrap surfaces yet (OQ-015), so these exercise the compile step against a
+ * pair of muscles authored here. They are not anatomy and are not claimed to be -- what is being
+ * tested is that a shared surface becomes one copy per muscle, carrying that muscle's own side.
+ */
+describe('compiling wrap surfaces', () => {
+  const source = cite('caggiano2022', 'test fixture');
+
+  const TROCHLEA: WrappingSurfaceDef = {
+    id: 'trochlea_r',
+    bone: 'humerus_r',
+    displayName: 'Distal humerus, trochlea',
+    transform: {
+      translation: { x: 0, y: -0.28, z: 0 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    },
+    shape: { kind: 'cylinder', radius: 0.018, length: 0.05 },
+    source,
+  };
+
+  const BALL: WrappingSurfaceDef = {
+    ...TROCHLEA,
+    id: 'capitulum_r',
+    shape: { kind: 'sphere', radius: 0.011 },
+  };
+
+  /** Two muscles over one surface, on opposite sides of it. */
+  const GROUP: MuscleGroup = {
+    id: 'pair_r',
+    displayName: 'A flexor and an extensor',
+    source,
+    units: [
+      {
+        id: 'flexor_r',
+        displayName: 'Flexor',
+        origin: 'biceps_brachii_origin_r_supraglenoid_tubercle',
+        insertion: 'biceps_brachii_insertion_r_radial_tuberosity',
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'trochlea_r',
+            preferredSide: { x: 0, y: 0, z: 1 },
+            source,
+          },
+        ],
+        parameters: {
+          maxIsometricForce: 400,
+          optimalFiberLength: 0.12,
+          tendonSlackLength: 0.2,
+          pennationAngle: 0,
+          source,
+        },
+      },
+      {
+        id: 'extensor_r',
+        displayName: 'Extensor',
+        origin: 'triceps_brachii_origin_r_infraglenoid_tubercle',
+        insertion: 'triceps_brachii_insertion_r_olecranon',
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'trochlea_r',
+            preferredSide: { x: 0, y: 0, z: -1 },
+            source,
+          },
+        ],
+        parameters: {
+          maxIsometricForce: 600,
+          optimalFiberLength: 0.1,
+          tendonSlackLength: 0.15,
+          pennationAngle: 0,
+          source,
+        },
+      },
+    ],
+  };
+
+  const compiled = () =>
+    compileMuscleSet([GROUP], document.attachmentSites, L3, morphology.context, [TROCHLEA, BALL]);
+
+  it('gives each muscle its own copy of a shared surface', () => {
+    // One surface in the document, two muscles using it, two solver surfaces out. Sharing one
+    // would mean the two muscles shared a side as well, and a flexor and an extensor crossing the
+    // same bone are on opposite sides of it by definition.
+    const set = compiled();
+    expect(set.surfaces).toHaveLength(2);
+    expect(set.surfaces.map((s) => s.id)).toEqual([
+      wrapSurfaceId('flexor_r', 'trochlea_r'),
+      wrapSurfaceId('extensor_r', 'trochlea_r'),
+    ]);
+    expect(set.surfaces[0]?.preferredSide.z).toBe(1);
+    expect(set.surfaces[1]?.preferredSide.z).toBe(-1);
+  });
+
+  it('points each path at its own copy, not at the shared id', () => {
+    const set = compiled();
+    for (const path of set.paths) {
+      const wrap = path.elements.find((e) => e.kind === 'wrap');
+      expect(wrap?.kind === 'wrap' && wrap.surface, path.id).toBe(
+        wrapSurfaceId(path.id, 'trochlea_r'),
+      );
+    }
+  });
+
+  it('builds nothing for a surface no muscle uses', () => {
+    // The sphere is declared and unused. A solver handed surfaces nobody wraps would be carrying
+    // geometry it never touches.
+    const set = compiled();
+    expect(set.surfaces.some((s) => s.id.includes('capitulum'))).toBe(false);
+  });
+
+  it('halves a cylinder’s length, because the two sides measure it differently', () => {
+    // HSDL states the full length, which is how anyone measures a cylinder; the geodesic maths
+    // compares against the half-length. Converting in one place keeps both honest.
+    const set = compiled();
+    expect(set.surfaces[0]?.type).toBe('cylinder');
+    expect(set.surfaces[0]?.halfLength).toBeCloseTo(0.025, 12);
+    expect(set.surfaces[0]?.radius).toBeCloseTo(0.018, 12);
+  });
+
+  it('carries a sphere across with its radius', () => {
+    const onlyBall: MuscleGroup = {
+      ...GROUP,
+      units: [
+        {
+          ...(GROUP.units[0] as MuscleGroup['units'][number]),
+          path: [
+            { kind: 'wrap', surface: 'capitulum_r', preferredSide: { x: 0, y: 1, z: 0 }, source },
+          ],
+        },
+      ],
+    };
+    const set = compileMuscleSet([onlyBall], document.attachmentSites, L3, morphology.context, [
+      TROCHLEA,
+      BALL,
+    ]);
+    expect(set.surfaces[0]?.type).toBe('sphere');
+    expect(set.surfaces[0]?.radius).toBeCloseTo(0.011, 12);
+    expect(set.surfaces[0]?.halfLength).toBeUndefined();
+  });
+
+  it('names the muscle when it wraps a surface the document does not define', () => {
+    expect(() =>
+      compileMuscleSet([GROUP], document.attachmentSites, L3, morphology.context, []),
+    ).toThrow(/flexor_r/);
+  });
+
+  it('resolves the surface onto the body its bone belongs to', () => {
+    const set = compiled();
+    for (const surface of set.surfaces) {
+      expect(set.resolver.bodyOf(surface.bone), surface.id).toBeGreaterThanOrEqual(0);
+    }
   });
 });

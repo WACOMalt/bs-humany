@@ -20,8 +20,9 @@
  */
 
 import type { CompiledArticulation, CompiledSegment } from '@bs-humany/compiler';
-import type { AttachmentSiteDef, ExprContext } from '@bs-humany/hsdl';
+import type { AttachmentSiteDef, ExprContext, WrappingSurfaceDef } from '@bs-humany/hsdl';
 import { evaluate } from '@bs-humany/hsdl';
+import type { ScalarExpr } from '@bs-humany/hsdl';
 import type { MtuParameters, MuscleGroup } from '@bs-humany/muscle-data';
 import {
   DEFAULT_ACTIVATION_PARAMETERS,
@@ -29,7 +30,7 @@ import {
   DEFAULT_MAX_CONTRACTION_VELOCITY,
   type MusculotendonParameters,
 } from '@bs-humany/muscle-model';
-import type { BoneResolver, MusclePath, Vec3 } from '@bs-humany/muscle-path';
+import type { BoneResolver, MusclePath, Vec3, WrapSurface } from '@bs-humany/muscle-path';
 
 /** Everything the two modules need about one unit, resolved once. */
 export interface CompiledMuscleUnit {
@@ -45,7 +46,23 @@ export interface CompiledMuscleSet {
   readonly units: readonly CompiledMuscleUnit[];
   /** Paths in the same order as `units`, ready for a path solver's `compile`. */
   readonly paths: readonly MusclePath[];
+  /**
+   * Wrap surfaces, one per unit that wraps one -- not one per surface in the document.
+   *
+   * The geometry is shared but the *side* is not. Two muscles crossing the same bone may lie on
+   * opposite sides of it, and the side is what keeps each of them from swapping mid-motion, so it
+   * belongs to the muscle's wrap element rather than to the surface. MuJoCo reaches the same
+   * conclusion and puts its `sidesite` on the tendon rather than on the geom. So one surface in
+   * the document becomes as many solver surfaces as there are muscles using it, each carrying its
+   * own side and named for the pair.
+   */
+  readonly surfaces: readonly WrapSurface[];
   readonly resolver: BoneResolver;
+}
+
+/** How a per-muscle copy of a shared surface is named. */
+export function wrapSurfaceId(unit: string, surface: string): string {
+  return `${unit}__${surface}`;
 }
 
 /**
@@ -109,11 +126,14 @@ export function compileMuscleSet(
   attachmentSites: readonly AttachmentSiteDef[],
   articulation: CompiledArticulation,
   context: ExprContext,
+  wrappingSurfaces: readonly WrappingSurfaceDef[] = [],
 ): CompiledMuscleSet {
   const sites = new Map(attachmentSites.map((s) => [s.id, s]));
+  const declared = new Map(wrappingSurfaces.map((s) => [s.id, s]));
   const resolver = articulationBoneResolver(articulation);
   const units: CompiledMuscleUnit[] = [];
   const paths: MusclePath[] = [];
+  const surfaces: WrapSurface[] = [];
 
   const site = (id: string, unitId: string): AttachmentSiteDef => {
     const found = sites.get(id);
@@ -139,7 +159,16 @@ export function compileMuscleSet(
 
       const elements: MusclePath['elements'] = unit.path.map((element) => {
         if (element.kind === 'wrap') {
-          return { kind: 'wrap', surface: element.surface } as const;
+          const shared = declared.get(element.surface);
+          if (shared === undefined) {
+            throw new Error(
+              `Muscle unit '${unit.id}' wraps surface '${element.surface}', which the document ` +
+                'does not define. Run validateMuscleExtension to see every such reference at once.',
+            );
+          }
+          const id = wrapSurfaceId(unit.id, element.surface);
+          surfaces.push(toSolverSurface(id, shared, element.preferredSide, context));
+          return { kind: 'wrap', surface: id } as const;
         }
         const via = site(element.site, unit.id);
         const at = { bone: via.bone, point: sitePosition(via, context) };
@@ -183,5 +212,58 @@ export function compileMuscleSet(
     }
   }
 
-  return { units, paths, resolver };
+  return { units, paths, surfaces, resolver };
+}
+
+/**
+ * One muscle's copy of a shared wrap surface, in the shape the path solver wants.
+ *
+ * The shape union differs between the two: HSDL states a cylinder's full length because that is
+ * how anyone measures one, and the solver wants the half-length because that is what the geodesic
+ * maths compares against. Converting here rather than at either end keeps both honest.
+ */
+function toSolverSurface(
+  id: string,
+  surface: WrappingSurfaceDef,
+  side: { readonly x: ScalarExpr; readonly y: ScalarExpr; readonly z: ScalarExpr },
+  context: ExprContext,
+): WrapSurface {
+  const shape = surface.shape;
+  const rotation = surface.transform.rotation;
+  const common = {
+    id,
+    bone: surface.bone,
+    position: {
+      x: evaluate(surface.transform.translation.x, context),
+      y: evaluate(surface.transform.translation.y, context),
+      z: evaluate(surface.transform.translation.z, context),
+    },
+    orientation: [rotation.x, rotation.y, rotation.z, rotation.w] as const,
+    preferredSide: {
+      x: evaluate(side.x, context),
+      y: evaluate(side.y, context),
+      z: evaluate(side.z, context),
+    },
+  };
+
+  if (shape.kind === 'sphere') {
+    return { ...common, type: 'sphere', radius: evaluate(shape.radius, context) };
+  }
+  if (shape.kind === 'cylinder') {
+    return {
+      ...common,
+      type: 'cylinder',
+      radius: evaluate(shape.radius, context),
+      halfLength: evaluate(shape.length, context) / 2,
+    };
+  }
+  return {
+    ...common,
+    type: 'ellipsoid',
+    semiAxes: {
+      x: evaluate(shape.radii.x, context),
+      y: evaluate(shape.radii.y, context),
+      z: evaluate(shape.radii.z, context),
+    },
+  };
 }

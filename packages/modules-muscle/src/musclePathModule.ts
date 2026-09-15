@@ -37,7 +37,7 @@ import type {
   PathTerminalBuffer,
 } from '@bs-humany/muscle-path';
 import {
-  ViaPointPathSolver,
+  GeodesicPathSolver,
   createPathContactBuffer,
   createPathTerminalBuffer,
 } from '@bs-humany/muscle-path';
@@ -106,8 +106,8 @@ export class MusclePathModule implements SimModule {
   ) {
     this.units = muscles.units.length;
     this.capacity = options.contactCapacity ?? DEFAULT_MUSCLE_CONTACT_CAPACITY;
-    this.solver = options.solver ?? new ViaPointPathSolver(muscles.resolver);
-    this.compileReport = this.solver.compile(muscles.paths, []);
+    this.solver = options.solver ?? new GeodesicPathSolver(muscles.resolver);
+    this.compileReport = this.solver.compile(muscles.paths, muscles.surfaces);
     this.terminals = createPathTerminalBuffer(this.units);
     this.contacts = createPathContactBuffer(this.capacity);
 
