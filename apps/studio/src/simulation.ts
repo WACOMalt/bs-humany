@@ -146,17 +146,18 @@ export class Simulation {
   clamped = false;
   lastStepMs = 0;
   /**
-   * Run every tick, however long it takes, instead of keeping up with the clock.
+   * Advance in simulated time rather than chasing the wall clock.
    *
-   * Normally a frame advances by however much real time has passed, and when the machine cannot
-   * keep up the surplus is discarded -- the simulation runs in slow motion and says so. That is
-   * the right default for something you are steering by hand. It is the wrong one for watching
-   * what a muscle does, because the ticks that get dropped are simulated time that never happened
-   * and the run is no longer the run you would get twice.
+   * Worth being exact about what the default gives up, because the name it used to have here was
+   * wrong. A fixed timestep never skips a tick: the kernel runs tick N, then N+1, and simulated
+   * time advances by exactly `dt` each one. What `accumulateFrame` discards when the machine
+   * falls behind is elapsed *real* time -- so the simulation stays complete and falls behind the
+   * clock, rather than staying with the clock and going coarse.
    *
-   * With this on, wall-clock time is ignored: each rendered frame advances exactly
-   * `ticksPerFrame` ticks. The simulation plays slower than life on a slow machine rather than
-   * skipping, and at one tick per frame it plays a frame at a time.
+   * So this is not about fidelity within a run. It is about not having the playback rate depend
+   * on how busy the machine was: each rendered frame advances exactly `ticksPerFrame` ticks, the
+   * speed is yours to set, and at one tick per frame it advances a frame at a time. Two runs of
+   * the same scenario were always identical; this makes them take the same number of frames too.
    */
   fullFidelity = false;
   /** Ticks advanced per rendered frame while `fullFidelity` is on. */

@@ -29,6 +29,11 @@
     "ticks": 1500,
     "platform": "linux-x64"
   },
+  "skull-wiggle/l3_anatomical/mujoco": {
+    "hash": "645658b853bea477",
+    "ticks": 4000,
+    "platform": "linux-x64"
+  },
   "stairs-tumble/l1_standard/mujoco": {
     "hash": "b73b7cfb9cb0d090",
     "ticks": 2000,

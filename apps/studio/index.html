@@ -129,12 +129,15 @@
         <label class="checkbox"><input type="checkbox" id="floor" checked /> Floor collision</label>
         <label class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
         <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
-        <label class="checkbox"><input type="checkbox" id="fullFidelity" /> Full fidelity &mdash; never drop a tick</label>
+        <label class="checkbox"><input type="checkbox" id="fullFidelity" /> Run in simulated time, not real time</label>
         <div class="control" id="fidelity-control" hidden>
           <label for="ticksPerFrame">Ticks per frame <output id="ticksPerFrame-value">17</output></label>
-          <input type="range" id="ticksPerFrame" min="1" max="50" step="1" value="17" />
-          <p class="note">Wall-clock time is ignored: every tick runs, and the simulation plays
-          slower than life rather than skipping. At 1 it advances a frame at a time.</p>
+          <input type="range" id="ticksPerFrame" min="1" max="120" step="1" value="17" />
+          <p class="note">A fixed step never skips a tick &mdash; what the default drops when it
+          falls behind is elapsed <em>real</em> time, so the simulation runs slow rather than
+          coarse. This stops it chasing the clock at all: each frame advances exactly this many
+          ticks, so the run is reproducible and the playback speed is yours to set. At 1 it
+          advances a frame at a time.</p>
         </div>
         <label class="checkbox"><input type="checkbox" id="muscles" /> Elbow muscles</label>
         <div class="control" id="muscle-control" hidden>

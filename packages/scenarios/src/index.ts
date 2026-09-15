@@ -260,6 +260,54 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
     }),
   }),
   define({
+    id: 'skull-wiggle',
+    title: 'Shake the skull',
+    description:
+      'The head is held and shaken at a chosen frequency. At 500 Hz on the 1000 Hz profile that ' +
+      'is exactly two ticks a cycle -- the fastest signal a fixed step of that size can carry -- ' +
+      'so stepping through it should show the target alternating either side of centre on ' +
+      'successive ticks, and never two the same way.',
+    parameters: [
+      param('frequency', 'Shake frequency', 500, 1, 500, 1, ' Hz'),
+      param('amplitude', 'Amplitude', 0.03, 0.002, 0.15, 0.002, ' m'),
+      param('clearance', 'Start height', 0.02, 0, 1, 0.02),
+    ],
+    make: (v) => {
+      // Captured on the first tick: where the head was before anything shook it. Held in the
+      // closure rather than recomputed, so the shake is about a fixed point and not about
+      // wherever the head has drifted to.
+      let centre: Vec3 | undefined;
+      return {
+        profileId: 'l3_anatomical',
+        morphology: REFERENCE,
+        durationSeconds: 4,
+        clearance: v.clearance as number,
+        ground: { height: 0 },
+        passiveJoints: true,
+        // A script driving a joint at half the tick rate is pumping energy in by the bucket.
+        passiveSystem: false,
+        // It is still being shaken when the run ends, so of course it is still moving. Two joules
+        // on a 70 kg body is a head vibrating a couple of millimetres, which is the scenario
+        // doing exactly what it was written to do.
+        plausibility: { restKinetic: 4 },
+        script: (time, api) => {
+          const head = api.segment('head');
+          if (head < 0) return;
+          if (centre === undefined) {
+            centre = api.segmentPosition(head);
+            api.grab(head, vec3(0, 0, 0), centre);
+          }
+          // Cosine, so that at half the tick rate the samples land on the peaks rather than on
+          // the zero crossings. `sin(2 pi * 500 * t/1000)` is `sin(pi t)`, which is zero at every
+          // whole tick -- a perfectly sampled signal that never moves anything.
+          const swing =
+            (v.amplitude as number) * Math.cos(2 * Math.PI * (v.frequency as number) * time);
+          api.moveGrab(vec3(centre.x + swing, centre.y, centre.z));
+        },
+      };
+    },
+  }),
+  define({
     id: 'seated-on-box',
     title: 'Onto a box',
     description:

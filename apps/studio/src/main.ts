@@ -718,12 +718,31 @@ function applyFidelity(sim: Simulation | null | undefined): void {
 
 ui.fullFidelity.addEventListener('change', () => {
   must<HTMLElement>('#fidelity-control').hidden = !ui.fullFidelity.checked;
+  showTicksPerFrame();
   applyFidelity(simulation);
 });
 ui.ticksPerFrame.addEventListener('input', () => {
-  must<HTMLElement>('#ticksPerFrame-value').textContent = ui.ticksPerFrame.value;
+  showTicksPerFrame();
   applyFidelity(simulation);
 });
+
+/**
+ * The slider reads in ticks a frame and also in the hertz that comes to, so it can be compared
+ * with the rate the fidelity profile declares.
+ *
+ * The conversion needs a frame rate, and the honest one is the rate this display is managing
+ * rather than a nominal sixty: on a machine drawing at fifty, seventeen ticks a frame makes 850 Hz
+ * of simulated time a second and saying 1020 would be a fiction.
+ */
+function showTicksPerFrame(): void {
+  const ticks = Number(ui.ticksPerFrame.value);
+  const fps = displayFps > 0 ? displayFps : 60;
+  must<HTMLElement>('#ticksPerFrame-value').textContent =
+    `${ticks} a frame · ~${Math.round(ticks * fps)} Hz`;
+}
+
+/** Frames a second this display is managing, smoothed, for the conversion above. */
+let displayFps = 0;
 
 /** Push both sliders into the drive module. Safe to call before a run, and on every change. */
 function applyMuscleDrive(sim: Simulation | null | undefined): void {
@@ -1151,6 +1170,7 @@ function animate(): void {
   lastFrame = now;
   // Smoothed, because a raw per-frame number is unreadable.
   frameMs += (elapsed - frameMs) * 0.08;
+  displayFps = frameMs > 0 ? 1000 / frameMs : 0;
 
   if (ui.spin.checked) controls.orbit(0.0032);
   controls.update();
@@ -1188,7 +1208,7 @@ function animate(): void {
         : simulation.fullFidelity
           ? // Not a warning: this is the mode doing what it was asked to. Saying how many ticks a
             // frame carries is what tells you how far from real time you are.
-            `Running, ${seconds} s simulated at full fidelity, ` +
+            `Running, ${seconds} s simulated in simulated time, ` +
             `${simulation.ticksPerFrame} tick${simulation.ticksPerFrame === 1 ? '' : 's'} a frame.`
           : plan.clamped
             ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
