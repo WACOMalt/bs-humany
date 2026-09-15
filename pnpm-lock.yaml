@@ -237,6 +237,10 @@ importers:
       zod:
         specifier: ^4.6.2
         version: 4.6.2
+    devDependencies:
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
 
   packages/muscle-model:
     dependencies:

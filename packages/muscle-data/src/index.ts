@@ -6,5 +6,6 @@
  * it (base spec 14.5 obligation 3).
  */
 
+export * from './elbow.js';
 export * from './schema.js';
 export * from './validate.js';

@@ -194,3 +194,34 @@ from the paper's supplementary material, from the OpenSim implementation the pap
 by a direct comparison run against that implementation -- and the trace is compared point by
 point with a stated tolerance.
 **Status:** open
+
+### OQ-014 — Elbow muscle pennation angles are zero, because the source model has none
+**Needed for:** `packages/muscle-data/src/elbow.ts`
+**Provisional value:** zero for all seven units. This is a faithful transcription rather than a
+missing number: the MuJoCo muscle model has no pennation angle, so the conversion folded it into
+the peak force and the force each actuator declares is already the force along the tendon. What
+it costs is the *variation* of the pennation angle with fiber length, which the fiber model
+computes from Zajac's constant-width assumption and which a zero angle removes entirely. For
+these seven that loss is small -- the two biceps heads and brachioradialis are near-parallel
+anyway -- and it is largest for the triceps heads, where published angles run to about 12
+degrees, so their force along the tendon is overstated at short fiber lengths by up to a couple
+of per cent.
+**Closes when:** per-muscle pennation angles are transcribed from a source that states them
+(Holzbaur 2005 does, for this region), and the peak forces are re-derived alongside them so the
+two stay consistent. Taking the angles alone would double-count the pennation the forces already
+include.
+**Status:** open
+
+### OQ-015 — The elbow muscle paths are straight lines, with the wrapping not yet modelled
+**Needed for:** `packages/muscle-data/src/elbow.ts`, `packages/muscle-path`
+**Provisional value:** every unit runs straight from origin to insertion. Every one of them wraps
+in the source model -- brachialis over a cylinder, each biceps head over two ellipsoids, both with
+via points between -- and two things are missing before that can be carried over. The wrap
+geometry and the via points are in MyoSuite's body frames, which are not this project's, so they
+need the frame reconciliation the scalar parameters did not; and the path solver cannot wrap yet,
+which is ticket N1.4. A straight line holds the muscle closer to the joint axis than it runs, so
+it understates the moment arm, most at full flexion where the wrapping is doing the most work.
+**Closes when:** N1.4 lands and the via points and wrap surfaces are expressed in this project's
+bone frames -- either by reconciling MyoSuite's frames against ours, or by locating the surfaces
+on this subject's own bone geometry the way M5.8 located the collision hulls.
+**Status:** open

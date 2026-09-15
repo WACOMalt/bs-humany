@@ -21,7 +21,8 @@
     "module:lint": "node tools/cli/bin/module-lint.mjs",
     "bench": "node tools/cli/bin/bench.mjs",
     "validate:external": "node tools/cli/bin/external-validate.mjs",
-    "audit:obligations": "node tools/cli/bin/audit-obligations.mjs"
+    "audit:obligations": "node tools/cli/bin/audit-obligations.mjs",
+    "generate:elbow-muscles": "node tools/cli/bin/generate-elbow-muscles.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

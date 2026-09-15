@@ -16,5 +16,8 @@
   "dependencies": {
     "@bs-humany/hsdl": "workspace:*",
     "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@bs-humany/skeleton": "workspace:*"
   }
 }

@@ -9,7 +9,16 @@ comparison is reproducible from the repository alone.
 - Source: <https://github.com/MyoHub/myo_sim>
 - Commit: `eb327acbae0fad12279495040607f5235d962328` ("0.2.2 release", 2026-08-27)
 - Licence: Apache-2.0, in `myo_sim/LICENSE`
-- Files: the chain and asset MJCF for the leg, arm, torso and head models
+- Files: the chain and asset MJCF for the leg, arm, torso and head models, plus the arm's
+  muscle and tendon MJCF (`myoarm_r_muscle.xml`, `myoarm_r_tendon.xml`)
+
+The arm muscle and tendon files are here for a second reason beyond validation. The muscle file
+is the source of the elbow Hill-type parameters in `packages/muscle-data`, which are extracted by
+`pnpm generate:elbow-muscles` rather than transcribed, and checked in CI. That is a value source
+in the sense of section 5.3 and it is allowed here because `caggiano2022` is T1: the models are
+Apache-2.0, so unlike MyoSkeleton they may be used in core packages as well as in tooling. Only
+the *scalar* parameters cross -- peak force and the two lengths. Nothing in the source's own body
+frames does, because a coordinate is only meaningful in the frame it was measured in.
 
 Every file is byte-identical to that commit. To check, or to move to a newer one:
 

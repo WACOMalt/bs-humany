@@ -5,5 +5,5 @@
     "rootDir": "./src"
   },
   "include": ["src/**/*"],
-  "references": [{ "path": "../hsdl" }]
+  "references": [{ "path": "../hsdl" }, { "path": "../skeleton" }]
 }
