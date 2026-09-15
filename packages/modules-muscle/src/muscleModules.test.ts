@@ -20,6 +20,7 @@ import { MuscleDynamicsModule } from './muscleDynamicsModule.js';
 import { MuscleMomentModule } from './muscleMomentModule.js';
 import { MusclePathModule } from './musclePathModule.js';
 import { type DrivePattern, MuscleTestDriveModule } from './muscleTestDriveModule.js';
+import { DEFAULT_UPDATE_HZ, MuscleVolumeModule, rateDivisorFor } from './muscleVolumeModule.js';
 
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
@@ -601,5 +602,36 @@ describe('MuscleMomentModule', () => {
     expect(moment.manifest.accumulates).toEqual([]);
     expect(moment.manifest.writes.map((c) => c.id)).toEqual([DIAGNOSTICS_MOMENT_ARM]);
     expect(moment.manifest.rateDivisor).toBe(10);
+  });
+});
+
+describe('MuscleVolumeModule', () => {
+  it('sweeps often enough that the flesh does not lag the bones', () => {
+    // The fault this rule fixes is visible rather than numerical: at a fixed tenth of the physics
+    // rate the mesh refreshes 50 times a second against a display drawing 60 frames a second, so
+    // the bones move every frame and the muscles move on most of them. What that looks like is
+    // the flesh juddering behind the skeleton.
+    expect(rateDivisorFor(500, DEFAULT_UPDATE_HZ)).toBe(4);
+    expect(rateDivisorFor(1000, DEFAULT_UPDATE_HZ)).toBe(8);
+    expect(DEFAULT_UPDATE_HZ).toBeGreaterThan(60);
+    for (const rate of [240, 500, 1000, 2000]) {
+      const divisor = rateDivisorFor(rate, DEFAULT_UPDATE_HZ);
+      expect(rate / divisor, `${rate} Hz`).toBeGreaterThanOrEqual(DEFAULT_UPDATE_HZ);
+    }
+  });
+
+  it('sweeps every tick when it is not told the rate, rather than guessing one', () => {
+    expect(rateDivisorFor(undefined, DEFAULT_UPDATE_HZ)).toBe(1);
+    expect(rateDivisorFor(0, DEFAULT_UPDATE_HZ)).toBe(1);
+    // And a simulation slower than the target draws every tick, not less than one.
+    expect(rateDivisorFor(60, DEFAULT_UPDATE_HZ)).toBe(1);
+  });
+
+  it('declares the rate it was given, and writes only to the renderer', () => {
+    // M-ADR-004 alongside the rate: a module with no accumulator cannot reach the force path.
+    const volume = new MuscleVolumeModule(articulation, muscles, { simulationRateHz: 500 });
+    expect(volume.manifest.rateDivisor).toBe(4);
+    expect(volume.manifest.accumulates).toEqual([]);
+    expect(volume.manifest.phase).toBe('post');
   });
 });

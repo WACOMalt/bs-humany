@@ -25,9 +25,17 @@
  *
  * ## Rate
  *
- * A tenth of the physics rate, as section 9.3 asks. Nothing in the simulation reads the result,
- * a muscle's shape changes about as fast as its fiber length does, and sweeping every unit is the
- * one part of this that costs anything worth measuring.
+ * Section 9.3 asks for a tenth of the physics rate, and a tenth is wrong -- not for the
+ * simulation, which reads none of this, but for the eye. At 500 Hz a tenth is 50 updates a
+ * second against a display drawing 60 frames a second, so the flesh moves on some frames and not
+ * others while the bones move on every one. What that looks like is the muscles lagging the
+ * skeleton and juddering, and it is the first thing anyone notices.
+ *
+ * So the rate is stated in hertz and the divisor follows from the physics rate, defaulting to
+ * `DEFAULT_UPDATE_HZ` -- above any display rate, so every frame gets a fresh sweep, and still far
+ * below the physics rate, which is what section 9.3 was protecting. A muscle's shape changes
+ * about as fast as its fiber length does; sweeping every unit is the one part of this that costs
+ * anything worth measuring.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
@@ -62,6 +70,14 @@ import { MUSCLE_PATH_MODULE_ID } from './musclePathModule.js';
 export const MUSCLE_VOLUME_MODULE_ID = 'bsums.xyz.bs-humany.muscle.volume';
 
 export interface MuscleVolumeOptions {
+  /**
+   * The rate the simulation runs at, hertz, so the divisor can be worked out from it.
+   *
+   * Omitted, the module sweeps every tick -- correct at any rate, and wasteful at a high one.
+   */
+  readonly simulationRateHz?: number;
+  /** How often the mesh is swept, hertz. Rounded to a whole divisor of the simulation rate. */
+  readonly updateHz?: number;
   /** Cross-sections along each muscle. More is smoother along its length. */
   readonly rings?: number;
   /** Vertices around each cross-section. More is rounder. */
@@ -80,6 +96,22 @@ export const DEFAULT_SEGMENTS = 12;
  * without disappearing.
  */
 export const DEFAULT_TENDON_RADIUS = 0.003;
+
+/**
+ * How often the drawn mesh is refreshed, hertz.
+ *
+ * A hundred and twenty: above the display rates this will meet, so every frame has a mesh swept
+ * since the last one, and an eighth of a 1000 Hz physics rate. Sweeping faster than the display
+ * draws buys nothing; sweeping slower than it draws is visible immediately, because the bones
+ * move every frame and the flesh would not.
+ */
+export const DEFAULT_UPDATE_HZ = 120;
+
+/** The tick divisor that gets closest to `updateHz` without going under it. */
+export function rateDivisorFor(simulationRateHz: number | undefined, updateHz: number): number {
+  if (!simulationRateHz || !(simulationRateHz > 0)) return 1;
+  return Math.max(1, Math.floor(simulationRateHz / Math.max(1, updateHz)));
+}
 
 export class MuscleVolumeModule implements SimModule {
   readonly manifest: ModuleManifest;
@@ -141,7 +173,7 @@ export class MuscleVolumeModule implements SimModule {
       id: MUSCLE_VOLUME_MODULE_ID,
       version: '1.0.0',
       phase: 'post',
-      rateDivisor: 10,
+      rateDivisor: rateDivisorFor(options.simulationRateHz, options.updateHz ?? DEFAULT_UPDATE_HZ),
       dependsOn: [{ id: MUSCLE_PATH_MODULE_ID, version: '1.0.0' }],
       reads: [
         { id: MUSCLE_PATH, version: MUSCLE_CHANNEL_VERSION },

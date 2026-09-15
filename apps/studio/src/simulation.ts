@@ -270,7 +270,12 @@ export class Simulation {
       ]);
       this.musclePath = new MusclePathModule(this.articulation, this.muscles);
       this.muscleDynamics = new MuscleDynamicsModule(this.articulation, this.muscles);
-      this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles);
+      // Told the rate it is running at, so the sweep lands above the display's rate rather than
+      // at a fixed tenth of the physics rate -- which at 500 Hz is 50 a second, and reads as the
+      // flesh lagging the bones.
+      this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles, {
+        simulationRateHz: rate,
+      });
       this.kernel.register(this.muscleDrive);
       this.kernel.register(this.musclePath);
       this.kernel.register(this.muscleDynamics);
