@@ -12,33 +12,13 @@
  * repository and the value in the cited file cannot disagree, and `--check` in CI keeps it that
  * way.
  *
- * ## What MuJoCo states and what has to be derived
+ * ## What this file decides, and what it only assembles
  *
- * A MuJoCo muscle actuator does not carry an optimal fiber length or a tendon slack length. It
- * carries `gainprm`, whose third entry is the peak active force, and an operating range in units
- * of optimal fiber length; and `lengthrange`, the musculotendon length at the two ends of that
- * range, in metres. Those four numbers determine the two lengths exactly, because the range and
- * the length range are the same interval measured in different units:
- *
- *     L0 = (LRmax - LRmin) / (rmax - rmin)
- *     LT = LRmin - L0 * rmin
- *
- * The derivation is MuJoCo's own, from its muscle actuator documentation, and it is the inverse
- * of the step its compiler takes when it fills `lengthrange` in. It is done here, once, in the
- * open, rather than left as a comment beside a hand-copied number.
- *
- * ## Where the wrap goes in the path
- *
- * A path is an ordered thing, and a surface placed at the wrong point in it constrains the wrong
- * span. Brachioradialis is the case that showed it: the reference wraps between its origin and
- * the point on the radius, and writing the wrap after every via point instead put the obstacle
- * between that radial point and the styloid -- a span that runs down the forearm and comes
- * nowhere near the elbow. Its moment arm went negative at full extension as a result, which
- * muscle spec 13.2 calls a hard failure, and N1.9's sweep is what caught it.
- *
- * So the position is read from the reference path rather than assumed: the last wrap geom in a
- * reference tendon is its elbow surface (the earlier ones, where there are any, are at the
- * humeral head), and our wrap goes where that one sits among the via points we carry.
+ * The derivations are in `tools/cli/lib/myoArm.mjs`, because the shoulder set comes out of the
+ * same two files by the same two steps: what MuJoCo states and what has to be derived from it,
+ * and where a wrap belongs in a path. What is here is the part that is about the elbow -- which
+ * actuator is which muscle, which of our attachment sites it binds to, which surface it turns
+ * over and which side of it it lies on.
  *
  * ## Pennation
  *
@@ -52,74 +32,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { MUSCLE_FILE, readActuators, renderGroups, sided } from '../lib/myoArm.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const MUSCLE_FILE = 'myoarm_r_muscle.xml';
-const TENDON_FILE = 'myoarm_r_tendon.xml';
-const SOURCE = join(ROOT, 'tools/validate-external/myo_sim', MUSCLE_FILE);
-const TENDON_SOURCE = join(ROOT, 'tools/validate-external/myo_sim', TENDON_FILE);
 const OUT = join(ROOT, 'packages/muscle-data/src/elbow.ts');
 const check = process.argv.includes('--check');
 
 const jiti = createJiti(import.meta.url);
 const { viaPointsFor } = await jiti.import(join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'));
-
-const TENDON_XML = readFileSync(TENDON_SOURCE, 'utf8');
-
-/**
- * Where the elbow surface sits in a reference tendon's path, as an index among its elements.
- *
- * Elements in order: `<site site="...">` and `<geom geom="...">`. The elbow surface is the last
- * geom -- every unit here that has two wraps has the humeral head first and the elbow second.
- */
-function referencePath(actuator) {
-  const block = TENDON_XML.match(
-    new RegExp(`<spatial[^>]*name="${actuator}_tendon"[\\s\\S]*?</spatial>`),
-  );
-  if (!block) {
-    throw new Error(
-      `${TENDON_FILE} has no tendon named '${actuator}_tendon'. The vendored commit may have ` +
-        'moved; check tools/validate-external/README.md before changing this mapping.',
-    );
-  }
-  const elements = [...block[0].matchAll(/<(site|geom)\s+(?:site|geom)="([^"]+)"/g)].map((m) => ({
-    kind: m[1],
-    name: m[2],
-  }));
-  let lastGeom = -1;
-  elements.forEach((e, i) => {
-    if (e.kind === 'geom') lastGeom = i;
-  });
-  return { elements, lastGeom };
-}
-
-/**
- * The path elements for one unit: our via points, with the wrap where the reference puts it.
- *
- * A via point we carry knows which reference site it came from, so its place in the reference
- * path is a lookup rather than a guess, and the wrap goes before the first via point that comes
- * after the reference's elbow geom.
- */
-function pathElements(unit) {
-  const { elements, lastGeom } = referencePath(unit.actuator);
-  const indexOf = (site) => elements.findIndex((e) => e.kind === 'site' && e.name === site);
-  const via = viaPointsFor(unit.id).map((p) => ({
-    kind: 'site',
-    id: p.id,
-    at: indexOf(p.referenceSite),
-  }));
-  const out = [];
-  let placed = false;
-  for (const point of via) {
-    if (!placed && lastGeom >= 0 && point.at > lastGeom) {
-      out.push({ kind: 'wrap' });
-      placed = true;
-    }
-    out.push(point);
-  }
-  if (!placed) out.push({ kind: 'wrap' });
-  return out;
-}
 
 /**
  * Which actuator becomes which unit, and which of our attachment sites it binds to.
@@ -207,71 +127,9 @@ const UNITS = [
   },
 ];
 
-/**
- * Every unit on both arms.
- *
- * The reference model is a right arm and there is no left one to take parameters from, so the
- * left side is the right side's parameters on the left side's geometry -- which is the ordinary
- * assumption of bilateral symmetry, and the only claim in it is that a person's two biceps are
- * the same muscle. Everything that is *geometry* is already bilateral and measured: the
- * attachment sites come from each side's own markers, the wrap surfaces from each side's own
- * mesh, and the via points are mirrored with the dataset's symmetry checked.
- *
- * Which side of a surface a muscle passes is not mirrored, because it is stated as an anterior or
- * posterior direction and anterior is anterior on both arms.
- */
-function sided() {
-  const out = [];
-  for (const s of ['r', 'l']) {
-    const word = s === 'r' ? 'right' : 'left';
-    for (const unit of UNITS) {
-      const put = (value) => (value === undefined ? undefined : value.replaceAll('$', s));
-      out.push({
-        ...unit,
-        group: put(unit.group),
-        id: put(unit.id),
-        origin: put(unit.origin),
-        insertion: put(unit.insertion),
-        name: `${unit.name}, ${word}`,
-        ...(unit.groupName === undefined ? {} : { groupName: `${unit.groupName}, ${word}` }),
-        side_: s,
-      });
-    }
-  }
-  return out;
-}
-
-function readActuators() {
-  const xml = readFileSync(SOURCE, 'utf8');
-  const found = new Map();
-  const pattern =
-    /<general\s+name="([A-Za-z0-9]+)"[^>]*?gainprm="([^"]+)"[^>]*?lengthrange="([^"]+)"/g;
-  for (const match of xml.matchAll(pattern)) {
-    const gain = match[2].trim().split(/\s+/).map(Number);
-    const range = match[3].trim().split(/\s+/).map(Number);
-    const [rmin, rmax, force, , , , vmax] = gain;
-    const [lrmin, lrmax] = range;
-    if (!(rmax > rmin)) {
-      throw new Error(`${match[1]}: operating range is empty, so the lengths cannot be derived`);
-    }
-    const optimalFiberLength = (lrmax - lrmin) / (rmax - rmin);
-    found.set(match[1], {
-      maxIsometricForce: force,
-      optimalFiberLength,
-      tendonSlackLength: lrmin - optimalFiberLength * rmin,
-      maxContractionVelocity: vmax,
-    });
-  }
-  return found;
-}
-
-/** Six significant figures: more than the source states, and enough to round-trip it. */
-const num = (v) => Number(v.toPrecision(6)).toString();
-
 function render() {
   const actuators = readActuators();
-  const groups = new Map();
-  for (const unit of sided()) {
+  const units = sided(UNITS).map((unit) => {
     const parameters = actuators.get(unit.actuator);
     if (parameters === undefined) {
       throw new Error(
@@ -279,61 +137,16 @@ function render() {
           'moved; check tools/validate-external/README.md before changing this mapping.',
       );
     }
-    if (!groups.has(unit.group)) groups.set(unit.group, []);
-    // Which surface each unit lies against. The extensors turn over the trochlea, where the
-    // elbow's axis runs, and that is what gives them a moment arm. The flexors never touch it --
-    // their paths pass in front of it -- so what they need is the shaft, which they lie along
-    // rather than pass through. One surface each, which is what the solver takes per span until
-    // N1.5; the flexors' elbow leverage is still the straight-line answer and is OQ-015's.
-    // The trochlea for everyone now. Via points hold each muscle along the shaft, so what is
-    // left for a wrap surface is the elbow itself -- and the shaft cylinder, which never suited a
-    // muscle running along it, is no longer asked to do that job.
-    const wrap = `elbow_trochlea_${unit.side_}`;
-    groups.get(unit.group).push({ ...unit, parameters, wrap });
-  }
-
-  const body = [];
-  for (const [groupId, units] of groups) {
-    const head = units[0];
-    body.push(`  {
-    id: '${groupId}',
-    displayName: '${head.groupName}',
-    taTerm: '${head.taTerm}',
-    innervation: '${head.innervation}',
-    source: gray('${head.groupName.split(',')[0]}'),
-    units: [`);
-    for (const unit of units) {
-      const p = unit.parameters;
-      body.push(`      {
-        id: '${unit.id}',
-        displayName: '${unit.name}',
-        origin: '${unit.origin}',
-        insertion: '${unit.insertion}',
-        path: [
-${pathElements(unit)
-  .map((e) =>
-    e.kind === 'site'
-      ? `          { kind: 'site', site: '${e.id}' },\n`
-      : `          {
-            kind: 'wrap',
-            surface: '${unit.wrap}',
-            preferredSide: { x: 0, y: 0, z: ${unit.side === 'extensor' ? 1 : -1} },
-            source: gray('${unit.name.split(',')[0]}'),
-          },\n`,
-  )
-  .join('')}        ],
-        parameters: {
-          maxIsometricForce: ${num(p.maxIsometricForce)},
-          optimalFiberLength: ${num(p.optimalFiberLength)},
-          tendonSlackLength: ${num(p.tendonSlackLength)},
-          pennationAngle: 0,
-          maxContractionVelocity: ${num(p.maxContractionVelocity)},
-          source: myoArm('${unit.actuator}'),
-        },
-      },`);
-    }
-    body.push('    ],\n  },');
-  }
+    return {
+      ...unit,
+      parameters,
+      // Every unit turns over the trochlea on its own side, and declares which side of it it lies
+      // on: the three heads of triceps behind the joint axis, the four flexors in front of it.
+      wrap: `elbow_trochlea_${unit.side_}`,
+      preferredSide: { x: 0, y: 0, z: unit.side === 'extensor' ? 1 : -1 },
+    };
+  });
+  const body = renderGroups(units, viaPointsFor);
 
   return `/**
  * The elbow muscle parameter set -- ticket N2.5, and the data the N3.7 demo runs on.
@@ -410,7 +223,7 @@ const myoArm = (actuator: string) =>
  * moment arm the real one does not have.
  */
 export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
-${body.join('\n')}
+${body}
 ];
 
 /** Every unit in the set, flattened, in a stable order. */
@@ -435,10 +248,10 @@ if (check) {
     );
     process.exit(1);
   }
-  console.log(`generate-elbow-muscles: ok. ${sided().length} units match ${MUSCLE_FILE}.`);
+  console.log(`generate-elbow-muscles: ok. ${sided(UNITS).length} units match ${MUSCLE_FILE}.`);
 } else {
   writeFileSync(OUT, rendered);
   console.log(
-    `generate-elbow-muscles: wrote ${relative(ROOT, OUT)} -- ${sided().length} units from ${MUSCLE_FILE}.`,
+    `generate-elbow-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${MUSCLE_FILE}.`,
   );
 }
