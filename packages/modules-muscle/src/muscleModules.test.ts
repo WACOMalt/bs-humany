@@ -15,6 +15,7 @@ import {
   MUSCLE_STATE,
 } from './channels.js';
 import { compileMuscleSet } from './compile.js';
+import { degreeRange, sweepMomentArms } from './momentArmSweep.js';
 import { MuscleDynamicsModule } from './muscleDynamicsModule.js';
 import { MuscleMomentModule } from './muscleMomentModule.js';
 import { MusclePathModule } from './musclePathModule.js';
@@ -529,16 +530,34 @@ describe('MuscleMomentModule', () => {
     s.kernel.dispose();
   });
 
-  it('still has brachioradialis wrong near full extension, which is OQ-015', () => {
-    // A tripwire, not an endorsement. Published brachioradialis has the largest flexion moment
-    // arm at the elbow and stays positive throughout; ours peaks at 21 mm and goes slightly
-    // negative at full extension. Its reference path wraps a surface this has not carried over,
-    // and until that lands the arm is too small at every angle and the wrong sign at one end.
+  it('keeps every unit on one side of the joint through the whole range', async () => {
+    // Muscle spec 13.2's hard failure, swept rather than sampled at one pose -- which is the only
+    // way to see it. `pnpm validate:moment-arms` makes the same check against the reference model
+    // and reports how far each curve is from it; this is here because the rule is about our model
+    // alone and should fail in the test suite, not only in a tool somebody has to run.
     //
-    // When that surface arrives this test fails and should be deleted.
-    const moment = new MuscleMomentModule(articulation, muscles);
-    expect(moment.pairs.some((p) => p.unitId === 'brachioradialis_r')).toBe(true);
-  });
+    // Brachioradialis is why it is written: its wrap sat after every via point, which put the
+    // obstacle on the span running down the forearm instead of the one crossing the elbow, and
+    // its arm went negative at full extension.
+    const sweep = await sweepMomentArms({
+      articulation,
+      muscles,
+      backend: () => new MujocoBackend(),
+      jointId: 'elbow_r',
+      axisName: 'flexion',
+      angles: degreeRange(0, 130, 10),
+      hold: [{ jointId: 'radioulnar_r', axisName: 'pronation', value: 0 }],
+    });
+    for (let p = 0; p < sweep.pairs.length; p++) {
+      const pair = sweep.pairs[p];
+      if (!pair || pair.jointId !== 'elbow_r' || pair.dofId !== 'flexion') continue;
+      // A hair either side of zero is not a side change; a millimetre of leverage is.
+      const signs = Array.from(sweep.arms[p] as Float64Array)
+        .filter((arm) => Math.abs(arm) > 1e-3)
+        .map((arm) => Math.sign(arm));
+      expect(new Set(signs).size, `${pair.unitId} changes sign across the range`).toBe(1);
+    }
+  }, 60_000);
 
   it('peaks the biceps where published data peaks it', async () => {
     // What the via points bought. With the path running straight from the humerus to the radial

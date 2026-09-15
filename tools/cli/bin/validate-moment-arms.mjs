@@ -62,51 +62,48 @@ const check = process.argv.includes('--check');
 const TOLERANCE = 0.005;
 
 /**
- * Differences that are known, explained, and being worked on.
+ * What is known about each muscle, and how far it is allowed to be wrong.
  *
  * `bound` is the mean deviation in metres as measured when the entry was written, plus a little
- * room. Passing means the fault is no worse than it was, not that it is acceptable.
+ * room; an entry with one excuses a difference past `TOLERANCE`, and passing means the fault is no
+ * worse than it was rather than that it is acceptable. An entry without a bound excuses nothing --
+ * it is context for a row that already agrees.
  */
 const RECORDED = [
   {
     unit: 'biceps_brachii_long_r',
-    bound: 0.022,
     question: 'OQ-015',
-    note: 'Peaks at about half the reference. Our path leaves the humerus at the surgical neck and runs straight to the radial tuberosity; the reference carries it over a bicipital-groove wrap the via points do not reproduce.',
+    note: 'Agrees through the middle and upper range. The disagreement is at full extension, where ours sits at the trochlea\u2019s radius and the reference passes within a millimetre of the elbow axis -- which would leave a biceps unable to begin flexing from a straight arm, so the difference is not evidence against ours.',
   },
   {
     unit: 'biceps_brachii_short_r',
-    bound: 0.021,
     question: 'OQ-015',
-    note: 'As the long head, and from the same missing wrap.',
+    note: 'As the long head, and at the same place in the range.',
   },
   {
     unit: 'brachialis_r',
-    bound: 0.027,
+    bound: 0.023,
     question: 'OQ-015',
-    note: 'Twice the reference through the middle of the range. The reference path lies against the ulna, which this has no wrap surface for, so ours stands off the joint further than the bone allows.',
+    note: 'Twice the reference through the middle of the range, and it never touches the surface it declares: our insertion marker sits 50 mm from the flexion axis where the reference\u2019s sits 24, so the straight line from origin to insertion passes outside the trochlea cylinder at every angle and the wrap has nothing to do. The marker is a label anchor rather than a measured attachment centroid.',
   },
   {
     unit: 'brachioradialis_r',
-    bound: 0.055,
+    bound: 0.042,
     question: 'OQ-015',
-    note: 'An eighth of the reference, and the largest error in the set. Brachioradialis has the longest flexion arm at the elbow precisely because its path stands well clear of the joint, over a surface this has not carried over.',
+    note: 'A quarter of the reference, which is the largest error in the set. Brachioradialis has the longest flexion arm at the elbow because its path stands well clear of the joint, and the reference holds it there with a cylinder at the distal humerus that this has not carried over; ours is held out only by the trochlea it wraps.',
   },
   {
     unit: 'triceps_brachii_long_r',
-    bound: 0.008,
     question: 'OQ-015',
-    note: 'Right at extension and too large past about 90 degrees: ours is a pulley coaxial with the joint at every angle, and the reference path leaves its surface as the elbow closes.',
+    note: 'Within tolerance, and the shape differs at the closed end: ours is a pulley at every angle, and the reference path leaves its surface past about 90 degrees.',
   },
   {
     unit: 'triceps_brachii_lateral_r',
-    bound: 0.008,
     question: 'OQ-015',
     note: 'As the long head, and from the same surface.',
   },
   {
     unit: 'triceps_brachii_medial_r',
-    bound: 0.008,
     question: 'OQ-015',
     note: 'As the long head, and from the same surface.',
   },
@@ -218,20 +215,20 @@ for (let p = 0; p < sweep.pairs.length; p++) {
 
   const recorded = RECORDED.find((r) => r.unit === pair.unitId);
   let status = 'ok';
-  let note = 'within tolerance of the reference';
+  let note = recorded?.note ?? 'within tolerance of the reference';
   if (oursFlips && !theirsFlips) {
     status = 'HARD FAILURE';
     note = 'changes sign where the reference does not (muscle spec 13.2)';
   } else if (mean > TOLERANCE) {
-    if (recorded && mean <= recorded.bound) {
+    if (recorded?.bound !== undefined && mean <= recorded.bound) {
       status = `recorded (${recorded.question})`;
-      note = recorded.note;
-    } else if (recorded) {
+    } else if (recorded?.bound !== undefined) {
       status = 'investigate';
       note = `worse than recorded: ${(mean * 1000).toFixed(1)} mm against a bound of ${(recorded.bound * 1000).toFixed(1)} mm. ${recorded.note}`;
     } else {
       status = 'investigate';
-      note = 'past tolerance and not recorded: fix it, or record the decision in RECORDED';
+      note =
+        'past tolerance and not recorded: fix it, or record the difference and its open question in RECORDED';
     }
   }
 

@@ -138,13 +138,14 @@ describe('the elbow muscle set', () => {
       'triceps_brachii_medial_r',
     ];
     for (const unit of ELBOW_UNITS) {
-      // Via points along the humerus, then the wrap at the elbow. The wrap is last because the
-      // elbow is the last thing the muscle crosses; a muscle with no via points is just the wrap.
-      const wrap = unit.path[unit.path.length - 1];
+      // Via points along the bones and one wrap at the elbow, in the order the reference model
+      // has them. Where the wrap falls among the via points is not decoration: it says which span
+      // the surface constrains, and brachioradialis with its wrap after every via point had the
+      // obstacle on the stretch running down the forearm rather than the one crossing the elbow.
       expect(unit.path.length, unit.id).toBeGreaterThanOrEqual(1);
-      for (const element of unit.path.slice(0, -1)) {
-        expect(element.kind, unit.id).toBe('site');
-      }
+      const wraps = unit.path.filter((element) => element.kind === 'wrap');
+      expect(wraps.length, unit.id).toBe(1);
+      const wrap = wraps[0];
       if (wrap?.kind !== 'wrap') throw new Error(`${unit.id} does not wrap`);
       const behind = extensors.includes(unit.id);
       // The extensors turn over the trochlea, coaxial with the elbow, which is what holds their

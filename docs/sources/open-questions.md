@@ -221,8 +221,10 @@ surface each muscle turns over at the elbow, and the points each one passes thro
 placed on the elbow's own axis, so it is coaxial with the joint by construction -- 0.000 mm of
 offset, 0.0000 degrees of tilt. Before it, the triceps moment arm fell from -20 mm at full
 extension to zero at about 2 rad and then reversed sign, so a fully driven triceps held a bent
-elbow bent. It now holds flat at -18 mm across the range, which is what a pulley gives and what
-published curves show.
+elbow bent. It now holds flat at -18 to -20 mm across the range, which is what a pulley gives and
+what published curves show. Its length is the span between the epicondyles rather than the measured
+trochlear extent: the extent covers the groove a tendon bears in, and a cylinder cut to it is
+shorter than the distance between the muscles that use the surface.
 
 *The via points.* Carried over from the reference model by asking both models for the same
 anatomical construction -- the glenohumeral centre, the bone's long axis, the elbow's flexion axis,
@@ -243,16 +245,37 @@ A wrapping surface was tried for the shaft first and is the wrong tool for a mus
 a bone; the measurements are below, and the shaft cylinder is kept because it is correct geometry
 even though no muscle now uses it.
 
+**What the N1.9 sweep measured, 2026-09-15.** Every claim above was made from one pose, and a
+moment arm read at one pose says almost nothing. `pnpm validate:moment-arms` now sweeps the elbow
+from 0 to 130 degrees and puts each curve beside the reference model's own, computed the same way;
+`docs/validation/moment-arms.md` is the standing record and the numbers below come from it.
+
+- **The biceps and the triceps agree.** Both heads of biceps peak at 39 and 36 mm where the
+  reference peaks at 41 and 38, at the same angle; all three heads of triceps stay within 4 mm of
+  the reference through the range. That is better than the single-pose figures suggested, and the
+  difference was the forearm: these arms depend on forearm rotation as much as on flexion, so a
+  sweep that does not hold it is not reproducible.
+- **One ordering fault, found and fixed.** Brachioradialis had its wrap declared after every via
+  point, which put the obstacle on the span running down the forearm rather than the one crossing
+  the elbow. Its arm went negative at full extension as a result -- a hard failure under 13.2. The
+  generator now reads the position of the surface in the reference path instead of assuming it
+  comes last.
+
 **Still open, and why:**
 
-- **Brachialis and brachioradialis are wrong.** Brachialis peaks at 47 mm against a published 20,
-  brachioradialis at 21 mm against a published 50 to 60, and brachioradialis goes slightly negative
-  at full extension where published data is positive throughout. Neither has via points -- their
-  reference paths have none -- and both wrap a surface on the forearm that has not been carried
-  over: a cylinder on the ulna for brachialis, an ellipsoid at the elbow for brachioradialis. The
-  second needs OQ-016 as well as the frame construction repeating for the forearm bones.
-- **Forearm and scapula wrap surfaces.** The same construction that carried the via points would
-  carry these; the muscles that need them are the two above.
+- **Brachialis never touches the surface it declares.** It peaks at 48 mm against the reference's
+  24, and the cause is not the wrap: our insertion marker sits 50 mm from the flexion axis where
+  the reference's sits 24, so the straight line from origin to insertion passes outside the
+  trochlea cylinder at every angle and the wrap has nothing to do. `Tuberosity_of_ulna` is a label
+  anchor rather than a measured attachment centroid, and the neighbouring `Coronoid_process_of_ulna`
+  sits at 29 mm. Moving the insertion to it was tried: the peak improves to 28 mm and the arm then
+  changes sign at deep flexion, because a point that close to the axis needs the wrap to hold it
+  and the wrap still does not engage. The fix is a measured attachment region, not another marker.
+- **Brachioradialis is a quarter of the reference**, 21 mm against 90, which is the largest error
+  in the set. Its long flexion arm comes from a path held well clear of the joint, and the
+  reference holds it there with a cylinder at the distal humerus that has not been carried over.
+- **Distal humerus and forearm wrap surfaces.** The same construction that carried the via points
+  would carry these; the muscle that needs one is brachioradialis.
 - **The proportional assumption.** Forearm points are scaled by the *humerus* ratio, because one
   frame carries the whole arm. Where the two skeletons' proportions differ, a forearm point is out
   by the difference between the two ratios -- a few per cent of a bone.

@@ -27,6 +27,19 @@
  * of the step its compiler takes when it fills `lengthrange` in. It is done here, once, in the
  * open, rather than left as a comment beside a hand-copied number.
  *
+ * ## Where the wrap goes in the path
+ *
+ * A path is an ordered thing, and a surface placed at the wrong point in it constrains the wrong
+ * span. Brachioradialis is the case that showed it: the reference wraps between its origin and
+ * the point on the radius, and writing the wrap after every via point instead put the obstacle
+ * between that radial point and the styloid -- a span that runs down the forearm and comes
+ * nowhere near the elbow. Its moment arm went negative at full extension as a result, which
+ * muscle spec 13.2 calls a hard failure, and N1.9's sweep is what caught it.
+ *
+ * So the position is read from the reference path rather than assumed: the last wrap geom in a
+ * reference tendon is its elbow surface (the earlier ones, where there are any, are at the
+ * humeral head), and our wrap goes where that one sits among the via points we carry.
+ *
  * ## Pennation
  *
  * The MuJoCo muscle model has no pennation angle: the conversion folds it into the peak force, so
@@ -42,12 +55,71 @@ import { createJiti } from 'jiti';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const MUSCLE_FILE = 'myoarm_r_muscle.xml';
+const TENDON_FILE = 'myoarm_r_tendon.xml';
 const SOURCE = join(ROOT, 'tools/validate-external/myo_sim', MUSCLE_FILE);
+const TENDON_SOURCE = join(ROOT, 'tools/validate-external/myo_sim', TENDON_FILE);
 const OUT = join(ROOT, 'packages/muscle-data/src/elbow.ts');
 const check = process.argv.includes('--check');
 
 const jiti = createJiti(import.meta.url);
 const { viaPointsFor } = await jiti.import(join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'));
+
+const TENDON_XML = readFileSync(TENDON_SOURCE, 'utf8');
+
+/**
+ * Where the elbow surface sits in a reference tendon's path, as an index among its elements.
+ *
+ * Elements in order: `<site site="...">` and `<geom geom="...">`. The elbow surface is the last
+ * geom -- every unit here that has two wraps has the humeral head first and the elbow second.
+ */
+function referencePath(actuator) {
+  const block = TENDON_XML.match(
+    new RegExp(`<spatial[^>]*name="${actuator}_tendon"[\\s\\S]*?</spatial>`),
+  );
+  if (!block) {
+    throw new Error(
+      `${TENDON_FILE} has no tendon named '${actuator}_tendon'. The vendored commit may have ` +
+        'moved; check tools/validate-external/README.md before changing this mapping.',
+    );
+  }
+  const elements = [...block[0].matchAll(/<(site|geom)\s+(?:site|geom)="([^"]+)"/g)].map((m) => ({
+    kind: m[1],
+    name: m[2],
+  }));
+  let lastGeom = -1;
+  elements.forEach((e, i) => {
+    if (e.kind === 'geom') lastGeom = i;
+  });
+  return { elements, lastGeom };
+}
+
+/**
+ * The path elements for one unit: our via points, with the wrap where the reference puts it.
+ *
+ * A via point we carry knows which reference site it came from, so its place in the reference
+ * path is a lookup rather than a guess, and the wrap goes before the first via point that comes
+ * after the reference's elbow geom.
+ */
+function pathElements(unit) {
+  const { elements, lastGeom } = referencePath(unit.actuator);
+  const indexOf = (site) => elements.findIndex((e) => e.kind === 'site' && e.name === site);
+  const via = viaPointsFor(unit.id).map((p) => ({
+    kind: 'site',
+    id: p.id,
+    at: indexOf(p.referenceSite),
+  }));
+  const out = [];
+  let placed = false;
+  for (const point of via) {
+    if (!placed && lastGeom >= 0 && point.at > lastGeom) {
+      out.push({ kind: 'wrap' });
+      placed = true;
+    }
+    out.push(point);
+  }
+  if (!placed) out.push({ kind: 'wrap' });
+  return out;
+}
 
 /**
  * Which actuator becomes which unit, and which of our attachment sites it binds to.
@@ -204,15 +276,18 @@ function render() {
         origin: '${unit.origin}',
         insertion: '${unit.insertion}',
         path: [
-${viaPointsFor(unit.id)
-  .map((p) => `          { kind: 'site', site: '${p.id}' },\n`)
-  .join('')}          {
+${pathElements(unit)
+  .map((e) =>
+    e.kind === 'site'
+      ? `          { kind: 'site', site: '${e.id}' },\n`
+      : `          {
             kind: 'wrap',
             surface: '${unit.wrap}',
             preferredSide: { x: 0, y: 0, z: ${unit.side === 'extensor' ? 1 : -1} },
             source: gray('${unit.name.split(',')[0]}'),
-          },
-        ],
+          },\n`,
+  )
+  .join('')}        ],
         parameters: {
           maxIsometricForce: ${num(p.maxIsometricForce)},
           optimalFiberLength: ${num(p.optimalFiberLength)},

@@ -88,13 +88,16 @@ export function wrapRadius(bone: string, feature: string): RadiusRow {
 }
 
 /**
- * How long a wrap cylinder is made, relative to the surface measured.
+ * How long a wrap cylinder is made when it has no landmarks to span, relative to what was measured.
  *
- * The measurement covers the middle of the trochlea, which is the part a tendon bears on; the
- * bone runs a little wider than that on both sides. A cylinder cut to exactly the measured extent
- * would have tendons slipping off its rim within the joint's normal range, and a tendon that has
- * slipped off a surface stops being constrained by it -- which is a length discontinuity for no
- * anatomical reason. Half again is enough to keep the contact inside the bone it stands for.
+ * A cylinder cut to exactly the measured extent would have tendons slipping off its rim within the
+ * joint's normal range, and a tendon that has slipped off a surface stops being constrained by it
+ * -- a length discontinuity for no anatomical reason. Half again is enough to keep the contact on
+ * the bone the surface stands for.
+ *
+ * It is a fallback, and the surfaces here no longer use it: a margin is a guess where a span
+ * between two landmarks is a measurement. Both surfaces state the two landmarks the bone runs
+ * between instead.
  */
 export const LENGTH_MARGIN = 1.5;
 
@@ -135,6 +138,16 @@ function sideSpecs(s: 'l' | 'r'): SurfaceSpec[] {
       centre: { virtual: `humerus_${s}__mid_el_em` },
       feature: 'Trochlea_of_humerus__wrap_radius',
       along: 'joint',
+      // Epicondyle to epicondyle, which is how wide the bone is where the surface stands. The
+      // measured trochlear extent is narrower than that -- it covers the groove a tendon bears in,
+      // not the articular end -- and a cylinder cut to it, even with a margin, is about 29 mm
+      // long. That is shorter than the distance between the muscles that use it: the flexors
+      // cross the joint well medial and lateral of where the triceps rides, and a surface they
+      // run past instead of over is a surface that does nothing for them.
+      span: [
+        [`humerus_${s}`, 'EM'],
+        [`humerus_${s}`, 'EL'],
+      ],
       // The humerus ISB frame, exactly as `frames.ts` states it (Wu 2005, 2.3.4 option 1): Y from
       // the mid-epicondyle point up to GH, Z along the epicondyles to the right. That Z is the
       // elbow's flexion axis, which is what the cylinder has to run along.
