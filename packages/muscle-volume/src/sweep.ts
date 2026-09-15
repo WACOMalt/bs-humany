@@ -103,25 +103,31 @@ export function lengthForAspect(volume: number, aspect = MAX_WIDTH_OVER_LENGTH):
 }
 
 /**
- * How much of the path the belly covers.
+ * How much of the path the belly covers: what is left of it once the tendon is taken off.
  *
- * The obvious answer is the fiber length, and it is wrong for a pennate muscle. Optimal fiber
- * length is not belly length: in a pennate muscle the fibers are short and run at an angle inside
- * a belly that is much longer than any one of them. Brachialis is the case that shows it -- 1169 N
- * of force through 58 mm fibers, which is 150 cubic centimetres of tissue on a 58 mm belly, and a
- * spindle holding that much over that little length is 36 mm in radius: a quarter wider than it
- * is long. Drawn, it is a discus.
+ * The belly is not placed along the path so much as what remains of it, and that is the useful
+ * way round. A tendon barely changes length -- five per cent at the force that would tear the
+ * muscle off the bone -- so the point where flesh gives way to tendon sits at very nearly a fixed
+ * distance from each attachment, whatever the muscle is doing. Every millimetre the path loses
+ * comes off the belly, which is why a shortening muscle bulges: the same tissue over less length.
  *
- * So the belly takes the longer of its fiber length and whatever length keeps it from being drawn
- * wider than it is long, up to the path available. Spreading the tissue along the muscle rather
- * than piling it up across is what a pennate belly does, and it keeps the volume exactly: the
- * radius still follows from the volume and this length, so a shortening muscle still thickens.
+ * Taking the fiber length as the belly instead leaves the ends free, and they move. A muscle whose
+ * tendon has gone slack has no determined fiber length at all -- the equilibrium that fixes it
+ * needs a tendon under tension -- so its drawn belly shrinks away from both attachments and sits
+ * in the middle of a long thin cord, which is not a muscle and is not what happens.
  *
- * The three units this catches are the three most pennate in the set, which is the check that it
- * is correcting the right thing rather than just the largest.
+ * The floor is the pennate case. Optimal fiber length is not belly length: in a pennate muscle the
+ * fibers are short and run at an angle inside a belly much longer than any one of them, and taking
+ * the tendon off the path can still leave too little to hold the tissue. Brachialis is the case
+ * that shows it -- 1169 N through 58 mm fibers is 150 cubic centimetres, and a spindle holding
+ * that much over that little length is 36 mm in radius, a quarter wider than it is long. Drawn,
+ * it is a discus. So the belly is never shorter than `lengthForAspect` allows, and never longer
+ * than the path there is. Both bounds keep the volume exactly: the radius still follows from the
+ * volume and whatever length comes out.
  */
-export function bellyLength(volume: number, fiberLength: number, pathLength: number): number {
-  return Math.min(pathLength, Math.max(fiberLength, lengthForAspect(volume)));
+export function bellyLength(volume: number, pathLength: number, tendonLength: number): number {
+  const flesh = pathLength - tendonLength;
+  return Math.min(pathLength, Math.max(flesh, lengthForAspect(volume)));
 }
 
 /** A muscle's tissue volume, cubic metres, from what the fiber model already knows about it. */
@@ -236,8 +242,14 @@ export interface SweepRequest {
   readonly pointCount: number;
   /** Tissue volume, cubic metres. Constant for a given muscle. */
   readonly volume: number;
-  /** Current fiber length along the path, metres. The belly spans this much of it. */
-  readonly bellyLength: number;
+  /**
+   * How much of the path is tendon rather than belly, metres, across both ends together.
+   *
+   * The caller's, because the tendon's length is physiology and this file is geometry: the module
+   * takes it from the tendon's own force-length curve, so a slack tendon measures its slack length
+   * and a loaded one measures a few per cent more.
+   */
+  readonly tendonLength: number;
   /** Radius of the cord drawn where the tendon runs, metres. */
   readonly tendonRadius: number;
 }
@@ -290,8 +302,10 @@ export function sweepMuscle(request: SweepRequest, scratch: SweepScratch, out: S
     return;
   }
 
-  // The belly, centred, spread far enough along the path to stay longer than it is wide.
-  const belly = bellyLength(volume, request.bellyLength, total);
+  // The belly is the path less its tendon, centred -- which splits the tendon evenly between the
+  // two ends. Real tendons are not even (the long head of biceps is nearly all proximal), but one
+  // slack length is all the model carries, so there is nothing to divide unevenly by. OQ-019.
+  const belly = bellyLength(volume, total, request.tendonLength);
   const bellyStart = (total - belly) / 2;
   const radiusPeak = peakRadius(volume, belly);
 

@@ -9,6 +9,7 @@ import {
   createSweepScratch,
   createSweptMesh,
   enclosedVolume,
+  lengthForAspect,
   muscleVolume,
   peakRadius,
   perfusedVolume,
@@ -29,11 +30,11 @@ function sweep(
   points: Float64Array,
   pointCount: number,
   volume: number,
-  bellyLength: number,
+  tendonLength: number,
   mesh: SweptMesh = createSweptMesh(40, 16),
 ): SweptMesh {
   sweepMuscle(
-    { points, from: 0, pointCount, volume, bellyLength, tendonRadius: 0.002 },
+    { points, from: 0, pointCount, volume, tendonLength, tendonRadius: 0.002 },
     createSweepScratch(pointCount),
     mesh,
   );
@@ -159,7 +160,7 @@ describe('the swept mesh', () => {
   it('closes each ring, so the tube has no seam', () => {
     // The last segment of a ring has to join back to the first. A sweep that left the seam open
     // would look solid from most angles and be hollow from one.
-    const mesh = sweep(straight(0.3), 2, 1e-4, 0.2);
+    const mesh = sweep(straight(0.3), 2, 1e-4, 0.1);
     const ring = 10;
     const first = 3 * (ring * mesh.segments);
     const last = 3 * (ring * mesh.segments + mesh.segments - 1);
@@ -179,7 +180,7 @@ describe('the swept mesh', () => {
   });
 
   it('follows the path it was given', () => {
-    const mesh = sweep(straight(0.3), 2, 1e-4, 0.2);
+    const mesh = sweep(straight(0.3), 2, 1e-4, 0.1);
     // Every vertex sits on the path's own axis, offset by its radius.
     for (let i = 0; i < mesh.vertexCount; i++) {
       const x = mesh.position[3 * i] as number;
@@ -189,7 +190,7 @@ describe('the swept mesh', () => {
   });
 
   it('is fattest in the middle and thin at the ends', () => {
-    const mesh = sweep(straight(0.3), 2, 1e-4, 0.2);
+    const mesh = sweep(straight(0.3), 2, 1e-4, 0.1);
     const radiusAt = (ring: number) => {
       const v = 3 * ring * mesh.segments;
       return Math.hypot(mesh.position[v + 1] as number, mesh.position[v + 2] as number);
@@ -204,7 +205,7 @@ describe('the swept mesh', () => {
     // placed them. A drawn muscle that did not hold the volume it was given would bulge by some
     // other rule than the one claimed.
     const volume = 1e-4;
-    const mesh = sweep(straight(0.3), 2, volume, 0.2, createSweptMesh(200, 48));
+    const mesh = sweep(straight(0.3), 2, volume, 0.1, createSweptMesh(200, 48));
     // The tendon cord adds a little either side of the belly, and a faceted tube is slightly
     // inside the smooth one it approximates.
     expect(enclosedVolume(mesh)).toBeGreaterThan(volume * 0.95);
@@ -223,14 +224,14 @@ describe('the swept mesh', () => {
     // enclosed volumes would show the belly growing when it is the cord that lengthened.
     const cordVolume = (belly: number) => Math.PI * cord * cord * (path - belly);
 
-    const long = sweep(straight(path), 2, volume, 0.24, createSweptMesh(200, 48));
+    const long = sweep(straight(path), 2, volume, path - 0.24, createSweptMesh(200, 48));
     const longVolume = enclosedVolume(long) - cordVolume(0.24);
     const longRadius = Math.hypot(
       long.position[3 * Math.floor(long.rings / 2) * long.segments + 1] as number,
       long.position[3 * Math.floor(long.rings / 2) * long.segments + 2] as number,
     );
 
-    const short = sweep(straight(path), 2, volume, 0.12, createSweptMesh(200, 48));
+    const short = sweep(straight(path), 2, volume, path - 0.12, createSweptMesh(200, 48));
     const shortVolume = enclosedVolume(short) - cordVolume(0.12);
     const shortRadius = Math.hypot(
       short.position[3 * Math.floor(short.rings / 2) * short.segments + 1] as number,
@@ -246,7 +247,7 @@ describe('the swept mesh', () => {
     // A frame rebuilt from a world axis at each ring flips as the path turns through that axis,
     // which reads as the muscle twisting about itself. Carried, the reference direction changes
     // only as much as the tangent forces it to.
-    const mesh = sweep(bent(), 4, 1e-4, 0.3, createSweptMesh(60, 16));
+    const mesh = sweep(bent(), 4, 1e-4, 0.15, createSweptMesh(60, 16));
     let worst = 0;
     for (let ring = 1; ring < mesh.rings; ring++) {
       const a = 3 * ((ring - 1) * mesh.segments);
@@ -277,9 +278,10 @@ describe('the swept mesh', () => {
   });
 
   it('never lets the belly outgrow the path it runs along', () => {
-    // Asked for a belly longer than the whole muscle -- which a fiber length can be, briefly,
-    // when a tendon has gone slack -- the sweep fits it to the path instead of running off it.
-    const mesh = sweep(straight(0.1), 2, 1e-4, 0.5);
+    // A litre of tissue on a ten-centimetre path: the aspect floor wants a belly nearly twice
+    // the path to hold it without a discus, and cannot have one. The sweep fits the belly to the
+    // path instead of running off the end of it.
+    const mesh = sweep(straight(0.1), 2, 1e-3, 0.02);
     for (let i = 0; i < mesh.vertexCount; i++) {
       const x = mesh.position[3 * i] as number;
       expect(x).toBeGreaterThanOrEqual(-1e-6);
@@ -288,7 +290,7 @@ describe('the swept mesh', () => {
   });
 
   it('points every normal outward from the path', () => {
-    const mesh = sweep(straight(0.3), 2, 1e-4, 0.2);
+    const mesh = sweep(straight(0.3), 2, 1e-4, 0.1);
     for (let ring = 1; ring < mesh.rings - 1; ring++) {
       const centre = ringCentre(mesh, ring);
       for (let s = 0; s < mesh.segments; s++) {
@@ -336,25 +338,76 @@ function dot(a: number[], b: number[]): number {
   );
 }
 
-describe('a pennate belly, which is longer than its fibers', () => {
-  // Brachialis, as the elbow set carries it: 1169 N of force through 58 mm fibers. The force is
-  // large because the muscle is pennate, and a pennate muscle's belly is far longer than any one
-  // of its fibers -- so taking the fiber length as the belly length piles the tissue across the
-  // muscle instead of along it.
+describe('where the belly starts and ends', () => {
+  // Brachialis, as the elbow set carries it: 1169 N through 58 mm fibers on a 76 mm tendon. The
+  // force is large because the muscle is pennate, and a pennate muscle's belly is far longer than
+  // any one of its fibers.
   const volume = muscleVolume(1169, 0.0576);
   const fibers = 0.0576;
+  const tendon = 0.0757;
+
+  it('takes the tendon off the path and keeps the rest', () => {
+    expect(bellyLength(volume, 0.3, 0.1)).toBeCloseTo(0.2, 12);
+    expect(bellyLength(volume, 0.25, 0.05)).toBeCloseTo(0.2, 12);
+  });
+
+  it('holds its ends still while the path shortens under them', () => {
+    // The fault this fixes, and the one thing a viewer notices: with the belly floating at the
+    // fiber length, a contracting muscle pulled away from both its attachments and sat in the
+    // middle of a long cord like a ball in a tube. Anchored to the tendon, the flesh begins the
+    // same distance from the bone at every length, and every millimetre the path loses comes off
+    // the belly -- which is the bulge.
+    const biceps = muscleVolume(422, 0.1272);
+    for (const path of [0.42, 0.41, 0.4, 0.39, 0.38, 0.37]) {
+      const belly = bellyLength(biceps, path, 0.2767);
+      expect(path - belly, `path ${path}`).toBeCloseTo(0.2767, 12);
+    }
+  });
+
+  it('stops shortening at the aspect floor rather than piling up across', () => {
+    // The one place the ends do move, and it is bounded: a belly already as wide as the floor
+    // allows cannot take any more of the path off its length, so what is left of the shortening
+    // goes to the tendon drawn either side. The long head of biceps reaches that only near full
+    // flexion, and the three pennate units sit against it the whole time.
+    const biceps = muscleVolume(422, 0.1272);
+    const floor = bellyLength(biceps, 0.34, 0.2767);
+    expect(floor).toBeCloseTo(lengthForAspect(biceps), 12);
+    expect(floor).toBeGreaterThan(0.34 - 0.2767);
+    expect((2 * peakRadius(biceps, floor)) / floor).toBeCloseTo(MAX_WIDTH_OVER_LENGTH, 9);
+  });
+
+  it('gives a slack tendon a belly rather than a ball on a string', () => {
+    // A slack tendon carries no force, and the equilibrium that fixes a fiber length needs one --
+    // so a slack muscle's fiber length is not a length to draw anything from. The tendon's own
+    // is, because a slack tendon measures exactly its slack length.
+    const biceps = muscleVolume(422, 0.1272);
+    const belly = bellyLength(biceps, 0.4, 0.2767);
+    expect(belly).toBeGreaterThan(0.1);
+    expect(belly / 0.4).toBeGreaterThan(0.25);
+  });
+
+  it('still thickens as the path shortens, which is the whole point of the tier', () => {
+    const biceps = muscleVolume(422, 0.1272);
+    const long = peakRadius(biceps, bellyLength(biceps, 0.4, 0.2767));
+    const short = peakRadius(biceps, bellyLength(biceps, 0.38, 0.2767));
+    expect(short).toBeGreaterThan(long);
+    // Volume over a shorter belly: the radius goes as the inverse square root of the length, and
+    // the length is the path's, so two centimetres off the path is two off the belly.
+    expect(short / long).toBeCloseTo(Math.sqrt((0.4 - 0.2767) / (0.38 - 0.2767)), 9);
+  });
 
   it('would be drawn wider than long if the fiber length were taken as the belly', () => {
-    // The bug this fixes, stated as the arithmetic that produced it: a quarter wider than it is
-    // long, which is a discus and not a muscle.
+    // The other half of the same fault, stated as the arithmetic that produced it: a quarter
+    // wider than it is long, which is a discus and not a muscle.
     const naive = peakRadius(volume, fibers);
     expect((2 * naive) / fibers).toBeGreaterThan(1.2);
   });
 
-  it('spreads along the path instead, and comes out longer than it is wide', () => {
-    const path = 0.25;
-    const belly = bellyLength(volume, fibers, path);
-    expect(belly).toBeGreaterThan(fibers);
+  it('spreads a pennate belly along the path instead, up to the aspect limit', () => {
+    // Brachialis on a short path: taking the tendon off leaves too little to hold the tissue, so
+    // the floor takes over and the belly is drawn no wider than it is long.
+    const belly = bellyLength(volume, 0.16, tendon);
+    expect(belly).toBeGreaterThan(0.16 - tendon);
     const radius = peakRadius(volume, belly);
     expect((2 * radius) / belly).toBeCloseTo(MAX_WIDTH_OVER_LENGTH, 6);
   });
@@ -362,31 +415,23 @@ describe('a pennate belly, which is longer than its fibers', () => {
   it('lands on a belly length a real brachialis has', () => {
     // Not a coincidence worth passing over: the rule is about drawing, and the length it picks
     // for the most pennate muscle in the set is the length that muscle actually is.
-    expect(bellyLength(volume, fibers, 0.25)).toBeGreaterThan(0.085);
-    expect(bellyLength(volume, fibers, 0.25)).toBeLessThan(0.12);
+    expect(bellyLength(volume, 0.16, tendon)).toBeGreaterThan(0.085);
+    expect(bellyLength(volume, 0.16, tendon)).toBeLessThan(0.12);
   });
 
-  it('leaves a fusiform muscle exactly as it was', () => {
-    // The long head of biceps: 422 N through 127 mm fibers, which is already slimmer than the
-    // limit. A rule that also moved these would be changing what it was not asked to.
+  it('leaves a fusiform muscle to its tendon, with no floor in the way', () => {
+    // The long head of biceps: already slimmer than the limit at the length its tendon leaves it,
+    // so the aspect floor never binds. A rule that also moved these would be changing what it was
+    // not asked to.
     const biceps = muscleVolume(422, 0.1272);
-    expect(bellyLength(biceps, 0.1272, 0.35)).toBe(0.1272);
-    expect((2 * peakRadius(biceps, 0.1272)) / 0.1272).toBeLessThan(MAX_WIDTH_OVER_LENGTH);
-  });
-
-  it('still thickens as the muscle shortens, which the spreading must not undo', () => {
-    // The fix must not cost the bulge. Once the belly is past the aspect limit the fiber length is
-    // what sets it again, and the radius follows the volume as before.
-    const path = 0.35;
-    const biceps = muscleVolume(422, 0.1272);
-    const long = peakRadius(biceps, bellyLength(biceps, 0.13, path));
-    const short = peakRadius(biceps, bellyLength(biceps, 0.09, path));
-    expect(short).toBeGreaterThan(long);
+    const belly = bellyLength(biceps, 0.4, 0.2767);
+    expect(belly).toBeCloseTo(0.4 - 0.2767, 12);
+    expect((2 * peakRadius(biceps, belly)) / belly).toBeLessThan(MAX_WIDTH_OVER_LENGTH);
   });
 
   it('never runs the belly off the end of the path', () => {
-    // A short path cannot hold a long belly, and the aspect rule must not make it try.
-    const path = 0.06;
-    expect(bellyLength(volume, fibers, path)).toBe(path);
+    // A short path cannot hold a long belly, and neither rule may make it try.
+    expect(bellyLength(volume, 0.06, tendon)).toBe(0.06);
+    expect(bellyLength(volume, 0.06, 0)).toBe(0.06);
   });
 });

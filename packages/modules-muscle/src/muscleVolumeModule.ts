@@ -16,7 +16,9 @@
  *
  * From geometry and conservation, not from simulating flesh -- that is N4.3. A belly holding a
  * given volume over a shorter length has to be thicker, and both quantities are already known:
- * the fiber length from `muscle.state`, the volume from the muscle's own parameters. On top of
+ * the volume from the muscle's own parameters, the length from the path less its tendon. The
+ * tendon is what fixes where the belly begins and ends, and it is nearly inextensible, so the
+ * path's every change lands on the belly and the flesh stays put against the bone. On top of
  * that sits a small perfusion term, because a belly is not only tissue: shortening under load
  * pumps blood out and lengthening under load does not, so a concentric contraction measures
  * slightly smaller than an eccentric one. Held at length, nothing moves.
@@ -36,6 +38,7 @@ import type {
   ModuleStepContext,
   SimModule,
 } from '@bs-humany/kernel';
+import { inverseTendonForceLength } from '@bs-humany/muscle-model';
 import {
   type SweepScratch,
   type SweptMesh,
@@ -87,8 +90,10 @@ export class MuscleVolumeModule implements SimModule {
   private readonly units: number;
   /** Tissue volume of each unit, cubic metres. A constant of the muscle. */
   private readonly tissue: Float64Array;
-  /** Optimal fiber length of each unit, metres, for turning the normalised length into one. */
-  private readonly optimalFiber: Float64Array;
+  /** Tendon slack length of each unit, metres: the length a tendon has when it is carrying nothing. */
+  private readonly tendonSlack: Float64Array;
+  /** Maximum isometric force of each unit, newtons, for normalising the tendon force. */
+  private readonly maxForce: Float64Array;
 
   /** One mesh, swept for each unit in turn into the channel. */
   private readonly mesh: SweptMesh;
@@ -97,9 +102,9 @@ export class MuscleVolumeModule implements SimModule {
   private point: Float64Array | undefined;
   private pointStart: Int32Array | undefined;
   private pointCount: Int32Array | undefined;
-  private fiberLength: Float64Array | undefined;
   private fiberVelocity: Float64Array | undefined;
   private activation: Float64Array | undefined;
+  private tendonForce: Float64Array | undefined;
   private outPosition: Float64Array | undefined;
   private outNormal: Float64Array | undefined;
 
@@ -119,12 +124,14 @@ export class MuscleVolumeModule implements SimModule {
     this.index = this.mesh.index;
 
     this.tissue = new Float64Array(this.units);
-    this.optimalFiber = new Float64Array(this.units);
+    this.tendonSlack = new Float64Array(this.units);
+    this.maxForce = new Float64Array(this.units);
     for (let i = 0; i < this.units; i++) {
       const p = muscles.units[i]?.parameters;
       if (!p) continue;
       this.tissue[i] = muscleVolume(p.maxIsometricForce, p.optimalFiberLength);
-      this.optimalFiber[i] = p.optimalFiberLength;
+      this.tendonSlack[i] = p.tendonSlackLength;
+      this.maxForce[i] = p.maxIsometricForce;
     }
 
     // Sized to the longest path any unit can produce, so one scratch serves them all.
@@ -163,9 +170,9 @@ export class MuscleVolumeModule implements SimModule {
     this.pointCount = path.fields.pointCount as Int32Array;
     this.point = ctx.read(MUSCLE_POLYLINE).fields.point as Float64Array;
     const state = ctx.read(MUSCLE_STATE);
-    this.fiberLength = state.fields.fiberLength as Float64Array;
     this.fiberVelocity = state.fields.fiberVelocity as Float64Array;
     this.activation = state.fields.activation as Float64Array;
+    this.tendonForce = state.fields.tendonForce as Float64Array;
     const out = ctx.write(RENDER_MUSCLE_MESH);
     this.outPosition = out.fields.position as Float64Array;
     this.outNormal = out.fields.normal as Float64Array;
@@ -175,27 +182,29 @@ export class MuscleVolumeModule implements SimModule {
     const point = this.point;
     const start = this.pointStart;
     const count = this.pointCount;
-    const fiberLength = this.fiberLength;
     const fiberVelocity = this.fiberVelocity;
     const activation = this.activation;
+    const tendonForce = this.tendonForce;
     const outPosition = this.outPosition;
     const outNormal = this.outNormal;
-    if (!point || !start || !count || !fiberLength || !fiberVelocity || !activation) return;
+    if (!point || !start || !count || !tendonForce || !fiberVelocity || !activation) return;
     if (!outPosition || !outNormal) return;
 
     const stride = this.mesh.vertexCount;
     for (let i = 0; i < this.units; i++) {
-      // What the fibers measure, in metres: `muscle.state` publishes the length normalised, so
-      // the optimal fiber length turns it back. It is the belly's lower bound rather than its
-      // length -- a pennate belly is far longer than its fibers, and `sweepMuscle` spreads it.
-      const fibers = (fiberLength[i] as number) * (this.optimalFiber[i] as number);
+      // How much of the path is tendon, from the tendon's own force-length curve: a tendon
+      // carrying nothing measures exactly its slack length, and a tendon at its maximum force
+      // measures about five per cent more. That is the whole range, which is the point -- it is
+      // what keeps the belly's ends against the bone while the path shortens under them.
+      const tendon =
+        (this.tendonSlack[i] as number) * this.tendonStretch(i, tendonForce[i] as number);
       const volume = perfusedVolume(
         this.tissue[i] as number,
         activation[i] as number,
         fiberVelocity[i] as number,
       );
 
-      this.sweepInto(i, fibers, volume);
+      this.sweepInto(i, tendon, volume);
 
       const at = 3 * i * stride;
       for (let v = 0; v < 3 * stride; v++) {
@@ -205,8 +214,23 @@ export class MuscleVolumeModule implements SimModule {
     }
   }
 
+  /**
+   * How far past slack this unit's tendon is stretched, as a multiple of its slack length.
+   *
+   * The inverse of the tendon curve the dynamics itself solves against, so the two cannot drift:
+   * zero force gives exactly 1, and the curve is steep enough that the whole working range is
+   * within a few per cent of it. A negative force would be a tendon pushing, which is not a thing
+   * a tendon does; it is clamped rather than trusted.
+   */
+  private tendonStretch(unit: number, force: number): number {
+    const maximum = this.maxForce[unit] as number;
+    if (!(maximum > 0)) return 1;
+    const normalised = force > 0 ? force / maximum : 0;
+    return inverseTendonForceLength(normalised);
+  }
+
   /** Sweep one unit into the shared mesh. Split out so `step` reads as what it does. */
-  private sweepInto(unit: number, bellyLength: number, volume: number): void {
+  private sweepInto(unit: number, tendonLength: number, volume: number): void {
     const point = this.point as Float64Array;
     const start = this.pointStart as Int32Array;
     const count = this.pointCount as Int32Array;
@@ -217,7 +241,7 @@ export class MuscleVolumeModule implements SimModule {
         from: start[unit] as number,
         pointCount: count[unit] as number,
         volume,
-        bellyLength,
+        tendonLength,
         tendonRadius: this.tendonRadius,
       },
       this.scratch,

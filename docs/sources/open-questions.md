@@ -340,3 +340,23 @@ incompressible idealisation simply does not apply it.
 **Closes when:** a figure with a stated measurement method is cited, or the effect is judged not
 worth drawing and the modulation is removed rather than left at a guess.
 **Status:** open
+
+### OQ-019 — How a muscle's tendon divides between its two ends
+**Needed for:** `packages/muscle-volume/src/sweep.ts`
+**Provisional value:** half at each end. The swept belly is the path less its tendon, which is
+what puts the flesh where it belongs and holds it there while the path shortens -- but the
+musculotendon model carries one tendon slack length per unit, not one per end, so there is a
+total to place and nothing in the parameters to divide it by. Centring the belly splits it evenly.
+
+That is wrong for several muscles in this set and it is wrong visibly. The long head of biceps is
+the clear case: almost all of its tendon is proximal, running over the humeral head and down the
+bicipital groove, while the distal tendon to the radial tuberosity is short. Drawn evenly, its
+belly sits a few centimetres lower on the arm than it should.
+
+Nothing downstream depends on it: Tier V writes only to the render channel (M-ADR-004), the
+moment arm comes from the path and not from where the flesh is drawn along it, and the belly's
+length -- which is what sets its thickness -- does not change with how the tendon is divided.
+**Closes when:** the muscle geometry carries a tendon length per end, either from an anatomical
+asset pack whose muscle meshes show where the belly actually begins (section 9.4) or from a source
+that reports proximal and distal tendon lengths separately.
+**Status:** open
