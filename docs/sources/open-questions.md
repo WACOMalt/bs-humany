@@ -522,11 +522,32 @@ arithmetic; the pair they are derived from does not mean what it means elsewhere
 Two of these actuators are written the other way and confirm the reading: anconeus and supinator
 are `<general>`, and their derived fiber lengths are 26 mm and 36 mm against a published 27 and 33.
 
-**What could settle it.** The spec already names the source -- N2.5 is "upper-limb parameter set
-from Holzbaur 2005" -- and `holzbaur2005` is in the bibliography as T1. What is not here is the
-data: the paper's tables are not vendored the way MyoSuite's XML is, so transcribing from it means
-typing numbers from memory, which is the thing citations exist to prevent. Vendoring the model
-file it describes would settle the forearm, the hand and OQ-014's pennation angles together.
+**What could settle it, and why neither candidate can, 2026-09-16.** The spec names the source --
+N2.5 is "upper-limb parameter set from Holzbaur 2005" -- and `holzbaur2005` is in the bibliography
+as T1. The paper's tables are not vendored the way MyoSuite's XML is, so the model file it
+describes was the obvious thing to vendor. It cannot be, and neither can the alternative. Both
+were checked against the process in `tools/validate-external/README.md`.
+
+*MoBL-ARMS, the model Holzbaur 2005 and Saul 2015 describe.* Its licence, carried beside the model
+as `license.txt`, reads: "open sourced solely for non-commercial purposes ... commercial use
+requires a commercial license." That is the MyoSkeleton case exactly, and ADR-009 and ADR-011 have
+already decided it: Share-Alike requires every derivative to permit commercial use and a
+non-commercial licence forbids it, so the two cannot coexist in one work, and a single copied value
+would make the CC BY-SA skeleton data undistributable under either licence. The reason is not
+commerce. It is that the two licences cannot be combined.
+
+*`opensim-org/opensim-models`, which carries the Gonzalez, Buchanan and Delp (1997) wrist model.*
+That model is the right shape -- twenty-five muscles of the forearm and hand with optimal fiber
+length, pennation angle, tendon slack length and peak force stated for every one, which would have
+settled the wrist and most of the hand. There is no licence file anywhere in that repository's
+tree. The OpenSim application itself is Apache-2.0 and the models are described as distributed
+with it, but that is an inference and not a grant, and vendoring on an inference is what the
+process exists to stop.
+
+What either could still be is a *behavioural oracle*: read from a path a developer gives in an
+environment variable, compared against, never committed and never transcribed, which is exactly
+how MyoSkeleton is handled. That would let a travel-derived fiber length be checked against a real
+architecture dataset without a value ever crossing.
 
 **The other option, and it is a decision rather than a fix.** Fiber length could be derived the way
 this project derives everything else, from travel: a muscle whose path travels a given distance
@@ -537,9 +558,11 @@ travel over 0.7 is unbiased: median ratio 0.96, 33 of 54 within a factor of 1.5 
 2. That is a stand-in good to about fifty per cent on any one muscle, which is far better than the
 default range gives and is not a transcription. Peak force would still be the source's, and force
 is most of what a muscle does.
-**Closes when:** a source that states upper-limb architecture is vendored, or the travel-derived
-fiber length is accepted for the actuators the source leaves silent.
-**Status:** open, and blocking the wrist, the forearm and the hand.
+**Closes when:** a source that states upper-limb architecture *and may be redistributed alongside
+CC BY-SA data* is found and vendored, or the travel-derived fiber length is accepted for the
+actuators the source leaves silent.
+**Status:** open, and blocking the wrist, the forearm and the hand. The vendoring route is closed
+until a permissively licensed model turns up.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4
