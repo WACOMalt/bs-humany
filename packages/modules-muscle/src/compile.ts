@@ -51,6 +51,12 @@ export interface CompiledMuscleUnit {
    * @see deriveOptimalFiberLength
    */
   readonly statedOptimalFiberLength: number;
+  /**
+   * Where the joints this muscle crosses lie along its path, as fractions from the origin.
+   *
+   * @see jointCrossings
+   */
+  readonly jointCrossings: readonly number[];
 }
 
 export interface CompiledMuscleSet {
@@ -224,6 +230,11 @@ export function compileMuscleSet(
         restLength,
         statedTendonSlackLength,
         statedOptimalFiberLength,
+        jointCrossings: jointCrossings(
+          paths[paths.length - 1] as MusclePath,
+          articulation,
+          resolver,
+        ),
         parameters: {
           maxIsometricForce: scalar(p.maxIsometricForce, context),
           optimalFiberLength,
@@ -488,30 +499,51 @@ export function fittedTendonSlack(
  * Wrapping is not solved here: see `fittedTendonSlack` for why a straight run through the via
  * points is enough for what this is used for.
  */
+/** A point of a bone, placed in the world at the rest pose. */
+function restWorldPoint(
+  bone: string,
+  point: Vec3,
+  articulation: CompiledArticulation,
+  resolver: BoneResolver,
+): Vec3 {
+  const segment = articulation.segments[resolver.bodyOf(bone)];
+  if (!segment) return point;
+  const local = resolver.toBodyLocal(bone, point);
+  const { translation: t, rotation: q } = segment.restWorld;
+  const tx = 2 * (q.y * local.z - q.z * local.y);
+  const ty = 2 * (q.z * local.x - q.x * local.z);
+  const tz = 2 * (q.x * local.y - q.y * local.x);
+  return {
+    x: t.x + local.x + q.w * tx + (q.y * tz - q.z * ty),
+    y: t.y + local.y + q.w * ty + (q.z * tx - q.x * tz),
+    z: t.z + local.z + q.w * tz + (q.x * ty - q.y * tx),
+  };
+}
+
+/** The path's points at the rest pose, origin first and insertion last. */
+function restPathPoints(
+  path: MusclePath,
+  articulation: CompiledArticulation,
+  resolver: BoneResolver,
+): Vec3[] {
+  const points: Vec3[] = [
+    restWorldPoint(path.origin.bone, path.origin.point, articulation, resolver),
+  ];
+  for (const element of path.elements) {
+    if (element.kind === 'viaPoint') {
+      points.push(restWorldPoint(element.site.bone, element.site.point, articulation, resolver));
+    }
+  }
+  points.push(restWorldPoint(path.insertion.bone, path.insertion.point, articulation, resolver));
+  return points;
+}
+
 function restPathLength(
   path: MusclePath,
   articulation: CompiledArticulation,
   resolver: BoneResolver,
 ): number {
-  const world = (bone: string, point: Vec3): Vec3 => {
-    const segment = articulation.segments[resolver.bodyOf(bone)];
-    if (!segment) return point;
-    const local = resolver.toBodyLocal(bone, point);
-    const { translation: t, rotation: q } = segment.restWorld;
-    const tx = 2 * (q.y * local.z - q.z * local.y);
-    const ty = 2 * (q.z * local.x - q.x * local.z);
-    const tz = 2 * (q.x * local.y - q.y * local.x);
-    return {
-      x: t.x + local.x + q.w * tx + (q.y * tz - q.z * ty),
-      y: t.y + local.y + q.w * ty + (q.z * tx - q.x * tz),
-      z: t.z + local.z + q.w * tz + (q.x * ty - q.y * tx),
-    };
-  };
-  const points: Vec3[] = [world(path.origin.bone, path.origin.point)];
-  for (const element of path.elements) {
-    if (element.kind === 'viaPoint') points.push(world(element.site.bone, element.site.point));
-  }
-  points.push(world(path.insertion.bone, path.insertion.point));
+  const points = restPathPoints(path, articulation, resolver);
   let total = 0;
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1] as Vec3;
@@ -519,6 +551,134 @@ function restPathLength(
     total += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
   }
   return total;
+}
+
+/** Every segment from `segment` up to the root, nearest first. */
+function ancestry(articulation: CompiledArticulation, segment: number): number[] {
+  const chain: number[] = [];
+  for (let at = segment; at >= 0; at = articulation.segments[at]?.parent ?? -1) {
+    chain.push(at);
+    if (chain.length > articulation.segments.length) break;
+  }
+  return chain;
+}
+
+/**
+ * Where along a muscle's path the joints it crosses lie, as fractions of the path.
+ *
+ * A muscle runs from one segment to another, and the joints between them are the ones it crosses:
+ * the segments from each end up to their common ancestor, and the joint that carries each of them.
+ * Each joint's rest position is its frame in its parent segment, placed in the world.
+ */
+function crossingFractions(
+  path: MusclePath,
+  articulation: CompiledArticulation,
+  resolver: BoneResolver,
+): number[] {
+  const from = resolver.bodyOf(path.origin.bone);
+  const to = resolver.bodyOf(path.insertion.bone);
+  if (from < 0 || to < 0) return [];
+  const up = ancestry(articulation, from);
+  const down = ancestry(articulation, to);
+  const shared = new Set(up);
+  const common = down.find((segment) => shared.has(segment)) ?? -1;
+  const spanned = new Set<number>();
+  for (const chain of [up, down]) {
+    for (const segment of chain) {
+      if (segment === common) break;
+      spanned.add(segment);
+    }
+  }
+  // The joint that carries a segment is the one it is the child of.
+  const centres: Vec3[] = [];
+  for (const joint of articulation.joints) {
+    if (!spanned.has(joint.childSegment)) continue;
+    // A joint with no coordinates is a weld, and a belly may lie across a weld: the two bones do
+    // not move against each other, so there is nothing for a tendon to accommodate. The foot is
+    // full of them -- the midfoot and forefoot are segments of their own with no coordinates at
+    // this profile -- and counting them chopped the sole into stretches that are not joints.
+    if (joint.dofs.length === 0) continue;
+    const parent = articulation.segments[joint.parentSegment];
+    if (!parent) continue;
+    const { translation: t, rotation: q } = parent.restWorld;
+    const l = joint.frameInParent.translation;
+    const tx = 2 * (q.y * l.z - q.z * l.y);
+    const ty = 2 * (q.z * l.x - q.x * l.z);
+    const tz = 2 * (q.x * l.y - q.y * l.x);
+    centres.push({
+      x: t.x + l.x + q.w * tx + (q.y * tz - q.z * ty),
+      y: t.y + l.y + q.w * ty + (q.z * tx - q.x * tz),
+      z: t.z + l.z + q.w * tz + (q.x * ty - q.y * tx),
+    });
+  }
+  if (centres.length === 0) return [];
+
+  const points = restPathPoints(path, articulation, resolver);
+  const arc: number[] = [0];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1] as Vec3;
+    const b = points[i] as Vec3;
+    arc.push((arc[i - 1] as number) + Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z));
+  }
+  const total = arc[arc.length - 1] as number;
+  if (!(total > 0)) return [];
+
+  // Each joint, at the nearest point of the path to it.
+  const fractions: number[] = [];
+  for (const centre of centres) {
+    let best = Number.POSITIVE_INFINITY;
+    let at = 0;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1] as Vec3;
+      const b = points[i] as Vec3;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dz = b.z - a.z;
+      const span = dx * dx + dy * dy + dz * dz;
+      const t =
+        span > 0
+          ? Math.min(
+              1,
+              Math.max(
+                0,
+                ((centre.x - a.x) * dx + (centre.y - a.y) * dy + (centre.z - a.z) * dz) / span,
+              ),
+            )
+          : 0;
+      const distance = Math.hypot(
+        a.x + dx * t - centre.x,
+        a.y + dy * t - centre.y,
+        a.z + dz * t - centre.z,
+      );
+      if (distance < best) {
+        best = distance;
+        at = (arc[i - 1] as number) + Math.sqrt(span) * t;
+      }
+    }
+    fractions.push(at / total);
+  }
+  return fractions.sort((a, b) => a - b);
+}
+
+/**
+ * Where the joints a muscle crosses lie along its path, as fractions from the origin, in order.
+ *
+ * What this is for is drawing. A muscle belly does not lie across a joint -- tendon does, and that
+ * is what tendon is for: it is why the fleshy part of a calf stops well above the heel and the
+ * fleshy part of a forearm stops well above the wrist. `bellyPlacement` slides the belly clear of
+ * these, and nothing else in the model reads them.
+ *
+ * Measured once, at the rest pose, and carried as fractions. The joints move as the body does and
+ * the fractions do not follow, which is the approximation: a knee at four per cent of the path
+ * with the leg straight is at five with it bent. It reaches a render channel only (M-ADR-004), and
+ * no force depends on any of it.
+ */
+export function jointCrossings(
+  path: MusclePath,
+  articulation: CompiledArticulation,
+  resolver: BoneResolver,
+): number[] {
+  return crossingFractions(path, articulation, resolver);
 }
 
 /**

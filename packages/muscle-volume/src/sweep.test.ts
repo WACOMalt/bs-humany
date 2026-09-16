@@ -5,6 +5,7 @@ import {
   SPECIFIC_TENSION,
   type SweptMesh,
   bellyLength,
+  bellyPlacement,
   bellyProfile,
   createSweepScratch,
   createSweptMesh,
@@ -337,6 +338,60 @@ function dot(a: number[], b: number[]): number {
     (a[2] as number) * (b[2] as number)
   );
 }
+
+describe('placing the belly off the joints its muscle crosses', () => {
+  // A muscle belly does not lie across a joint. Tendon does, which is what tendon is for.
+
+  it('leaves a belly that already clears everything exactly where it was', () => {
+    // The long head of biceps, near enough: a 124 mm belly on a 479 mm path with the shoulder at
+    // 15 per cent and the elbow at 85. It straddles neither, so it does not move.
+    expect(bellyPlacement(0.479, 0.124, [0.15, 0.85, 0.9])).toBeCloseTo((0.479 - 0.124) / 2, 12);
+  });
+
+  it('slides a belly off a joint, by as little as it takes', () => {
+    // Piriformis: a 75 mm belly on a 183 mm path with the hip at 64 per cent. Centred it runs from
+    // 54 to 129 and the hip is at 117, inside it. The nearest clear stretch is everything before
+    // the hip, so the belly ends there.
+    const start = bellyPlacement(0.183, 0.075, [0.64]);
+    expect(start + 0.075).toBeCloseTo(0.64 * 0.183, 9);
+    expect(start).toBeLessThan((0.183 - 0.075) / 2);
+  });
+
+  it('takes the near side when a joint could be cleared either way', () => {
+    const total = 1;
+    const belly = 0.2;
+    // A joint just past the middle: going back is the shorter move.
+    const start = bellyPlacement(total, belly, [0.55]);
+    expect(start + belly).toBeCloseTo(0.55, 9);
+    // And just before it, going forward is.
+    expect(bellyPlacement(total, belly, [0.45])).toBeCloseTo(0.45, 9);
+  });
+
+  it('keeps the middle for a belly that fits in no clear stretch', () => {
+    // Sartorius: four fifths of its own path, with the hip at 15 per cent and the knee at 80. It
+    // fits nowhere, and an earlier rule that slid it off one joint at a time jammed it against the
+    // origin having cleared one of the two. A muscle that long against its bones does lie over a
+    // joint, and saying so beats moving it somewhere equally wrong.
+    expect(bellyPlacement(0.631, 0.503, [0.15, 0.8])).toBeCloseTo((0.631 - 0.503) / 2, 12);
+    // Brachialis, likewise: nine tenths of its path.
+    expect(bellyPlacement(0.125, 0.112, [0.5])).toBeCloseTo((0.125 - 0.112) / 2, 12);
+  });
+
+  it('centres a muscle that crosses nothing, and one nobody measured', () => {
+    expect(bellyPlacement(0.3, 0.1, [])).toBeCloseTo(0.1, 12);
+    expect(bellyPlacement(0.3, 0.1, undefined)).toBeCloseTo(0.1, 12);
+  });
+
+  it('never puts the belly off the end of the path', () => {
+    for (const crossings of [[0.01], [0.99], [0.01, 0.99], [0.4, 0.5, 0.6]]) {
+      for (const belly of [0.05, 0.2, 0.5, 0.9]) {
+        const start = bellyPlacement(1, belly, crossings);
+        expect(start, `${belly} over ${crossings.join()}`).toBeGreaterThanOrEqual(0);
+        expect(start + belly, `${belly} over ${crossings.join()}`).toBeLessThanOrEqual(1 + 1e-12);
+      }
+    }
+  });
+});
 
 describe('where the belly starts and ends', () => {
   // Brachialis, as the elbow set carries it: 1169 N through 58 mm fibers on a 76 mm tendon. The

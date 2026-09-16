@@ -79,6 +79,59 @@ export function bellyProfile(t: number): number {
   return Math.sqrt(Math.sin(Math.PI * Math.min(1, Math.max(0, t))));
 }
 
+/**
+ * Where along the path the belly starts, metres from the origin.
+ *
+ * A muscle belly does not lie across a joint. Tendon does -- that is what tendon is for, and it is
+ * why the fleshy part of a calf stops well above the heel and the fleshy part of a forearm well
+ * above the wrist. So the belly is slid off any joint its muscle crosses.
+ *
+ * It is slid as little as possible, and that restraint is the whole design. Where a belly sits
+ * *within* a clear stretch is not something this knows: a gastrocnemius has its flesh at the top
+ * of the calf and a soleus rather lower, and nothing in the model says which. What the model does
+ * say is where the joints are, so the rule enforces that one fact and leaves the rest alone. A
+ * belly that already clears every joint does not move at all.
+ *
+ * Two alternatives were tried and both were worse. Centring the belly in the *longest* clear
+ * stretch moved thirty-nine muscles of fifty-four, including ones that were already right, and put
+ * flexor digitorum longus's flesh in the sole of the foot, because the sole is the longer stretch
+ * of its path. Sliding off each joint in turn left sartorius -- which is four fifths of its own
+ * path and fits nowhere -- jammed against the origin end having cleared one joint of two.
+ *
+ * So a belly that fits in no clear stretch keeps the middle. That is honest rather than a failure:
+ * brachialis is nine tenths of its own path, and a muscle that long against its bones does lie
+ * over the elbow.
+ */
+export function bellyPlacement(
+  total: number,
+  belly: number,
+  crossings: readonly number[] | undefined,
+): number {
+  const centred = (total - belly) / 2;
+  if (!crossings || crossings.length === 0 || belly >= total) return centred;
+  const straddles = (start: number) =>
+    crossings.some((f) => f * total > start && f * total < start + belly);
+  if (!straddles(centred)) return centred;
+
+  // The stretches of path between one joint and the next, with the path's own ends as the outer
+  // bounds. A belly goes in whichever of them it fits in with the least moving; if it fits in none
+  // it stays where it was, which is the honest answer for a muscle that is most of its own path.
+  const bounds = [0, ...crossings.map((f) => f * total), total];
+  let best = centred;
+  let move = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < bounds.length; i++) {
+    const low = bounds[i - 1] as number;
+    const high = bounds[i] as number;
+    if (high - low < belly) continue;
+    const start = Math.min(Math.max(centred, low), high - belly);
+    if (Math.abs(start - centred) < move) {
+      move = Math.abs(start - centred);
+      best = start;
+    }
+  }
+  return best;
+}
+
 /** Peak radius of a spindle of this volume and length. From `V = 2 r^2 L`. */
 export function peakRadius(volume: number, length: number): number {
   return length > 0 ? Math.sqrt(volume / (2 * length)) : 0;
@@ -252,6 +305,12 @@ export interface SweepRequest {
   readonly tendonLength: number;
   /** Radius of the cord drawn where the tendon runs, metres. */
   readonly tendonRadius: number;
+  /**
+   * Where the joints this muscle crosses lie along the path, as fractions from the origin, sorted.
+   *
+   * Empty or absent leaves the belly at the middle of the path. @see bellyPlacement
+   */
+  readonly crossings?: readonly number[] | undefined;
 }
 
 /**
@@ -302,11 +361,11 @@ export function sweepMuscle(request: SweepRequest, scratch: SweepScratch, out: S
     return;
   }
 
-  // The belly is the path less its tendon, centred -- which splits the tendon evenly between the
-  // two ends. Real tendons are not even (the long head of biceps is nearly all proximal), but one
-  // slack length is all the model carries, so there is nothing to divide unevenly by. OQ-019.
+  // The belly is the path less its tendon, placed off the joints the muscle crosses. One slack
+  // length is all the model carries, so how much tendon is at each end is not known -- but where
+  // the joints are is, and flesh does not lie across one. OQ-019.
   const belly = bellyLength(volume, total, request.tendonLength);
-  const bellyStart = (total - belly) / 2;
+  const bellyStart = bellyPlacement(total, belly, request.crossings);
   const radiusPeak = peakRadius(volume, belly);
 
   // The carried frame. Seeded from whichever world axis is least aligned with the first tangent,

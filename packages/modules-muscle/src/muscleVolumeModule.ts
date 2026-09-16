@@ -133,6 +133,13 @@ export class MuscleVolumeModule implements SimModule {
   private readonly tendonSlack: Float64Array;
   /** Maximum isometric force of each unit, newtons, for normalising the tendon force. */
   private readonly maxForce: Float64Array;
+  /**
+   * Where the joints each unit crosses lie along its path, as fractions from the origin.
+   *
+   * Measured at compile, because it needs the articulation's joint frames and this runs on a
+   * channel. What reads it is `bellyPlacement`, which slides the drawn belly off them.
+   */
+  private readonly crossings: readonly (readonly number[])[];
 
   /** One mesh, swept for each unit in turn into the channel. */
   private readonly mesh: SweptMesh;
@@ -162,6 +169,7 @@ export class MuscleVolumeModule implements SimModule {
     this.mesh = createSweptMesh(this.rings, this.segments);
     this.index = this.mesh.index;
 
+    this.crossings = muscles.units.map((unit) => unit.jointCrossings);
     this.tissue = new Float64Array(this.units);
     this.tendonSlack = new Float64Array(this.units);
     this.maxForce = new Float64Array(this.units);
@@ -279,6 +287,7 @@ export class MuscleVolumeModule implements SimModule {
         points: point,
         from: start[unit] as number,
         pointCount: count[unit] as number,
+        crossings: this.crossings[unit],
         volume,
         tendonLength,
         tendonRadius: this.tendonRadius,

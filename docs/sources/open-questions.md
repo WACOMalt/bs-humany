@@ -553,10 +553,38 @@ the clear case: almost all of its tendon is proximal, running over the humeral h
 bicipital groove, while the distal tendon to the radial tuberosity is short. Drawn evenly, its
 belly sits a few centimetres lower on the arm than it should.
 
-Nothing downstream depends on it: Tier V writes only to the render channel (M-ADR-004), the
+**Partly answered, 2026-09-16, by the one thing the model does know.** A muscle belly does not lie
+across a joint -- tendon does, and that is what tendon is for. It is why the fleshy part of a calf
+stops well above the heel and the fleshy part of a forearm well above the wrist. Where the joints
+are is something the model has: `jointCrossings` measures, per unit at compile, where each joint
+the muscle crosses falls along its path, and `bellyPlacement` slides the drawn belly off them.
+
+The restraint is the design. It slides as little as it takes, a belly that already clears
+everything does not move at all, and a belly that fits in no clear stretch keeps the middle. Two
+looser rules were tried first and both were worse: centring the belly in the *longest* clear
+stretch moved thirty-nine muscles of fifty-four including ones that were already right, and put
+flexor digitorum longus's flesh in the sole of the foot because the sole is the longer stretch of
+its path; sliding off each joint in turn left sartorius, which is four fifths of its own path and
+fits nowhere, jammed against its origin having cleared one joint of two.
+
+What it changed, over the fifty-four units of one side: bellies straddling a joint fell from
+twenty-one to fourteen, and four muscles moved by more than ten millimetres -- gluteus medius and
+minimus back onto the ilium, piriformis into the pelvis, the middle deltoid out over the shoulder.
+The fourteen that remain are bellies longer than any clear stretch of their own path, which is
+brachialis at nine tenths of its and sartorius at four fifths: a muscle that long against its
+bones does lie over a joint.
+
+What is still open is the half this cannot reach. Within a clear stretch the belly is still
+centred, because nothing in the parameters says where in the calf a gastrocnemius keeps its flesh
+against where a soleus keeps its. The long head of biceps is the case as before: its tendon is
+almost all proximal and the model has no way to know.
+
+Nothing downstream depends on any of it: Tier V writes only to the render channel (M-ADR-004), the
 moment arm comes from the path and not from where the flesh is drawn along it, and the belly's
-length -- which is what sets its thickness -- does not change with how the tendon is divided.
+length -- which is what sets its thickness -- does not change with how the tendon is divided. The
+full test suite passes with no golden moving, which is that boundary being real.
 **Closes when:** the muscle geometry carries a tendon length per end, either from an anatomical
 asset pack whose muscle meshes show where the belly actually begins (section 9.4) or from a source
 that reports proximal and distal tendon lengths separately.
-**Status:** open
+**Status:** partly addressed -- the belly is off the joints; where it sits between them is still a
+guess.
