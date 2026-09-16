@@ -178,6 +178,14 @@ const LIMBS = [
       { unit: 'triceps_brachii_long_r', tendon: 'TRIlong', from: 'scapula_r' },
       { unit: 'triceps_brachii_lateral_r', tendon: 'TRIlat', from: 'humerus_r' },
       { unit: 'triceps_brachii_medial_r', tendon: 'TRImed', from: 'humerus_r' },
+      // The trunk's two. MyoArm anchors them to its own root rather than to a spine it does not
+      // have, so their trunk-end points sit on the world body and are not carried; `from` names
+      // the bone *our* origin is on, which no limb maps, and the direction is read from the far
+      // end instead.
+      { unit: 'latissimus_dorsi_thoracic_r', tendon: 'LAT1', from: 'vertebra_t8' },
+      { unit: 'latissimus_dorsi_iliac_r', tendon: 'LAT3', from: 'hip_r' },
+      { unit: 'pectoralis_major_sternal_r', tendon: 'PECM2', from: 'sternum' },
+      { unit: 'pectoralis_major_abdominal_r', tendon: 'PECM3', from: 'rib_6_r' },
     ],
   },
   {

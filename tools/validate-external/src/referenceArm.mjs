@@ -65,6 +65,27 @@ export const SHOULDER_TENDONS = Object.freeze({
   TMAJ_tendon: 'teres_major_r',
 });
 
+/**
+ * Why latissimus dorsi and pectoralis major are not here.
+ *
+ * Their paths end on the trunk, and the trunk is in `myotorso_chain.xml`, which this file does not
+ * build from -- the reference model assembled here is the arm, rooted at the clavicle. Loading
+ * them fails outright: `site 'PECM2_PECM2-P3_r' not found in wrap 4`.
+ *
+ * Combining the two chains is a piece of work rather than a line: the arm nests inside the torso
+ * at a place the fragments state and this file would have to honour, and getting it subtly wrong
+ * would put every trunk moment arm somewhere plausible and false. Until it is done those two
+ * muscles have no source travel measured, which `deriveOptimalFiberLength` already handles the
+ * right way -- a unit nothing has measured keeps the fiber length the source states, rather than
+ * being scaled by a ratio taken from nowhere.
+ */
+export const TRUNK_TENDONS_NEED_THE_TORSO_CHAIN = Object.freeze([
+  'LAT1_tendon',
+  'LAT3_tendon',
+  'PECM2_tendon',
+  'PECM3_tendon',
+]);
+
 /** The knee's, which come from the leg model instead. */
 export const LEG_TENDONS = Object.freeze({
   recfem_r_tendon: 'rectus_femoris_r',

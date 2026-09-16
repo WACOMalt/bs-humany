@@ -44,6 +44,7 @@ import {
   HIP_MUSCLES,
   KNEE_MUSCLES,
   SHOULDER_MUSCLES,
+  TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -127,7 +128,14 @@ export async function runScenario(
   let muscleDrive: MuscleTestDriveModule | undefined;
   if (scenario.muscles) {
     const muscles = compileMuscleSet(
-      [...ELBOW_MUSCLES, ...SHOULDER_MUSCLES, ...KNEE_MUSCLES, ...HIP_MUSCLES, ...ANKLE_MUSCLES],
+      [
+        ...ELBOW_MUSCLES,
+        ...SHOULDER_MUSCLES,
+        ...KNEE_MUSCLES,
+        ...HIP_MUSCLES,
+        ...ANKLE_MUSCLES,
+        ...TRUNK_MUSCLES,
+      ],
       document.attachmentSites,
       articulation,
       morphology.context,

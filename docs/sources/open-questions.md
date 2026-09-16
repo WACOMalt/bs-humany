@@ -495,6 +495,52 @@ carried to the third metatarsal, the middle of the four.
 phalanx or a measured one.
 **Status:** open
 
+### OQ-022 — The forearm's actuators do not state their architecture
+**Needed for:** the wrist and forearm set, ticket N2.5
+**Provisional value:** none. The set is not built, and this is why.
+
+The vendored arm model writes its actuators two ways. The upper arm's are `<general>` elements
+whose `gainprm` carries an operating range per actuator -- `0.759864 1.45381 ...` for supinator,
+say -- and that range with `lengthrange` determines optimal fiber length and tendon slack length
+exactly, which is how every parameter in this project is extracted. The forearm's and the hand's
+are `<muscle>` elements: they state `force` and `lengthrange` and nothing else, so the operating
+range falls back to MuJoCo's own default of 0.75 to 1.05.
+
+That default is not a statement about any muscle, and deriving lengths from it says so. Against
+published architecture the derived fiber lengths come out 1.1 to 5.6 times too long, with no
+consistent factor:
+
+    ECRL  93 mm against 81      FCR  119 against 52     FDS3 207 against 73
+    ECRB 105 against 59         FCU  131 against 51     EDC2 199 against 57
+    ECU   92 against 62         PL   169 against 50     EPL  248 against 44
+    PT    77 against 36         PQ    50 against 23, on a tendon of minus 16 mm
+
+Pronator quadratus is the tell: a negative slack length is the same signature `requirePhysical`
+refuses for coracobrachialis, `glmax3` and two of the trunk's parts. The numbers are not wrong
+arithmetic; the pair they are derived from does not mean what it means elsewhere in the file.
+
+Two of these actuators are written the other way and confirm the reading: anconeus and supinator
+are `<general>`, and their derived fiber lengths are 26 mm and 36 mm against a published 27 and 33.
+
+**What could settle it.** The spec already names the source -- N2.5 is "upper-limb parameter set
+from Holzbaur 2005" -- and `holzbaur2005` is in the bibliography as T1. What is not here is the
+data: the paper's tables are not vendored the way MyoSuite's XML is, so transcribing from it means
+typing numbers from memory, which is the thing citations exist to prevent. Vendoring the model
+file it describes would settle the forearm, the hand and OQ-014's pennation angles together.
+
+**The other option, and it is a decision rather than a fix.** Fiber length could be derived the way
+this project derives everything else, from travel: a muscle whose path travels a given distance
+over its joints' range needs fibers long enough to cover it, and the model already declares how
+much of its curve is usable -- `FIBER_CEILING - FIBER_FLOOR`, which is 0.6. Tested against the
+fifty-four units whose architecture the source *does* state, predicting optimal fiber length as
+travel over 0.7 is unbiased: median ratio 0.96, 33 of 54 within a factor of 1.5 and 46 of 54 within
+2. That is a stand-in good to about fifty per cent on any one muscle, which is far better than the
+default range gives and is not a transcription. Peak force would still be the source's, and force
+is most of what a muscle does.
+**Closes when:** a source that states upper-limb architecture is vendored, or the travel-derived
+fiber length is accepted for the actuators the source leaves silent.
+**Status:** open, and blocking the wrist, the forearm and the hand.
+
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4
 **Provisional value:** none. A path that names an ellipsoid wrap surface is refused at compile

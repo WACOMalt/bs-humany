@@ -56,6 +56,7 @@ import {
   HIP_MUSCLES,
   KNEE_MUSCLES,
   SHOULDER_MUSCLES,
+  TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
 
@@ -277,7 +278,14 @@ export class Simulation {
       // The muscle set is resolved against this articulation, so it follows the fidelity profile
       // and the morphology without being re-authored: bone ids are the stable interface.
       this.muscles = compileMuscleSet(
-        [...ELBOW_MUSCLES, ...SHOULDER_MUSCLES, ...KNEE_MUSCLES, ...HIP_MUSCLES, ...ANKLE_MUSCLES],
+        [
+          ...ELBOW_MUSCLES,
+          ...SHOULDER_MUSCLES,
+          ...KNEE_MUSCLES,
+          ...HIP_MUSCLES,
+          ...ANKLE_MUSCLES,
+          ...TRUNK_MUSCLES,
+        ],
         document.attachmentSites,
         this.articulation,
         morphology.context,

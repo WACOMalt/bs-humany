@@ -228,6 +228,7 @@ const ui = {
   hipAdductorDrive: must<HTMLInputElement>('#hipAdductorDrive'),
   anklePlantarflexorDrive: must<HTMLInputElement>('#anklePlantarflexorDrive'),
   ankleDorsiflexorDrive: must<HTMLInputElement>('#ankleDorsiflexorDrive'),
+  armAdductorDrive: must<HTMLInputElement>('#armAdductorDrive'),
 };
 
 /**
@@ -317,6 +318,21 @@ const ANKLE_DORSIFLEXORS = sides(
   'extensor_hallucis_longus',
 );
 
+/**
+ * The two that hold the arm onto the trunk, driven together.
+ *
+ * Latissimus dorsi and pectoralis major pull the arm down and in from behind and in front, and
+ * between them that is most of what brings a raised arm back. They get one slider because they
+ * do the same thing from opposite sides: nothing here opposes them, which is the shoulder's own
+ * abductors, and those already have theirs.
+ */
+const ARM_ADDUCTORS = sides(
+  'latissimus_dorsi_thoracic',
+  'latissimus_dorsi_iliac',
+  'pectoralis_major_sternal',
+  'pectoralis_major_abdominal',
+);
+
 /** The driven groups, each with the slider that drives it and the readout it feeds. */
 const DRIVEN = [
   { units: ELBOW_FLEXORS, slider: 'flexorDrive' },
@@ -329,6 +345,7 @@ const DRIVEN = [
   { units: HIP_ADDUCTORS, slider: 'hipAdductorDrive' },
   { units: ANKLE_PLANTARFLEXORS, slider: 'anklePlantarflexorDrive' },
   { units: ANKLE_DORSIFLEXORS, slider: 'ankleDorsiflexorDrive' },
+  { units: ARM_ADDUCTORS, slider: 'armAdductorDrive' },
 ] as const;
 
 function currentMorphology(): Morphology {
@@ -991,6 +1008,7 @@ for (const slider of [
   ui.hipAdductorDrive,
   ui.anklePlantarflexorDrive,
   ui.ankleDorsiflexorDrive,
+  ui.armAdductorDrive,
 ]) {
   slider.addEventListener('input', () => {
     const level = driveForSlider(Number(slider.value));

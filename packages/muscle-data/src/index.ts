@@ -14,4 +14,5 @@ export * from './ranges.js';
 export * from './schema.js';
 export * from './shoulder.js';
 export * from './sourceTravel.js';
+export * from './trunk.js';
 export * from './validate.js';

@@ -49,6 +49,9 @@ jobs:
       - name: Generated ankle data matches its source
         run: pnpm generate:ankle-muscles --check
 
+      - name: Generated trunk data matches its source
+        run: pnpm generate:trunk-muscles --check
+
       - name: Generated via points match their source
         run: pnpm generate:via-points --check
 

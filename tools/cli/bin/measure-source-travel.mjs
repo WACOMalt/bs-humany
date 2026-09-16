@@ -297,6 +297,8 @@ const compiled = modules.compileMuscleSet(
     ...muscleData.KNEE_MUSCLES,
     ...muscleData.HIP_MUSCLES,
     ...muscleData.ANKLE_MUSCLES,
+    ...muscleData.TRUNK_MUSCLES,
+    ...muscleData.TRUNK_MUSCLES,
   ],
   document.attachmentSites,
   articulation,

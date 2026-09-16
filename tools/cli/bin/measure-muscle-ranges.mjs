@@ -83,6 +83,7 @@ const groups = [
   ...muscleData.KNEE_MUSCLES,
   ...muscleData.HIP_MUSCLES,
   ...muscleData.ANKLE_MUSCLES,
+  ...muscleData.TRUNK_MUSCLES,
 ];
 const muscles = modules.compileMuscleSet(
   groups,

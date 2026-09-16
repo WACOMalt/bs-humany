@@ -153,9 +153,13 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Pectoralis major',
     section: 'The Pectoralis major',
     bilateral: true,
+    // Gray gives it three heads and they pull in three directions: the clavicular head flexes the
+    // arm, the sternocostal head adducts it, and the abdominal part off the lower cartilages pulls
+    // it down and in. Each takes the stretch of bone it arises from, per M-ADR-005.
     origins: [
       ['clavicle_$', 'Sternal_end'],
       ['sternum', 'Manubrium_of_sternum'],
+      ['rib_6_$', 'Body_of_rib'],
     ],
     insertions: [['humerus_$', 'Crest_of_greater_tubercle']],
   },
@@ -164,7 +168,11 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Latissimus dorsi',
     section: 'The Latissimus dorsi',
     bilateral: true,
+    // Gray: the spinous processes of the lower six thoracic vertebrae, the thoracolumbar fascia --
+    // which is to say the lumbar and sacral spines -- and the iliac crest. Three stretches of the
+    // back from the shoulder blade down to the pelvis, and the muscle's parts follow them.
     origins: [
+      ['vertebra_t8', 'Spinous_process_tip'],
       ['sacrum', 'Median_sacral_crest'],
       ['hip_$', 'Iliac_crest'],
     ],
