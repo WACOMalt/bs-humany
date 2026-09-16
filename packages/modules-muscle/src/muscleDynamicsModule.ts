@@ -64,6 +64,7 @@ import {
   solveRigidTendon,
   stepActivation,
   tendonShare,
+  withoutOvershoot,
 } from '@bs-humany/muscle-model';
 import {
   EFFERENT_ALPHA_MOTOR,
@@ -143,6 +144,8 @@ export class MuscleDynamicsModule implements SimModule {
     damping: number;
   };
   private readonly scratchState: { activation: number; fiberLength: number };
+  /** Reused by the overshoot guard, which solves the equilibrium again at the step's far end. */
+  private readonly scratchOvershoot = { activation: 0, fiberLength: 1 };
   private readonly scratchActivation: { activationTime: number; deactivationTime: number };
 
   private length: Float64Array | undefined;
@@ -374,8 +377,19 @@ export class MuscleDynamicsModule implements SimModule {
       } else {
         const solution = solveEquilibrium(state, unitLength, parameters as MusculotendonParameters);
         // Semi-implicit: the fiber advances on the activation this tick produced, not last tick's.
-        const advanced =
-          state.fiberLength + solution.fiberVelocity * parameters.maxContractionVelocity * dt;
+        // And it is not allowed to end the tick on the far side of the length where the forces
+        // balance: a stiff tendon puts that length a tenth of a millimetre away, a tick's worth of
+        // velocity flies past it, and the muscle chatters between slack and taut while the path it
+        // runs along moves smoothly. See `withoutOvershoot`.
+        const advanced = withoutOvershoot(
+          state.fiberLength,
+          state.fiberLength + solution.fiberVelocity * parameters.maxContractionVelocity * dt,
+          activation,
+          unitLength,
+          parameters as MusculotendonParameters,
+          solution.fiberVelocity,
+          this.scratchOvershoot,
+        );
         this.fiberLength[i] =
           advanced < FIBER_FLOOR
             ? FIBER_FLOOR

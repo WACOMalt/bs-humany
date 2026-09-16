@@ -266,13 +266,44 @@ describe('the fiber step', () => {
     expect(stepped.solution.fiberVelocity).not.toBeCloseTo(atOld.fiberVelocity, 6);
   });
 
-  it('reports a fiber driven out of range instead of quietly carrying on', () => {
-    // The spec asks for this to be a diagnostic. A muscle pulled to twice its optimal length is
-    // a broken path or too long a step, and hiding it makes the cause impossible to find.
-    const stepped = stepFiber({ activation: 1, fiberLength: 1.99 }, 0.45, 1, 0.05, MUSCLE);
-    expect(stepped.outOfRange).toBe(true);
+  it('reports a unit whose length its fibers cannot balance, rather than carrying on', () => {
+    // The spec asks for this to be a diagnostic. A path twice the tendon's own slack length is a
+    // broken path or the wrong parameters: there is no fiber length in the valid range at which
+    // the forces balance, and hiding that makes the cause impossible to find.
+    //
+    // It surfaces as `failed` rather than `outOfRange`, and that is the overshoot guard's doing:
+    // before it, an impossible length showed up as a fiber flung past its own limits in one step,
+    // which named the symptom. Now the step stops where the equilibrium is and the solver says it
+    // could not find one, which names the cause. Either way it is reported and the state stays
+    // inside the range the curves are defined over.
+    const unbalanceable = MUSCLE.tendonSlackLength * 3;
+    const stepped = stepFiber({ activation: 1, fiberLength: 1 }, unbalanceable, 1, 0.05, MUSCLE);
+    expect(stepped.solution.failed).toBe(true);
     expect(stepped.state.fiberLength).toBeLessThanOrEqual(FIBER_LENGTH_MAXIMUM);
     expect(stepped.state.fiberLength).toBeGreaterThanOrEqual(FIBER_LENGTH_MINIMUM);
+  });
+
+  it('stops at the length where the forces balance rather than flying past it', () => {
+    // The fault this prevents is visible rather than numerical. The velocity the equilibrium
+    // reports is the velocity at the length the fiber has *now*; applied for a whole tick against
+    // a stiff tendon it overshoots the balance point, the tendon goes slack, the force drops to
+    // zero, and the next tick does it again. Measured on a settling body, units crossed from zero
+    // force to a kilonewton and back roughly every other tick while the path they ran along moved
+    // smoothly by a tenth of a millimetre.
+    const length = MUSCLE.tendonSlackLength * 1.02 + MUSCLE.optimalFiberLength;
+    const stepped = stepFiber({ activation: 0.5, fiberLength: 1 }, length, 0.5, 1 / 500, MUSCLE);
+    // Where it landed, the equilibrium must not want to send it straight back.
+    const after = solveEquilibrium(
+      { activation: 0.5, fiberLength: stepped.state.fiberLength },
+      length,
+      MUSCLE,
+    );
+    const before = stepped.solution.fiberVelocity;
+    if (Math.abs(before) > 1e-9 && Math.abs(after.fiberVelocity) > 1e-9) {
+      expect(Math.sign(after.fiberVelocity), 'the step ended past the balance point').toBe(
+        Math.sign(before),
+      );
+    }
   });
 
   it('keeps every reported number finite across the whole working range', () => {

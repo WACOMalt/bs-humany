@@ -238,6 +238,17 @@ export function compileMuscleSet(
 export const MINIMUM_TENDON_SLACK = 0.001;
 
 /**
+ * How slack a muscle's tendon is left at the rest pose, as a fraction of its own slack length.
+ *
+ * One per cent: half a millimetre on the shortest tendon here and three on the longest, which is
+ * several times the tenth of a millimetre a settling path moves in a tick and far less than the
+ * five per cent of strain the tendon carries a whole isometric force at. Enough to be off the
+ * knee of the curve, small enough that the muscle still takes up almost at once when the joint
+ * moves.
+ */
+export const REST_SLACK = 0.01;
+
+/**
  * The tendon slack length this skeleton implies, rather than the one the source model states.
  *
  * Of the four musculotendon parameters, three are properties of the *tissue* -- how much force
@@ -254,9 +265,19 @@ export const MINIMUM_TENDON_SLACK = 0.001;
  * resting length and pulled a kilonewton at rest, the arm twitched, and the rotation flipped.
  *
  * So the tendon is fitted here, to the one pose every model agrees on: at the rest pose the fiber
- * sits at its optimal length and the tendon at exactly slack, carrying nothing. That is the
+ * sits at its optimal length and the tendon just short of slack, carrying nothing. That is the
  * standard step when a musculoskeletal model is scaled to a new skeleton, and it is the same
  * quantity being computed -- the length of that tendon on this body.
+ *
+ * *Just* short of slack, by `REST_SLACK`, and the margin is not decoration. A tendon's force is
+ * zero below its slack length and rises very steeply above it, so a muscle fitted to sit exactly
+ * at slack is balanced on the one point where a tenth of a millimetre is the difference between
+ * nothing and hundreds of newtons. A settling body moves a path by about that much per tick, so
+ * every such muscle chattered: measured at rest, units crossed from zero force to a kilonewton
+ * and back roughly every other tick, 260 times in 400 ticks. It barely moved the body, because
+ * muscles on opposite sides chattered against each other, but it was plainly visible -- the
+ * bellies flashed between slack and taut colours. A relaxed muscle is slack, not balanced on the
+ * point where its tendon begins to pull.
  *
  * What is not fitted: peak force, optimal fiber length, pennation, maximum contraction velocity.
  * Those stay exactly as cited, which is what keeps the provenance honest -- the tissue is the
@@ -274,7 +295,9 @@ export function fittedTendonSlack(
   pennationAngle: number,
 ): number {
   const fiberAlongTendon = optimalFiberLength * Math.cos(pennationAngle);
-  const fitted = restLength - fiberAlongTendon;
+  // Longer than the length that would put the tendon exactly at slack, so at rest it is inside
+  // its own slack length and carrying nothing at all.
+  const fitted = (restLength - fiberAlongTendon) * (1 + REST_SLACK);
   // Shorter than its own fibers at rest: the muscle is bunched, and there is no tendon to speak
   // of. Keep the floor rather than the stated length, which would be longer than the whole unit.
   return fitted > MINIMUM_TENDON_SLACK ? fitted : MINIMUM_TENDON_SLACK;

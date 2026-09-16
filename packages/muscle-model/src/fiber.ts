@@ -135,6 +135,15 @@ export interface FiberSolution {
 
 /** Iterations the equilibrium solve may take before it gives up and reports failure. */
 export const EQUILIBRIUM_ITERATIONS = 24;
+
+/**
+ * How many times a fiber step that overshot the balance point is halved back toward it.
+ *
+ * Six, which leaves the fiber within a sixty-fourth of the step it would otherwise have taken.
+ * The work only happens to a unit that actually overshot -- the test is one extra equilibrium
+ * solve, and most units on most ticks do not need even that.
+ */
+export const OVERSHOOT_HALVINGS = 6;
 /** Residual, in maximum isometric forces, below which the equilibrium counts as solved. */
 export const EQUILIBRIUM_TOLERANCE = 1e-10;
 /**
@@ -248,7 +257,14 @@ export function stepFiber(
     parameters,
   );
   const rate = solution.fiberVelocity * parameters.maxContractionVelocity;
-  const next = state.fiberLength + rate * dt;
+  const next = withoutOvershoot(
+    state.fiberLength,
+    state.fiberLength + rate * dt,
+    activation,
+    musculotendonLength,
+    parameters,
+    solution.fiberVelocity,
+  );
   const outOfRange = next < FIBER_LENGTH_MINIMUM || next > FIBER_LENGTH_MAXIMUM;
   const clamped = Math.min(Math.max(next, FIBER_LENGTH_MINIMUM), FIBER_LENGTH_MAXIMUM);
   return {
@@ -257,6 +273,64 @@ export function stepFiber(
     outOfRange,
   };
 }
+
+/**
+ * Keep a fiber step from jumping over the length where the forces balance.
+ *
+ * The velocity the equilibrium reports is the velocity *at the length the fiber has now*. Applied
+ * for a whole tick it assumes nothing about the balance changes on the way, and for a stiff
+ * tendon that is badly wrong: a tendon of a few centimetres carries hundreds of newtons for a
+ * tenth of a millimetre of stretch, so the fiber length that balances it is a tenth of a
+ * millimetre away and a tick's worth of velocity flies past it. Then the tendon is slack, the
+ * force is zero, the fiber drifts back, and it happens again -- a chatter at half the tick rate
+ * that is visible as a muscle flashing between slack and taut while the path it runs along is
+ * moving smoothly by a tenth of a millimetre a tick.
+ *
+ * Measured on a settling body, before this: supraspinatus crossed from zero force to fifty
+ * newtons and back 192 times in 400 ticks, and vastus lateralis between zero and nineteen
+ * hundred. The path meanwhile moved 0.11 mm a tick in one direction, without a wobble in it.
+ *
+ * So when the step lands somewhere the equilibrium wants to move the fiber *back*, the balance
+ * point was passed, and the fiber is halved back toward it. Six halvings is within a sixty-fourth
+ * of the step. This is not implicit integration -- it does not make the step more accurate where
+ * nothing is crossed -- it only refuses to end a tick on the far side of a crossing, which is the
+ * one place an explicit step is not merely inaccurate but wrong in sign.
+ */
+export function withoutOvershoot(
+  from: number,
+  to: number,
+  activation: number,
+  musculotendonLength: number,
+  parameters: MusculotendonParameters,
+  velocity: number,
+  scratch: { activation: number; fiberLength: number } = overshootScratch,
+): number {
+  if (to === from) return to;
+  scratch.activation = activation;
+  scratch.fiberLength = to;
+  const after = solveEquilibrium(scratch, musculotendonLength, parameters);
+  // Same sign at both ends: the step stayed on one side of the balance point.
+  if (after.fiberVelocity === 0 || after.fiberVelocity > 0 === velocity > 0) return to;
+  let low = from;
+  let high = to;
+  for (let i = 0; i < OVERSHOOT_HALVINGS; i++) {
+    const middle = (low + high) / 2;
+    scratch.fiberLength = middle;
+    const here = solveEquilibrium(scratch, musculotendonLength, parameters);
+    if (here.fiberVelocity > 0 === velocity > 0) low = middle;
+    else high = middle;
+  }
+  return (low + high) / 2;
+}
+
+/**
+ * The state this reuses when the caller does not pass one.
+ *
+ * Positional arguments and a shared scratch rather than an options object, because this runs once
+ * per unit per tick and CONTRIBUTING rule 9 forbids allocating there. A caller that needs its own
+ * (a test running two units interleaved, say) passes one in.
+ */
+const overshootScratch = { activation: 0, fiberLength: 1 };
 
 /**
  * A fiber length that balances the forces at a given activation and unit length, for starting a

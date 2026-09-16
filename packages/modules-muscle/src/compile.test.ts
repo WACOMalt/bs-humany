@@ -8,6 +8,7 @@ import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import {
   MINIMUM_TENDON_SLACK,
+  REST_SLACK,
   articulationBoneResolver,
   compileMuscleSet,
   fittedTendonSlack,
@@ -152,11 +153,17 @@ describe('compiling a muscle set', () => {
       const unit = compiled.units[i];
       if (!unit) continue;
       const { optimalFiberLength, tendonSlackLength, pennationAngle } = unit.parameters;
-      // At the rest pose the fiber sits at its optimal length and the tendon at exactly slack.
+      // At the rest pose the fiber sits at its optimal length and the tendon just short of
+      // slack, by REST_SLACK -- so a relaxed muscle carries nothing rather than balancing on the
+      // point where its tendon begins to pull.
       expect(
         tendonSlackLength + optimalFiberLength * Math.cos(pennationAngle),
         unit.id,
-      ).toBeCloseTo(unit.restLength, 9);
+      ).toBeGreaterThan(unit.restLength);
+      expect(tendonSlackLength, unit.id).toBeCloseTo(
+        (unit.restLength - optimalFiberLength * Math.cos(pennationAngle)) * (1 + REST_SLACK),
+        9,
+      );
       expect(tendonSlackLength, unit.id).toBeGreaterThanOrEqual(MINIMUM_TENDON_SLACK);
     }
   });
@@ -180,7 +187,7 @@ describe('compiling a muscle set', () => {
     // model normalises tendon length by the slack length -- so zero is not a stiff tendon, it is
     // a NaN traveling into the solver.
     expect(fittedTendonSlack(0.05, 0.2, 0)).toBe(MINIMUM_TENDON_SLACK);
-    expect(fittedTendonSlack(0.3, 0.2, 0)).toBeCloseTo(0.1, 12);
+    expect(fittedTendonSlack(0.3, 0.2, 0)).toBeCloseTo(0.1 * (1 + REST_SLACK), 12);
     // Pennation shortens what the fibers take along the tendon, so it lengthens what is left.
     expect(fittedTendonSlack(0.3, 0.2, 0.3)).toBeGreaterThan(fittedTendonSlack(0.3, 0.2, 0));
   });
