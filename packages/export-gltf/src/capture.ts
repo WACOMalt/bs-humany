@@ -68,6 +68,11 @@ class FrameStore {
     return this.frames * this.floatsPerFrame * 4;
   }
 
+  /** Stop taking frames without dropping what is held. */
+  stop(): void {
+    this.full = true;
+  }
+
   clear(): void {
     this.frames = 0;
     this.firstTickValue = 0;
@@ -149,8 +154,21 @@ export class MuscleRingCapture {
     return this.store.frameCount;
   }
 
+  get firstTick(): number {
+    return this.store.firstTick;
+  }
+
+  get bytes(): number {
+    return this.store.bytes;
+  }
+
   get full(): boolean {
     return this.store.full;
+  }
+
+  /** Stop taking frames without dropping what is held; see `BoneCapture.stop`. */
+  stop(): void {
+    this.store.stop();
   }
 
   clear(): void {
@@ -205,7 +223,7 @@ export class BoneCapture {
   }
 
   private bones = 0;
-  private firstTick = 0;
+  private firstTickValue = 0;
   private frames = 0;
   private positionChunks: Float32Array[] = [];
   private orientationChunks: Float32Array[] = [];
@@ -215,13 +233,28 @@ export class BoneCapture {
     return this.frames;
   }
 
+  get firstTick(): number {
+    return this.firstTickValue;
+  }
+
   get bytes(): number {
     return this.frames * this.bones * 7 * 4;
   }
 
+  /**
+   * Stop taking frames without dropping what is held.
+   *
+   * For the caller that keeps two captures the same length: when one reaches its budget the
+   * other has to stop too, and `truncate` alone would let it start growing again on the next
+   * tick because trimming is normally how a rewind makes room.
+   */
+  stop(): void {
+    this.full = true;
+  }
+
   clear(): void {
     this.frames = 0;
-    this.firstTick = 0;
+    this.firstTickValue = 0;
     this.positionChunks = [];
     this.orientationChunks = [];
     this.full = false;
@@ -242,11 +275,11 @@ export class BoneCapture {
     if (this.frames === 0 || bones !== this.bones) {
       this.clear();
       this.bones = bones;
-      this.firstTick = tick;
-    } else if (tick !== this.firstTick + this.frames) {
+      this.firstTickValue = tick;
+    } else if (tick !== this.firstTickValue + this.frames) {
       this.clear();
       this.bones = bones;
-      this.firstTick = tick;
+      this.firstTickValue = tick;
     }
     if (this.bytes + bones * 28 > this.budgetBytes) {
       this.full = true;
@@ -265,7 +298,7 @@ export class BoneCapture {
 
   /** Drop every frame after `tick`, so a rewind and re-step overwrites rather than forks. */
   truncate(tick: number): void {
-    const keep = Math.max(0, Math.min(this.frames, tick - this.firstTick + 1));
+    const keep = Math.max(0, Math.min(this.frames, tick - this.firstTickValue + 1));
     if (keep === 0) {
       this.clear();
       return;
@@ -297,7 +330,7 @@ export class BoneCapture {
       );
     }
     return {
-      firstTick: this.firstTick,
+      firstTick: this.firstTickValue,
       frames: this.frames,
       bones: this.bones,
       position,

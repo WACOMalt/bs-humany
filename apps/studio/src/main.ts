@@ -1432,9 +1432,19 @@ function animate(): void {
     updateTimeline(simulation);
     must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
     const capture = simulation.capture;
+    // Both captures, because the muscle one is what usually stops first and it used to stop
+    // invisibly: a hundred and forty-eight bellies at twenty-four rings apiece are twenty times
+    // a frame of bones, so on the same budget the rings run out after about five seconds while
+    // this line went on counting bone frames to ninety.
+    const rings = simulation.muscleCapture;
+    const megabytes = (capture.bytes + (simulation.muscleVolume ? rings.bytes : 0)) / 1048576;
     must<HTMLElement>('#capture-status').textContent =
-      `Captured ${capture.frameCount} frames for export (${(capture.bytes / 1048576).toFixed(0)} MB)` +
-      (capture.full ? ' — capture budget reached; earlier frames kept.' : '');
+      `Captured ${capture.frameCount} frames for export (${megabytes.toFixed(0)} MB)` +
+      (simulation.capturesStoppedBy === undefined
+        ? ''
+        : simulation.capturesStoppedBy === 'muscles'
+          ? ' — the muscle capture reached its budget and both stopped; earlier frames kept.'
+          : ' — capture budget reached; earlier frames kept.');
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     setSimulationStatus(
       simulation.paused

@@ -78,14 +78,20 @@ export interface SimulationOptions {
   /** Sampled trajectory recording cadence, ticks. 0 disables recording. */
   readonly recordEveryTicks?: number | undefined;
   /**
-   * Run the elbow muscles (N3.7).
+   * Run the muscle set (N3.7).
    *
-   * Off by default, because most of what the studio is used for has nothing to do with muscles
-   * and every unit costs a solve per tick. What is wired up is both arms and both knees: seven
-   * units across each elbow, eight across each shoulder and ten across each knee, fifty in all.
-   * The hips, the ankles and the trunk have none yet.
+   * Off unless asked for, because every unit costs a solve per tick and plenty of what the studio
+   * is used for has nothing to do with muscles -- though the studio now asks for them by default,
+   * because a muscle module should open showing muscles. What is wired up is the whole set: the
+   * elbow, shoulder, forearm, hip, knee, ankle, trunk and torso, a hundred and forty-eight units.
+   * The hand has none yet.
    */
   readonly muscles?: boolean | undefined;
+  /**
+   * Bytes each export capture may hold. Injectable so a test can reach the limit without
+   * allocating a quarter of a gigabyte twice over to prove what happens there.
+   */
+  readonly captureBudgetBytes?: number | undefined;
 }
 
 export interface BoneTransformsView {
@@ -208,7 +214,7 @@ export class Simulation {
   private rateWindowSeconds = 0;
   private rateWindowTicks = 0;
   /** Every bone's transform at every tick, for the Blender export. */
-  readonly capture = new BoneCapture();
+  readonly capture: BoneCapture;
   /**
    * Every muscle ring's frame, captured alongside the bones.
    *
@@ -217,7 +223,7 @@ export class Simulation {
    * all the glTF skin needs to reproduce it. Eight floats a ring against the three hundred its
    * vertices would take.
    */
-  readonly muscleCapture = new MuscleRingCapture();
+  readonly muscleCapture: MuscleRingCapture;
   /** Scratch for a tick's ring frames, sized on the first capture and reused after. */
   private ringPosition = new Float32Array(0);
   private ringOrientation = new Float32Array(0);
@@ -228,6 +234,8 @@ export class Simulation {
   constructor(document: HsdlDocument, morphology: ResolvedMorphology, options: SimulationOptions) {
     const profile = document.segmentation.find((p) => p.id === options.profileId);
     if (!profile) throw new Error(`No profile '${options.profileId}'.`);
+    this.capture = new BoneCapture(options.captureBudgetBytes);
+    this.muscleCapture = new MuscleRingCapture(options.captureBudgetBytes);
     const compiled = compileArticulation(document, options.profileId, morphology);
     this.compileReport = compiled.report;
     this.resolved = morphology;
@@ -423,6 +431,7 @@ export class Simulation {
     const bones = this.boneTransforms();
     this.capture.append(this.ticks, bones.position, bones.orientation);
     this.captureMuscleRings();
+    this.keepCapturesLevel();
     if (this.ticks % this.snapshotEvery === 0) {
       if (this.timeline.length >= this.timelineCapacity) this.timeline.splice(1, 1);
       this.timeline.push({ tick: this.ticks, snapshot: this.kernel.snapshot() });
@@ -444,6 +453,7 @@ export class Simulation {
     this.ticks = best.tick;
     this.capture.truncate(best.tick);
     this.muscleCapture.truncate(best.tick);
+    this.capturesStoppedBy = undefined;
     // Everything after the restored point is history no longer on the path; drop it.
     const keep = this.timeline.filter((e) => e.tick <= best.tick);
     this.timeline.splice(0, this.timeline.length, ...keep);
@@ -502,6 +512,7 @@ export class Simulation {
     this.ticks = ticks;
     this.capture.clear();
     this.muscleCapture.clear();
+    this.capturesStoppedBy = undefined;
     this.timeline.splice(0, this.timeline.length, {
       tick: ticks,
       snapshot: this.kernel.snapshot(),
@@ -541,6 +552,7 @@ export class Simulation {
     this.ticks = ticks;
     this.capture.clear();
     this.muscleCapture.clear();
+    this.capturesStoppedBy = undefined;
     this.timeline.splice(0, this.timeline.length, { tick: ticks, snapshot });
     this.pose.step();
     this.metrics.step();
@@ -649,6 +661,44 @@ export class Simulation {
     }
     this.muscleCapture.append(this.ticks, this.ringPosition, this.ringOrientation, this.ringRadius);
   }
+
+  /**
+   * Hold the two captures to the same length, because the exporter needs them to be.
+   *
+   * A belly is exported as a skin with one joint per cross-section and one keyframe per pose
+   * frame, so a muscle capture shorter than the bone capture has no meaning -- and the exporter,
+   * faced with that, used to drop every muscle and write the file anyway. What made it happen is
+   * that the two captures hold wildly different amounts per frame on the same budget: a hundred
+   * and ninety bones are five and a half kilobytes a frame, and a hundred and forty-eight units
+   * at twenty-four rings apiece are a hundred and eleven. The muscle capture reaches a quarter of
+   * a gigabyte after about four and three quarter seconds at five hundred hertz, the bone capture
+   * after a minute and a half, and everything between the two exported a body with no muscles in
+   * it and said nothing.
+   *
+   * So whichever fills first stops both. The export is shorter than it was and it is a real
+   * export; the status line says which budget bound it.
+   */
+  private keepCapturesLevel(): void {
+    if (!this.muscleVolume) return;
+    const common = Math.min(this.capture.frameCount, this.muscleCapture.frameCount);
+    if (this.capture.frameCount === common && this.muscleCapture.frameCount === common) return;
+    if (common === 0) {
+      this.capture.clear();
+      this.muscleCapture.clear();
+      return;
+    }
+    const stoppedBy = this.muscleCapture.full ? 'muscles' : 'bones';
+    this.capture.truncate(this.capture.firstTick + common - 1);
+    this.muscleCapture.truncate(this.muscleCapture.firstTick + common - 1);
+    // `truncate` clears the full flag, because its usual caller is a rewind that makes room. Here
+    // there is no room: the capture that filled is still full, and both must stay stopped.
+    this.capture.stop();
+    this.muscleCapture.stop();
+    this.capturesStoppedBy = stoppedBy;
+  }
+
+  /** Which capture reached its budget first, once one has. */
+  capturesStoppedBy: 'muscles' | 'bones' | undefined;
 
   muscleMesh():
     | {

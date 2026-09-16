@@ -26,7 +26,7 @@ const assets = await loadSkeletonAssetsFromDisk(
   fileURLToPath(new URL('../../../packages/assets-anatomical/data', import.meta.url)),
 );
 
-async function running(ticks: number): Promise<Simulation> {
+async function running(ticks: number, captureBudgetBytes?: number): Promise<Simulation> {
   const simulation = new Simulation(
     document,
     resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 }),
@@ -38,6 +38,7 @@ async function running(ticks: number): Promise<Simulation> {
       dropHeight: 0.2,
       groundHeight: 0,
       muscles: true,
+      captureBudgetBytes,
     },
   );
   await simulation.start();
@@ -89,6 +90,37 @@ describe('the Blender export, with muscles', () => {
     // And the skeleton is still there, which a muscle change must not cost.
     expect(json.nodes.some((n) => n.name === 'humerus_r')).toBe(true);
     simulation.dispose();
+  }, 60_000);
+
+  it('keeps the bellies when the ring capture runs out of budget first', async () => {
+    // The regression. A frame of rings is about twenty times a frame of bones -- a hundred and
+    // forty-eight units at twenty-four cross-sections apiece against a couple of hundred bodies
+    // -- and the two captures were given the same budget, so the rings stopped after about five
+    // seconds of simulated time while the bones went on to ninety. The export tested the two
+    // lengths for equality and, finding them different, wrote every bone and not one muscle,
+    // with nothing anywhere saying why: what came out was a file whose Muscles collection was
+    // empty.
+    //
+    // A budget of one frame's worth of rings, so the limit is reached on the second tick.
+    const simulation = await running(1);
+    const perFrame = simulation.muscleCapture.bytes;
+    simulation.dispose();
+    expect(perFrame).toBeGreaterThan(0);
+
+    const short = await running(40, perFrame + 1);
+    expect(short.muscleCapture.full).toBe(true);
+    // Both stopped, and at the same frame: that is the invariant the exporter reads.
+    expect(short.capture.frameCount).toBe(short.muscleCapture.frameCount);
+    expect(short.capture.frameCount).toBeLessThan(40);
+    expect(short.capturesStoppedBy).toBe('muscles');
+
+    const { json } = readGlb(buildBlenderExport(short, document, assets).glb) as unknown as {
+      json: Gltf;
+    };
+    const bellies = json.nodes.filter((n) => n.name.startsWith('muscle__') && n.skin !== undefined);
+    expect(bellies).toHaveLength(short.muscles?.units.length ?? 0);
+    expect(bellies.length).toBeGreaterThan(0);
+    short.dispose();
   }, 60_000);
 
   it('puts every vertex where the sweep had it, through the file’s own matrices', async () => {

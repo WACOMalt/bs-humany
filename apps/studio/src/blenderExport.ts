@@ -236,9 +236,20 @@ export function buildBlenderExport(
   const muscleRings = simulation.muscleCapture.view();
   const volume = simulation.muscleVolume;
   const units = simulation.muscles?.units;
-  const muscleFrames = muscleRings.frames === capture.frames ? capture.frames : 0;
+  // Whether there are any ring frames to lay against the pose frames, rather than whether there
+  // are exactly as many. The two captures are held level as they are taken
+  // (`Simulation.keepCapturesLevel`), so they normally match exactly -- but the test used to be
+  // an equality, and an equality means that the moment they diverge the export writes a file
+  // with an empty Muscles collection and says nothing about it. They diverge for a reason that
+  // has nothing to do with the muscles being wrong: the two hold very different amounts per
+  // frame against the same budget, so the muscle capture stops first and the bone capture runs
+  // on. A belly animation that holds its last pose is a better answer than no belly.
+  const muscleAvailable = muscleRings.frames;
+  // Where the ring capture's first frame falls among the pose capture's. Outside the span the
+  // rings hold the nearest frame they were captured at rather than collapsing to the origin.
+  const muscleOffset = Math.max(0, muscleRings.firstTick - capture.firstTick);
   const ringNodes: number[][] = [];
-  if (volume && units && muscleFrames > 0 && muscleRings.rings === units.length * volume.rings) {
+  if (volume && units && muscleAvailable > 0 && muscleRings.rings === units.length * volume.rings) {
     const muscleRoot =
       nodes.push({
         id: 'muscles',
@@ -316,9 +327,13 @@ export function buildBlenderExport(
   ringNodes.forEach((joints, unit) => {
     joints.forEach((node, ring) => {
       const at = unit * (volume?.rings ?? 0) + ring;
-      for (let f = 0; f < muscleFrames; f++) {
-        const from = (f * muscleRings.rings + at) * 3;
-        const fromQ = (f * muscleRings.rings + at) * 4;
+      for (let f = 0; f < capture.frames; f++) {
+        // Clamped, so a ring capture that started late or stopped early holds its nearest frame
+        // instead of leaving zeros -- a zero quaternion and a zero scale draw the belly as a
+        // point at the world origin, which is what an unfilled frame would look like.
+        const source = Math.min(Math.max(f - muscleOffset, 0), muscleAvailable - 1);
+        const from = (source * muscleRings.rings + at) * 3;
+        const fromQ = (source * muscleRings.rings + at) * 4;
         const to = (f * n + node) * 3;
         const toQ = (f * n + node) * 4;
         position[to] = muscleRings.position[from] ?? 0;
@@ -328,7 +343,7 @@ export function buildBlenderExport(
         orientation[toQ + 1] = muscleRings.orientation[fromQ + 1] ?? 0;
         orientation[toQ + 2] = muscleRings.orientation[fromQ + 2] ?? 0;
         orientation[toQ + 3] = muscleRings.orientation[fromQ + 3] ?? 1;
-        const radius = muscleRings.radius[f * muscleRings.rings + at] ?? 1;
+        const radius = muscleRings.radius[source * muscleRings.rings + at] ?? 1;
         scale[to] = radius;
         scale[to + 1] = radius;
         scale[to + 2] = radius;
