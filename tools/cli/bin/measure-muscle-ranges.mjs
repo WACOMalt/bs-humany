@@ -157,13 +157,27 @@ const rows = muscles.units.map((unit, i) => ({
     .join(', '),
 }));
 
+/**
+ * One `crosses:` line, wrapped where the formatter would wrap it.
+ *
+ * The generated file has to be what `biome format` would leave behind, or the lint gate and the
+ * `--check` gate disagree forever: one rewrites the file and the other then says the measurement
+ * is stale. A shoulder muscle crossing five coordinates names them all, which runs past the
+ * hundred columns biome is configured for, and biome breaks after the key when it does.
+ */
+const LINE_WIDTH = 100;
+const crossesLine = (joints) => {
+  const single = `    crosses: '${joints}',`;
+  return single.length <= LINE_WIDTH ? single : `    crosses:\n      '${joints}',`;
+};
+
 const body = rows
   .map(
     (r) => `  {
     unit: '${r.id}',
     shortest: ${r.shortest},
     longest: ${r.longest},
-    crosses: '${r.joints}',
+${crossesLine(r.joints)}
   },`,
   )
   .join('\n');

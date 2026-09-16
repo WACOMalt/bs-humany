@@ -2,15 +2,22 @@ import { resolveMorphology } from '@bs-humany/anthropometry';
 import { compileArticulation } from '@bs-humany/compiler';
 import { cite } from '@bs-humany/hsdl';
 import type { WrappingSurfaceDef } from '@bs-humany/hsdl';
-import { ELBOW_MUSCLES, ELBOW_UNITS, muscleLengthRange } from '@bs-humany/muscle-data';
+import {
+  ELBOW_MUSCLES,
+  ELBOW_UNITS,
+  muscleLengthRange,
+  sourceMuscleTravel,
+} from '@bs-humany/muscle-data';
 import type { MuscleGroup } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import {
   FIBER_CEILING,
   FIBER_FLOOR,
+  FIBER_SHARE_LIMIT,
   MINIMUM_TENDON_SLACK,
   REST_SLACK,
+  TRANSLATION_LIMIT,
   articulationBoneResolver,
   compileMuscleSet,
   fittedTendonSlack,
@@ -187,17 +194,51 @@ describe('compiling a muscle set', () => {
     }
   });
 
-  it('leaves the tissue parameters exactly as cited', () => {
-    // The other half of the same claim: what is fitted is the geometry, and the force a muscle
-    // makes and the length its fibers work best at are the source's, unrounded.
+  it('leaves the tissue parameters exactly as cited, and keeps the two it translates', () => {
+    // The other half of the same claim. How much force a muscle makes is a property of the
+    // tissue and crosses unchanged. The two lengths do not: both are measured against a skeleton,
+    // and ours is a different one. Each keeps the cited number beside the translated one, so the
+    // provenance survives the translation rather than being replaced by it.
     const compiled = set();
     const stated = new Map(ELBOW_UNITS.map((u) => [u.id, u.parameters]));
     for (const unit of compiled.units) {
       const source = stated.get(unit.id);
       if (!source) continue;
       expect(unit.parameters.maxIsometricForce, unit.id).toBe(source.maxIsometricForce);
-      expect(unit.parameters.optimalFiberLength, unit.id).toBe(source.optimalFiberLength);
+      expect(unit.statedOptimalFiberLength, unit.id).toBe(source.optimalFiberLength);
       expect(unit.statedTendonSlackLength, unit.id).toBe(source.tendonSlackLength);
+    }
+  });
+
+  it('translates each fiber length by how far its muscle travels here against there', () => {
+    // Optimal fiber length is architecture -- fibers long enough for the distance the muscle
+    // covers -- and the distance changed with the bones. A unit whose travel matches the
+    // source's keeps its number to the digit; one that travels further gets proportionally
+    // longer fibers, up to the two caps.
+    const compiled = set();
+    for (const unit of compiled.units) {
+      const travel = muscleLengthRange(unit.id);
+      const source = sourceMuscleTravel(unit.id);
+      const fiber = unit.parameters.optimalFiberLength;
+      expect(fiber, unit.id).toBeGreaterThan(0);
+      // Never more of the muscle than the share limit leaves it, whatever the ratio says.
+      expect(fiber, unit.id).toBeLessThanOrEqual(FIBER_SHARE_LIMIT * unit.restLength + 1e-12);
+      if (!travel || !source) {
+        expect(fiber, unit.id).toBe(unit.statedOptimalFiberLength);
+        continue;
+      }
+      const ratio = ((travel.longest - travel.shortest) * unit.restLength) / source.travel;
+      // Longer only: a unit that travels no further here than there keeps what it was given.
+      if (ratio <= 1) {
+        expect(fiber, unit.id).toBe(unit.statedOptimalFiberLength);
+        continue;
+      }
+      if (
+        ratio < TRANSLATION_LIMIT &&
+        unit.statedOptimalFiberLength * ratio <= FIBER_SHARE_LIMIT * unit.restLength
+      ) {
+        expect(fiber, unit.id).toBeCloseTo(unit.statedOptimalFiberLength * ratio, 12);
+      }
     }
   });
 

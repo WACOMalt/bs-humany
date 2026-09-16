@@ -24,7 +24,7 @@ import type { AttachmentSiteDef, ExprContext, WrappingSurfaceDef } from '@bs-hum
 import { evaluate } from '@bs-humany/hsdl';
 import type { ScalarExpr } from '@bs-humany/hsdl';
 import type { MtuParameters, MuscleGroup } from '@bs-humany/muscle-data';
-import { muscleLengthRange } from '@bs-humany/muscle-data';
+import { muscleLengthRange, sourceMuscleTravel } from '@bs-humany/muscle-data';
 import {
   DEFAULT_ACTIVATION_PARAMETERS,
   DEFAULT_FIBER_DAMPING,
@@ -45,6 +45,12 @@ export interface CompiledMuscleUnit {
   readonly restLength: number;
   /** The tendon slack length the data states, before it was fitted to this skeleton. */
   readonly statedTendonSlackLength: number;
+  /**
+   * Optimal fiber length as the source states it, before it is translated to this skeleton.
+   *
+   * @see deriveOptimalFiberLength
+   */
+  readonly statedOptimalFiberLength: number;
 }
 
 export interface CompiledMuscleSet {
@@ -196,7 +202,7 @@ export function compileMuscleSet(
       });
 
       const p = unit.parameters;
-      const optimalFiberLength = scalar(p.optimalFiberLength, context);
+      const statedOptimalFiberLength = scalar(p.optimalFiberLength, context);
       const pennationAngle = scalar(p.pennationAngle, context);
       const statedTendonSlackLength = scalar(p.tendonSlackLength, context);
       const restLength = restPathLength(
@@ -204,12 +210,20 @@ export function compileMuscleSet(
         articulation,
         resolver,
       );
+      const travel = muscleLengthRange(unit.id);
+      const optimalFiberLength = deriveOptimalFiberLength(
+        statedOptimalFiberLength,
+        travel === undefined ? undefined : (travel.longest - travel.shortest) * restLength,
+        sourceMuscleTravel(unit.id)?.travel,
+        restLength,
+      );
       units.push({
         id: unit.id,
         displayName: unit.displayName,
         group: group.id,
         restLength,
         statedTendonSlackLength,
+        statedOptimalFiberLength,
         parameters: {
           maxIsometricForce: scalar(p.maxIsometricForce, context),
           optimalFiberLength,
@@ -217,7 +231,7 @@ export function compileMuscleSet(
             restLength,
             optimalFiberLength,
             pennationAngle,
-            muscleLengthRange(unit.id),
+            travel,
           ),
           pennationAngle,
           maxContractionVelocity:
@@ -233,6 +247,86 @@ export function compileMuscleSet(
   }
 
   return { units, paths, surfaces, resolver };
+}
+
+/**
+ * How far the translation of a fiber length is allowed to go before it is capped.
+ *
+ * A muscle whose path here travels twice what it travelled on the model it was measured on does
+ * not have fibers twice as long. It has a path that is wrong, or a joint whose range is not the
+ * range the source gave that joint, and scaling a parameter by the discrepancy would bury the
+ * evidence in a number. Brachialis is the clearest case: ours travels 87 mm against the source's
+ * 36 mm, because its straight run from the humeral shaft to the ulna cuts the corner as the elbow
+ * closes -- it needs path geometry it has not got (OQ-015), not a fiber twice the size.
+ *
+ * So the ratio is capped, and a capped unit is a unit to go and look at rather than one that has
+ * been fixed. `pnpm measure:source-travel` prints which ones they are.
+ */
+export const TRANSLATION_LIMIT = 2;
+
+/**
+ * The most of a muscle's rest length its fibers may be, with the rest left for tendon.
+ *
+ * Four fifths. Not a tuned number -- it is the loosest statement that is still true of a muscle,
+ * which is that some of it is tendon. It exists because the travel ratio does not know what a
+ * muscle is: scaled by its own travel, teres minor comes out with 228 mm of fiber on a 181 mm
+ * path, and a tendon of minus 47 mm is not a short tendon.
+ */
+export const FIBER_SHARE_LIMIT = 0.8;
+
+/**
+ * Optimal fiber length on this skeleton, translated from the one the source measured it on.
+ *
+ * Of the four musculotendon parameters this is the second that does not simply cross over.
+ * Tendon slack length is a length on the source's bones and is refitted here (`fittedTendonSlack`).
+ * Optimal fiber length is not a length in that sense -- it is *architecture*, the length of the
+ * fibers themselves -- but what makes a fiber length right for a muscle is the distance that
+ * muscle has to cover, and the distance changed with the bones.
+ *
+ * What is carried across, then, is the ratio the source chose: fibers long enough to cover that
+ * travel in the same proportion. A muscle that travels further here gets proportionally longer
+ * fibers, which puts it on the same stretch of its force-length curve the source put it on, and
+ * one whose travel matches -- or is shorter, see below -- keeps the number it was given. That is the standard translation when a
+ * musculoskeletal model is taken to a different skeleton, and it is the half of OQ-020 that could
+ * be settled without inventing a number: both models can be run here, so both travels are
+ * measured rather than assumed.
+ *
+ * What it is *not* is a licence to make a fiber whatever length is convenient. Fiber length is the
+ * parameter that sets how much force a muscle makes at a given length and how fast it can shorten,
+ * and a muscle with fibers a third of a metre long is not a muscle. `TRANSLATION_LIMIT` caps it.
+ *
+ * The second cap is anatomy rather than evidence. Fibers are part of a muscle and tendon is the
+ * rest of it, so a fiber cannot be most of the path and certainly cannot be longer than all of it
+ * -- which the ratio alone will happily produce: teres minor travels 70 mm here against 42 mm
+ * there, and 1.66 times its stated fiber length is 228 mm on a muscle whose whole path is 181.
+ * `FIBER_SHARE_LIMIT` leaves a fifth of the path for the tendon. It binds where our paths are too
+ * long, which is the same evidence the ratio gives, arriving from the other side.
+ *
+ * A unit with no measurement on one side or the other keeps the source's number, which is the
+ * right answer for a muscle nothing has measured rather than a gap.
+ */
+export function deriveOptimalFiberLength(
+  stated: number,
+  travel: number | undefined,
+  sourceTravel: number | undefined,
+  restLength: number,
+): number {
+  const room = FIBER_SHARE_LIMIT * restLength;
+  if (travel === undefined || sourceTravel === undefined || !(sourceTravel > 0)) {
+    return stated > room ? room : stated;
+  }
+  // Longer only. The failure this repairs is a muscle covering more of its curve here than the
+  // source meant it to, and longer fibers are what more travel asks for. Less travel than the
+  // source's is not the same kind of evidence: it costs nothing to leave those fibers alone, and
+  // shortening them on it makes things worse rather than better -- a shorter fiber spans a wider
+  // band for the same travel, so it ends up further up its passive curve at the long end, which
+  // is a stiffer brake on the joint. Rectus femoris is the case: ours travels 0.86 of what the
+  // source's does, and scaling its fibers down by that turned the quadriceps back into the splint
+  // this was fixing, stopping a fully driven knee at 83 degrees again.
+  const ratio = travel / sourceTravel;
+  if (!(ratio > 1)) return stated > room ? room : stated;
+  const derived = stated * Math.min(TRANSLATION_LIMIT, ratio);
+  return derived > room ? room : derived;
 }
 
 /**
@@ -269,23 +363,34 @@ export const REST_SLACK = 0.01;
  * and moves the tendon only as far as it must to keep the fibers inside this band. A muscle whose
  * travel already fits keeps the rest-pose fit exactly; nothing in the arm moves.
  *
- * The two numbers are where the force-length curves stop paying. Below 0.6 the active curve is
- * under a third of peak and falling steeply, which is the muscle that feels dead at one end of its
- * range. Above 1.3 the passive curve is an eighth of peak and rising steeply, which is the joint
- * that will not go the last few degrees -- and at the knee that one is measurable rather than
- * argued. Driven flexors take the knee to 70 degrees with the extensors capped at 1.4 of optimal,
- * to its 120 degree stop at 1.3, and to the stop on a quarter of the drive at 1.2. The first is a
- * knee that will not close, the last is a knee with no brake at all, and 1.3 is where the
- * quadriceps resist deep flexion the way they should without splinting it.
+ * Below 0.6 the active curve is under a third of peak and falling steeply, which is the muscle
+ * that feels dead at one end of its range.
+ *
+ * The ceiling is the one that can be checked against a body rather than argued, because what it
+ * sets is how hard a relaxed muscle resists its joint at the end of the range -- and for the knee
+ * that is a quantity anatomists measure. Holding the flexors at full drive and reading the net
+ * moment about the knee at each angle, with the pose imposed so nothing tumbles:
+ *
+ *     ceiling   passive extension moment at 120 deg   flexors still winning to
+ *     1.5                  88 Nm                              75 deg
+ *     1.4                  74                                 74
+ *     1.3                  46                                 78
+ *     1.2                  27                                 85
+ *
+ * A knee's own passive resistance near full flexion is on the order of 15 to 25 Nm, and the
+ * quadriceps are not all of it -- the joint's own passive torque is modelled separately. So 1.2,
+ * where the muscles contribute about that much and a driven leg gets furthest. Higher, and four
+ * relaxed extensors splint the joint: at 1.4 they carry three times what a whole knee resists
+ * with, which is the failure this band exists to stop.
  *
  * Not symmetric about optimal, so a muscle that travels further than the band is wide -- several
- * of the knee's do -- ends up centered on 0.95 rather than 1.0. That is the right side to err on:
+ * of the knee's do -- ends up centered on 0.9 rather than 1.0. That is the right side to err on:
  * short of optimal a fiber makes less force, past it a *relaxed* fiber makes force nobody asked
  * for, and only the second can stop a joint.
  */
 export const FIBER_FLOOR = 0.6;
 /** @see FIBER_FLOOR */
-export const FIBER_CEILING = 1.3;
+export const FIBER_CEILING = 1.2;
 
 /**
  * The tendon slack length this skeleton implies, rather than the one the source model states.

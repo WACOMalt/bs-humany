@@ -340,17 +340,41 @@ their whole excursion on the descending limb: at 80 degrees of flexion four rela
 carried 1288 N of passive force against 370 N of active flexion, and a fully driven leg stopped at
 84 degrees of its 120 degree range. Fitted to the travel it reaches the stop.
 
-What that does not fix is the other half: optimal fiber length is still the source's, and for
-several of the knee's muscles it is short against the excursion our geometry gives them. Biceps
-femoris long head travels 1.6 optimal fiber lengths over the hip and knee together on 122 mm
-fibers -- as it does in the source model, which puts its own fibers between 0.1 and 1.8 of optimal
--- and no tendon length puts a band that wide inside a usable part of the curve. Those units are
-centered on their travel and are genuinely weak at both ends of it.
-**Closes when:** the rescaling of optimal fiber length lands with that guard, or the attachment
-regions are measured from the meshes rather than taken from label anchors (see the note in OQ-015)
-and the lengths agree without it.
-**Status:** open, partly addressed -- tendon slack is fitted to the measured travel; optimal fiber
-length is still transcribed.
+The other half has landed too, and with the guard this entry asked for. Optimal fiber length is
+architecture -- fibers long enough for the distance the muscle covers -- and the distance changed
+with the bones, so \`deriveOptimalFiberLength\` scales it by how far the muscle travels here against
+how far it travelled there. Both travels are measured rather than assumed, by the same sweep on
+each skeleton: \`MUSCLE_LENGTH_RANGES\` on ours, \`SOURCE_MUSCLE_TRAVEL\` on the vendored models,
+which are rebuilt and run for it.
+
+Running the models rather than reading them is not fastidiousness. A MuJoCo muscle states
+\`lengthrange\`, which looks exactly like this measurement: it gives the four vasti, which share
+one joint and must travel together, 290, 180, 45 and 172 mm. That attribute is a carrier for the
+derivation of the two lengths, not a statement about range of motion. Measured on the running
+model the same four come out at 193, 65, 64 and 68 mm -- three vasti that agree and a rectus
+femoris that crosses the hip as well.
+
+Two things bound the translation, and both of them are the guard rather than a fix. It only ever
+lengthens: a muscle that travels further here needs longer fibers, while less travel than the
+source's is not that kind of evidence, and scaling fibers *down* on it turned the quadriceps back
+into the splint this was fixing. And it is capped, by a ratio past which the number is no longer
+about fibers (\`TRANSLATION_LIMIT\`) and by the share of the path that can be fiber at all with
+tendon left over (\`FIBER_SHARE_LIMIT\`). Fourteen of fifty units hit a cap. Each one is a unit
+whose path here is longer than the path the parameters were measured on, which is a statement
+about its attachments; \`docs/validation/fiber-lengths.md\` lists them, and the generator names them
+on every run.
+
+What remains is not a parameter problem. Several biarticular units travel further than any fiber
+covers -- biceps femoris long head goes 1.6 optimal fiber lengths over the hip and knee together,
+as it does in the source model, whose own fibers run between 0.27 and 1.78 of optimal there. No
+fiber length and no tendon length put a band that wide inside a usable part of the curve, and the
+muscle is genuinely weak at both ends of it. That is active insufficiency, which a real hamstring
+also has; what would change it is the attachment work below, not another scaling.
+**Closes when:** the attachment regions are measured from the meshes rather than taken from label
+anchors (see the note in OQ-015) and the capped units stop being capped.
+**Status:** addressed. Both lengths are now derived from measurements on this skeleton rather than
+transcribed, with the cited values kept beside them; the fourteen capped units are the remaining
+evidence of a geometry problem, and they are listed rather than hidden.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4

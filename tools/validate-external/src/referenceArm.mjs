@@ -53,6 +53,53 @@ export const ELBOW_TENDONS = Object.freeze({
   TRImed_tendon: 'triceps_brachii_medial_r',
 });
 
+/** The shoulder's tendons, which share the arm's files with the elbow's. */
+export const SHOULDER_TENDONS = Object.freeze({
+  DELT1_tendon: 'deltoid_anterior_r',
+  DELT2_tendon: 'deltoid_middle_r',
+  DELT3_tendon: 'deltoid_posterior_r',
+  SUPSP_tendon: 'supraspinatus_r',
+  INFSP_tendon: 'infraspinatus_r',
+  SUBSC_tendon: 'subscapularis_r',
+  TMIN_tendon: 'teres_minor_r',
+  TMAJ_tendon: 'teres_major_r',
+});
+
+/** The knee's, which come from the leg model instead. */
+export const LEG_TENDONS = Object.freeze({
+  recfem_r_tendon: 'rectus_femoris_r',
+  vaslat_r_tendon: 'vastus_lateralis_r',
+  vasmed_r_tendon: 'vastus_medialis_r',
+  vasint_r_tendon: 'vastus_intermedius_r',
+  bflh_r_tendon: 'biceps_femoris_long_r',
+  bfsh_r_tendon: 'biceps_femoris_short_r',
+  semiten_r_tendon: 'semitendinosus_r',
+  semimem_r_tendon: 'semimembranosus_r',
+  gaslat_r_tendon: 'gastrocnemius_lateral_r',
+  gasmed_r_tendon: 'gastrocnemius_medial_r',
+});
+
+/**
+ * Which files describe each reference limb.
+ *
+ * `defaults` is where that file's class defaults begin, and the two models do not agree about it:
+ * the arm opens its tree with a named root class and the legs with an anonymous one.
+ */
+export const MODELS = Object.freeze({
+  arm: {
+    assets: 'myoarm_r_assets.xml',
+    chain: 'myoarm_r_chain.xml',
+    tendon: 'myoarm_r_tendon.xml',
+    defaults: '<default class="main">',
+  },
+  legs: {
+    assets: 'myolegs_assets.xml',
+    chain: 'myolegs_chain.xml',
+    tendon: 'myolegs_tendon.xml',
+    defaults: '<default>',
+  },
+});
+
 const read = (file) => readFileSync(join(MYO_SIM, file), 'utf8');
 const unwrap = (xml) => xml.replace(/<\/?mujocoinclude[^>]*>/g, '');
 
@@ -62,35 +109,36 @@ const unwrap = (xml) => xml.replace(/<\/?mujocoinclude[^>]*>/g, '');
  * Returned as text rather than written anywhere: the model is a derived thing, and a copy on
  * disk is a copy that can go stale against the fragments it came from.
  */
-export function referenceArmXml(tendons = Object.keys(ELBOW_TENDONS)) {
-  const assets = read('myoarm_r_assets.xml');
+export function referenceArmXml(tendons = Object.keys(ELBOW_TENDONS), model = MODELS.arm) {
+  const assets = read(model.assets);
   // The class defaults, which is everything between the first `<default class="main">` and the
   // `<asset>` block that follows it. They carry no mesh or material of their own except in the
   // two collision classes, whose `material` attribute names a texture that is not vendored.
-  const from = assets.indexOf('<default class="main">');
+  const from = assets.indexOf(model.defaults);
+  if (from < 0) throw new Error(`referenceArm: no '${model.defaults}' in ${model.assets}.`);
   const to = assets.indexOf('<asset>');
   const defaults = assets
     .slice(from, assets.lastIndexOf('</default>', to) + 10)
     .replace(/ material="[^"]*"/g, '');
 
-  const chain = unwrap(read('myoarm_r_chain.xml'))
+  const chain = unwrap(read(model.chain))
     .replace(/<geom[^>]*type="mesh"[^>]*\/>/g, '')
     .replace(/<geom[^>]*mesh="[^"]*"[^>]*\/>/g, '');
 
-  const spatials = [...unwrap(read('myoarm_r_tendon.xml')).matchAll(/<spatial[\s\S]*?<\/spatial>/g)]
+  const spatials = [...unwrap(read(model.tendon)).matchAll(/<spatial[\s\S]*?<\/spatial>/g)]
     .map((m) => m[0])
     .filter((s) => tendons.some((name) => s.includes(`name="${name}"`)));
   if (spatials.length !== tendons.length) {
     throw new Error(
       `referenceArm: found ${spatials.length} of ${tendons.length} tendons in ` +
-        'myoarm_r_tendon.xml. The vendored model has moved; re-pin it before trusting this.',
+        `${model.tendon}. The vendored model has moved; re-pin it before trusting this.`,
     );
   }
 
   // The compiler flags are the reference's own, from its assets file. `balanceinertia` matters:
   // one thumb body upstream has an inertia that fails the triangle inequality, and the model is
   // authored expecting MuJoCo to fix it.
-  return `<mujoco model="myoarm-reference-arm">
+  return `<mujoco model="myosuite-reference">
 <compiler angle="radian" balanceinertia="true" boundmass="0.001" boundinertia=".0001" inertiafromgeom="auto"/>
 <option gravity="0 0 0"/>
 ${defaults}
