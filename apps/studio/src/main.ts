@@ -924,6 +924,8 @@ ui.stepsPerSecond.addEventListener('input', () => {
   fidelityTouched = true;
   showRates();
 });
+// Once at startup, so the pair reads as a pair before anyone has touched either or started a run.
+showRates();
 
 /**
  * What the two rates come to together, in the terms somebody exporting cares about.
