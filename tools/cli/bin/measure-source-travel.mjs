@@ -33,6 +33,17 @@
  * The models are rebuilt from the vendored fragments by `referenceArm.mjs`, which explains what it
  * drops and why. What is measured here is `ten_length`, which is the quantity those models are
  * definitive about.
+ *
+ * ## Coupled coordinates, on both sides
+ *
+ * A shoulder does not elevate with its scapula flat, and both models say so -- ours with joint
+ * couplings the compiler emits, MyoSuite's with the joint equalities in its assets file. Neither
+ * says so to a sweep that writes coordinates, because an equality is satisfied by the solver
+ * during a step and not projected by `mj_forward`. So both sweeps apply their own couplings the
+ * same way: a coordinate that follows another is never swept on its own, and sweeping a driver
+ * carries its followers. Without that, the reference's phantom girdle joints were being swept as
+ * though they were free, and 180 degrees of elevation was being asked of the glenohumeral joint
+ * alone on both skeletons.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -44,6 +55,7 @@ import {
   LEG_TENDONS,
   MODELS,
   SHOULDER_TENDONS,
+  couplings,
   referenceArmXml,
 } from '../../validate-external/src/referenceArm.mjs';
 import { ARM, LEGS, readActuators } from '../lib/myoSuite.mjs';
@@ -84,6 +96,30 @@ function travelOn(tendons, model) {
   const address = m.jnt_qposadr;
   const range = m.jnt_range;
   const type = m.jnt_type;
+  const jointId = (name) => mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT.value, name);
+
+  // The model's own couplings, by joint index. A coordinate that follows another is never swept
+  // on its own -- it does not move on its own -- and sweeping a driver carries its followers.
+  const follows = [];
+  const dependent = new Set();
+  for (const c of couplings(model)) {
+    const to = jointId(c.dependent);
+    const from = jointId(c.driver);
+    if (to < 0 || from < 0) continue;
+    follows.push({ to, from, polycoef: c.polycoef });
+    dependent.add(to);
+  }
+  const follow = (joint, value) => {
+    for (const f of follows) {
+      if (f.from !== joint) continue;
+      let total = 0;
+      for (let power = f.polycoef.length - 1; power >= 0; power--) {
+        total = total * value + (f.polycoef[power] ?? 0);
+      }
+      d.qpos[address[f.to]] = total;
+    }
+  };
+
   const neutral = Float64Array.from(d.qpos);
   const lengths = () => {
     mujoco.mj_forward(m, d);
@@ -99,12 +135,14 @@ function travelOn(tendons, model) {
     // Hinges and sliders only. A free or ball joint has no range to sweep, and the models state
     // an unlimited joint's range as an empty interval rather than flagging it.
     if (type[j] !== mjtJNT_HINGE && type[j] !== mjtJNT_SLIDE) continue;
+    if (dependent.has(j)) continue;
     const low = range[2 * j];
     const high = range[2 * j + 1];
     if (!(high > low)) continue;
 
     d.qpos.set(neutral);
     d.qpos[address[j]] = low + (high - low) * PROBE;
+    follow(j, low + (high - low) * PROBE);
     const probed = lengths();
     // Only the tendons this joint actually moves: another tendon's length here is its length at
     // neutral, and recording it would be recording nothing.
@@ -113,7 +151,9 @@ function travelOn(tendons, model) {
 
     for (let i = 0; i < SAMPLES; i++) {
       d.qpos.set(neutral);
-      d.qpos[address[j]] = low + ((high - low) * i) / (SAMPLES - 1);
+      const value = low + ((high - low) * i) / (SAMPLES - 1);
+      d.qpos[address[j]] = value;
+      follow(j, value);
       const now = lengths();
       for (let t = 0; t < names.length; t++) {
         if (!crosses[t]) continue;

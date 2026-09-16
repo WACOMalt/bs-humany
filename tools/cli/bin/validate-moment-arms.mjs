@@ -82,30 +82,33 @@ const RECORDED = [
   },
   {
     unit: 'brachialis_r',
-    bound: 0.023,
+    bound: 0.013,
     question: 'OQ-015',
-    note: 'Twice the reference through the middle of the range, and it never touches the surface it declares: our insertion marker sits 50 mm from the flexion axis where the reference\u2019s sits 24, so the straight line from origin to insertion passes outside the trochlea cylinder at every angle and the wrap has nothing to do. The marker is a label anchor rather than a measured attachment centroid.',
+    note: 'Still close to twice the reference, though putting the markers back on the bone brought it in from 22 mm of mean error to 12 and moved its peak onto the reference\u2019s angle. Its line still passes outside the trochlea cylinder at every angle, so the surface it declares does nothing for it; what it needs is an attachment over the coronoid rather than a point 40 mm from the flexion axis.',
   },
   {
     unit: 'brachioradialis_r',
-    bound: 0.042,
+    bound: 0.044,
     question: 'OQ-015',
-    note: 'A quarter of the reference, which is the largest error in the set. Brachioradialis has the longest flexion arm at the elbow because its path stands well clear of the joint, and the reference holds it there with a cylinder at the distal humerus that this has not carried over; ours is held out only by the trochlea it wraps.',
+    note: 'A fifth of the reference, which is the largest error in the set. Brachioradialis has the longest flexion arm at the elbow because its path stands well clear of the joint, and the reference holds it there with a cylinder at the distal humerus that this has not carried over; ours is held out only by the trochlea it wraps, which is now measured at 12 mm rather than 18.',
   },
   {
     unit: 'triceps_brachii_long_r',
+    bound: 0.008,
     question: 'OQ-015',
-    note: 'Within tolerance, and the shape differs at the closed end: ours is a pulley at every angle, and the reference path leaves its surface past about 90 degrees.',
+    note: 'Flat at 15 mm where the reference runs from 24 down to 8, and both halves of that are the same cause: our extensor pulley is coaxial with the joint, which by construction gives a constant arm, and the reference\u2019s cylinder is offset behind it, which gives one that falls as the elbow closes. The size is the attachment: the triceps inserts on the olecranon, and the point the marker projects to stands 15 mm from the flexion axis where the bone\u2019s own posterior apex stands 25. A surface at the olecranon was measured (25.1 mm) and does not help, because an attachment inside a wrap surface cannot wrap it.',
   },
   {
     unit: 'triceps_brachii_lateral_r',
+    bound: 0.008,
     question: 'OQ-015',
-    note: 'As the long head, and from the same surface.',
+    note: 'As the long head, and from the same attachment.',
   },
   {
     unit: 'triceps_brachii_medial_r',
+    bound: 0.008,
     question: 'OQ-015',
-    note: 'As the long head, and from the same surface.',
+    note: 'As the long head, and from the same attachment.',
   },
 ];
 

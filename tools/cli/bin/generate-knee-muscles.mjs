@@ -23,6 +23,16 @@
  * constraint the compiler builds from the reference model's own polynomial, so those points move
  * the way a patella moves rather than riding along with the femur.
  *
+ * ## Where a vastus starts
+ *
+ * Not at one named feature but at the middle of the footprint over several, which is what
+ * `footprint` in `attachments.ts` is for. The vasti arise along most of the femur, and Gray names
+ * each stretch of that separately -- the intertrochanteric line, the gluteal tuberosity, the linea
+ * aspera, the medial supracondylar line -- so the dataset marks each separately too. Naming one of
+ * them as the origin puts the whole muscle wherever that one feature lies: vastus medialis was
+ * given the medial supracondylar line, which is 93 per cent of the way down the femur, and came
+ * out 119 mm long where the same muscle on the model these parameters come from is 283.
+ *
  * ## No wrap surface, measured rather than assumed
  *
  * The hamstrings were given the femoral condyles first -- a cylinder coaxial with the knee's
@@ -78,7 +88,7 @@ const UNITS = [
     group: 'quadriceps_femoris_$',
     id: 'vastus_lateralis_$',
     name: 'Vastus lateralis',
-    origin: 'vastus_lateralis_origin_$_linea_aspera',
+    origin: 'vastus_lateralis_origin_$_footprint',
     insertion: 'vastus_lateralis_insertion_$_tibial_tuberosity',
   },
   {
@@ -86,7 +96,7 @@ const UNITS = [
     group: 'quadriceps_femoris_$',
     id: 'vastus_medialis_$',
     name: 'Vastus medialis',
-    origin: 'vastus_medialis_origin_$_medial_supracondylar_line',
+    origin: 'vastus_medialis_origin_$_footprint',
     insertion: 'vastus_medialis_insertion_$_tibial_tuberosity',
   },
   {

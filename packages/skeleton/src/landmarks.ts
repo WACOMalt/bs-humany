@@ -16,6 +16,9 @@
 import derivedJson from '@bs-humany/assets-anatomical/data/landmarks-derived.json' with {
   type: 'json',
 };
+import surfaceJson from '@bs-humany/assets-anatomical/data/landmarks-surface.json' with {
+  type: 'json',
+};
 import landmarksJson from '@bs-humany/assets-anatomical/data/landmarks.json' with { type: 'json' };
 import {
   type Citation,
@@ -33,6 +36,39 @@ import { getBone } from './taxonomy.js';
 type LandmarkTable = Record<string, Record<string, [number, number, number]>>;
 /** The pack's own markers: one per named feature, at the marker mesh's centroid. */
 const RAW: LandmarkTable = landmarksJson as unknown as LandmarkTable;
+
+interface SurfaceLandmark {
+  readonly bone: string;
+  readonly feature: string;
+  readonly surface: [number, number, number];
+  readonly offset: number;
+  readonly vertices: number;
+  readonly patchRadius: number;
+  readonly rule: string;
+}
+
+/**
+ * The same markers, put back on the bone they name.
+ *
+ * The export's markers are label anchors: placed out in the clear beside a feature so a text label
+ * can point at it without sitting inside the mesh. That is what they are for, and it makes them
+ * unusable as positions -- measured against the bone each one names, not one marker in the arm
+ * lies on it, and they miss by 10 to 30 mm.
+ *
+ * The consequence is not subtle. The two epicondyle markers are **103.5 mm apart**, where the
+ * bone between them measures 63.8: each floats about 20 mm out along the very axis it defines. So
+ * the elbow's flexion axis -- the line between them, and the axis every wrap radius at the elbow
+ * is measured about -- was built on a distal humerus two thirds again as wide as the one in the
+ * mesh.
+ *
+ * `surfaceLandmarks.ts` puts each marker on its bone by an explicit rule and records how far it
+ * moved. They join the table here, so a landmark lookup answers with where the feature *is*, the
+ * same way the fitted articular centres do. `markerWorld` still answers with the raw marker for
+ * the places that need to know what the export itself placed.
+ */
+const SURFACE: readonly SurfaceLandmark[] = (
+  surfaceJson as unknown as { readonly landmarks: readonly SurfaceLandmark[] }
+).landmarks;
 const DERIVED: Record<string, Record<string, string>> = derivedJson as Record<
   string,
   Record<string, string>
@@ -49,6 +85,12 @@ const DERIVED: Record<string, Record<string, string>> = derivedJson as Record<
 const POSITIONS: LandmarkTable = (() => {
   const merged: LandmarkTable = {};
   for (const [bone, features] of Object.entries(RAW)) merged[bone] = { ...features };
+  // The measured point on the bone, over the label anchor that named it.
+  for (const l of SURFACE) {
+    merged[l.bone] ??= {};
+    const features = merged[l.bone];
+    if (features) features[l.feature] = [l.surface[0], l.surface[1], l.surface[2]];
+  }
   for (const c of ARTICULAR_CENTRES) {
     merged[c.bone] ??= {};
     const features = merged[c.bone];
@@ -62,6 +104,16 @@ const POSITIONS: LandmarkTable = (() => {
   }
   return merged;
 })();
+
+const SURFACE_RULES = new Map<string, string>(
+  SURFACE.map(
+    (l) =>
+      [
+        `${l.bone}/${l.feature}`,
+        `${l.rule}; moved ${(l.offset * 1000).toFixed(1)} mm over ${l.vertices} vertices`,
+      ] as const,
+  ),
+);
 
 /** How a fitted centre was located, for its provenance line. */
 const FITTED_RULES = new Map<string, string>([
@@ -427,7 +479,10 @@ export function buildLandmarks(): LandmarkDef[] {
       seen.add(id);
 
       const isb = isbByKey.get(`${bone}/${feature}`);
-      const derivedRule = DERIVED[bone]?.[feature] ?? FITTED_RULES.get(`${bone}/${feature}`);
+      const derivedRule =
+        DERIVED[bone]?.[feature] ??
+        FITTED_RULES.get(`${bone}/${feature}`) ??
+        SURFACE_RULES.get(`${bone}/${feature}`);
       const local = (i: 0 | 1 | 2) => (world[i] - centroid[i]) / DATASET_MANIFEST.subjectStature;
 
       const provenance: LandmarkProvenance = {

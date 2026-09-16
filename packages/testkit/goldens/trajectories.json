@@ -1,51 +1,51 @@
 {
   "arm-flail/l3_anatomical/mujoco": {
-    "hash": "1b8ecd14f76d1726",
+    "hash": "a60b582b72618ea5",
     "ticks": 8000,
     "platform": "linux-x64"
   },
   "drop-prone/l1_standard/mujoco": {
-    "hash": "49c60f35397819b0",
+    "hash": "7e376e4706a9e707",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-standing-collapse/l1_standard/mujoco": {
-    "hash": "11e9b65c954d5061",
+    "hash": "3801d2fc0f6e2d4c",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-supine/l1_standard/mujoco": {
-    "hash": "d00d3dddb989b37a",
+    "hash": "399ae8c681d0cf8b",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "grab-and-swing/l1_standard/mujoco": {
-    "hash": "5e18aa3008383567",
+    "hash": "3a52942779b48cfa",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "hang-from-wrist/l1_standard/mujoco": {
-    "hash": "d37f6811c5f07f7a",
+    "hash": "85c76da416b7a3a5",
     "ticks": 3000,
     "platform": "linux-x64"
   },
   "muscle-range-of-motion/l3_anatomical/mujoco": {
-    "hash": "4cb2d33f85514deb",
+    "hash": "69d31bf17a409d5c",
     "ticks": 14000,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/mujoco": {
-    "hash": "c890037a2d28978d",
+    "hash": "5ca577c2cb4547f6",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "skull-wiggle/l3_anatomical/mujoco": {
-    "hash": "645658b853bea477",
+    "hash": "16faec0c3c62118b",
     "ticks": 4000,
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/mujoco": {
-    "hash": "b73b7cfb9cb0d090",
+    "hash": "fbb0b2d1804caed3",
     "ticks": 2000,
     "platform": "linux-x64"
   }

@@ -19,8 +19,8 @@
  * the other.
  *
  * The transforms were measured, not assumed. Bone for bone, reference against ours:
- *   arm  290.7 mm against 277.8, a scale of 0.9557
- *   leg  404.4 mm against 405.6, a scale of 1.0029
+ *   arm  290.7 mm against 278.4, a scale of 0.9575
+ *   leg  404.4 mm against 406.9, a scale of 1.0061
  *
  * Positions are a fraction of the subject's stature, as every other point in this package is, so
  * they scale with the morphology.
@@ -55,7 +55,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'DELT1_DELT1-P3_r',
-    local: [0.0393111, -0.0096137, -0.0427504],
+    local: [0.0395314, -0.00953731, -0.0427918],
   },
   {
     id: 'deltoid_anterior_r__via_2',
@@ -63,7 +63,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'DELT1_DELT1-P2_r',
-    local: [-0.00343433, 0.0220413, -0.00746939],
+    local: [-0.0046625, 0.0217315, -0.00806245],
   },
   {
     id: 'deltoid_middle_r__via_1',
@@ -71,7 +71,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'DELT2_DELT2-P3_r',
-    local: [0.0410453, 0.0129031, -0.0188361],
+    local: [0.041133, 0.0126007, -0.0184314],
   },
   {
     id: 'deltoid_middle_r__via_2',
@@ -79,7 +79,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'DELT2_DELT2-P2_r',
-    local: [-0.0233723, 0.0402144, -0.00522391],
+    local: [-0.0242503, 0.0403871, -0.00607757],
   },
   {
     id: 'deltoid_posterior_r__via_1',
@@ -87,7 +87,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'DELT3_DELT3-P2_r',
-    local: [0.0348919, -0.00617999, 0.0224656],
+    local: [0.0333408, -0.00699934, 0.022448],
   },
   {
     id: 'supraspinatus_r__via_1',
@@ -95,7 +95,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'SUPSP_SUPSP-P2_r',
-    local: [0.0342621, 0.0134109, -0.0156678],
+    local: [0.0342639, 0.0132268, -0.0154401],
   },
   {
     id: 'infraspinatus_r__via_1',
@@ -103,7 +103,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'INFSP_INFSP-P2_r',
-    local: [0.0256748, -0.0135861, 0.00752927],
+    local: [0.0243571, -0.0139589, 0.00711317],
   },
   {
     id: 'subscapularis_r__via_1',
@@ -111,7 +111,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'SUBSC_SUBSC-P2_r',
-    local: [0.021308, -0.0230462, -0.00937209],
+    local: [0.0202358, -0.0230644, -0.010087],
   },
   {
     id: 'teres_minor_r__via_1',
@@ -119,7 +119,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'TMIN_TMIN-P2_r',
-    local: [0.00686608, -0.0392977, 0.0329297],
+    local: [0.00418482, -0.0396404, 0.0316079],
   },
   {
     id: 'teres_major_r__via_1',
@@ -127,7 +127,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'TMAJ_TMAJ-P3_r',
-    local: [0.00892218, -0.055643, 0.0343228],
+    local: [0.00580966, -0.0560824, 0.0327961],
   },
   {
     id: 'teres_major_r__via_2',
@@ -135,7 +135,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'TMAJ_TMAJ-P2_r',
-    local: [-0.0183729, 0.0501915, 0.00208864],
+    local: [-0.0192114, 0.0501432, 0.00154633],
   },
   {
     id: 'biceps_brachii_long_r__via_1',
@@ -143,7 +143,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'BIClong_BIClong-P2_r',
-    local: [0.0269241, 0.0010808, -0.0082226],
+    local: [0.0264083, 0.000943185, -0.00838888],
   },
   {
     id: 'biceps_brachii_long_r__via_2',
@@ -151,7 +151,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'BIClong_BIClong-P3_r',
-    local: [-0.0124603, 0.0915059, -0.0134787],
+    local: [-0.0118535, 0.0916156, -0.0132098],
   },
   {
     id: 'biceps_brachii_long_r__via_3',
@@ -159,7 +159,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_r',
     referenceSite: 'BIClong_BIClong-P4_r',
-    local: [-0.00675665, 0.0776997, -0.0147062],
+    local: [-0.00644108, 0.0776675, -0.0145028],
   },
   {
     id: 'biceps_brachii_long_r__via_4',
@@ -167,7 +167,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'humerus_r',
     referenceSite: 'BIClong_BIClong-P5_r',
-    local: [-0.0103219, 0.0638761, -0.00867722],
+    local: [-0.0105151, 0.0638173, -0.00878837],
   },
   {
     id: 'biceps_brachii_long_r__via_5',
@@ -175,7 +175,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 5,
     bone: 'humerus_r',
     referenceSite: 'BIClong_BIClong-P6_r',
-    local: [-0.00583986, 0.0366965, -0.00528843],
+    local: [-0.00677927, 0.0364342, -0.0057088],
   },
   {
     id: 'biceps_brachii_long_r__via_6',
@@ -183,7 +183,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 6,
     bone: 'humerus_r',
     referenceSite: 'BIClong_BIClong-P7_r',
-    local: [0.00130594, 0.0127836, -0.00688392],
+    local: [-0.000156298, 0.0123343, -0.00749325],
   },
   {
     id: 'biceps_brachii_long_r__via_7',
@@ -191,7 +191,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 7,
     bone: 'humerus_r',
     referenceSite: 'BIClong_BIClong-P8_r',
-    local: [0.0051481, -0.0178473, -0.008282],
+    local: [0.0029913, -0.0184155, -0.00928096],
   },
   {
     id: 'biceps_brachii_long_r__via_8',
@@ -199,7 +199,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 8,
     bone: 'radius_r',
     referenceSite: 'BIClong_BIClong-P10_r',
-    local: [-0.0111672, 0.0647817, 0.026178],
+    local: [-0.0158859, 0.0633181, 0.0243749],
   },
   {
     id: 'biceps_brachii_short_r__via_1',
@@ -207,7 +207,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_r',
     referenceSite: 'BICshort_BICshort-P2_r',
-    local: [0.0293248, -0.0304806, -0.018927],
+    local: [0.028354, -0.0305591, -0.0195513],
   },
   {
     id: 'biceps_brachii_short_r__via_2',
@@ -215,7 +215,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'BICshort_BICshort-P3_r',
-    local: [-0.0110977, 0.0363148, -0.00624202],
+    local: [-0.0120258, 0.0361958, -0.00681693],
   },
   {
     id: 'biceps_brachii_short_r__via_3',
@@ -223,7 +223,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_r',
     referenceSite: 'BICshort_BICshort-P4_r',
-    local: [-0.00468962, 0.0113169, -0.00760706],
+    local: [-0.00617416, 0.0110239, -0.00840876],
   },
   {
     id: 'biceps_brachii_short_r__via_4',
@@ -231,7 +231,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'humerus_r',
     referenceSite: 'BICshort_BICshort-P5_r',
-    local: [0.0051481, -0.0178473, -0.008282],
+    local: [0.0029913, -0.0184155, -0.00928096],
   },
   {
     id: 'biceps_brachii_short_r__via_5',
@@ -239,7 +239,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 5,
     bone: 'radius_r',
     referenceSite: 'BICshort_BICshort-P6_r',
-    local: [-0.0119164, 0.0667286, 0.0265833],
+    local: [-0.0166006, 0.0652801, 0.0247914],
   },
   {
     id: 'brachioradialis_r__via_1',
@@ -247,7 +247,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_r',
     referenceSite: 'BRD_BRD-P2_r',
-    local: [0.0241065, 0.0147459, 0.00891193],
+    local: [0.0187138, 0.0126075, 0.00726212],
   },
   {
     id: 'triceps_brachii_long_r__via_1',
@@ -255,7 +255,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'humerus_r',
     referenceSite: 'TRIlong_TRIlong-P1b_r',
-    local: [-0.029382, 0.0751727, 0.0167196],
+    local: [-0.0300462, 0.0752061, 0.0162939],
   },
   {
     id: 'triceps_brachii_long_r__via_2',
@@ -263,7 +263,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'TRIlong_TRIlong-P2_r',
-    local: [-0.00655899, 0.016719, 0.0170298],
+    local: [-0.00861388, 0.0160987, 0.0162978],
   },
   {
     id: 'triceps_brachii_long_r__via_3',
@@ -271,7 +271,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_r',
     referenceSite: 'TRIlong_TRIlong-P3_r',
-    local: [0.00450775, -0.0451327, 0.0239435],
+    local: [0.000778449, -0.0462252, 0.0225309],
   },
   {
     id: 'triceps_brachii_long_r__via_4',
@@ -279,7 +279,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'humerus_r',
     referenceSite: 'TRIlong_TRIlong-P4_r',
-    local: [0.0109207, -0.0680162, 0.0176203],
+    local: [0.00682655, -0.0692028, 0.0160083],
   },
   {
     id: 'triceps_brachii_lateral_r__via_1',
@@ -287,7 +287,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'humerus_r',
     referenceSite: 'TRIlat_TRIlat-P2_r',
-    local: [0.00634174, 0.00185916, 0.0172918],
+    local: [0.0039369, 0.000895468, 0.0166807],
   },
   {
     id: 'triceps_brachii_lateral_r__via_2',
@@ -295,7 +295,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'TRIlat_TRIlat-P3_r',
-    local: [0.00450775, -0.0451327, 0.0239435],
+    local: [0.000778449, -0.0462252, 0.0225309],
   },
   {
     id: 'triceps_brachii_lateral_r__via_3',
@@ -303,7 +303,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_r',
     referenceSite: 'TRIlat_TRIlat-P4_r',
-    local: [0.0109207, -0.0680162, 0.0176203],
+    local: [0.00682655, -0.0692028, 0.0160083],
   },
   {
     id: 'triceps_brachii_medial_r__via_1',
@@ -311,7 +311,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'humerus_r',
     referenceSite: 'TRImed_TRImed-P2_r',
-    local: [-0.00397505, -0.00408803, 0.0176635],
+    local: [-0.00654667, -0.00481298, 0.0166683],
   },
   {
     id: 'triceps_brachii_medial_r__via_2',
@@ -319,7 +319,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_r',
     referenceSite: 'TRImed_TRImed-P3_r',
-    local: [0.00450775, -0.0451327, 0.0239435],
+    local: [0.000778449, -0.0462252, 0.0225309],
   },
   {
     id: 'triceps_brachii_medial_r__via_3',
@@ -327,7 +327,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_r',
     referenceSite: 'TRImed_TRImed-P4_r',
-    local: [0.0109207, -0.0680162, 0.0176203],
+    local: [0.00682655, -0.0692028, 0.0160083],
   },
   {
     id: 'rectus_femoris_r__via_1',
@@ -399,7 +399,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'bflh-P2_r',
-    local: [0.0156568, 0.0712271, 0.020317],
+    local: [0.014965, 0.0705958, 0.0219082],
   },
   {
     id: 'semitendinosus_r__via_1',
@@ -407,7 +407,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'semiten-P2_r',
-    local: [-0.0130056, 0.0622829, 0.0200592],
+    local: [-0.0138329, 0.0617647, 0.022116],
   },
   {
     id: 'deltoid_anterior_l__via_1',
@@ -415,7 +415,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'DELT1_DELT1-P3_r',
-    local: [-0.0393111, -0.0096137, -0.0427504],
+    local: [-0.0395314, -0.00953731, -0.0427918],
   },
   {
     id: 'deltoid_anterior_l__via_2',
@@ -423,7 +423,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'DELT1_DELT1-P2_r',
-    local: [0.00343434, 0.0220413, -0.00746939],
+    local: [0.00466251, 0.0217315, -0.00806245],
   },
   {
     id: 'deltoid_middle_l__via_1',
@@ -431,7 +431,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'DELT2_DELT2-P3_r',
-    local: [-0.0410453, 0.0129031, -0.0188361],
+    local: [-0.041133, 0.0126007, -0.0184314],
   },
   {
     id: 'deltoid_middle_l__via_2',
@@ -439,7 +439,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'DELT2_DELT2-P2_r',
-    local: [0.0233723, 0.0402144, -0.00522391],
+    local: [0.0242503, 0.0403871, -0.00607757],
   },
   {
     id: 'deltoid_posterior_l__via_1',
@@ -447,7 +447,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'DELT3_DELT3-P2_r',
-    local: [-0.0348919, -0.00617999, 0.0224656],
+    local: [-0.0333408, -0.00699934, 0.022448],
   },
   {
     id: 'supraspinatus_l__via_1',
@@ -455,7 +455,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'SUPSP_SUPSP-P2_r',
-    local: [-0.0342621, 0.0134109, -0.0156678],
+    local: [-0.0342639, 0.0132268, -0.0154401],
   },
   {
     id: 'infraspinatus_l__via_1',
@@ -463,7 +463,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'INFSP_INFSP-P2_r',
-    local: [-0.0256748, -0.0135861, 0.00752927],
+    local: [-0.0243571, -0.0139589, 0.00711317],
   },
   {
     id: 'subscapularis_l__via_1',
@@ -471,7 +471,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'SUBSC_SUBSC-P2_r',
-    local: [-0.021308, -0.0230462, -0.00937209],
+    local: [-0.0202358, -0.0230644, -0.010087],
   },
   {
     id: 'teres_minor_l__via_1',
@@ -479,7 +479,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'TMIN_TMIN-P2_r',
-    local: [-0.00686605, -0.0392977, 0.0329297],
+    local: [-0.00418479, -0.0396404, 0.0316079],
   },
   {
     id: 'teres_major_l__via_1',
@@ -487,7 +487,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'TMAJ_TMAJ-P3_r',
-    local: [-0.00892215, -0.055643, 0.0343228],
+    local: [-0.00580963, -0.0560824, 0.0327961],
   },
   {
     id: 'teres_major_l__via_2',
@@ -495,7 +495,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'TMAJ_TMAJ-P2_r',
-    local: [0.0183729, 0.0501915, 0.00208864],
+    local: [0.0192114, 0.0501432, 0.00154633],
   },
   {
     id: 'biceps_brachii_long_l__via_1',
@@ -503,7 +503,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'BIClong_BIClong-P2_r',
-    local: [-0.0269241, 0.0010808, -0.0082226],
+    local: [-0.0264083, 0.000943185, -0.00838888],
   },
   {
     id: 'biceps_brachii_long_l__via_2',
@@ -511,7 +511,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'BIClong_BIClong-P3_r',
-    local: [0.0124603, 0.0915059, -0.0134787],
+    local: [0.0118535, 0.0916156, -0.0132098],
   },
   {
     id: 'biceps_brachii_long_l__via_3',
@@ -519,7 +519,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_l',
     referenceSite: 'BIClong_BIClong-P4_r',
-    local: [0.00675666, 0.0776997, -0.0147062],
+    local: [0.00644109, 0.0776675, -0.0145028],
   },
   {
     id: 'biceps_brachii_long_l__via_4',
@@ -527,7 +527,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'humerus_l',
     referenceSite: 'BIClong_BIClong-P5_r',
-    local: [0.0103219, 0.0638761, -0.00867722],
+    local: [0.0105151, 0.0638173, -0.00878837],
   },
   {
     id: 'biceps_brachii_long_l__via_5',
@@ -535,7 +535,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 5,
     bone: 'humerus_l',
     referenceSite: 'BIClong_BIClong-P6_r',
-    local: [0.00583987, 0.0366965, -0.00528843],
+    local: [0.00677928, 0.0364342, -0.0057088],
   },
   {
     id: 'biceps_brachii_long_l__via_6',
@@ -543,7 +543,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 6,
     bone: 'humerus_l',
     referenceSite: 'BIClong_BIClong-P7_r',
-    local: [-0.00130593, 0.0127836, -0.00688392],
+    local: [0.000156306, 0.0123343, -0.00749325],
   },
   {
     id: 'biceps_brachii_long_l__via_7',
@@ -551,7 +551,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 7,
     bone: 'humerus_l',
     referenceSite: 'BIClong_BIClong-P8_r',
-    local: [-0.00514809, -0.0178473, -0.008282],
+    local: [-0.00299129, -0.0184155, -0.00928096],
   },
   {
     id: 'biceps_brachii_long_l__via_8',
@@ -559,7 +559,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 8,
     bone: 'radius_l',
     referenceSite: 'BIClong_BIClong-P10_r',
-    local: [0.0111672, 0.0647817, 0.026178],
+    local: [0.0158859, 0.0633181, 0.0243749],
   },
   {
     id: 'biceps_brachii_short_l__via_1',
@@ -567,7 +567,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'scapula_l',
     referenceSite: 'BICshort_BICshort-P2_r',
-    local: [-0.0293248, -0.0304806, -0.018927],
+    local: [-0.028354, -0.0305591, -0.0195513],
   },
   {
     id: 'biceps_brachii_short_l__via_2',
@@ -575,7 +575,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'BICshort_BICshort-P3_r',
-    local: [0.0110977, 0.0363148, -0.00624202],
+    local: [0.0120258, 0.0361958, -0.00681693],
   },
   {
     id: 'biceps_brachii_short_l__via_3',
@@ -583,7 +583,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_l',
     referenceSite: 'BICshort_BICshort-P4_r',
-    local: [0.00468963, 0.0113169, -0.00760706],
+    local: [0.00617417, 0.0110239, -0.00840876],
   },
   {
     id: 'biceps_brachii_short_l__via_4',
@@ -591,7 +591,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'humerus_l',
     referenceSite: 'BICshort_BICshort-P5_r',
-    local: [-0.00514809, -0.0178473, -0.008282],
+    local: [-0.00299129, -0.0184155, -0.00928096],
   },
   {
     id: 'biceps_brachii_short_l__via_5',
@@ -599,7 +599,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 5,
     bone: 'radius_l',
     referenceSite: 'BICshort_BICshort-P6_r',
-    local: [0.0119164, 0.0667286, 0.0265833],
+    local: [0.0166006, 0.0652801, 0.0247914],
   },
   {
     id: 'brachioradialis_l__via_1',
@@ -607,7 +607,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_l',
     referenceSite: 'BRD_BRD-P2_r',
-    local: [-0.0241065, 0.0147459, 0.00891193],
+    local: [-0.0187138, 0.0126075, 0.00726212],
   },
   {
     id: 'triceps_brachii_long_l__via_1',
@@ -615,7 +615,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'humerus_l',
     referenceSite: 'TRIlong_TRIlong-P1b_r',
-    local: [0.029382, 0.0751727, 0.0167196],
+    local: [0.0300462, 0.0752061, 0.0162939],
   },
   {
     id: 'triceps_brachii_long_l__via_2',
@@ -623,7 +623,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'TRIlong_TRIlong-P2_r',
-    local: [0.006559, 0.016719, 0.0170298],
+    local: [0.00861389, 0.0160987, 0.0162978],
   },
   {
     id: 'triceps_brachii_long_l__via_3',
@@ -631,7 +631,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_l',
     referenceSite: 'TRIlong_TRIlong-P3_r',
-    local: [-0.00450774, -0.0451327, 0.0239435],
+    local: [-0.000778441, -0.0462252, 0.0225309],
   },
   {
     id: 'triceps_brachii_long_l__via_4',
@@ -639,7 +639,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'humerus_l',
     referenceSite: 'TRIlong_TRIlong-P4_r',
-    local: [-0.0109207, -0.0680162, 0.0176203],
+    local: [-0.00682654, -0.0692028, 0.0160083],
   },
   {
     id: 'triceps_brachii_lateral_l__via_1',
@@ -647,7 +647,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'humerus_l',
     referenceSite: 'TRIlat_TRIlat-P2_r',
-    local: [-0.00634173, 0.00185916, 0.0172918],
+    local: [-0.00393689, 0.000895468, 0.0166807],
   },
   {
     id: 'triceps_brachii_lateral_l__via_2',
@@ -655,7 +655,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'TRIlat_TRIlat-P3_r',
-    local: [-0.00450774, -0.0451327, 0.0239435],
+    local: [-0.000778441, -0.0462252, 0.0225309],
   },
   {
     id: 'triceps_brachii_lateral_l__via_3',
@@ -663,7 +663,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_l',
     referenceSite: 'TRIlat_TRIlat-P4_r',
-    local: [-0.0109207, -0.0680162, 0.0176203],
+    local: [-0.00682654, -0.0692028, 0.0160083],
   },
   {
     id: 'triceps_brachii_medial_l__via_1',
@@ -671,7 +671,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'humerus_l',
     referenceSite: 'TRImed_TRImed-P2_r',
-    local: [0.00397506, -0.00408803, 0.0176635],
+    local: [0.00654668, -0.00481298, 0.0166683],
   },
   {
     id: 'triceps_brachii_medial_l__via_2',
@@ -679,7 +679,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'humerus_l',
     referenceSite: 'TRImed_TRImed-P3_r',
-    local: [-0.00450774, -0.0451327, 0.0239435],
+    local: [-0.000778441, -0.0462252, 0.0225309],
   },
   {
     id: 'triceps_brachii_medial_l__via_3',
@@ -687,7 +687,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'humerus_l',
     referenceSite: 'TRImed_TRImed-P4_r',
-    local: [-0.0109207, -0.0680162, 0.0176203],
+    local: [-0.00682654, -0.0692028, 0.0160083],
   },
   {
     id: 'rectus_femoris_l__via_1',
@@ -759,7 +759,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'bflh-P2_r',
-    local: [-0.0156568, 0.0712271, 0.020317],
+    local: [-0.014965, 0.0705958, 0.0219082],
   },
   {
     id: 'semitendinosus_l__via_1',
@@ -767,7 +767,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'semiten-P2_r',
-    local: [0.0130056, 0.0622829, 0.0200592],
+    local: [0.0138329, 0.0617647, 0.022116],
   },
 ];
 

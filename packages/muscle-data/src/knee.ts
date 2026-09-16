@@ -74,7 +74,7 @@ export const KNEE_MUSCLES: readonly MuscleGroup[] = [
       {
         id: 'vastus_lateralis_r',
         displayName: 'Vastus lateralis, right',
-        origin: 'vastus_lateralis_origin_r_linea_aspera',
+        origin: 'vastus_lateralis_origin_r_footprint',
         insertion: 'vastus_lateralis_insertion_r_tibial_tuberosity',
         path: [
           { kind: 'site', site: 'vastus_lateralis_r__via_1' },
@@ -92,7 +92,7 @@ export const KNEE_MUSCLES: readonly MuscleGroup[] = [
       {
         id: 'vastus_medialis_r',
         displayName: 'Vastus medialis, right',
-        origin: 'vastus_medialis_origin_r_medial_supracondylar_line',
+        origin: 'vastus_medialis_origin_r_footprint',
         insertion: 'vastus_medialis_insertion_r_tibial_tuberosity',
         path: [
           { kind: 'site', site: 'vastus_medialis_r__via_1' },
@@ -281,7 +281,7 @@ export const KNEE_MUSCLES: readonly MuscleGroup[] = [
       {
         id: 'vastus_lateralis_l',
         displayName: 'Vastus lateralis, left',
-        origin: 'vastus_lateralis_origin_l_linea_aspera',
+        origin: 'vastus_lateralis_origin_l_footprint',
         insertion: 'vastus_lateralis_insertion_l_tibial_tuberosity',
         path: [
           { kind: 'site', site: 'vastus_lateralis_l__via_1' },
@@ -299,7 +299,7 @@ export const KNEE_MUSCLES: readonly MuscleGroup[] = [
       {
         id: 'vastus_medialis_l',
         displayName: 'Vastus medialis, left',
-        origin: 'vastus_medialis_origin_l_medial_supracondylar_line',
+        origin: 'vastus_medialis_origin_l_footprint',
         insertion: 'vastus_medialis_insertion_l_tibial_tuberosity',
         path: [
           { kind: 'site', site: 'vastus_medialis_l__via_1' },

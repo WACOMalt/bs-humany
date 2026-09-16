@@ -38,6 +38,19 @@ async function session() {
 
 const magnitude = (v: readonly number[]) => Math.hypot(v[0] ?? 0, v[1] ?? 0, v[2] ?? 0);
 
+/**
+ * How long to let a dropped body come to rest before reading an otolith, in ticks.
+ *
+ * Twenty-four seconds at five hundred hertz, which is longer than it looks like it should need and
+ * is what the body actually takes. An otolith reads the acceleration of the head, and a head that
+ * is still settling by a hundredth of a g reads a hundredth of a g too much; the assertions here
+ * are to a fiftieth. Two thousand ticks used to be enough and stopped being when the attachment
+ * markers were put back on their bones, which moved the segment frames and with them how the body
+ * lands. The reading converges -- 10.13 at 2000 ticks, 9.88 at 6000, one g at 12000 -- so what
+ * changed is the settling, not the sensor.
+ */
+const SETTLED = 12_000;
+
 describe('VestibularModule', () => {
   it('finds the head, and stands down where a profile has no such segment', () => {
     expect(new VestibularModule(articulation).segment).toBe(HEAD);
@@ -53,7 +66,7 @@ describe('VestibularModule', () => {
 
   it('reads one g once the ground is holding the body up', async () => {
     const s = await session();
-    s.kernel.run(2000);
+    s.kernel.run(SETTLED);
     // At rest the only force on the head beyond gravity is the body holding it up, and that is
     // exactly what an otolith reads: one g, in whatever direction the head came to lie.
     expect(magnitude(s.specificForce())).toBeCloseTo(GRAVITY, 1);
@@ -70,7 +83,7 @@ describe('VestibularModule', () => {
 
   it('follows the gravity actually in force, not the one compiled in', async () => {
     const s = await session();
-    s.kernel.run(2000);
+    s.kernel.run(SETTLED);
     expect(magnitude(s.specificForce())).toBeCloseTo(GRAVITY, 1);
     // Switch gravity off and the ground stops having to hold anything up.
     s.physics.setGravity({ x: 0, y: 0, z: 0 });
@@ -94,7 +107,7 @@ describe('VestibularModule', () => {
 
   it('reports tilt as the angle between the head’s own up and the force it feels', async () => {
     const s = await session();
-    s.kernel.run(2000);
+    s.kernel.run(SETTLED);
     const force = s.specificForce();
     const expected = Math.acos((force[1] ?? 0) / magnitude(force));
     expect(s.tilt()).toBeCloseTo(expected, 9);

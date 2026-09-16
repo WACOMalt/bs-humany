@@ -104,6 +104,34 @@ const read = (file) => readFileSync(join(MYO_SIM, file), 'utf8');
 const unwrap = (xml) => xml.replace(/<\/?mujocoinclude[^>]*>/g, '');
 
 /**
+ * The model's own joint couplings: which coordinate follows which, and by what polynomial.
+ *
+ * MyoSuite states these as MuJoCo joint equalities, in the assets file rather than the chain, and
+ * they are what makes the model's shoulder a shoulder: 180 degrees of elevation is not 180 degrees
+ * at the glenohumeral joint, it is that joint and the girdle turning together in fixed proportion,
+ * which is the shoulder rhythm. The knee's are the patella's, a polynomial in flexion.
+ *
+ * They matter to anything that poses the model by writing coordinates. `mj_forward` does not
+ * project an equality -- the solver satisfies it during a step, from forces -- so a coordinate
+ * written and read back straight away leaves its followers wherever they were. A sweep that does
+ * that is asking about poses the model does not have: the arm overhead with the scapula flat.
+ *
+ * `polycoef` is MuJoCo's own order, constant first.
+ */
+export function couplings(model = MODELS.arm) {
+  const block = read(model.assets).match(/<equality>[\s\S]*?<\/equality>/);
+  if (!block) return [];
+  return [...block[0].matchAll(/<joint\b[^>]*\/>/g)].flatMap((element) => {
+    const attribute = (key) => element[0].match(new RegExp(`${key}="([^"]+)"`))?.[1];
+    const dependent = attribute('joint1');
+    const driver = attribute('joint2');
+    const polycoef = attribute('polycoef');
+    if (!dependent || !driver || !polycoef) return [];
+    return [{ dependent, driver, polycoef: polycoef.trim().split(/\s+/).map(Number) }];
+  });
+}
+
+/**
  * Recombine the vendored fragments into one loadable model.
  *
  * Returned as text rather than written anywhere: the model is a derived thing, and a copy on

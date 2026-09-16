@@ -82,6 +82,14 @@ interface Target {
   readonly statistic?: 'bearing' | 'enclosing';
   /** The axis the radius is measured about. */
   readonly axis: readonly [AxisEnd, AxisEnd];
+  /**
+   * The bone whose landmarks give that axis, when it is not the bone being measured.
+   *
+   * The olecranon is the case: it is on the ulna, and the axis it sweeps about is the elbow's,
+   * which is a line between two points on the humerus. Measuring it about its own bone's
+   * landmarks would be measuring it about the wrong line.
+   */
+  readonly axisBone?: string;
   readonly description: string;
 }
 
@@ -234,10 +242,36 @@ const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')
     readonly vertexCount: number;
   }[];
 };
-const landmarks = JSON.parse(readFileSync(join(dataDir, 'landmarks.json'), 'utf8')) as Record<
+/**
+ * The markers, on the bone rather than beside it.
+ *
+ * `surfaceLandmarks.ts` is what makes this measurement mean anything. The axis a radius is taken
+ * about here is the line between two markers, and the raw epicondyle markers are 103.5 mm apart
+ * where the bone between them measures 63.8 -- each floats about 20 mm out along the very axis it
+ * defines. A radius measured about that axis is a radius about a line through the wrong place.
+ *
+ * The raw table is the fallback, so a marker the projection has no bone for still resolves.
+ */
+const surface = JSON.parse(readFileSync(join(dataDir, 'landmarks-surface.json'), 'utf8')) as {
+  readonly landmarks: readonly {
+    readonly bone: string;
+    readonly feature: string;
+    readonly surface: [number, number, number];
+  }[];
+};
+const raw = JSON.parse(readFileSync(join(dataDir, 'landmarks.json'), 'utf8')) as Record<
   string,
   Record<string, [number, number, number]>
 >;
+const landmarks: Record<string, Record<string, [number, number, number]>> = (() => {
+  const merged: Record<string, Record<string, [number, number, number]>> = {};
+  for (const [bone, features] of Object.entries(raw)) merged[bone] = { ...features };
+  for (const l of surface.landmarks) {
+    merged[l.bone] ??= {};
+    (merged[l.bone] as Record<string, [number, number, number]>)[l.feature] = l.surface;
+  }
+  return merged;
+})();
 const bin = readFileSync(join(dataDir, 'skeleton.bin'));
 const positions = new Float32Array(bin.buffer, bin.byteOffset, bin.byteLength / 4);
 const packed = new Map(manifest.bones.map((b) => [b.id, b]));
@@ -249,17 +283,18 @@ const measured: WrapRadius[] = [];
 for (const target of TARGETS) {
   for (const side of ['r', 'l'] as const) {
     const boneId = `${target.bone}_${side}`;
+    const axisBoneId = `${target.axisBone ?? target.bone}_${side}`;
     const bone = packed.get(boneId);
     const seed = landmarks[boneId]?.[target.seedFeature];
     const end = (which: AxisEnd): [number, number, number] => {
       if (typeof which === 'string') {
-        const p = landmarks[boneId]?.[which];
-        if (!p) throw new Error(`${boneId}: no axis marker '${which}'`);
+        const p = landmarks[axisBoneId]?.[which];
+        if (!p) throw new Error(`${axisBoneId}: no axis marker '${which}'`);
         return p;
       }
-      const p = landmarks[boneId]?.[which[0]];
-      const q = landmarks[boneId]?.[which[1]];
-      if (!p || !q) throw new Error(`${boneId}: no axis markers '${which[0]}'/'${which[1]}'`);
+      const p = landmarks[axisBoneId]?.[which[0]];
+      const q = landmarks[axisBoneId]?.[which[1]];
+      if (!p || !q) throw new Error(`${axisBoneId}: no axis markers '${which[0]}'/'${which[1]}'`);
       return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
     };
     if (!bone || !seed) {

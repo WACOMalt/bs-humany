@@ -509,6 +509,13 @@ describe('MuscleMomentModule', () => {
     // arm fell to zero at about 2 rad of flexion and then changed sign, making the extensor a
     // flexor -- the hard failure of muscle spec 13.2. Wrapping holds it at the surface's radius,
     // which is what a pulley does and what published curves show.
+    //
+    // The bounds are the surface, so they move when the surface is measured again. The floor was
+    // 10 mm when the trochlea measured 18.0; putting the epicondyle markers back on the bone made
+    // the distal humerus the width of a real one and the trochlea 12.4, and the arm followed it
+    // down to just under 10. What the test is for is that the arm stays negative and stays off
+    // zero -- how close it is to a published curve is the moment-arm gate's business, and it says
+    // this one is still 6 mm out (OQ-015).
     const s = await withMoments();
     s.kernel.run(400);
     const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
@@ -520,7 +527,7 @@ describe('MuscleMomentModule', () => {
       const at = index.get(id) as number;
       const arm = s.arm[at] as number;
       expect(arm, id).toBeLessThan(0);
-      expect(Math.abs(arm), id).toBeGreaterThan(0.01);
+      expect(Math.abs(arm), id).toBeGreaterThan(0.008);
       expect(Math.abs(arm), id).toBeLessThan(0.035);
     }
     s.kernel.dispose();

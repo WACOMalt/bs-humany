@@ -20,13 +20,30 @@
  *
  * ## What is measured, and what it costs
  *
- * Each crossed coordinate is swept through its own range with the others at neutral, and the
- * extremes over all of them are taken. For a muscle crossing one joint that is exact. For one
+ * Each crossed coordinate is swept through its own range with the others at neutral, except the
+ * ones the skeleton couples to it, which follow. The extremes over all of them are taken. For a muscle crossing one joint that is exact. For one
  * crossing two -- rectus femoris over the hip and the knee, gastrocnemius over the knee and the
  * ankle -- the true extremes are at a *combination* of angles, and sweeping one at a time finds a
  * narrower range than the muscle really has. The error is in the safe direction: a narrower range
  * fits the fibers into a smaller band than they need, which costs a little of the curve rather
  * than putting the muscle outside it.
+ *
+ * ## Coupled coordinates follow the one being swept
+ *
+ * A shoulder does not elevate with its scapula held still. The skeleton says so -- the girdle's
+ * angles are fixed fractions of glenohumeral elevation, the shoulder rhythm, and the patella's
+ * angle is a polynomial in knee flexion -- and those couplings are constraints the physics solves
+ * rather than kinematics the pose carries, so writing one coordinate and leaving the rest at
+ * neutral quietly asks for a pose no body holds.
+ *
+ * What that cost was measurable. Swept with the scapula pinned, the anterior deltoid travelled
+ * 77 mm against the 46 the same muscle travels on the model its parameters come from, and the
+ * fibre translation that reads this asked for a 164 mm fibre in a 190 mm muscle. The two models
+ * have the *same* shoulder ranges to the degree -- ours were taken from that one -- so the
+ * difference was never range of motion. It was 180 degrees of elevation carried entirely by the
+ * glenohumeral joint.
+ *
+ * So each coupling whose driver is the coordinate being swept is applied as the sweep goes.
  *
  * Lengths are stored as ratios of the muscle's own length at the rest pose, not in metres, so
  * they carry across a change of stature: every path in this skeleton scales with it, so the ratio
@@ -122,13 +139,41 @@ const rest = Float64Array.from(path.length);
 const minimum = Float64Array.from(rest);
 const maximum = Float64Array.from(rest);
 
+/**
+ * Every coordinate that follows another, and the polynomial it follows it by.
+ *
+ * `offset + c1 x + c2 x^2 + c3 x^3 + c4 x^4`, which is how the compiler carries a coupling: one
+ * coefficient and up to three higher powers. Only single-driver couplings are here, which is all
+ * this skeleton has.
+ */
+const followers = [];
+for (const constraint of articulation.constraints) {
+  const { kind } = constraint;
+  if (kind.type !== 'jointCoupling') continue;
+  const driver = kind.drivers[0];
+  if (kind.drivers.length !== 1 || driver === undefined) continue;
+  followers.push({ dependent: kind.dependent, driver: driver.dof, ...driver, offset: kind.offset });
+}
+
+/** Put every coordinate that follows this one where the coupling puts it. */
+function follow(dof, value) {
+  for (const f of followers) {
+    if (f.driver !== dof) continue;
+    const [a, b, c] = f.higher ?? [0, 0, 0];
+    q[ROOT_NQ + f.dependent] =
+      f.offset + f.coefficient * value + a * value ** 2 + b * value ** 3 + c * value ** 4;
+  }
+}
+
 const dofs = [...new Set([...crossed.values()].flat())].sort((a, b) => a - b);
 for (const dof of dofs) {
   const range = articulation.dofs[dof]?.range;
   if (!range) continue;
   for (let i = 0; i < SAMPLES; i++) {
     q.set(neutral);
-    q[ROOT_NQ + dof] = range[0] + ((range[1] - range[0]) * i) / (SAMPLES - 1);
+    const value = range[0] + ((range[1] - range[0]) * i) / (SAMPLES - 1);
+    q[ROOT_NQ + dof] = value;
+    follow(dof, value);
     settle();
     for (let unit = 0; unit < muscles.units.length; unit++) {
       // Only for the muscles that cross this coordinate: another muscle's length at this pose is

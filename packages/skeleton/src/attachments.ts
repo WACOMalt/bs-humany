@@ -11,6 +11,9 @@
  * most of the hand and foot intrinsics) are left out and listed by `attachmentGaps`.
  */
 
+import surfaceJson from '@bs-humany/assets-anatomical/data/landmarks-surface.json' with {
+  type: 'json',
+};
 import landmarksJson from '@bs-humany/assets-anatomical/data/landmarks.json' with { type: 'json' };
 import { type AttachmentSiteDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
@@ -19,6 +22,54 @@ import { MUSCLE_VIA_POINTS } from './muscleViaPoints.js';
 
 type Table = Record<string, Record<string, [number, number, number]>>;
 const RAW: Table = landmarksJson as unknown as Table;
+
+interface SurfaceLandmark {
+  readonly bone: string;
+  readonly feature: string;
+  readonly surface: readonly [number, number, number];
+  readonly offset: number;
+  readonly vertices: number;
+  readonly patchRadius: number;
+  readonly rule: string;
+}
+
+/**
+ * Markers put back on the bone they name, by `pnpm --filter @bs-humany/ingest surface-landmarks`.
+ *
+ * The dataset's markers are label anchors: placed out in the clear beside the feature they name so
+ * a text label can point at it. Not one marker in the arm lies on its bone -- the olecranon is
+ * 10 mm off it, the anteromedial surface of the humerus 30 mm -- and an attachment floating that
+ * far off the bone puts a muscle's whole line of action in the wrong place. Brachialis is the
+ * case that showed it: its insertion marker stands 50 mm from the elbow's flexion axis where the
+ * reference model's stands 24, which gave it twice the moment arm it should have and a path that
+ * misses the surface it is supposed to wrap.
+ *
+ * So the location comes from the measurement and the anatomy still comes from Gray: the marker
+ * names which feature, and the mesh says where that feature is.
+ */
+const SURFACE = new Map<string, SurfaceLandmark>(
+  (surfaceJson as unknown as { readonly landmarks: readonly SurfaceLandmark[] }).landmarks.map(
+    (l) => [`${l.bone}/${l.feature}`, l],
+  ),
+);
+
+/** Where an attachment goes: the measured point on the bone, or the raw marker if none exists. */
+function located(
+  bone: string,
+  feature: string,
+): { readonly world: readonly [number, number, number]; readonly locatedBy: string } | undefined {
+  const measured = SURFACE.get(`${bone}/${feature}`);
+  if (measured) {
+    return {
+      world: measured.surface,
+      locatedBy:
+        `marker '${feature}' put on the bone: ${measured.rule}; moved ` +
+        `${(measured.offset * 1000).toFixed(1)} mm over ${measured.vertices} vertices`,
+    };
+  }
+  const raw = RAW[bone]?.[feature];
+  return raw ? { world: raw, locatedBy: `marker: ${feature}` } : undefined;
+}
 
 const gray = (section: string) => cite('gray1918', `Part IV, Myology: ${section}`);
 
@@ -31,6 +82,23 @@ interface MuscleSpec {
   readonly insertions: ReadonlyArray<readonly [string, string]>;
   /** Ligament attachments, where the muscle reaches bone through one. */
   readonly ligaments?: ReadonlyArray<readonly [string, string]>;
+  /**
+   * Which origin features the muscle's line of action starts between, when no one of them is it.
+   *
+   * A muscle does not attach at a point. It attaches over a footprint, and where that footprint
+   * is long -- the vasti run down most of the femur -- the line of action starts at the middle of
+   * it, not at either end. Each feature Gray names gets its own marker, so naming one of them as
+   * *the* origin puts the muscle wherever that feature happens to lie. Vastus medialis is what
+   * showed it: its origin was the medial supracondylar line, which is 93 per cent of the way down
+   * the femur, and the muscle came out 119 mm long where the same muscle on the model its
+   * parameters came from is 283.
+   *
+   * Listed rather than taken over every origin, because the markers are one per *named feature*
+   * and not one per equal share of the footprint. Vastus lateralis arises from four features of
+   * which three name the same small area around the greater trochanter, so an even average over
+   * all four sits at a quarter of the way down the femur -- higher than the muscle goes.
+   */
+  readonly footprint?: ReadonlyArray<readonly [string, string]>;
   readonly bilateral: boolean;
 }
 
@@ -280,9 +348,21 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Vastus lateralis',
     section: 'The Quadriceps femoris',
     bilateral: true,
+    // Gray gives it four: the upper part of the intertrochanteric line, the borders of the
+    // greater trochanter, the lateral lip of the gluteal tuberosity and the upper half of the
+    // lateral lip of the linea aspera.
     origins: [
       ['femur_$', 'Linea_aspera'],
       ['femur_$', 'Intertrochanteric_line'],
+      ['femur_$', 'Greater_trochanter'],
+      ['femur_$', 'Gluteal_tuberosity'],
+    ],
+    // Of those four, three name the same small area at the top of the femur and the fourth names
+    // half its shaft, so the footprint runs between the gluteal tuberosity and the linea aspera.
+    // That puts the line of action 38 per cent of the way down the bone.
+    footprint: [
+      ['femur_$', 'Gluteal_tuberosity'],
+      ['femur_$', 'Linea_aspera'],
     ],
     insertions: [['tibia_$', 'Tibial_tuberosity']],
     ligaments: [['tibia_$', 'Tibial_tuberosity']],
@@ -292,9 +372,19 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Vastus medialis',
     section: 'The Vastus medialis',
     bilateral: true,
+    // The medial lip of the linea aspera is Gray's, and was missing here. Without it the muscle
+    // had nothing between the top of the femur and its very bottom.
     origins: [
       ['femur_$', 'Medial_supracondylar_line'],
       ['femur_$', 'Intertrochanteric_line'],
+      ['femur_$', 'Linea_aspera'],
+    ],
+    // All three, which between them run the length of the bone: the footprint comes out halfway
+    // down, where a vastus medialis pulls from.
+    footprint: [
+      ['femur_$', 'Intertrochanteric_line'],
+      ['femur_$', 'Linea_aspera'],
+      ['femur_$', 'Medial_supracondylar_line'],
     ],
     // Into the patella and through its ligament to the tibia. That is where the force arrives, so
     // it is the insertion; the ligament entry beside it records the same place as the ligament
@@ -429,6 +519,58 @@ export function attachmentGaps(): string[] {
   return gaps;
 }
 
+/**
+ * The middle of a muscle's origin footprint, as a site of its own.
+ *
+ * The centroid of the named features, in the bone's own frame. They must all be on one bone: a
+ * point halfway between two bones is not on either, and a line of action has to start somewhere a
+ * body can carry it.
+ */
+function placeFootprint(
+  m: MuscleSpec,
+  s: 'r' | 'l',
+  out: AttachmentSiteDef[],
+  seen: Set<string>,
+): void {
+  const features = m.footprint ?? [];
+  const bone = side(features[0]?.[0] ?? '', s);
+  const centroid = centroids.get(bone);
+  if (!centroid || features.length === 0) return;
+  const located_ = features.map(([boneTemplate, feature]) => {
+    if (side(boneTemplate, s) !== bone) {
+      throw new Error(`${m.id}: a footprint must lie on one bone, and '${feature}' does not.`);
+    }
+    return located(bone, feature);
+  });
+  if (located_.some((l) => !l)) return;
+  const mean = (i: 0 | 1 | 2) =>
+    located_.reduce((total, l) => total + (l?.world[i] ?? 0), 0) / located_.length;
+  const id = `${m.id}_origin_${s}_footprint`;
+  if (seen.has(id)) return;
+  seen.add(id);
+  const local = (i: 0 | 1 | 2) => (mean(i) - centroid[i]) / DATASET_MANIFEST.subjectStature;
+  const named = features.map(([, feature]) => feature.replace(/_/g, ' ')).join(', ');
+  out.push({
+    id,
+    bone,
+    kind: 'muscle_origin',
+    displayName: `${m.muscle} origin, ${s === 'r' ? 'right' : 'left'}: middle of the footprint over ${named}`,
+    position: {
+      x: mul(local(0), param('stature')),
+      y: mul(local(1), param('stature')),
+      z: mul(local(2), param('stature')),
+    },
+    structure: m.muscle,
+    source: gray(m.section),
+    ext: writeExtension(undefined, PROVENANCE_NS, {
+      dataset: DATASET_MANIFEST.dataset.name,
+      datasetVersion: DATASET_MANIFEST.dataset.version,
+      sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
+      locatedBy: `centroid of the measured positions of ${named}`,
+    }),
+  });
+}
+
 export function buildAttachmentSites(): AttachmentSiteDef[] {
   const out: AttachmentSiteDef[] = [];
   const seen = new Set<string>();
@@ -441,9 +583,10 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
       ) => {
         for (const [boneTemplate, feature] of pairs) {
           const bone = side(boneTemplate, s);
-          const world = RAW[bone]?.[feature];
+          const site = located(bone, feature);
           const centroid = centroids.get(bone);
-          if (!world || !centroid) continue;
+          if (!site || !centroid) continue;
+          const world = site.world;
           const id = `${m.id}_${role}_${s}_${landmarkId(bone, feature).split('__')[1]}`;
           if (seen.has(id)) continue;
           seen.add(id);
@@ -465,7 +608,7 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
               dataset: DATASET_MANIFEST.dataset.name,
               datasetVersion: DATASET_MANIFEST.dataset.version,
               sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
-              locatedBy: `marker: ${feature}`,
+              locatedBy: site.locatedBy,
             }),
           });
         }
@@ -473,6 +616,7 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
       place(m.origins, 'muscle_origin', 'origin');
       place(m.insertions, 'muscle_insertion', 'insertion');
       if (m.ligaments) place(m.ligaments, 'ligament', 'ligament');
+      if (m.footprint) placeFootprint(m, s, out, seen);
     }
   }
   return out;

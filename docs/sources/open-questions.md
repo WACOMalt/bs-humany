@@ -370,11 +370,35 @@ as it does in the source model, whose own fibers run between 0.27 and 1.78 of op
 fiber length and no tendon length put a band that wide inside a usable part of the curve, and the
 muscle is genuinely weak at both ends of it. That is active insufficiency, which a real hamstring
 also has; what would change it is the attachment work below, not another scaling.
-**Closes when:** the attachment regions are measured from the meshes rather than taken from label
-anchors (see the note in OQ-015) and the capped units stop being capped.
-**Status:** addressed. Both lengths are now derived from measurements on this skeleton rather than
-transcribed, with the cited values kept beside them; the fourteen capped units are the remaining
-evidence of a geometry problem, and they are listed rather than hidden.
+Fourteen units were capped when that landed. Ten of them were the geometry the caps were there to
+point at, and are fixed:
+
+  - The markers are label anchors, placed *beside* a feature so a text label can point at it, and
+    measured against the bone each one names not one in the arm lay on it. They are projected onto
+    their own bone now (`surfaceLandmarks.ts`). That alone freed brachialis, teres minor and
+    infraspinatus, and took the distal humerus from 103.5 mm across to 63.8, which is a human one.
+  - The vasti started at one named feature apiece, and a vastus arises along most of the femur.
+    Vastus medialis started at the medial supracondylar line -- 93 per cent of the way down the
+    bone -- and came out 119 mm long against the 283 of the muscle its parameters describe. A
+    muscle whose footprint is long now starts at the middle of it (`footprint` in
+    `attachments.ts`), and the three vasti now travel within 3 per cent of what the source's do.
+  - Both sweeps were asking for poses no shoulder holds. A shoulder does not elevate with its
+    scapula flat, and both models say so -- but a coupling is a constraint the solver satisfies
+    during a step, not something `mj_forward` projects, so writing one coordinate left the girdle
+    where it was. Each sweep now carries its own couplings, and the reference model gets the
+    equality block it was being rebuilt without. The anterior deltoid's travel went from 1.67
+    times the source's to 1.08.
+
+Four remain, both sides of two muscles, and both are marginal: the posterior deltoid wants a fibre
+3 per cent longer than its path leaves room for, and supraspinatus's transcribed fibre is 89 per
+cent of a path that is a fifth shorter than the source's. The rest of what is left is recorded in
+OQ-015 rather than here -- brachioradialis travels 0.38 of what the source's does and has a moment
+arm 70 mm out, which is a path problem and not a parameter one.
+**Closes when:** the posterior deltoid and supraspinatus paths agree with the source's well enough
+that neither needs its fibre trimmed to fit.
+**Status:** addressed. Both lengths are derived from measurements on this skeleton rather than
+transcribed, with the cited values kept beside them, and the capped list is down from fourteen
+units to four.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4
