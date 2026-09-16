@@ -12,13 +12,19 @@
  * project's bone frames. *What a muscle can do* is MyoSuite's: peak force, optimal fiber length
  * and tendon slack length are scalars, so they cross frames without reinterpretation.
  *
- * ## Nine units, and the two that are missing
+ * ## Nine units
  *
  * The three heads of deltoid, the four of the rotator cuff, teres major and coracobrachialis --
  * every muscle running from the shoulder girdle to the humerus. Pectoralis major and latissimus
- * dorsi run from the trunk, and their via points live in the reference model's torso chain, whose
- * frames have not been reconciled with ours the way the arm's have. A straight line from the
- * sternum to the humerus would be worse than nothing, so they wait for that work.
+ * dorsi run from the trunk and are their own set.
+ *
+ * Coracobrachialis was absent for four commits. Its actuator states an operating range and a
+ * length range implying a 312 mm fiber on a tendon 45 mm shorter than nothing, and the guard
+ * refused it -- until OQ-023 observed that those two come from different halves of the same
+ * arithmetic, the fiber from the *width* of the two ranges and the tendon from the *offset*, and
+ * that only the offset is contradictory. The tendon is refitted to this skeleton at compile
+ * anyway, and the fiber is capped there at a share of its own path, which takes 312 mm down to
+ * 135 -- which is a coracobrachialis.
  *
  * ## No wrap surface
  *
@@ -233,6 +239,30 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
     ],
   },
   {
+    id: 'coracobrachialis_r',
+    displayName: 'Coracobrachialis, right',
+    taTerm: 'Musculus coracobrachialis',
+    innervation: 'Musculocutaneous nerve',
+    source: gray('Coracobrachialis'),
+    units: [
+      {
+        id: 'coracobrachialis_r',
+        displayName: 'Coracobrachialis, right',
+        origin: 'coracobrachialis_origin_r_coracoid_process',
+        insertion: 'coracobrachialis_insertion_r_medial_border_of_humerus',
+        path: [],
+        parameters: {
+          maxIsometricForce: 172.994,
+          optimalFiberLength: 0.311743,
+          tendonSlackLength: -0.0449091,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoArm('CORB'),
+        },
+      },
+    ],
+  },
+  {
     id: 'deltoid_l',
     displayName: 'Deltoid, left',
     taTerm: 'Musculus deltoideus',
@@ -411,6 +441,30 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
           pennationAngle: 0,
           maxContractionVelocity: 10,
           source: myoArm('TMAJ'),
+        },
+      },
+    ],
+  },
+  {
+    id: 'coracobrachialis_l',
+    displayName: 'Coracobrachialis, left',
+    taTerm: 'Musculus coracobrachialis',
+    innervation: 'Musculocutaneous nerve',
+    source: gray('Coracobrachialis'),
+    units: [
+      {
+        id: 'coracobrachialis_l',
+        displayName: 'Coracobrachialis, left',
+        origin: 'coracobrachialis_origin_l_coracoid_process',
+        insertion: 'coracobrachialis_insertion_l_medial_border_of_humerus',
+        path: [],
+        parameters: {
+          maxIsometricForce: 172.994,
+          optimalFiberLength: 0.311743,
+          tendonSlackLength: -0.0449091,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoArm('CORB'),
         },
       },
     ],

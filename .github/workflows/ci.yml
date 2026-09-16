@@ -55,6 +55,9 @@ jobs:
       - name: Generated forearm data matches its source
         run: pnpm generate:forearm-muscles --check
 
+      - name: Generated torso data matches its source
+        run: pnpm generate:torso-muscles --check
+
       - name: Generated via points match their source
         run: pnpm generate:via-points --check
 

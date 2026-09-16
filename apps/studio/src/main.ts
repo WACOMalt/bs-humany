@@ -233,7 +233,8 @@ const ui = {
   wristExtensorDrive: must<HTMLInputElement>('#wristExtensorDrive'),
   pronatorDrive: must<HTMLInputElement>('#pronatorDrive'),
   supinatorDrive: must<HTMLInputElement>('#supinatorDrive'),
-  obliqueDrive: must<HTMLInputElement>('#obliqueDrive'),
+  trunkFlexorDrive: must<HTMLInputElement>('#trunkFlexorDrive'),
+  trunkExtensorDrive: must<HTMLInputElement>('#trunkExtensorDrive'),
   showNotes: must<HTMLInputElement>('#showNotes'),
 };
 
@@ -346,11 +347,11 @@ const FOREARM_SUPINATORS = sides('supinator');
 /**
  * The abdominal wall, driven as one.
  *
- * The two obliques cross, so driving them together flexes the trunk and neither rotates it. They
- * have no opposite number: erector spinae is the trunk's extensor and the source cannot describe
- * it, which is OQ-023.
+ * The two obliques cross, so driving them together flexes the trunk and neither rotates it, and
+ * rectus abdominis flexes it straight. Erector spinae opposes all three.
  */
-const TRUNK_OBLIQUES = sides('external_oblique', 'internal_oblique');
+const TRUNK_FLEXORS = sides('rectus_abdominis', 'external_oblique', 'internal_oblique');
+const TRUNK_EXTENSORS = sides('erector_spinae');
 
 /** The driven groups, each with the slider that drives it and the readout it feeds. */
 const DRIVEN = [
@@ -369,7 +370,8 @@ const DRIVEN = [
   { units: WRIST_EXTENSORS, slider: 'wristExtensorDrive' },
   { units: FOREARM_PRONATORS, slider: 'pronatorDrive' },
   { units: FOREARM_SUPINATORS, slider: 'supinatorDrive' },
-  { units: TRUNK_OBLIQUES, slider: 'obliqueDrive' },
+  { units: TRUNK_FLEXORS, slider: 'trunkFlexorDrive' },
+  { units: TRUNK_EXTENSORS, slider: 'trunkExtensorDrive' },
 ] as const;
 
 function currentMorphology(): Morphology {
@@ -1043,7 +1045,8 @@ for (const slider of [
   ui.wristExtensorDrive,
   ui.pronatorDrive,
   ui.supinatorDrive,
-  ui.obliqueDrive,
+  ui.trunkFlexorDrive,
+  ui.trunkExtensorDrive,
 ]) {
   slider.addEventListener('input', () => {
     const level = driveForSlider(Number(slider.value));

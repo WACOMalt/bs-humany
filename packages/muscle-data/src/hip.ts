@@ -13,7 +13,7 @@
  * are neither -- both are measured against a skeleton -- so both are derived at compile against
  * this one, which is where `fittedTendonSlack` and `deriveOptimalFiberLength` explain themselves.
  *
- * ## Twenty lines of action
+ * ## Twenty-one lines of action
  *
  * Three apiece for the gluteals and four for adductor magnus, because these are the muscles
  * M-ADR-005 was written for. Gluteus medius is the plain case: its front fibres flex and rotate
@@ -77,6 +77,21 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
           pennationAngle: 0,
           maxContractionVelocity: 10,
           source: myoLegs('glmax2_r'),
+        },
+      },
+      {
+        id: 'gluteus_maximus_inferior_r',
+        displayName: 'Gluteus maximus, inferior part, right',
+        origin: 'gluteus_maximus_origin_r_ischial_tuberosity',
+        insertion: 'gluteus_maximus_insertion_r_gluteal_tuberosity',
+        path: [],
+        parameters: {
+          maxIsometricForce: 928.184,
+          optimalFiberLength: 0.408049,
+          tendonSlackLength: -0.25971,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoLegs('glmax3_r'),
         },
       },
     ],
@@ -483,6 +498,21 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
           pennationAngle: 0,
           maxContractionVelocity: 10,
           source: myoLegs('glmax2_r'),
+        },
+      },
+      {
+        id: 'gluteus_maximus_inferior_l',
+        displayName: 'Gluteus maximus, inferior part, left',
+        origin: 'gluteus_maximus_origin_l_ischial_tuberosity',
+        insertion: 'gluteus_maximus_insertion_l_gluteal_tuberosity',
+        path: [],
+        parameters: {
+          maxIsometricForce: 928.184,
+          optimalFiberLength: 0.408049,
+          tendonSlackLength: -0.25971,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoLegs('glmax3_r'),
         },
       },
     ],

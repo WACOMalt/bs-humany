@@ -33,7 +33,7 @@ describe('the hip muscle set', () => {
       extension,
     );
     expect(report.problems).toEqual([]);
-    expect(report.unitCount).toBe(40);
+    expect(report.unitCount).toBe(42);
   });
 
   it('gives each gluteal its own stretch of ilium to pull from', () => {
@@ -50,12 +50,13 @@ describe('the hip muscle set', () => {
     expect(new Set(origins).size, origins.join(', ')).toBe(3);
   });
 
-  it('leaves out the part of gluteus maximus the source cannot describe', () => {
-    // `glmax3_r` states an operating range and a length range that imply a 408 mm fiber on a
-    // tendon 260 mm shorter than nothing -- coracobrachialis again. Two parts, not three.
+  it('gives gluteus maximus all three of its parts', () => {
+    // The third was left out while the guard refused any actuator whose tendon came out negative.
+    // It refuses only an impossible *fiber* now -- the tendon is refitted to this skeleton anyway
+    // -- so the lowest part of the muscle, off the sacrotuberous ligament, is back. OQ-023.
     const maximus = HIP_MUSCLES.find((g) => g.id === 'gluteus_maximus_r');
-    expect(maximus?.units).toHaveLength(2);
-    expect(HIP_UNITS.some((u) => u.id.includes('maximus_inferior'))).toBe(false);
+    expect(maximus?.units).toHaveLength(3);
+    expect(HIP_UNITS.some((u) => u.id === 'gluteus_maximus_inferior_r')).toBe(true);
   });
 
   it('carries the three that pass the knee to the bones below it', () => {

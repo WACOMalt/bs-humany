@@ -128,12 +128,25 @@ export function readActuators(model = ARM) {
       optimalFiberLength,
       tendonSlackLength,
       maxContractionVelocity: vmax,
-      // Coracobrachialis is the case: its lengthrange and its operating range imply a 312 mm
-      // fiber on a tendon 45 mm shorter than nothing. The derivation is MuJoCo's own and the
-      // arithmetic is right, so what it says is that the source's two statements about that
-      // actuator do not agree -- and a negative slack length is not a value to carry, because the
-      // model divides tendon length by it.
-      physical: tendonSlackLength > 0 && optimalFiberLength > 0,
+      // The two halves fail independently, and only one of them matters now.
+      //
+      // `L0` comes from the *width* of the two ranges and `LT` from the *offset*. A width at or
+      // below zero means the two statements are not describing the same muscle at all, and there
+      // is nothing to salvage. A negative offset means they disagree about where along the muscle
+      // the fibers sit -- coracobrachialis implies a 312 mm fiber on a tendon 45 mm shorter than
+      // nothing -- and that used to be fatal too, because the slack length was carried into the
+      // model, which divides by it.
+      //
+      // It no longer is. Every tendon is refitted to this skeleton at compile, because a slack
+      // length is a length measured on the source's bones and means nothing on ours; the source's
+      // value is kept as provenance and never enters an equation. So a negative offset is now
+      // evidence rather than a fault, the width beside it is untouched by it, and the fiber length
+      // is capped at compile anyway by the share of its own path a fiber may be. OQ-023.
+      // Whether the two lengths this actuator implies are both usable. The fiber length comes
+      // from the *width* of the two ranges and the tendon from the *offset*, and they fail
+      // independently: see `requirePhysical`, which now only refuses the width.
+      physical: optimalFiberLength > 0,
+      tendonImplied: tendonSlackLength > 0,
     });
   }
 
@@ -258,10 +271,10 @@ export function requirePhysical(actuator, parameters, model = ARM) {
   if (parameters.physical) return parameters;
   throw new Error(
     `${model.muscle} actuator '${actuator}' derives an optimal fiber length of ` +
-      `${(parameters.optimalFiberLength * 1000).toFixed(1)} mm and a tendon slack length of ` +
-      `${(parameters.tendonSlackLength * 1000).toFixed(1)} mm, which is not a muscle. Its ` +
-      'lengthrange and its operating range disagree in the source; leave it out of the set and ' +
-      'say so, rather than carrying the number.',
+      `${(parameters.optimalFiberLength * 1000).toFixed(1)} mm, which is not a length. Its ` +
+      'lengthrange and its operating range are the same interval in different units, so a width ' +
+      'that comes out at or below zero means they are not describing the same muscle. Leave it ' +
+      'out of the set and say so, rather than carrying the number.',
   );
 }
 
@@ -330,7 +343,8 @@ export function renderGroups(units, viaPointsFor, direction, model = ARM) {
     units: [`);
     for (const unit of members) {
       const p = unit.parameters;
-      const elements = pathElements(unit, viaPointsFor, direction, model)
+      // A unit may name its own model, for a set whose actuators are split across two files.
+      const elements = pathElements(unit, viaPointsFor, direction, unit.model ?? model)
         .map((e) =>
           e.kind === 'site'
             ? `          { kind: 'site', site: '${e.id}' },\n`

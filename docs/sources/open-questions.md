@@ -616,9 +616,30 @@ What accepting would cost is a rule with five commits of precedent behind it, an
 width is not always well-conditioned either -- the detailed lumbar model refuses 146 of 210
 fascicles, which is not a handful of bad numbers but a file this project should probably not be
 reading muscle by muscle at all.
-**Closes when:** the guard is either narrowed to the offset -- keep the fiber length, refuse the
-tendon, which is refitted anyway -- or left alone deliberately, with this entry as the reason.
-**Status:** open. It is a decision rather than a fix.
+**Decided, 2026-09-16: narrowed.** `requirePhysical` now refuses only a fiber length at or below
+zero, which means the two ranges are not describing the same muscle at all. A negative tendon is
+recorded as `tendonImplied: false` and otherwise ignored, because the compiler refits every tendon
+to this skeleton and floors it at `MINIMUM_TENDON_SLACK`.
+
+What it restored, and what the compile cap did with each -- the fiber is capped at
+`FIBER_SHARE_LIMIT` of its own path, which is what makes an over-long width harmless:
+
+    coracobrachialis              312 mm stated -> 135 compiled, on a 169 mm path
+    gluteus maximus, inferior     408 -> 50, on 63
+    latissimus dorsi, lumbar      395 -> 395, on 500
+    pectoralis major, clavicular  189 -> 140, on 175
+    erector spinae                180 -> 180, on 379
+    rectus abdominis              326 -> 306, on 382
+
+Six units, and the one that mattered is erector spinae: the trunk extends now. Pectoralis major
+flexes the arm again, gluteus maximus has its third part, and coracobrachialis is back after four
+commits out. None of the six exceeds four fifths of its own path once compiled, and three of them
+were never touched by the cap at all.
+
+The risk that remains is the one this entry named: the width is not always well conditioned
+either. The detailed lumbar model still refuses 146 of 210 fascicles on the width alone, which is
+the check doing its job.
+**Status:** closed.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4

@@ -8,17 +8,7 @@
  * The same two derivations as the other sets -- both in `tools/cli/lib/myoSuite.mjs` -- over the
  * actuators that cross the hip. What is here is the part that is about the hip.
  *
- * ## Twenty units, and one the source cannot describe
- *
- * Gluteus maximus should have three parts and has two. The source's third, `glmax3_r`, states an
- * operating range and a length range that imply a 408 mm fiber on a tendon 260 mm shorter than
- * nothing -- the same disagreement coracobrachialis has in the arm model, and the generator
- * refuses it rather than carrying a negative slack length into a model that divides by it. What
- * is lost is the lowest part of the muscle, the fibres that come off the sacrotuberous ligament;
- * what is kept is the iliac and sacral parts, which is still two lines of action where one would
- * not do.
- *
- * ## Twenty units, and why so many
+ * ## Twenty-one units, and why so many
  *
  * The hip is the joint with the most muscle on it and the one where a single line of action is
  * least defensible. Gluteus medius is the plain case: its front fibres flex and internally rotate
@@ -85,6 +75,14 @@ const UNITS = [
     id: 'gluteus_maximus_middle_$',
     name: 'Gluteus maximus, middle part',
     origin: 'gluteus_maximus_origin_$_dorsal_surface_of_sacrum',
+    insertion: 'gluteus_maximus_insertion_$_gluteal_tuberosity',
+  },
+  {
+    actuator: 'glmax3_r',
+    group: 'gluteus_maximus_$',
+    id: 'gluteus_maximus_inferior_$',
+    name: 'Gluteus maximus, inferior part',
+    origin: 'gluteus_maximus_origin_$_ischial_tuberosity',
     insertion: 'gluteus_maximus_insertion_$_gluteal_tuberosity',
   },
   {
@@ -301,7 +299,7 @@ function render() {
  * are neither -- both are measured against a skeleton -- so both are derived at compile against
  * this one, which is where \`fittedTendonSlack\` and \`deriveOptimalFiberLength\` explain themselves.
  *
- * ## Twenty lines of action
+ * ## Twenty-one lines of action
  *
  * Three apiece for the gluteals and four for adductor magnus, because these are the muscles
  * M-ADR-005 was written for. Gluteus medius is the plain case: its front fibres flex and rotate

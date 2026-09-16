@@ -33,7 +33,7 @@ describe('the back and chest muscle set', () => {
       extension,
     );
     expect(report.problems).toEqual([]);
-    expect(report.unitCount).toBe(8);
+    expect(report.unitCount).toBe(12);
   });
 
   it('starts on the trunk and ends on the humerus, which is what these two are for', () => {
@@ -44,21 +44,21 @@ describe('the back and chest muscle set', () => {
         /_insertion_[rl]_(intertubercular_sulcus|crest_of_greater_tubercle)$/,
       );
       expect(unit.origin, unit.id).toMatch(
-        /_origin_[rl]_(spinous_process_tip|iliac_crest|manubrium_of_sternum|body_of_rib)$/,
+        /_origin_[rl]_(spinous_process_tip|median_sacral_crest|iliac_crest|sternal_end|manubrium_of_sternum|body_of_rib)$/,
       );
     }
   });
 
-  it('leaves out the two parts the source cannot describe', () => {
-    // `LAT2` states an operating range and a length range implying a 395 mm fiber on a tendon 60
-    // mm shorter than nothing, and `PECM1` a 189 mm fiber on one 65 mm shorter. Coracobrachialis
-    // again. What is lost is the middle of latissimus and the clavicular head of pectoralis
-    // major, so this pectoralis adducts the arm and pulls it down but does not flex it.
-    expect(TRUNK_UNITS).toHaveLength(8);
-    expect(TRUNK_UNITS.some((u) => u.id.includes('clavicular'))).toBe(false);
+  it('carries all three parts of each, including the head that flexes the arm', () => {
+    // Two were left out while the guard refused any actuator whose tendon came out negative, and
+    // one of them was the clavicular head -- the part that flexes. The guard refuses only an
+    // impossible fiber now, the tendon being refitted here regardless. OQ-023.
+    expect(TRUNK_UNITS).toHaveLength(12);
+    expect(TRUNK_UNITS.some((u) => u.id === 'pectoralis_major_clavicular_r')).toBe(true);
     const latissimus = TRUNK_MUSCLES.find((g) => g.id === 'latissimus_dorsi_r');
     expect(latissimus?.units.map((u) => u.id)).toEqual([
       'latissimus_dorsi_thoracic_r',
+      'latissimus_dorsi_lumbar_r',
       'latissimus_dorsi_iliac_r',
     ]);
   });
@@ -97,8 +97,11 @@ describe('the back and chest muscle set', () => {
     expect(force('latissimus_dorsi_thoracic_r')).toBeGreaterThan(200);
     for (const unit of TRUNK_UNITS) {
       const optimal = plain(unit.parameters.optimalFiberLength, unit.id);
+      // Loose at the top for the same reason the shoulder's is: the lumbar part of latissimus
+      // derives a 395 mm fiber because its source's two ranges are strained, and the compile cap
+      // -- a fiber at most `FIBER_SHARE_LIMIT` of its own path -- is what holds it. OQ-023.
       expect(optimal, unit.id).toBeGreaterThan(0.02);
-      expect(optimal, unit.id).toBeLessThan(0.25);
+      expect(optimal, unit.id).toBeLessThan(0.42);
     }
   });
 

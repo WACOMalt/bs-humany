@@ -69,6 +69,21 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
         },
       },
       {
+        id: 'latissimus_dorsi_lumbar_r',
+        displayName: 'Latissimus dorsi, lumbar part, right',
+        origin: 'latissimus_dorsi_origin_r_median_sacral_crest',
+        insertion: 'latissimus_dorsi_insertion_r_intertubercular_sulcus',
+        path: [],
+        parameters: {
+          maxIsometricForce: 535.42,
+          optimalFiberLength: 0.394674,
+          tendonSlackLength: -0.0603168,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoArm('LAT2'),
+        },
+      },
+      {
         id: 'latissimus_dorsi_iliac_r',
         displayName: 'Latissimus dorsi, iliac part, right',
         origin: 'latissimus_dorsi_origin_r_iliac_crest',
@@ -95,6 +110,21 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
     innervation: 'Lateral and medial pectoral nerves',
     source: gray('Pectoralis major'),
     units: [
+      {
+        id: 'pectoralis_major_clavicular_r',
+        displayName: 'Pectoralis major, clavicular head, right',
+        origin: 'pectoralis_major_origin_r_sternal_end',
+        insertion: 'pectoralis_major_insertion_r_crest_of_greater_tubercle',
+        path: [],
+        parameters: {
+          maxIsometricForce: 335.746,
+          optimalFiberLength: 0.188893,
+          tendonSlackLength: -0.0651419,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoArm('PECM1'),
+        },
+      },
       {
         id: 'pectoralis_major_sternal_r',
         displayName: 'Pectoralis major, sternocostal head, right',
@@ -153,6 +183,21 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
         },
       },
       {
+        id: 'latissimus_dorsi_lumbar_l',
+        displayName: 'Latissimus dorsi, lumbar part, left',
+        origin: 'latissimus_dorsi_origin_l_median_sacral_crest',
+        insertion: 'latissimus_dorsi_insertion_l_intertubercular_sulcus',
+        path: [],
+        parameters: {
+          maxIsometricForce: 535.42,
+          optimalFiberLength: 0.394674,
+          tendonSlackLength: -0.0603168,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoArm('LAT2'),
+        },
+      },
+      {
         id: 'latissimus_dorsi_iliac_l',
         displayName: 'Latissimus dorsi, iliac part, left',
         origin: 'latissimus_dorsi_origin_l_iliac_crest',
@@ -179,6 +224,21 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
     innervation: 'Lateral and medial pectoral nerves',
     source: gray('Pectoralis major'),
     units: [
+      {
+        id: 'pectoralis_major_clavicular_l',
+        displayName: 'Pectoralis major, clavicular head, left',
+        origin: 'pectoralis_major_origin_l_sternal_end',
+        insertion: 'pectoralis_major_insertion_l_crest_of_greater_tubercle',
+        path: [],
+        parameters: {
+          maxIsometricForce: 335.746,
+          optimalFiberLength: 0.188893,
+          tendonSlackLength: -0.0651419,
+          pennationAngle: 0,
+          maxContractionVelocity: 10,
+          source: myoArm('PECM1'),
+        },
+      },
       {
         id: 'pectoralis_major_sternal_l',
         displayName: 'Pectoralis major, sternocostal head, left',
