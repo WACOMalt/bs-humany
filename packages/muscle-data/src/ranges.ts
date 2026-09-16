@@ -856,6 +856,34 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
     longest: 1.05045,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
   },
+  {
+    unit: 'external_oblique_r',
+    shortest: 0.846218,
+    longest: 1.05885,
+    crosses:
+      'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, costovertebral_6_r/elevation',
+  },
+  {
+    unit: 'internal_oblique_r',
+    shortest: 0.788455,
+    longest: 1.15343,
+    crosses:
+      'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, costovertebral_6_r/elevation',
+  },
+  {
+    unit: 'external_oblique_l',
+    shortest: 0.846218,
+    longest: 1.05891,
+    crosses:
+      'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, costovertebral_6_l/elevation',
+  },
+  {
+    unit: 'internal_oblique_l',
+    shortest: 0.788455,
+    longest: 1.15357,
+    crosses:
+      'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, costovertebral_6_l/elevation',
+  },
 ];
 
 /** One unit's range, or undefined for a unit nothing has measured. */

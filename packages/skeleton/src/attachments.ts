@@ -417,6 +417,27 @@ const MUSCLES: readonly MuscleSpec[] = [
     ],
   },
   {
+    id: 'external_oblique',
+    muscle: 'Obliquus externus abdominis',
+    section: 'The Obliquus externus abdominis',
+    bilateral: true,
+    // Gray: from the outer surfaces of the lower eight ribs, to the iliac crest, the pubic crest
+    // and the linea alba. It runs downward and forward; the internal oblique crosses it going
+    // upward and forward, and the pair are given the two ends of that crossing.
+    origins: [['rib_6_$', 'Body_of_rib']],
+    insertions: [['hip_$', 'Pubic_tubercle']],
+  },
+  {
+    id: 'internal_oblique',
+    muscle: 'Obliquus internus abdominis',
+    section: 'The Obliquus internus abdominis',
+    bilateral: true,
+    // Gray: from the iliac crest, the thoracolumbar fascia and the inguinal ligament, to the lower
+    // three or four ribs and the linea alba -- upward and forward, across the external oblique.
+    origins: [['hip_$', 'Anterior_superior_iliac_spine']],
+    insertions: [['rib_6_$', 'Body_of_rib']],
+  },
+  {
     id: 'rectus_abdominis',
     muscle: 'Rectus abdominis',
     section: 'The Rectus abdominis',

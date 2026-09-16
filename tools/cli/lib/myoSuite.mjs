@@ -50,6 +50,26 @@ export const LEGS = {
 };
 
 /**
+ * The torso, which the reference splits in two.
+ *
+ * `TORSO` is the abdomen model: six actuators lumping erector spinae and the two obliques into one
+ * line a side, which is the level of detail this project wants for a trunk. `TORSO_LUMBAR` is the
+ * full one, 210 fascicles of multifidus, longissimus, iliocostalis, quadratus lumborum and psoas
+ * attaching to individual lumbar vertebrae -- far finer than anything here, and read only for the
+ * two actuators the abdomen model leaves out.
+ */
+export const TORSO = {
+  muscle: 'myotorso_abdomen_muscle.xml',
+  tendon: 'myotorso_abdomen_tendon.xml',
+  chain: 'myotorso_chain.xml',
+};
+export const TORSO_LUMBAR = {
+  muscle: 'myotorso_muscle.xml',
+  tendon: 'myotorso_tendon.xml',
+  chain: 'myotorso_chain.xml',
+};
+
+/**
  * How much of its own optimal fiber length a muscle typically travels over its joints' range.
  *
  * Two thirds, and it is measured rather than chosen: it is the median normalised travel of the
@@ -350,7 +370,7 @@ ${quoted('insertion', unit.insertion)}
               ? ''
               : `\n          maxContractionVelocity: ${num(p.maxContractionVelocity)},`
           }
-          source: ${model === LEGS ? 'myoLegs' : 'myoArm'}('${unit.actuator}'),
+          source: ${unit.cite ?? (model === LEGS ? 'myoLegs' : 'myoArm')}('${unit.actuator}'),
         },
       },`);
     }

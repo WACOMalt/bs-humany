@@ -9,8 +9,11 @@ comparison is reproducible from the repository alone.
 - Source: <https://github.com/MyoHub/myo_sim>
 - Commit: `eb327acbae0fad12279495040607f5235d962328` ("0.2.2 release", 2026-08-27)
 - Licence: Apache-2.0, in `myo_sim/LICENSE`
-- Files: the chain and asset MJCF for the leg, arm, torso and head models, plus the arm's
-  muscle and tendon MJCF (`myoarm_r_muscle.xml`, `myoarm_r_tendon.xml`)
+- Files: the chain and asset MJCF for the leg, arm, torso and head models, plus the muscle and
+  tendon MJCF for the arm (`myoarm_r_*`), the legs (`myolegs_*`) and the torso -- both the
+  abdomen model (`myotorso_abdomen_muscle.xml`, `myotorso_abdomen_tendon.xml`, three actuators a
+  side) and the full lumbar one (`myotorso_muscle.xml`, `myotorso_tendon.xml`, 210 fascicles),
+  the latter read only to see what it says about the two the abdomen model leaves unusable
 
 The arm muscle and tendon files are here for a second reason beyond validation. The muscle file
 is the source of the elbow Hill-type parameters in `packages/muscle-data`, which are extracted by

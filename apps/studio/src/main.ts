@@ -233,6 +233,8 @@ const ui = {
   wristExtensorDrive: must<HTMLInputElement>('#wristExtensorDrive'),
   pronatorDrive: must<HTMLInputElement>('#pronatorDrive'),
   supinatorDrive: must<HTMLInputElement>('#supinatorDrive'),
+  obliqueDrive: must<HTMLInputElement>('#obliqueDrive'),
+  showNotes: must<HTMLInputElement>('#showNotes'),
 };
 
 /**
@@ -341,6 +343,14 @@ const WRIST_FLEXORS = sides('flexor_carpi_radialis', 'flexor_carpi_ulnaris');
 const WRIST_EXTENSORS = sides('extensor_carpi_radialis_longus', 'extensor_carpi_radialis_brevis');
 const FOREARM_PRONATORS = sides('pronator_teres', 'pronator_quadratus');
 const FOREARM_SUPINATORS = sides('supinator');
+/**
+ * The abdominal wall, driven as one.
+ *
+ * The two obliques cross, so driving them together flexes the trunk and neither rotates it. They
+ * have no opposite number: erector spinae is the trunk's extensor and the source cannot describe
+ * it, which is OQ-023.
+ */
+const TRUNK_OBLIQUES = sides('external_oblique', 'internal_oblique');
 
 /** The driven groups, each with the slider that drives it and the readout it feeds. */
 const DRIVEN = [
@@ -359,6 +369,7 @@ const DRIVEN = [
   { units: WRIST_EXTENSORS, slider: 'wristExtensorDrive' },
   { units: FOREARM_PRONATORS, slider: 'pronatorDrive' },
   { units: FOREARM_SUPINATORS, slider: 'supinatorDrive' },
+  { units: TRUNK_OBLIQUES, slider: 'obliqueDrive' },
 ] as const;
 
 function currentMorphology(): Morphology {
@@ -1010,6 +1021,12 @@ ui.muscles.addEventListener('change', () => {
     setSimulationStatus('Muscles start with the next run.');
   }
 });
+// Explanatory text is off by default: the panel has thirteen paragraphs and a reader wants at
+// most one of them at a time. The notes that carry a live value are marked `live` and stay.
+ui.showNotes.addEventListener('change', () => {
+  document.body.classList.toggle('notes', ui.showNotes.checked);
+});
+
 for (const slider of [
   ui.flexorDrive,
   ui.extensorDrive,
@@ -1026,6 +1043,7 @@ for (const slider of [
   ui.wristExtensorDrive,
   ui.pronatorDrive,
   ui.supinatorDrive,
+  ui.obliqueDrive,
 ]) {
   slider.addEventListener('input', () => {
     const level = driveForSlider(Number(slider.value));

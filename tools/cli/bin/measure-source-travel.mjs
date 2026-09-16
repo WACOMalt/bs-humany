@@ -301,6 +301,8 @@ const compiled = modules.compileMuscleSet(
     ...muscleData.ANKLE_MUSCLES,
     ...muscleData.TRUNK_MUSCLES,
     ...muscleData.FOREARM_MUSCLES,
+    ...muscleData.TORSO_MUSCLES,
+    ...muscleData.TORSO_MUSCLES,
     ...muscleData.TRUNK_MUSCLES,
   ],
   document.attachmentSites,

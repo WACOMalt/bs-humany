@@ -1,6 +1,6 @@
 {
   "arm-flail/l3_anatomical/mujoco": {
-    "hash": "90fb287b7f426307",
+    "hash": "2f786abf676132f5",
     "ticks": 8000,
     "platform": "linux-x64"
   },
@@ -30,7 +30,7 @@
     "platform": "linux-x64"
   },
   "muscle-range-of-motion/l3_anatomical/mujoco": {
-    "hash": "2cb71822af97c090",
+    "hash": "48de84596aaefef1",
     "ticks": 14000,
     "platform": "linux-x64"
   },

@@ -586,6 +586,40 @@ CC BY-SA data* is found and vendored, and the stand-in is replaced by it.
 **Status:** answered for now, by a stand-in that is measured rather than assumed. The vendoring
 route stays closed until a permissively licensed model turns up. The hand is still not built.
 
+### OQ-023 — The guard that refuses an actuator was written for a value no longer used
+**Needed for:** `tools/cli/lib/myoSuite.mjs`, the torso set, and five units in four other sets
+**Provisional value:** the guard stands, and the trunk has no extensor because of it.
+
+`requirePhysical` refuses an actuator whose stated operating range and stated length range imply a
+tendon slack length at or below zero. Its reason, written when it was: "a negative slack length is
+not a value to carry, because the model divides tendon length by it."
+
+That reason has expired. Every tendon is now refitted to this skeleton at compile
+(`fittedTendonSlack`), because a slack length is a length measured on the source's bones and means
+nothing on ours -- so the source's value is carried as provenance and never used in an equation.
+What a negative one now means is that the source's two statements about that actuator disagree,
+which is evidence rather than a division by zero.
+
+It matters because the well-conditioned half survives the disagreement. Optimal fiber length comes
+out of the *width* of the two ranges, `(LRmax - LRmin) / (rmax - rmin)`, and tendon slack out of
+the *offset*, `LRmin - L0 * rmin`. A contradiction in the offset says nothing about the width. For
+erector spinae the width gives a 180 mm fiber, which is long but not absurd, while the offset gives
+minus 12 mm of tendon, which is impossible -- the source is saying that muscle's whole
+musculotendon is 57 mm while its fiber alone is 69.
+
+What refusing costs, counted: erector spinae and rectus abdominis, so the trunk rotates and flexes
+and does not extend; coracobrachialis at the shoulder; the inferior part of gluteus maximus; the
+middle of latissimus dorsi and the clavicular head of pectoralis major, so that pectoralis does not
+flex the arm. Six units, and the trunk's extensor is the one that is missed.
+
+What accepting would cost is a rule with five commits of precedent behind it, and the risk that the
+width is not always well-conditioned either -- the detailed lumbar model refuses 146 of 210
+fascicles, which is not a handful of bad numbers but a file this project should probably not be
+reading muscle by muscle at all.
+**Closes when:** the guard is either narrowed to the offset -- keep the fiber length, refuse the
+tendon, which is refitted anyway -- or left alone deliberately, with this entry as the reason.
+**Status:** open. It is a decision rather than a fix.
+
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4
 **Provisional value:** none. A path that names an ellipsoid wrap surface is refused at compile

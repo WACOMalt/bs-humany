@@ -57,6 +57,7 @@ import {
   HIP_MUSCLES,
   KNEE_MUSCLES,
   SHOULDER_MUSCLES,
+  TORSO_MUSCLES,
   TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
@@ -287,6 +288,7 @@ export class Simulation {
           ...ANKLE_MUSCLES,
           ...TRUNK_MUSCLES,
           ...FOREARM_MUSCLES,
+          ...TORSO_MUSCLES,
         ],
         document.attachmentSites,
         this.articulation,

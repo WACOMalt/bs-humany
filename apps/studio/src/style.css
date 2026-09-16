@@ -160,6 +160,18 @@ input[type="range"]:focus-visible {
   color: var(--ink-faint);
 }
 
+/*
+ * Explanatory text, off unless asked for.
+ *
+ * The panel earned its way to fourteen sliders and thirteen paragraphs, and the paragraphs are
+ * worth keeping -- they say why a control does what it does -- but not all at once and not by
+ * default. `.live` is the exception: those carry a value that changes, so they are not explanation
+ * and hiding them would hide the answer.
+ */
+body:not(.notes) .note:not(.live) {
+  display: none;
+}
+
 .note {
   margin: 6px 0 0;
   font-size: 10.5px;
@@ -211,6 +223,16 @@ select {
 
 details {
   margin-top: 14px;
+}
+
+/* A group of controls inside a panel sits closer than a section does. */
+.control details {
+  margin-top: 8px;
+}
+
+.control details > summary {
+  margin-bottom: 6px;
+  color: var(--ink);
 }
 
 summary {
