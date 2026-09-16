@@ -1,0 +1,29 @@
+[package]
+name = "bs-humany-studio"
+version = "0.0.0"
+description = "The bs-humany studio as a desktop application."
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+# Tauri 2's own floor. Stated here so a toolchain that cannot build this says so before it
+# spends ten minutes finding out.
+rust-version = "1.77.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# No plugins and no commands: the studio is the same web application the container serves, and
+# it asks the host for nothing. What this crate adds is a window and the two headers that window
+# has to send -- see `tauri.conf.json`.
+tauri = { version = "2", features = [] }
+
+# A single binary somebody can copy to another machine is the point, so it is built for size and
+# stripped. `panic = "abort"` drops the unwinding tables; a panic here is a bug that has already
+# taken the window with it.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -5,6 +5,7 @@
       "dist",
       "node_modules",
       "coverage",
+      "target",
       "**/*.tsbuildinfo",
       "packages/assets-anatomical/data/**"
     ]

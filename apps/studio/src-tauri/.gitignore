@@ -1,0 +1,3 @@
+# Cargo's build directory. `Cargo.lock` is committed, because this crate is an application and a
+# reproducible build is the whole reason the binary exists.
+/target/

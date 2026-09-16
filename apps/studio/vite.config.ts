@@ -14,6 +14,11 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   server: {
+    // Fixed, and it fails rather than moving. The desktop shell's `devUrl` names this port, and
+    // a dev server that quietly moves to 5174 when 5173 is busy leaves `tauri dev` showing an
+    // empty window with nothing to say why. A port already in use is the better error.
+    port: 5173,
+    strictPort: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',

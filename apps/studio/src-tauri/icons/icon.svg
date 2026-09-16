@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    The studio's own mark: an articulated figure, drawn the way the app draws one.
+
+    Segments in the panel's bone colour, joint centres in the accent the app uses for a
+    selected joint, on the viewport's background. Six joints and ten segments is as much as
+    survives a 32-pixel tab icon, so that is what it has.
+  -->
+  <rect width="512" height="512" rx="96" fill="#14161a"/>
+  <g stroke="#e6e8ec" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M256 140 V296"/>
+    <path d="M180 166 H332"/>
+    <path d="M180 166 L152 254 L166 334"/>
+    <path d="M332 166 L360 254 L346 334"/>
+    <path d="M216 296 H296"/>
+    <path d="M216 296 L204 388 L198 466"/>
+    <path d="M296 296 L308 388 L314 466"/>
+  </g>
+  <circle cx="256" cy="98" r="36" fill="#e6e8ec"/>
+  <g fill="#6aa9ff">
+    <circle cx="180" cy="166" r="16"/>
+    <circle cx="332" cy="166" r="16"/>
+    <circle cx="216" cy="296" r="16"/>
+    <circle cx="296" cy="296" r="16"/>
+    <circle cx="204" cy="388" r="16"/>
+    <circle cx="308" cy="388" r="16"/>
+  </g>
+</svg>
