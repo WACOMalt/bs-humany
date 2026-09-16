@@ -88,9 +88,9 @@ const RECORDED = [
   },
   {
     unit: 'brachioradialis_r',
-    bound: 0.044,
+    bound: 0.016,
     question: 'OQ-015',
-    note: 'A fifth of the reference, which is the largest error in the set. Brachioradialis has the longest flexion arm at the elbow because its path stands well clear of the joint, and the reference holds it there with a cylinder at the distal humerus that this has not carried over; ours is held out only by the trochlea it wraps, which is now measured at 12 mm rather than 18.',
+    note: 'Was a fifth of the reference and the largest error in the set, and the wrap surface was blamed for it. That was wrong: the reference\u2019s surface here is a 15 mm cylinder against our 12.4 mm trochlea, which cannot be worth 70 mm of moment arm. It was the origin. The lateral supracondylar ridge runs the lower third of the humerus and the dataset marks it once, near its bottom, 32 mm above the elbow; brachioradialis arises from its upper two-thirds, which `ridgeAttachments.ts` measures at 65 mm up. That took the peak arm from 18 mm to 64 and the mean error from 42.6 to 14.7. What is left is a path that still hugs the joint more than the reference\u2019s at full flexion, where ours peaks at 110 degrees and falls to 27 mm by 130 while the reference is still climbing.',
   },
   {
     unit: 'triceps_brachii_long_r',

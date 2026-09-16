@@ -271,9 +271,26 @@ from 0 to 130 degrees and puts each curve beside the reference model's own, comp
   sits at 29 mm. Moving the insertion to it was tried: the peak improves to 28 mm and the arm then
   changes sign at deep flexion, because a point that close to the axis needs the wrap to hold it
   and the wrap still does not engage. The fix is a measured attachment region, not another marker.
-- **Brachioradialis is a quarter of the reference**, 21 mm against 90, which is the largest error
-  in the set. Its long flexion arm comes from a path held well clear of the joint, and the
-  reference holds it there with a cylinder at the distal humerus that has not been carried over.
+- **Brachioradialis: was a quarter of the reference, now within 15 mm of it, and the cause was
+  not what this said.** The wrap surface was blamed, and the reference's surface there turns out
+  to be a 15 mm cylinder against our 12.4 mm trochlea -- close enough that it could never have
+  been worth 70 mm of moment arm. It was the origin. The lateral supracondylar ridge runs the
+  lower third of the humerus and the dataset marks it once, near its bottom, 32 mm above the
+  elbow; brachioradialis arises from the upper two-thirds of it. `ridgeAttachments.ts` measures
+  the ridge off the mesh -- the outermost vertex in each of 24 bins along the stretch of bone it
+  occupies -- and takes the centroid of the part the muscle arises from, at 65 mm up. The peak arm
+  went from 18 mm to 64, the mean error from 42.6 to 14.7, and its path from 284 mm to 333 against
+  the reference's 331. What is left is the shape at the end of the range: ours peaks at 110
+  degrees and falls to 27 mm by 130, where the reference is still climbing.
+
+  It has a cost, and it is the source's arithmetic rather than this skeleton's. A moment arm is an
+  excursion, so a muscle with the longest flexion arm at the elbow has the largest excursion: the
+  path now shortens by 98 mm between a straight elbow and a bent one, on the 102 mm fiber MyoSuite
+  gives it, and at full flexion the tendon goes slack because there is no fiber left to pull with.
+  The source model does the same thing -- it runs that muscle between 0.14 and 1.42 of optimal
+  over the same range -- and a real brachioradialis has fascicles half as long again. The fiber
+  translation in OQ-020 cannot help, because it only lengthens a fiber when our path travels
+  further than the source's and here it travels less.
 - **Distal humerus and forearm wrap surfaces.** The same construction that carried the via points
   would carry these; the muscle that needs one is brachioradialis.
 - **The proportional assumption.** Forearm points are scaled by the *humerus* ratio, because one
@@ -392,8 +409,10 @@ point at, and are fixed:
 Four remain, both sides of two muscles, and both are marginal: the posterior deltoid wants a fibre
 3 per cent longer than its path leaves room for, and supraspinatus's transcribed fibre is 89 per
 cent of a path that is a fifth shorter than the source's. The rest of what is left is recorded in
-OQ-015 rather than here -- brachioradialis travels 0.38 of what the source's does and has a moment
-arm 70 mm out, which is a path problem and not a parameter one.
+OQ-015 rather than here, and brachioradialis has since gone the same way as the vasti: its origin
+was the ridge's marker rather than the part of the ridge the muscle arises from, and measuring it
+took its travel from 0.38 of the source's to 0.81 and its path from 284 mm to 333 against the
+reference's 331.
 **Closes when:** the posterior deltoid and supraspinatus paths agree with the source's well enough
 that neither needs its fibre trimmed to fit.
 **Status:** addressed. Both lengths are derived from measurements on this skeleton rather than

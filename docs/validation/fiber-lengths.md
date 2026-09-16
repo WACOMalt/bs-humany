@@ -59,6 +59,8 @@ which is a statement about the attachments rather than about the muscle.
 | supraspinatus_r **(capped)** | 25 mm | 29 mm | 0.85 | 90 mm | 81 mm | 101 mm | 0.99 .. 1.32 |
 | rectus_femoris_l | 157 mm | 190 mm | 0.83 | 171 mm | 171 mm | 505 mm | 0.62 .. 1.73 |
 | rectus_femoris_r | 157 mm | 190 mm | 0.83 | 171 mm | 171 mm | 505 mm | 0.62 .. 1.73 |
+| brachioradialis_r | 105 mm | 130 mm | 0.81 | 102 mm | 102 mm | 333 mm | 0.14 .. 1.42 |
+| brachioradialis_l | 105 mm | 130 mm | 0.81 | 102 mm | 102 mm | 333 mm | 0.14 .. 1.42 |
 | subscapularis_l | 28 mm | 38 mm | 0.74 | 77 mm | 77 mm | 146 mm | 0.83 .. 1.32 |
 | subscapularis_r | 28 mm | 38 mm | 0.74 | 77 mm | 77 mm | 146 mm | 0.83 .. 1.32 |
 | triceps_brachii_long_r | 51 mm | 71 mm | 0.72 | 179 mm | 179 mm | 304 mm | 0.90 .. 1.30 |
@@ -69,8 +71,6 @@ which is a statement about the attachments rather than about the muscle.
 | triceps_brachii_lateral_r | 30 mm | 42 mm | 0.70 | 64 mm | 64 mm | 210 mm | 0.54 .. 1.21 |
 | deltoid_middle_l | 27 mm | 45 mm | 0.61 | 49 mm | 49 mm | 183 mm | 0.45 .. 1.37 |
 | deltoid_middle_r | 27 mm | 45 mm | 0.61 | 49 mm | 49 mm | 183 mm | 0.45 .. 1.37 |
-| brachioradialis_r | 49 mm | 130 mm | 0.38 | 102 mm | 102 mm | 284 mm | 0.14 .. 1.42 |
-| brachioradialis_l | 49 mm | 130 mm | 0.38 | 102 mm | 102 mm | 284 mm | 0.14 .. 1.42 |
 
 The last column is where the source runs each muscle on its own force-length curve over its own
 range of motion, in units of optimal fiber length. It fits nothing here. It is the evidence for

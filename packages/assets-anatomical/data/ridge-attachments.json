@@ -1,0 +1,56 @@
+{
+ "format": "bs-humany.ridge-attachments/1",
+ "generatedAt": "2026-09-16",
+ "dataset": {
+  "name": "Z-Anatomy SkeletalSystem",
+  "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",
+  "license": "CC-BY-SA-4.0",
+  "attribution": [
+   "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan",
+   "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+  ],
+  "sourceFile": "SkeletalSystem100.fbx",
+  "sourceSha256": "294a649765cd060a62a4095da52b9c8ef2d97769aa447e196448aa5f7d596dea"
+ },
+ "bins": 24,
+ "attachments": [
+  {
+   "bone": "humerus_r",
+   "feature": "Lateral_supracondylar_ridge__upper_two_thirds",
+   "surface": [
+    0.223728,
+    1.167339,
+    0.048178
+   ],
+   "marker": [
+    0.238714,
+    1.121275,
+    0.0456
+   ],
+   "offset": 0.04851,
+   "height": 0.065072,
+   "traced": 16,
+   "rule": "the vertex furthest along the ridge's own outward direction in each of 24 bins across the stretch of bone the ridge runs, then the centroid of the bins in the portion the muscle arises from, settled onto the nearest vertex",
+   "anatomy": "Gray 1918, Osteology: the lateral border of the humerus becomes the lateral supracondylar ridge over the bone’s lower third; Myology, The Brachioradialis: it arises from the upper two-thirds of that ridge"
+  },
+  {
+   "bone": "humerus_l",
+   "feature": "Lateral_supracondylar_ridge__upper_two_thirds",
+   "surface": [
+    -0.223728,
+    1.167339,
+    0.048178
+   ],
+   "marker": [
+    -0.238714,
+    1.121275,
+    0.0456
+   ],
+   "offset": 0.048509,
+   "height": 0.065072,
+   "traced": 16,
+   "rule": "the vertex furthest along the ridge's own outward direction in each of 24 bins across the stretch of bone the ridge runs, then the centroid of the bins in the portion the muscle arises from, settled onto the nearest vertex",
+   "anatomy": "Gray 1918, Osteology: the lateral border of the humerus becomes the lateral supracondylar ridge over the bone’s lower third; Myology, The Brachioradialis: it arises from the upper two-thirds of that ridge"
+  }
+ ]
+}

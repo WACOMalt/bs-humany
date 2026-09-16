@@ -15,6 +15,9 @@ import surfaceJson from '@bs-humany/assets-anatomical/data/landmarks-surface.jso
   type: 'json',
 };
 import landmarksJson from '@bs-humany/assets-anatomical/data/landmarks.json' with { type: 'json' };
+import ridgeJson from '@bs-humany/assets-anatomical/data/ridge-attachments.json' with {
+  type: 'json',
+};
 import { type AttachmentSiteDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
 import { PROVENANCE_NS, landmarkId } from './landmarks.js';
@@ -53,11 +56,41 @@ const SURFACE = new Map<string, SurfaceLandmark>(
   ),
 );
 
+interface RidgeAttachment {
+  readonly bone: string;
+  readonly feature: string;
+  readonly surface: readonly [number, number, number];
+  readonly height: number;
+  readonly traced: number;
+  readonly rule: string;
+  readonly anatomy: string;
+}
+
+/**
+ * Points measured along a ridge, for muscles that do not start where the ridge's marker sits.
+ *
+ * @see `ridgeAttachments.ts`, which measures them and argues for the rule.
+ */
+const RIDGE = new Map<string, RidgeAttachment>(
+  (ridgeJson as unknown as { readonly attachments: readonly RidgeAttachment[] }).attachments.map(
+    (a) => [`${a.bone}/${a.feature}`, a],
+  ),
+);
+
 /** Where an attachment goes: the measured point on the bone, or the raw marker if none exists. */
 function located(
   bone: string,
   feature: string,
 ): { readonly world: readonly [number, number, number]; readonly locatedBy: string } | undefined {
+  const ridge = RIDGE.get(`${bone}/${feature}`);
+  if (ridge) {
+    return {
+      world: ridge.surface,
+      locatedBy:
+        `measured along the ridge: ${ridge.rule}; ${ridge.anatomy}; ` +
+        `${(ridge.height * 1000).toFixed(0)} mm up the bone over ${ridge.traced} bins`,
+    };
+  }
   const measured = SURFACE.get(`${bone}/${feature}`);
   if (measured) {
     return {
@@ -235,7 +268,11 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Brachioradialis',
     section: 'The Brachioradialis',
     bilateral: true,
-    origins: [['humerus_$', 'Lateral_supracondylar_ridge']],
+    // The upper two-thirds of the ridge, which is Gray's, and is not where the ridge's own marker
+    // sits: that is near its bottom, 32 mm above the elbow, and a muscle started there had an 18
+    // mm flexion moment arm where the model these parameters come from gives 90. The measured
+    // point is 65 mm up. See `ridgeAttachments.ts`.
+    origins: [['humerus_$', 'Lateral_supracondylar_ridge__upper_two_thirds']],
     insertions: [['radius_$', 'Radial_styloid_process']],
   },
   {
@@ -513,7 +550,9 @@ export function attachmentGaps(): string[] {
   for (const m of MUSCLES) {
     for (const [bone, feature] of [...m.origins, ...m.insertions, ...(m.ligaments ?? [])]) {
       const id = side(bone, 'r');
-      if (!RAW[id]?.[feature]) gaps.push(`${m.id}: ${id}/${feature}`);
+      // `located` is the question, not the raw table: a point measured along a ridge is located,
+      // and the dataset's own marker for that ridge is not where the muscle starts.
+      if (!located(id, feature)) gaps.push(`${m.id}: ${id}/${feature}`);
     }
   }
   return gaps;

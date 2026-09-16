@@ -41,7 +41,16 @@ const BICEPS_LONG = muscles.units.findIndex((u) => u.id === 'biceps_brachii_long
  * names the slack ones. Force tests use this one so that they are testing the force path and not
  * re-discovering the same open question in seven different ways.
  */
-const LOADED = muscles.units.findIndex((u) => u.id === 'brachioradialis_r');
+/**
+ * A unit whose tendon is carrying something wherever the arm happens to be.
+ *
+ * Biceps, not brachioradialis, which is what this was. Brachioradialis has the longest flexion
+ * moment arm at the elbow, and a moment arm is an excursion: its path shortens by 98 mm between a
+ * straight elbow and a bent one, on 102 mm of fiber, so at full flexion it has nothing left to
+ * pull with and its tendon goes slack. A test about whether drive becomes force wants a muscle
+ * that is pulling either way.
+ */
+const LOADED = muscles.units.findIndex((u) => u.id === 'biceps_brachii_long_r');
 
 /**
  * A running body with its elbow muscles wired up.
@@ -413,19 +422,35 @@ describe('MuscleDynamicsModule', () => {
     s.kernel.dispose();
   });
 
-  it('loads every tendon now that the paths lie along the bone', async () => {
+  it('loads every tendon that has any length left to pull with', async () => {
     // This test used to assert the opposite, and the change is the point of the via points. With
     // straight paths three of the seven units were shorter than their own resting length, so
     // their tendons never took up and they made no force however hard they were driven. Holding
-    // each muscle against the humerus lengthened its path enough that all seven now load.
+    // each muscle against the humerus lengthened its path enough that they load.
+    //
+    // Brachioradialis is allowed to be the exception, and only once its origin was measured along
+    // the ridge rather than taken from the ridge's marker. That gave it the moment arm it should
+    // have -- 64 mm at the peak against 18 before -- and a moment arm is an excursion: the path
+    // now shortens by 98 mm between a straight elbow and a bent one, on 102 mm of fiber. At full
+    // flexion there is nothing left of the fiber to pull with and the tendon goes slack.
+    //
+    // That is the source model's own arithmetic rather than something introduced here. It runs
+    // the same muscle between 0.14 and 1.42 of optimal over the same range, on the same 102 mm
+    // fiber, and a real brachioradialis has fascicles half as long again. The fiber length is
+    // MyoSuite's and the translation cannot help it, because that only lengthens a fiber when our
+    // path travels further than the source's and here it travels less. Recorded in OQ-020.
     const s = await driven(1);
     s.kernel.run(300);
     const slack: string[] = [];
     for (let i = 0; i < UNITS; i++) {
       if ((s.tendonForce[i] as number) === 0) slack.push(muscles.units[i]?.id as string);
+      // Slack is a state, not a failure: what would be a failure is the solver giving up.
       expect(s.diagnostic[i] as number, muscles.units[i]?.id).toBe(0);
     }
-    expect(slack).toEqual([]);
+    expect(
+      slack.every((id) => id.startsWith('brachioradialis')),
+      slack.join(', '),
+    ).toBe(true);
     s.kernel.dispose();
   });
 

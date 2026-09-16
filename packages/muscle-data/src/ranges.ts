@@ -54,8 +54,8 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'brachioradialis_r',
-    shortest: 0.884454,
-    longest: 1.05813,
+    shortest: 0.7066,
+    longest: 1.02255,
     crosses: 'elbow_r/flexion, radioulnar_r/pronation',
   },
   {
@@ -99,8 +99,8 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'brachioradialis_l',
-    shortest: 0.884454,
-    longest: 1.05806,
+    shortest: 0.7066,
+    longest: 1.02253,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation',
   },
   {

@@ -20,6 +20,9 @@ import surfaceJson from '@bs-humany/assets-anatomical/data/landmarks-surface.jso
   type: 'json',
 };
 import landmarksJson from '@bs-humany/assets-anatomical/data/landmarks.json' with { type: 'json' };
+import ridgeJson from '@bs-humany/assets-anatomical/data/ridge-attachments.json' with {
+  type: 'json',
+};
 import {
   type Citation,
   type LandmarkDef,
@@ -66,6 +69,31 @@ interface SurfaceLandmark {
  * same way the fitted articular centres do. `markerWorld` still answers with the raw marker for
  * the places that need to know what the export itself placed.
  */
+interface RidgeAttachment {
+  readonly bone: string;
+  readonly feature: string;
+  readonly surface: [number, number, number];
+  readonly offset: number;
+  readonly height: number;
+  readonly traced: number;
+  readonly rule: string;
+  readonly anatomy: string;
+}
+
+/**
+ * Where along a ridge a muscle starts, as a feature of its own.
+ *
+ * A marker names a feature and does not say where along it, which for a tubercle is no loss and
+ * for a ridge is the whole question. The lateral supracondylar ridge runs the lower third of the
+ * humerus and has one marker, which sits near its bottom; brachioradialis arises from its upper
+ * two-thirds, 65 mm further up. `ridgeAttachments.ts` measures the ridge off the mesh and takes
+ * the part the muscle arises from, and the answer joins the table here under a name of its own so
+ * an attachment can ask for it.
+ */
+const RIDGES: readonly RidgeAttachment[] = (
+  ridgeJson as unknown as { readonly attachments: readonly RidgeAttachment[] }
+).attachments;
+
 const SURFACE: readonly SurfaceLandmark[] = (
   surfaceJson as unknown as { readonly landmarks: readonly SurfaceLandmark[] }
 ).landmarks;
@@ -91,6 +119,12 @@ const POSITIONS: LandmarkTable = (() => {
     const features = merged[l.bone];
     if (features) features[l.feature] = [l.surface[0], l.surface[1], l.surface[2]];
   }
+  // Measured along a ridge, for muscles that do not start at a feature's marker.
+  for (const r of RIDGES) {
+    merged[r.bone] ??= {};
+    const features = merged[r.bone];
+    if (features) features[r.feature] = [r.surface[0], r.surface[1], r.surface[2]];
+  }
   for (const c of ARTICULAR_CENTRES) {
     merged[c.bone] ??= {};
     const features = merged[c.bone];
@@ -104,6 +138,16 @@ const POSITIONS: LandmarkTable = (() => {
   }
   return merged;
 })();
+
+const RIDGE_RULES = new Map<string, string>(
+  RIDGES.map(
+    (r) =>
+      [
+        `${r.bone}/${r.feature}`,
+        `${r.rule}; ${r.anatomy}; ${(r.height * 1000).toFixed(0)} mm up`,
+      ] as const,
+  ),
+);
 
 const SURFACE_RULES = new Map<string, string>(
   SURFACE.map(
@@ -482,6 +526,7 @@ export function buildLandmarks(): LandmarkDef[] {
       const derivedRule =
         DERIVED[bone]?.[feature] ??
         FITTED_RULES.get(`${bone}/${feature}`) ??
+        RIDGE_RULES.get(`${bone}/${feature}`) ??
         SURFACE_RULES.get(`${bone}/${feature}`);
       const local = (i: 0 | 1 | 2) => (world[i] - centroid[i]) / DATASET_MANIFEST.subjectStature;
 

@@ -16,7 +16,7 @@ Moment arms in millimetres, positive toward flexion. Mean and worst are |ours - 
 | biceps_brachii_long_r | 39.2 at 110° | 41.3 at 110° | 3.0 | 13.0 at 0° | ok |
 | biceps_brachii_short_r | 36.0 at 110° | 38.0 at 110° | 3.2 | 14.1 at 0° | ok |
 | brachialis_r | 40.8 at 120° | 24.0 at 110° | 11.8 | 17.5 at 130° | recorded (OQ-015) |
-| brachioradialis_r | 18.3 at 110° | 89.7 at 120° | 42.6 | 72.8 at 130° | recorded (OQ-015) |
+| brachioradialis_r | 64.2 at 110° | 89.7 at 120° | 14.7 | 27.5 at 130° | recorded (OQ-015) |
 | triceps_brachii_long_r | -14.8 at 20° | -24.1 at 20° | 6.3 | 9.6 at 40° | recorded (OQ-015) |
 | triceps_brachii_lateral_r | -14.8 at 20° | -24.1 at 20° | 6.3 | 9.6 at 40° | recorded (OQ-015) |
 | triceps_brachii_medial_r | -14.8 at 20° | -24.1 at 20° | 6.3 | 9.6 at 40° | recorded (OQ-015) |
@@ -26,7 +26,7 @@ Moment arms in millimetres, positive toward flexion. Mean and worst are |ours - 
 - **biceps_brachii_long_r** — Agrees through the middle and upper range. The disagreement is at full extension, where ours sits at the trochlea’s radius and the reference passes within a millimetre of the elbow axis -- which would leave a biceps unable to begin flexing from a straight arm, so the difference is not evidence against ours.
 - **biceps_brachii_short_r** — As the long head, and at the same place in the range.
 - **brachialis_r** — Still close to twice the reference, though putting the markers back on the bone brought it in from 22 mm of mean error to 12 and moved its peak onto the reference’s angle. Its line still passes outside the trochlea cylinder at every angle, so the surface it declares does nothing for it; what it needs is an attachment over the coronoid rather than a point 40 mm from the flexion axis.
-- **brachioradialis_r** — A fifth of the reference, which is the largest error in the set. Brachioradialis has the longest flexion arm at the elbow because its path stands well clear of the joint, and the reference holds it there with a cylinder at the distal humerus that this has not carried over; ours is held out only by the trochlea it wraps, which is now measured at 12 mm rather than 18.
+- **brachioradialis_r** — Was a fifth of the reference and the largest error in the set, and the wrap surface was blamed for it. That was wrong: the reference’s surface here is a 15 mm cylinder against our 12.4 mm trochlea, which cannot be worth 70 mm of moment arm. It was the origin. The lateral supracondylar ridge runs the lower third of the humerus and the dataset marks it once, near its bottom, 32 mm above the elbow; brachioradialis arises from its upper two-thirds, which `ridgeAttachments.ts` measures at 65 mm up. That took the peak arm from 18 mm to 64 and the mean error from 42.6 to 14.7. What is left is a path that still hugs the joint more than the reference’s at full flexion, where ours peaks at 110 degrees and falls to 27 mm by 130 while the reference is still climbing.
 - **triceps_brachii_long_r** — Flat at 15 mm where the reference runs from 24 down to 8, and both halves of that are the same cause: our extensor pulley is coaxial with the joint, which by construction gives a constant arm, and the reference’s cylinder is offset behind it, which gives one that falls as the elbow closes. The size is the attachment: the triceps inserts on the olecranon, and the point the marker projects to stands 15 mm from the flexion axis where the bone’s own posterior apex stands 25. A surface at the olecranon was measured (25.1 mm) and does not help, because an attachment inside a wrap surface cannot wrap it.
 - **triceps_brachii_lateral_r** — As the long head, and from the same attachment.
 - **triceps_brachii_medial_r** — As the long head, and from the same attachment.
@@ -37,18 +37,18 @@ Moment arms in millimetres, positive toward flexion. Mean and worst are |ours - 
 |---|---|---|---|---|---|---|---|
 | 0° | 12.4 | 12.4 | 12.4 | 12.3 | -13.9 | -13.9 | -13.9 |
 | 10° | 12.4 | 12.4 | 12.4 | 12.3 | -14.6 | -14.6 | -14.6 |
-| 20° | 12.4 | 12.4 | 12.4 | 12.3 | -14.8 | -14.8 | -14.8 |
-| 30° | 14.3 | 12.4 | 14.8 | 12.3 | -14.5 | -14.5 | -14.5 |
-| 40° | 19.0 | 16.7 | 19.3 | 12.3 | -13.9 | -13.9 | -13.9 |
-| 50° | 23.4 | 20.9 | 23.5 | 12.3 | -13.0 | -13.0 | -13.0 |
-| 60° | 27.5 | 24.8 | 27.5 | 13.3 | -12.4 | -12.4 | -12.4 |
-| 70° | 31.1 | 28.2 | 31.1 | 15.1 | -12.4 | -12.4 | -12.4 |
-| 80° | 34.2 | 31.2 | 34.4 | 16.6 | -12.4 | -12.4 | -12.4 |
-| 90° | 36.7 | 33.6 | 37.1 | 17.7 | -12.4 | -12.4 | -12.4 |
-| 100° | 38.4 | 35.2 | 39.2 | 18.2 | -12.4 | -12.4 | -12.4 |
-| 110° | 39.2 | 36.0 | 40.5 | 18.3 | -12.4 | -12.4 | -12.4 |
-| 120° | 38.7 | 35.7 | 40.8 | 17.8 | -12.4 | -12.4 | -12.4 |
-| 130° | 36.9 | 34.1 | 39.8 | 16.6 | -12.4 | -12.4 | -12.4 |
+| 20° | 12.4 | 12.4 | 12.4 | 17.1 | -14.8 | -14.8 | -14.8 |
+| 30° | 14.3 | 12.4 | 14.8 | 24.5 | -14.5 | -14.5 | -14.5 |
+| 40° | 19.0 | 16.7 | 19.3 | 31.6 | -13.9 | -13.9 | -13.9 |
+| 50° | 23.4 | 20.9 | 23.5 | 38.3 | -13.0 | -13.0 | -13.0 |
+| 60° | 27.5 | 24.8 | 27.5 | 44.6 | -12.4 | -12.4 | -12.4 |
+| 70° | 31.1 | 28.2 | 31.1 | 50.3 | -12.4 | -12.4 | -12.4 |
+| 80° | 34.2 | 31.2 | 34.4 | 55.3 | -12.4 | -12.4 | -12.4 |
+| 90° | 36.7 | 33.6 | 37.1 | 59.4 | -12.4 | -12.4 | -12.4 |
+| 100° | 38.4 | 35.2 | 39.2 | 62.5 | -12.4 | -12.4 | -12.4 |
+| 110° | 39.2 | 36.0 | 40.5 | 64.2 | -12.4 | -12.4 | -12.4 |
+| 120° | 38.7 | 35.7 | 40.8 | 64.2 | -12.4 | -12.4 | -12.4 |
+| 130° | 36.9 | 34.1 | 39.8 | 61.9 | -12.4 | -12.4 | -12.4 |
 
 ## The reference, millimetres
 

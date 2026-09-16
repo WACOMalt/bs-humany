@@ -22,6 +22,7 @@
     "lods": "jiti src/lods.ts",
     "centres": "jiti src/centres.ts",
     "wrap-radii": "jiti src/wrapRadii.ts",
-    "surface-landmarks": "jiti src/surfaceLandmarks.ts"
+    "surface-landmarks": "jiti src/surfaceLandmarks.ts",
+    "ridge-attachments": "jiti src/ridgeAttachments.ts"
   }
 }
