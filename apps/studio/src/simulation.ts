@@ -324,6 +324,9 @@ export class Simulation {
       grab: (s, local, target) => this.grab.grab(s, local, target),
       moveGrab: (target) => this.grab.moveTo(target),
       release: () => this.grab.release(),
+      // Ignored rather than refused when the run has no muscles, so a script can ask without
+      // checking first -- and so the same scenario is watchable with the muscles switched off.
+      drive: (unit, level) => this.muscleDrive?.setOverride(unit, level),
     };
     this.timeline.push({ tick: 0, snapshot: this.kernel.snapshot() });
     this.record();

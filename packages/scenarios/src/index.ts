@@ -22,6 +22,16 @@ export interface ScenarioApi {
   grab(segmentIndex: number, localPoint: Vec3, worldTarget: Vec3): void;
   moveGrab(worldTarget: Vec3): void;
   release(): void;
+  /**
+   * Drive one muscle unit, 0 to 1, until told otherwise.
+   *
+   * Excitation rather than force: what a script asks for is what a nerve would ask for, and what
+   * the muscle does with it is the muscle's business -- activation lags it, the fiber has to be
+   * at a length where it can pull, and the force arrives as a wrench at the attachment rather
+   * than as a torque at the joint (M-ADR-003). A scenario that does not run muscles ignores this
+   * rather than failing, so a script can ask without checking first.
+   */
+  drive(unit: string, level: number): void;
 }
 
 export interface Scenario {
@@ -31,6 +41,12 @@ export interface Scenario {
   readonly profileId: string;
   readonly morphology: Morphology;
   readonly durationSeconds: number;
+  /**
+   * Run the muscle set, so `api.drive` reaches something.
+   *
+   * Off by default: most scenarios are about the skeleton, and every unit costs a solve per tick.
+   */
+  readonly muscles?: boolean | undefined;
   /** Rotation applied to the whole rest pose about the root, before lifting. */
   readonly rootRotation?: Quat | undefined;
   /** Height of the lowest segment origin above the ground after placement. */
@@ -134,6 +150,53 @@ function withDefaults(
   }
   return out;
 }
+
+/**
+ * Which units a scenario script drives, by joint and direction.
+ *
+ * Named here rather than discovered, for the reason the studio's panel names them: the sign of a
+ * moment arm is what the validation harness checks, and a scenario that grouped muscles by
+ * measuring it would agree with that harness by construction rather than by being right.
+ *
+ * Ids, not objects: a scenario is data and must not depend on the muscle packages. What it names
+ * is checked where it is used -- the runner refuses a unit the set does not have.
+ */
+const both = (...names: string[]): string[] => names.flatMap((n) => [`${n}_r`, `${n}_l`]);
+
+const ELBOW_FLEXORS_R = [
+  'biceps_brachii_long_r',
+  'biceps_brachii_short_r',
+  'brachialis_r',
+  'brachioradialis_r',
+];
+const ELBOW_FLEXORS_L = ELBOW_FLEXORS_R.map((id) => id.replace(/_r$/, '_l'));
+const ELBOW_EXTENSORS_R = [
+  'triceps_brachii_long_r',
+  'triceps_brachii_lateral_r',
+  'triceps_brachii_medial_r',
+];
+const ELBOW_EXTENSORS_L = ELBOW_EXTENSORS_R.map((id) => id.replace(/_r$/, '_l'));
+
+/** The groups the range-of-motion scenario takes through their range, in order. */
+export const MUSCLE_GROUPS: readonly { readonly title: string; readonly units: string[] }[] = [
+  { title: 'Elbow flexors', units: [...ELBOW_FLEXORS_R, ...ELBOW_FLEXORS_L] },
+  { title: 'Elbow extensors', units: [...ELBOW_EXTENSORS_R, ...ELBOW_EXTENSORS_L] },
+  {
+    title: 'Knee flexors',
+    units: both(
+      'biceps_femoris_long',
+      'biceps_femoris_short',
+      'semitendinosus',
+      'semimembranosus',
+      'gastrocnemius_lateral',
+      'gastrocnemius_medial',
+    ),
+  },
+  {
+    title: 'Knee extensors',
+    units: both('rectus_femoris', 'vastus_lateralis', 'vastus_medialis', 'vastus_intermedius'),
+  },
+];
 
 function define(
   definition: Omit<ScenarioDefinition, 'build'> & {
@@ -369,6 +432,93 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
             vec3(radius * Math.cos(time * Math.PI), height, radius * Math.sin(time * Math.PI)),
           );
         else if (time < until + 0.01) api.release();
+      },
+    }),
+  }),
+  define({
+    id: 'muscle-range-of-motion',
+    title: 'Range of motion, muscle by muscle',
+    description:
+      'The body hangs by one wrist and each driven group takes its joint through its range in ' +
+      'turn: elbows flexed then straightened, knees the same. Nothing is scripted at the joints ' +
+      "-- the only inputs are muscle excitations, and what the joints do is what the muscles' " +
+      'own leverage makes them do.',
+    parameters: [
+      param('hold', 'Hand height', 2.2, 1.2, 2.6, 0.05),
+      param('phase', 'Seconds a group', 3, 1, 8, 0.5, ' s'),
+    ],
+    make: (v) => ({
+      profileId: 'l3_anatomical',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 2 + 4 * (v.phase as number),
+      clearance: 0.2,
+      ground: { height: 0 },
+      passiveJoints: true,
+      // A muscle is a source of energy, so the passive-system check does not apply.
+      passiveSystem: false,
+      // The last group is still driving when the run ends and the body hangs from one wrist, so
+      // it is still swinging: three joules on a 70 kg body is the pendulum a driven limb makes of
+      // it, which is the scenario doing what it was written to do.
+      plausibility: { restKinetic: 4 },
+      script: (time, api) => {
+        const hand = api.segment('hand_r');
+        if (time === 0) api.grab(hand, vec3(0, 0, 0), vec3(0.2, v.hold as number, 0));
+        // A second to settle on the grab, then each group in turn. Ramped rather than switched:
+        // a step to full excitation is a transient nobody asked to look at, and a muscle that
+        // has to follow a step tells you about the step.
+        const phase = v.phase as number;
+        const since = time - 1;
+        const group = Math.floor(since / phase);
+        const within = (since - group * phase) / phase;
+        const level = since < 0 ? 0 : Math.sin(Math.PI * Math.min(1, Math.max(0, within)));
+        for (let at = 0; at < MUSCLE_GROUPS.length; at++) {
+          const units = MUSCLE_GROUPS[at]?.units ?? [];
+          for (const unit of units) api.drive(unit, at === group ? level : 0);
+        }
+      },
+    }),
+  }),
+  define({
+    id: 'arm-flail',
+    title: 'Flail the arms',
+    description:
+      'Both elbows driven by sine waves, the flexors and extensors in opposition and the two ' +
+      'arms half a cycle apart. What it is for is watching the paths and the bellies move under ' +
+      'a signal that never settles, which is where a wrap that flickers or a belly that lags ' +
+      'shows itself.',
+    parameters: [
+      param('frequency', 'Flail rate', 1.5, 0.2, 6, 0.1, ' Hz'),
+      param('depth', 'Drive depth', 0.8, 0.1, 1, 0.05),
+      param('hold', 'Hand height', 2.2, 1.2, 2.6, 0.05),
+    ],
+    make: (v) => ({
+      profileId: 'l3_anatomical',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 8,
+      clearance: 0.2,
+      ground: { height: 0 },
+      passiveJoints: true,
+      passiveSystem: false,
+      // It is still flailing when the run ends, by construction: the drive never stops and the
+      // body hangs from one wrist while two arms swing.
+      plausibility: { restKinetic: 8 },
+      script: (time, api) => {
+        // Held by the left wrist, so the right arm is the one flailing freely.
+        const hand = api.segment('hand_l');
+        if (time === 0) api.grab(hand, vec3(0, 0, 0), vec3(-0.2, v.hold as number, 0));
+        const depth = v.depth as number;
+        const wave = 2 * Math.PI * (v.frequency as number) * time;
+        // Cosine, so the drive starts at full rather than at zero: a sine through zero at t = 0
+        // spends the first tick doing nothing, which is exactly the mistake the Nyquist test
+        // caught in the skull shake.
+        const right = (Math.cos(wave) + 1) / 2;
+        const left = (Math.cos(wave + Math.PI) + 1) / 2;
+        for (const unit of ELBOW_FLEXORS_R) api.drive(unit, depth * right);
+        for (const unit of ELBOW_EXTENSORS_R) api.drive(unit, depth * (1 - right));
+        for (const unit of ELBOW_FLEXORS_L) api.drive(unit, depth * left);
+        for (const unit of ELBOW_EXTENSORS_L) api.drive(unit, depth * (1 - left));
       },
     }),
   }),

@@ -32,6 +32,13 @@ import {
   PassiveJointModule,
   PhysicsModule,
 } from '@bs-humany/modules-mechanics';
+import {
+  MuscleDynamicsModule,
+  MusclePathModule,
+  MuscleTestDriveModule,
+  compileMuscleSet,
+} from '@bs-humany/modules-muscle';
+import { ELBOW_MUSCLES, KNEE_MUSCLES, SHOULDER_MUSCLES } from '@bs-humany/muscle-data';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 
@@ -107,6 +114,26 @@ export async function runScenario(
   const coupling = new CouplingModule(articulation, backend.capabilities);
   kernel.register(coupling);
   if (scenario.passiveJoints) kernel.register(new PassiveJointModule(articulation));
+
+  // Muscles, when the scenario asks for them. A scenario that drives muscles and runs without
+  // them is not a slower version of itself -- it is a different experiment, and its golden would
+  // be a record of a body doing nothing.
+  let muscleDrive: MuscleTestDriveModule | undefined;
+  if (scenario.muscles) {
+    const muscles = compileMuscleSet(
+      [...ELBOW_MUSCLES, ...SHOULDER_MUSCLES, ...KNEE_MUSCLES],
+      document.attachmentSites,
+      articulation,
+      morphology.context,
+      document.wrappingSurfaces ?? [],
+    );
+    muscleDrive = new MuscleTestDriveModule(muscles, [
+      { units: 'all', pattern: { kind: 'constant', level: 0 } },
+    ]);
+    kernel.register(muscleDrive);
+    kernel.register(new MusclePathModule(articulation, muscles));
+    kernel.register(new MuscleDynamicsModule(articulation, muscles));
+  }
   await kernel.init();
 
   const pose = kernel.channels.storage(BODY_POSE).fields;
@@ -125,6 +152,7 @@ export async function runScenario(
     grab: (s, local, target) => grab.grab(s, local, target),
     moveGrab: (target) => grab.moveTo(target),
     release: () => grab.release(),
+    drive: (unit, level) => muscleDrive?.setOverride(unit, level),
   };
 
   const every = Math.max(1, options.sampleEveryTicks ?? Math.round(rate / 50));

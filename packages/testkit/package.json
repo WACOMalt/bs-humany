@@ -21,7 +21,9 @@
     "@bs-humany/scenarios": "workspace:*",
     "@bs-humany/anthropometry": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
-    "@bs-humany/backend-rapier": "workspace:*"
+    "@bs-humany/backend-rapier": "workspace:*",
+    "@bs-humany/modules-muscle": "workspace:*",
+    "@bs-humany/muscle-data": "workspace:*"
   },
   "devDependencies": {
     "@bs-humany/backend-mujoco": "workspace:*"

@@ -1,4 +1,9 @@
 {
+  "arm-flail/l3_anatomical/mujoco": {
+    "hash": "f477364d94bdaa5c",
+    "ticks": 8000,
+    "platform": "linux-x64"
+  },
   "drop-prone/l1_standard/mujoco": {
     "hash": "49c60f35397819b0",
     "ticks": 1500,
@@ -22,6 +27,11 @@
   "hang-from-wrist/l1_standard/mujoco": {
     "hash": "d37f6811c5f07f7a",
     "ticks": 3000,
+    "platform": "linux-x64"
+  },
+  "muscle-range-of-motion/l3_anatomical/mujoco": {
+    "hash": "d22f4a2bf7569afa",
+    "ticks": 14000,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/mujoco": {

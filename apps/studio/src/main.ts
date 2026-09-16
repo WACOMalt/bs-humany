@@ -632,7 +632,10 @@ async function startSimulation(
       scenario: chosen,
       dropHeight: Number(ui.dropHeight.value),
       groundHeight: groundY,
-      muscles: ui.muscles.checked,
+      // A scenario that drives muscles gets them whether the box is ticked or not: the box is
+      // there to keep them off the runs that do not need them, not to make a muscle scenario
+      // silently run a bare skeleton.
+      muscles: ui.muscles.checked || chosen?.muscles === true,
     });
     await sim.start();
     // A fresh backend always starts with gravity and a solid floor; both toggles are session
@@ -1030,6 +1033,12 @@ ui.scenario.addEventListener('change', () => {
   refreshScenarioParameters();
   const chosen = currentScenario();
   if (chosen) ui.passive.checked = chosen.passiveJoints;
+  // A scenario that drives muscles turns them on, and says so by ticking the box rather than
+  // leaving the panel claiming they are off while the arms move.
+  if (chosen?.muscles === true) {
+    ui.muscles.checked = true;
+    must<HTMLElement>('#muscle-control').hidden = false;
+  }
 });
 ui.exportRecording.addEventListener('click', () => {
   if (!simulation) return;

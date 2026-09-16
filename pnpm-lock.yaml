@@ -388,6 +388,12 @@ importers:
       '@bs-humany/modules-mechanics':
         specifier: workspace:*
         version: link:../modules-mechanics
+      '@bs-humany/modules-muscle':
+        specifier: workspace:*
+        version: link:../modules-muscle
+      '@bs-humany/muscle-data':
+        specifier: workspace:*
+        version: link:../muscle-data
       '@bs-humany/scenarios':
         specifier: workspace:*
         version: link:../scenarios
