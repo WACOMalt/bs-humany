@@ -24,6 +24,7 @@ import type { AttachmentSiteDef, ExprContext, WrappingSurfaceDef } from '@bs-hum
 import { evaluate } from '@bs-humany/hsdl';
 import type { ScalarExpr } from '@bs-humany/hsdl';
 import type { MtuParameters, MuscleGroup } from '@bs-humany/muscle-data';
+import { muscleLengthRange } from '@bs-humany/muscle-data';
 import {
   DEFAULT_ACTIVATION_PARAMETERS,
   DEFAULT_FIBER_DAMPING,
@@ -212,7 +213,12 @@ export function compileMuscleSet(
         parameters: {
           maxIsometricForce: scalar(p.maxIsometricForce, context),
           optimalFiberLength,
-          tendonSlackLength: fittedTendonSlack(restLength, optimalFiberLength, pennationAngle),
+          tendonSlackLength: fittedTendonSlack(
+            restLength,
+            optimalFiberLength,
+            pennationAngle,
+            muscleLengthRange(unit.id),
+          ),
           pennationAngle,
           maxContractionVelocity:
             p.maxContractionVelocity === undefined
@@ -247,6 +253,39 @@ export const MINIMUM_TENDON_SLACK = 0.001;
  * moves.
  */
 export const REST_SLACK = 0.01;
+
+/**
+ * How short and how long a fiber is allowed to get over the range of the joints its muscle
+ * crosses, in units of its own optimal length.
+ *
+ * A muscle fitted only at the rest pose is fitted at *one* point of its travel, and for several
+ * muscles the rest pose is one end of that travel rather than the middle of it. A hanging leg has
+ * its knee straight, which is where the hamstrings are longest and the vasti shortest, so every
+ * millimetre either of them travels goes the same way: fitted at rest, biceps femoris ran its
+ * fibers down to a quarter of optimal by deep flexion and made almost no force there. A fully
+ * driven leg stopped bending at 84 degrees of about 135.
+ *
+ * So the fit is given the travel as well -- `MUSCLE_LENGTH_RANGES`, measured on this skeleton --
+ * and moves the tendon only as far as it must to keep the fibers inside this band. A muscle whose
+ * travel already fits keeps the rest-pose fit exactly; nothing in the arm moves.
+ *
+ * The two numbers are where the force-length curves stop paying. Below 0.6 the active curve is
+ * under a third of peak and falling steeply, which is the muscle that feels dead at one end of its
+ * range. Above 1.3 the passive curve is an eighth of peak and rising steeply, which is the joint
+ * that will not go the last few degrees -- and at the knee that one is measurable rather than
+ * argued. Driven flexors take the knee to 70 degrees with the extensors capped at 1.4 of optimal,
+ * to its 120 degree stop at 1.3, and to the stop on a quarter of the drive at 1.2. The first is a
+ * knee that will not close, the last is a knee with no brake at all, and 1.3 is where the
+ * quadriceps resist deep flexion the way they should without splinting it.
+ *
+ * Not symmetric about optimal, so a muscle that travels further than the band is wide -- several
+ * of the knee's do -- ends up centered on 0.95 rather than 1.0. That is the right side to err on:
+ * short of optimal a fiber makes less force, past it a *relaxed* fiber makes force nobody asked
+ * for, and only the second can stop a joint.
+ */
+export const FIBER_FLOOR = 0.6;
+/** @see FIBER_FLOOR */
+export const FIBER_CEILING = 1.3;
 
 /**
  * The tendon slack length this skeleton implies, rather than the one the source model states.
@@ -288,16 +327,51 @@ export const REST_SLACK = 0.01;
  * wrap only ever lengthens a path, so a unit that wraps at rest is fitted slightly short and
  * begins with its tendon a little stretched; the alternative is running the geodesic solver
  * inside a compile step, which is a great deal of machinery for a millimetre.
+ *
+ * ## The rest pose is not always the middle of the travel
+ *
+ * Fitting at rest and stopping there suits a muscle whose joints sit mid-range when the body
+ * hangs, and the elbow's do. The knee's do not: a hanging leg is straight, which is one end of
+ * the knee's travel, so the vasti and the hamstrings both start at an extreme and go one way
+ * only. `range` is how far the unit's path actually travels, as fractions of its own rest length,
+ * and with it the tendon is moved as far as it must be -- and no further -- to keep the fibers
+ * between `FIBER_FLOOR` and `FIBER_CEILING` over that travel. A unit whose travel already fits
+ * inside the band keeps the rest-pose fit unchanged, so this costs the arm nothing.
+ *
+ * Passing no range asks for the rest-pose fit alone, which is what a unit nothing has measured
+ * gets.
  */
 export function fittedTendonSlack(
   restLength: number,
   optimalFiberLength: number,
   pennationAngle: number,
+  range?: { readonly shortest: number; readonly longest: number },
 ): number {
   const fiberAlongTendon = optimalFiberLength * Math.cos(pennationAngle);
   // Longer than the length that would put the tendon exactly at slack, so at rest it is inside
   // its own slack length and carrying nothing at all.
-  const fitted = (restLength - fiberAlongTendon) * (1 + REST_SLACK);
+  const atRest = (restLength - fiberAlongTendon) * (1 + REST_SLACK);
+  let fitted = atRest;
+  if (range !== undefined) {
+    // A longer tendon leaves a shorter fiber, so the short end of the travel is what caps the
+    // tendon and the long end is what floors it.
+    const mostSlack = range.shortest * restLength - FIBER_FLOOR * fiberAlongTendon;
+    const leastSlack = range.longest * restLength - FIBER_CEILING * fiberAlongTendon;
+    const banded =
+      leastSlack > mostSlack
+        ? // Travels further than the band is wide: no tendon satisfies both ends, and the midpoint
+          // of two symmetric bounds is the travel centered on optimal.
+          (leastSlack + mostSlack) / 2
+        : Math.min(Math.max(fitted, leastSlack), mostSlack);
+    // Never shorter than the rest-pose fit, which is to say: never stretched at rest. A shorter
+    // tendon puts the fiber past optimal at the pose the body holds when it is doing nothing, and
+    // passive force there is force the body never asked for. Fitted to its travel alone,
+    // gastrocnemius sat at 1.28 of optimal with the leg hanging straight and pulled 230 N a side;
+    // an undriven knee folded to its stop. So the travel may lengthen a tendon and not shorten
+    // one, and a muscle whose short end is out of reach on those terms is simply weak there --
+    // which is what a muscle at the end of its travel is.
+    fitted = banded > atRest ? banded : atRest;
+  }
   // Shorter than its own fibers at rest: the muscle is bunched, and there is no tendon to speak
   // of. Keep the floor rather than the stated length, which would be longer than the whole unit.
   return fitted > MINIMUM_TENDON_SLACK ? fitted : MINIMUM_TENDON_SLACK;

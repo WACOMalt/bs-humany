@@ -80,18 +80,67 @@ export function activeForceLengthSlope(fiberLength: number): number {
  * De Groote et al. (2016), equation 3. `PASSIVE_STRAIN` is the strain at which the passive
  * element alone carries the muscle's maximum isometric force, and `PASSIVE_SHAPE` sets how
  * sharply it gets there.
+ *
+ * ## One deviation from the published equation, and why
+ *
+ * Written out, that equation does not reach zero below optimal length -- it goes *negative*, and
+ * settles at about -1.9 per cent of the muscle's maximum force however short the fiber gets. On a
+ * muscle that spends its time near optimal that is a rounding error nobody meets. The knee's do
+ * not: once their tendons were fitted to the travel their joints actually have, the vasti came to
+ * sit at 0.57 of optimal with the leg straight, and four relaxed extensors pushed their own ends
+ * apart at about a hundred newtons apiece -- some nine newton-metres folding a knee that nothing
+ * was driving.
+ *
+ * A muscle pulls or it does nothing. The fix has to keep the curve twice differentiable, because
+ * the implicit integrator needs the second derivative not to jump, and `max(0, ...)` puts a kink
+ * exactly at optimal length where every relaxed muscle sits. So the *argument* is passed through
+ * a smooth positive part instead: `POSITIVE_PART_WIDTH` sets how sharply it turns the corner, the
+ * curve above optimal is the published one to within a part in a thousand, and below optimal it
+ * decays to zero rather than to a push.
+ *
+ * What it costs is that the curve no longer passes through exactly zero at optimal length: it
+ * passes through 0.27 per cent of maximum force, a couple of newtons on the strongest muscle
+ * here, which is both smaller than the error it replaces and the right sign.
  */
 export const PASSIVE_STRAIN = 0.6;
 export const PASSIVE_SHAPE = 4.0;
 
+export const POSITIVE_PART_WIDTH = 0.04;
+
+/** How far past optimal the curve is asked about, once the corner is smoothed. */
+function stretch(fiberLength: number): number {
+  const past = fiberLength - 1;
+  return (past + Math.hypot(past, POSITIVE_PART_WIDTH)) / 2;
+}
+
+/** `d(stretch)/d(fiberLength)`: zero well below optimal, one well above, smooth between. */
+function stretchSlope(fiberLength: number): number {
+  const past = fiberLength - 1;
+  return (1 + past / Math.hypot(past, POSITIVE_PART_WIDTH)) / 2;
+}
+
+/**
+ * What divides the curve, so that it still carries exactly one maximum force at `PASSIVE_STRAIN`.
+ *
+ * The published equation divides by `exp(PASSIVE_SHAPE) - 1`, which is that same expression
+ * evaluated at the published strain. Smoothing the corner moves the argument by a few parts in a
+ * thousand, so the divisor is taken at the strain the curve is defined by rather than assumed --
+ * and the property the parameter states stays exactly true.
+ */
+const PASSIVE_NORMALISER =
+  Math.exp((PASSIVE_SHAPE * stretch(1 + PASSIVE_STRAIN)) / PASSIVE_STRAIN) - 1;
+
 export function passiveForceLength(fiberLength: number): number {
-  const numerator = Math.exp((PASSIVE_SHAPE * (fiberLength - 1)) / PASSIVE_STRAIN) - 1;
-  return numerator / (Math.exp(PASSIVE_SHAPE) - 1);
+  const numerator = Math.exp((PASSIVE_SHAPE * stretch(fiberLength)) / PASSIVE_STRAIN) - 1;
+  return numerator / PASSIVE_NORMALISER;
 }
 
 export function passiveForceLengthSlope(fiberLength: number): number {
   const scale = PASSIVE_SHAPE / PASSIVE_STRAIN;
-  return (scale * Math.exp(scale * (fiberLength - 1))) / (Math.exp(PASSIVE_SHAPE) - 1);
+  return (
+    (scale * Math.exp(scale * stretch(fiberLength)) * stretchSlope(fiberLength)) /
+    PASSIVE_NORMALISER
+  );
 }
 
 /**

@@ -328,10 +328,29 @@ joint's range of motion that the source's does. What it costs is provenance -- t
 derived rather than transcribed -- which is a decision rather than a fix, and it is recorded here
 until it is made. A guard belongs with it: a derived fiber length far from the source's means the
 *path* is wrong, and rescaling would hide that in a parameter.
-**Closes when:** the rescaling lands with that guard, or the attachment regions are measured from
-the meshes rather than taken from label anchors (see the note in OQ-015) and the lengths agree
-without it.
-**Status:** open
+Half of that remedy has since landed, for the half of the problem that needed no decision about
+provenance. Tendon slack length was never transcribed -- it is fitted at compile, because it is a
+length measured on the source's bones -- and it is now fitted to the muscle's *travel* rather than
+to the rest pose alone: `MUSCLE_LENGTH_RANGES` measures how long each path gets over the range of
+the joints it crosses, and `fittedTendonSlack` moves the tendon as far as it must to keep the
+fibers between `FIBER_FLOOR` and `FIBER_CEILING` over that travel, and no further. The knee is
+where it mattered. A hanging leg is straight, which is one end of the knee's travel rather than
+the middle of it, so fitting at rest put the vasti at optimal where they are *shortest* and left
+their whole excursion on the descending limb: at 80 degrees of flexion four relaxed extensors
+carried 1288 N of passive force against 370 N of active flexion, and a fully driven leg stopped at
+84 degrees of its 120 degree range. Fitted to the travel it reaches the stop.
+
+What that does not fix is the other half: optimal fiber length is still the source's, and for
+several of the knee's muscles it is short against the excursion our geometry gives them. Biceps
+femoris long head travels 1.6 optimal fiber lengths over the hip and knee together on 122 mm
+fibers -- as it does in the source model, which puts its own fibers between 0.1 and 1.8 of optimal
+-- and no tendon length puts a band that wide inside a usable part of the curve. Those units are
+centered on their travel and are genuinely weak at both ends of it.
+**Closes when:** the rescaling of optimal fiber length lands with that guard, or the attachment
+regions are measured from the meshes rather than taken from label anchors (see the note in OQ-015)
+and the lengths agree without it.
+**Status:** open, partly addressed -- tendon slack is fitted to the measured travel; optimal fiber
+length is still transcribed.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4

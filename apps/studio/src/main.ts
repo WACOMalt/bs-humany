@@ -799,12 +799,33 @@ function showTargetRate(): void {
   must<HTMLElement>('#targetRate-value').textContent = `${target} Hz · ${label}`;
 }
 
+/**
+ * What excitation a slider at a given position asks for.
+ *
+ * Squared, and the reason is that a muscle's useful range is not spread evenly over its drive. A
+ * limb with nothing loading it starts moving at a few per cent of maximum excitation and has done
+ * most of what it is going to do by a quarter of it: driven from straight, the knee flexors reach
+ * 54 degrees at five per cent and 76 at twenty-five, and the last quarter of the joint's range
+ * needs the whole rest of the slider. On a linear control all of that lives in the first
+ * centimetre of travel and the remaining nine do almost nothing, which is what a slider feels
+ * like when it feels broken.
+ *
+ * Squaring spreads that first five per cent of excitation over the first twenty-two per cent of
+ * the slider. What it does not do is lie about it: the readout beside each slider shows the
+ * excitation the muscles are actually given, not the position of the handle, so a reading of five
+ * per cent means five per cent of maximum voluntary drive wherever the handle happens to sit.
+ */
+export function driveForSlider(position: number): number {
+  const fraction = position / 100;
+  return fraction * fraction;
+}
+
 /** Push every slider into the drive module. Safe to call before a run, and on every change. */
 function applyMuscleDrive(sim: Simulation | null | undefined): void {
   const drive = sim?.muscleDrive;
   if (!drive) return;
   for (const group of DRIVEN) {
-    const level = Number(ui[group.slider].value) / 100;
+    const level = driveForSlider(Number(ui[group.slider].value));
     for (const unit of group.units) drive.setOverride(unit, level);
   }
 }
@@ -904,7 +925,9 @@ ui.muscles.addEventListener('change', () => {
 });
 for (const slider of [ui.flexorDrive, ui.extensorDrive, ui.kneeFlexorDrive, ui.kneeExtensorDrive]) {
   slider.addEventListener('input', () => {
-    must<HTMLElement>(`#${slider.id}-value`).textContent = `${slider.value}%`;
+    const level = driveForSlider(Number(slider.value));
+    must<HTMLElement>(`#${slider.id}-value`).textContent =
+      level > 0 && level < 0.01 ? `${(level * 100).toFixed(1)}%` : `${Math.round(level * 100)}%`;
     applyMuscleDrive(simulation);
   });
 }

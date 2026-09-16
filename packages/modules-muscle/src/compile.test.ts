@@ -2,11 +2,13 @@ import { resolveMorphology } from '@bs-humany/anthropometry';
 import { compileArticulation } from '@bs-humany/compiler';
 import { cite } from '@bs-humany/hsdl';
 import type { WrappingSurfaceDef } from '@bs-humany/hsdl';
-import { ELBOW_MUSCLES, ELBOW_UNITS } from '@bs-humany/muscle-data';
+import { ELBOW_MUSCLES, ELBOW_UNITS, muscleLengthRange } from '@bs-humany/muscle-data';
 import type { MuscleGroup } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import {
+  FIBER_CEILING,
+  FIBER_FLOOR,
   MINIMUM_TENDON_SLACK,
   REST_SLACK,
   articulationBoneResolver,
@@ -153,17 +155,34 @@ describe('compiling a muscle set', () => {
       const unit = compiled.units[i];
       if (!unit) continue;
       const { optimalFiberLength, tendonSlackLength, pennationAngle } = unit.parameters;
-      // At the rest pose the fiber sits at its optimal length and the tendon just short of
-      // slack, by REST_SLACK -- so a relaxed muscle carries nothing rather than balancing on the
-      // point where its tendon begins to pull.
+      // At the rest pose the fiber sits at its optimal length or shorter, and the tendon just
+      // short of slack -- so a relaxed muscle carries nothing rather than balancing on the point
+      // where its tendon begins to pull.
       expect(
         tendonSlackLength + optimalFiberLength * Math.cos(pennationAngle),
         unit.id,
       ).toBeGreaterThan(unit.restLength);
-      expect(tendonSlackLength, unit.id).toBeCloseTo(
-        (unit.restLength - optimalFiberLength * Math.cos(pennationAngle)) * (1 + REST_SLACK),
-        9,
-      );
+      const alongTendon = optimalFiberLength * Math.cos(pennationAngle);
+      const atRest = (unit.restLength - alongTendon) * (1 + REST_SLACK);
+      // Never shorter than that fit: the travel may lengthen a tendon, which shortens the fiber
+      // everywhere, and may not shorten one, which would stretch it at rest.
+      expect(tendonSlackLength, unit.id).toBeGreaterThanOrEqual(atRest - 1e-12);
+      const travel = muscleLengthRange(unit.id);
+      const longest = (travel?.longest ?? 1) * unit.restLength;
+      const shortest = (travel?.shortest ?? 1) * unit.restLength;
+      // Wider than the band itself: no tendon puts both ends inside it, and the fit centers the
+      // travel instead. Every other unit has its long end at or under the ceiling.
+      const widerThanTheBand =
+        longest - shortest > (FIBER_CEILING - FIBER_FLOOR) * alongTendon + 1e-9;
+      if (!widerThanTheBand) {
+        expect((longest - tendonSlackLength) / alongTendon, unit.id).toBeLessThanOrEqual(
+          FIBER_CEILING + 1e-9,
+        );
+      }
+      // A unit whose travel already sits inside the band is fitted at rest and nowhere else.
+      if (longest - atRest <= FIBER_CEILING * alongTendon) {
+        expect(tendonSlackLength, unit.id).toBeCloseTo(atRest, 9);
+      }
       expect(tendonSlackLength, unit.id).toBeGreaterThanOrEqual(MINIMUM_TENDON_SLACK);
     }
   });

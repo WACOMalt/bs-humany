@@ -77,8 +77,16 @@ describe('passive force-length', () => {
   it('is negligible below optimal length and carries the whole force at the published strain', () => {
     // A relaxed muscle offers nothing until it is stretched past its optimal length, and by
     // definition of the strain parameter it alone carries one isometric force at that strain.
-    expect(passiveForceLength(1)).toBeCloseTo(0, 9);
+    // Not identically zero at optimal, and it cannot be: a curve that is smooth, never negative,
+    // and exactly zero at optimal would have to be flat there, which would be a different curve.
+    // A quarter of a per cent of maximum force is what the smoothing costs, against the 1.9 per
+    // cent of *negative* force the published equation carries below optimal.
+    expect(passiveForceLength(1)).toBeCloseTo(0, 2);
     expect(passiveForceLength(0.8)).toBeLessThan(0.01);
+    // Never a push, however short the fiber gets. A relaxed muscle is slack, not a spring.
+    for (const length of sweep(0.1, 1.8, 171)) {
+      expect(passiveForceLength(length), `at ${length}`).toBeGreaterThanOrEqual(0);
+    }
     expect(passiveForceLength(1 + PASSIVE_STRAIN)).toBeCloseTo(1, 9);
   });
 

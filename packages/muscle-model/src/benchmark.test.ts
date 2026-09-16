@@ -7,7 +7,7 @@ import {
   runRigid,
   work,
 } from './benchmark.js';
-import { activeForceLength } from './curves.js';
+import { activeForceLength, passiveForceLength } from './curves.js';
 import {
   DEFAULT_MUSCULOTENDON,
   type MusculotendonParameters,
@@ -114,10 +114,14 @@ describe('the single-muscle benchmark', () => {
     const solution = solveEquilibrium({ activation: 1, fiberLength }, length, p);
     const force = solution.tendonForce * p.maxIsometricForce;
     const expected = p.maxIsometricForce * Math.cos(solution.pennation);
-    // The residual is the active force-length fit reading 1.00028 rather than 1 at its optimum,
-    // which is the published curve's own business and is asserted in the curve tests.
-    expect(force / expected).toBeCloseTo(activeForceLength(1), 6);
-    expect(force).toBeCloseTo(expected, 0);
+    // The residual is the two curves' own values at the optimum, both asserted in the curve
+    // tests: the active fit reads 1.00028 rather than 1 there, and the passive curve reads 0.0027
+    // rather than 0, which is what a smooth curve that never pushes costs at the one point a
+    // kinked one would have been exactly zero.
+    expect(force / expected).toBeCloseTo(activeForceLength(1) + passiveForceLength(1), 6);
+    // And in the round: within a third of a per cent of the muscle's own maximum, which on a five
+    // hundred newton muscle is a newton and a half.
+    expect(Math.abs(force / expected - 1)).toBeLessThan(0.0033);
     expect(force / p.maxIsometricForce).toBeGreaterThan(0.99);
   });
 
