@@ -46,6 +46,9 @@ jobs:
       - name: Generated hip data matches its source
         run: pnpm generate:hip-muscles --check
 
+      - name: Generated ankle data matches its source
+        run: pnpm generate:ankle-muscles --check
+
       - name: Generated via points match their source
         run: pnpm generate:via-points --check
 

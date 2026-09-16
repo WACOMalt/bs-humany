@@ -226,6 +226,8 @@ const ui = {
   hipExtensorDrive: must<HTMLInputElement>('#hipExtensorDrive'),
   hipAbductorDrive: must<HTMLInputElement>('#hipAbductorDrive'),
   hipAdductorDrive: must<HTMLInputElement>('#hipAdductorDrive'),
+  anklePlantarflexorDrive: must<HTMLInputElement>('#anklePlantarflexorDrive'),
+  ankleDorsiflexorDrive: must<HTMLInputElement>('#ankleDorsiflexorDrive'),
 };
 
 /**
@@ -301,6 +303,20 @@ const HIP_ADDUCTORS = sides(
   'gracilis',
 );
 
+const ANKLE_PLANTARFLEXORS = sides(
+  'soleus',
+  'tibialis_posterior',
+  'fibularis_longus',
+  'fibularis_brevis',
+  'flexor_digitorum_longus',
+  'flexor_hallucis_longus',
+);
+const ANKLE_DORSIFLEXORS = sides(
+  'tibialis_anterior',
+  'extensor_digitorum_longus',
+  'extensor_hallucis_longus',
+);
+
 /** The driven groups, each with the slider that drives it and the readout it feeds. */
 const DRIVEN = [
   { units: ELBOW_FLEXORS, slider: 'flexorDrive' },
@@ -311,6 +327,8 @@ const DRIVEN = [
   { units: HIP_EXTENSORS, slider: 'hipExtensorDrive' },
   { units: HIP_ABDUCTORS, slider: 'hipAbductorDrive' },
   { units: HIP_ADDUCTORS, slider: 'hipAdductorDrive' },
+  { units: ANKLE_PLANTARFLEXORS, slider: 'anklePlantarflexorDrive' },
+  { units: ANKLE_DORSIFLEXORS, slider: 'ankleDorsiflexorDrive' },
 ] as const;
 
 function currentMorphology(): Morphology {
@@ -971,6 +989,8 @@ for (const slider of [
   ui.hipExtensorDrive,
   ui.hipAbductorDrive,
   ui.hipAdductorDrive,
+  ui.anklePlantarflexorDrive,
+  ui.ankleDorsiflexorDrive,
 ]) {
   slider.addEventListener('input', () => {
     const level = driveForSlider(Number(slider.value));

@@ -430,6 +430,47 @@ that neither needs its fibre trimmed to fit.
 transcribed, with the cited values kept beside them, and the capped list is down from fourteen
 units to four.
 
+### OQ-021 — The foot has no frame of its own, and no marked phalanx
+**Needed for:** `packages/muscle-data/src/ankle.ts`, `tools/cli/bin/generate-muscle-via-points.mjs`
+**Provisional value:** three of the nine ankle muscles run straight from their attachments, and
+the four long toe muscles stop at the metatarsals.
+
+*The frame.* Via points are carried from the reference model through one frame correspondence per
+limb, fitted at the proximal bone -- the leg's from the hip centre, the knee axis and the femur's
+length. One rotation and one scale then carry every point in the limb, and by the ankle they are
+out by about twenty millimetres. For a tendon running fifty millimetres behind the joint that is a
+rounding error, and the five posterior and lateral muscles come out with moment arms in the
+published range: soleus -38 mm at neutral, tibialis posterior -46, fibularis longus -34, both long
+flexors -46 and -50. For a tendon running forty in front of it, twenty millimetres is the
+difference between a dorsiflexor and nothing:
+
+    at the neutral ankle     carried points    running straight    published
+    tibialis anterior              4 mm             51 mm          about 40
+    extensor digitorum longus     -2                93             about 30
+    extensor hallucis longus      -4                64             about 25
+
+So those three run straight, which is wrong the other way: without the extensor retinaculum
+holding them against the front of the ankle they bow away from it and the two extensors come out
+two to three times what they should. Both are wrong and this is the less wrong one, because the
+sign is right and the muscle is a dorsiflexor at all. The same limitation is noted in OQ-015 for
+the forearm, where it costs a few per cent of a bone rather than the sign of a moment.
+
+The remedy is a frame correspondence of the foot's own, fitted at the ankle the way the leg's is
+fitted at the hip: the talocrural axis, the ankle centre, and a distal foot landmark both models
+carry. The generator already builds exactly this per limb, so what it needs is for a limb to be
+able to have more than one, and for a muscle's points to be carried through whichever frame owns
+the bone each point sits on.
+
+*The phalanges.* The dataset marks no feature on any of the twenty-eight toe bones -- no
+tuberosity, no base, nothing. Extensor and flexor digitorum longus and their hallucis counterparts
+insert on the distal phalanges, so each is carried to the head of the metatarsal it runs over and
+stops there. They keep their line through the ankle and have none of their action at the toes,
+which is all of the toe-off in a stride. The two digitorum muscles fan to four toes apiece and are
+carried to the third metatarsal, the middle of the four.
+**Closes when:** the foot carries its own frame correspondence, and the toe muscles reach a marked
+phalanx or a measured one.
+**Status:** open
+
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4
 **Provisional value:** none. A path that names an ellipsoid wrap surface is refused at compile

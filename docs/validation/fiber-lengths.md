@@ -17,14 +17,28 @@ the route is wrong here, or the joint's range is not the range the source gave i
 and look at: both caps bite where our path is longer than the one the parameters were measured on,
 which is a statement about the attachments rather than about the muscle.
 
-**12 of 90 units are capped.**
+**20 of 108 units are capped.**
 
 | unit | travel here | travel there | ratio | fiber stated | translated | whole path | source's own band |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| flexor_digitorum_longus_r **(capped)** | 54 mm | 13 mm | 4.10 | 45 mm | 89 mm | 351 mm | 0.84 .. 1.14 |
+| flexor_digitorum_longus_l **(capped)** | 54 mm | 13 mm | 4.10 | 45 mm | 89 mm | 351 mm | 0.84 .. 1.14 |
+| tibialis_posterior_r **(capped)** | 51 mm | 14 mm | 3.61 | 38 mm | 76 mm | 241 mm | 0.82 .. 1.19 |
+| tibialis_posterior_l **(capped)** | 51 mm | 14 mm | 3.61 | 38 mm | 76 mm | 241 mm | 0.82 .. 1.19 |
+| flexor_hallucis_longus_r **(capped)** | 59 mm | 17 mm | 3.38 | 53 mm | 105 mm | 291 mm | 0.73 .. 1.06 |
+| flexor_hallucis_longus_l **(capped)** | 59 mm | 17 mm | 3.38 | 53 mm | 105 mm | 291 mm | 0.73 .. 1.06 |
+| extensor_digitorum_longus_r **(capped)** | 104 mm | 42 mm | 2.48 | 69 mm | 139 mm | 318 mm | 0.71 .. 1.32 |
+| extensor_digitorum_longus_l **(capped)** | 104 mm | 42 mm | 2.48 | 69 mm | 139 mm | 318 mm | 0.71 .. 1.32 |
+| fibularis_longus_l | 31 mm | 17 mm | 1.82 | 51 mm | 92 mm | 443 mm | 0.89 .. 1.22 |
+| fibularis_longus_r | 31 mm | 17 mm | 1.82 | 51 mm | 92 mm | 443 mm | 0.89 .. 1.22 |
 | brachialis_l | 61 mm | 36 mm | 1.68 | 58 mm | 97 mm | 125 mm | 0.53 .. 1.16 |
 | brachialis_r | 61 mm | 36 mm | 1.68 | 58 mm | 97 mm | 125 mm | 0.53 .. 1.16 |
+| extensor_hallucis_longus_l | 72 mm | 45 mm | 1.58 | 75 mm | 118 mm | 219 mm | 0.76 .. 1.37 |
+| extensor_hallucis_longus_r | 72 mm | 45 mm | 1.58 | 75 mm | 118 mm | 219 mm | 0.76 .. 1.37 |
 | biceps_brachii_short_r | 181 mm | 120 mm | 1.51 | 177 mm | 268 mm | 377 mm | 0.63 .. 1.30 |
 | biceps_brachii_short_l | 181 mm | 120 mm | 1.51 | 177 mm | 268 mm | 377 mm | 0.63 .. 1.30 |
+| fibularis_brevis_l | 27 mm | 18 mm | 1.47 | 45 mm | 67 mm | 330 mm | 0.86 .. 1.25 |
+| fibularis_brevis_r | 27 mm | 18 mm | 1.47 | 45 mm | 67 mm | 330 mm | 0.86 .. 1.25 |
 | sartorius_r **(capped)** | 182 mm | 131 mm | 1.39 | 403 mm | 504 mm | 631 mm | 0.84 .. 1.16 |
 | sartorius_l **(capped)** | 182 mm | 131 mm | 1.39 | 403 mm | 504 mm | 631 mm | 0.84 .. 1.16 |
 | deltoid_posterior_l **(capped)** | 50 mm | 39 mm | 1.29 | 111 mm | 138 mm | 173 mm | 0.86 .. 1.21 |
@@ -36,6 +50,8 @@ which is a statement about the attachments rather than about the muscle.
 | gluteus_medius_anterior_l | 80 mm | 69 mm | 1.16 | 73 mm | 85 mm | 142 mm | 0.28 .. 1.22 |
 | adductor_longus_l | 96 mm | 83 mm | 1.16 | 108 mm | 125 mm | 214 mm | 0.67 .. 1.43 |
 | adductor_longus_r | 96 mm | 83 mm | 1.16 | 108 mm | 125 mm | 214 mm | 0.67 .. 1.43 |
+| tibialis_anterior_l | 57 mm | 49 mm | 1.16 | 68 mm | 79 mm | 249 mm | 0.62 .. 1.34 |
+| tibialis_anterior_r | 57 mm | 49 mm | 1.16 | 68 mm | 79 mm | 249 mm | 0.62 .. 1.34 |
 | adductor_magnus_distal_r | 123 mm | 106 mm | 1.16 | 177 mm | 205 mm | 338 mm | 0.66 .. 1.26 |
 | adductor_magnus_distal_l | 123 mm | 106 mm | 1.16 | 177 mm | 205 mm | 338 mm | 0.66 .. 1.26 |
 | gluteus_medius_anterior_r | 79 mm | 69 mm | 1.15 | 73 mm | 84 mm | 142 mm | 0.28 .. 1.22 |
@@ -73,6 +89,8 @@ which is a statement about the attachments rather than about the muscle.
 | gastrocnemius_medial_l | 63 mm | 65 mm | 0.97 | 75 mm | 75 mm | 461 mm | 0.71 .. 1.58 |
 | biceps_femoris_short_l | 73 mm | 76 mm | 0.97 | 110 mm | 110 mm | 260 mm | 0.51 .. 1.20 |
 | biceps_femoris_short_r | 73 mm | 76 mm | 0.97 | 110 mm | 110 mm | 260 mm | 0.51 .. 1.20 |
+| soleus_l | 47 mm | 49 mm | 0.96 | 44 mm | 44 mm | 341 mm | 0.36 .. 1.48 |
+| soleus_r | 47 mm | 49 mm | 0.96 | 44 mm | 44 mm | 341 mm | 0.36 .. 1.48 |
 | infraspinatus_l | 46 mm | 48 mm | 0.96 | 102 mm | 102 mm | 145 mm | 0.64 .. 1.11 |
 | infraspinatus_r | 46 mm | 48 mm | 0.96 | 102 mm | 102 mm | 145 mm | 0.64 .. 1.11 |
 | semitendinosus_r | 211 mm | 221 mm | 0.95 | 193 mm | 193 mm | 488 mm | 0.51 .. 1.65 |

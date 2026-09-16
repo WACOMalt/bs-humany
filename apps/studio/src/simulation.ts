@@ -50,7 +50,13 @@ import {
   RENDER_MUSCLE_MESH,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
-import { ELBOW_MUSCLES, HIP_MUSCLES, KNEE_MUSCLES, SHOULDER_MUSCLES } from '@bs-humany/muscle-data';
+import {
+  ANKLE_MUSCLES,
+  ELBOW_MUSCLES,
+  HIP_MUSCLES,
+  KNEE_MUSCLES,
+  SHOULDER_MUSCLES,
+} from '@bs-humany/muscle-data';
 import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
 
 export type BackendId = 'rapier' | 'mujoco';
@@ -271,7 +277,7 @@ export class Simulation {
       // The muscle set is resolved against this articulation, so it follows the fidelity profile
       // and the morphology without being re-authored: bone ids are the stable interface.
       this.muscles = compileMuscleSet(
-        [...ELBOW_MUSCLES, ...SHOULDER_MUSCLES, ...KNEE_MUSCLES, ...HIP_MUSCLES],
+        [...ELBOW_MUSCLES, ...SHOULDER_MUSCLES, ...KNEE_MUSCLES, ...HIP_MUSCLES, ...ANKLE_MUSCLES],
         document.attachmentSites,
         this.articulation,
         morphology.context,

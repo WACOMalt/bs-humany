@@ -288,6 +288,17 @@ const LIMBS = [
       { unit: 'tensor_fasciae_latae_r', tendon: 'tfl_r', from: 'hip_r' },
       { unit: 'gracilis_r', tendon: 'grac_r', from: 'hip_r' },
       { unit: 'sartorius_r', tendon: 'sart_r', from: 'hip_r' },
+      // The ankle and the foot. Every one of these is held by a retinaculum in life and by via
+      // points in the reference, which is why none of them wraps anything.
+      { unit: 'soleus_r', tendon: 'soleus_r', from: 'tibia_r' },
+      { unit: 'tibialis_anterior_r', tendon: 'tibant_r', from: 'tibia_r' },
+      { unit: 'tibialis_posterior_r', tendon: 'tibpost_r', from: 'tibia_r' },
+      { unit: 'fibularis_longus_r', tendon: 'perlong_r', from: 'tibia_r' },
+      { unit: 'fibularis_brevis_r', tendon: 'perbrev_r', from: 'tibia_r' },
+      { unit: 'extensor_digitorum_longus_r', tendon: 'edl_r', from: 'tibia_r' },
+      { unit: 'extensor_hallucis_longus_r', tendon: 'ehl_r', from: 'tibia_r' },
+      { unit: 'flexor_digitorum_longus_r', tendon: 'fdl_r', from: 'tibia_r' },
+      { unit: 'flexor_hallucis_longus_r', tendon: 'fhl_r', from: 'tibia_r' },
     ],
   },
 ];

@@ -6,6 +6,7 @@
  * it (base spec 14.5 obligation 3).
  */
 
+export * from './ankle.js';
 export * from './elbow.js';
 export * from './hip.js';
 export * from './knee.js';

@@ -637,6 +637,85 @@ const MUSCLES: readonly MuscleSpec[] = [
     insertions: [['metatarsal_1_$', 'First_metatarsal_bone']],
   },
   {
+    id: 'fibularis_longus',
+    muscle: 'Fibularis longus',
+    section: 'The Peronaeus longus',
+    bilateral: true,
+    // Gray: from the head and the upper two-thirds of the lateral surface of the fibula. Its
+    // tendon crosses the sole in the cuboid's own groove -- the dataset marks that groove, and it
+    // is what turns this muscle from a plantarflexor into one that everts the foot as well.
+    origins: [
+      ['fibula_$', 'Head_of_fibula'],
+      ['fibula_$', 'Lateral_surface_of_fibula'],
+    ],
+    footprint: [
+      ['fibula_$', 'Head_of_fibula'],
+      ['fibula_$', 'Lateral_surface_of_fibula'],
+    ],
+    insertions: [['metatarsal_1_$', 'First_metatarsal_bone']],
+  },
+  {
+    id: 'fibularis_brevis',
+    muscle: 'Fibularis brevis',
+    section: 'The Peronaeus brevis',
+    bilateral: true,
+    // Gray: from the lower two-thirds of the lateral surface of the fibula, to the tuberosity at
+    // the base of the fifth metatarsal.
+    origins: [['fibula_$', 'Lateral_surface_of_fibula']],
+    insertions: [['metatarsal_5_$', 'Fifth_metatarsal_bone']],
+  },
+  {
+    id: 'extensor_digitorum_longus',
+    muscle: 'Extensor digitorum longus',
+    section: 'The Extensor digitorum longus',
+    bilateral: true,
+    // Gray: from the lateral condyle of the tibia and the upper three-quarters of the anterior
+    // surface of the fibula, to the middle and distal phalanges of the four lesser toes.
+    origins: [
+      ['tibia_$', 'Lateral_condyle_of_tibia'],
+      ['fibula_$', 'Anterior_border_of_fibula'],
+    ],
+    footprint: [
+      ['fibula_$', 'Anterior_border_of_fibula'],
+      ['fibula_$', 'Body_of_fibula'],
+    ],
+    // The third metatarsal, standing for the four toes it fans to: the dataset marks no
+    // phalangeal feature, so the tendon is carried to the head of the middle bone it runs over
+    // and stops there. See the note in the generator: this is an ankle muscle here, not a toe one.
+    insertions: [['metatarsal_3_$', 'Head_of_metatarsal_bone']],
+  },
+  {
+    id: 'extensor_hallucis_longus',
+    muscle: 'Extensor hallucis longus',
+    section: 'The Extensor hallucis longus',
+    bilateral: true,
+    // Gray: from the middle of the anterior surface of the fibula, to the base of the distal
+    // phalanx of the great toe.
+    origins: [['fibula_$', 'Anteromedial_surface_of_fibula']],
+    insertions: [['metatarsal_1_$', 'Head_of_metatarsal_bone']],
+  },
+  {
+    id: 'flexor_digitorum_longus',
+    muscle: 'Flexor digitorum longus',
+    section: 'The Flexor digitorum longus',
+    bilateral: true,
+    // Gray: from the posterior surface of the tibia below the soleal line, to the bases of the
+    // distal phalanges of the four lesser toes.
+    origins: [['tibia_$', 'Posterior_surface_of_tibia']],
+    insertions: [['metatarsal_3_$', 'Head_of_metatarsal_bone']],
+  },
+  {
+    id: 'flexor_hallucis_longus',
+    muscle: 'Flexor hallucis longus',
+    section: 'The Flexor hallucis longus',
+    bilateral: true,
+    // Gray: from the lower two-thirds of the posterior surface of the fibula, to the base of the
+    // distal phalanx of the great toe. Its tendon runs in a groove on the talus and another on
+    // the calcaneus, and the dataset marks the calcaneal one.
+    origins: [['fibula_$', 'Posterior_surface_of_fibula']],
+    insertions: [['metatarsal_1_$', 'Head_of_metatarsal_bone']],
+  },
+  {
     id: 'tibialis_posterior',
     muscle: 'Tibialis posterior',
     section: 'The Tibialis posterior',

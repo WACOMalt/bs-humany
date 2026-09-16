@@ -97,6 +97,15 @@ export const LEG_TENDONS = Object.freeze({
   tfl_r_tendon: 'tensor_fasciae_latae_r',
   grac_r_tendon: 'gracilis_r',
   sart_r_tendon: 'sartorius_r',
+  soleus_r_tendon: 'soleus_r',
+  tibant_r_tendon: 'tibialis_anterior_r',
+  tibpost_r_tendon: 'tibialis_posterior_r',
+  perlong_r_tendon: 'fibularis_longus_r',
+  perbrev_r_tendon: 'fibularis_brevis_r',
+  edl_r_tendon: 'extensor_digitorum_longus_r',
+  ehl_r_tendon: 'extensor_hallucis_longus_r',
+  fdl_r_tendon: 'flexor_digitorum_longus_r',
+  fhl_r_tendon: 'flexor_hallucis_longus_r',
 });
 
 /**
