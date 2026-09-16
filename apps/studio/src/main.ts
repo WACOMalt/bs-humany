@@ -1476,11 +1476,15 @@ function animate(): void {
     // a frame of bones, so on the same budget the rings run out after about five seconds while
     // this line went on counting bone frames to ninety.
     const rings = simulation.muscleCapture;
-    const held = capture.bytes + (simulation.muscleVolume ? rings.bytes : 0);
-    const budget = simulation.captureBudgetBytes * (simulation.muscleVolume ? 2 : 1);
+    // Each capture against its own budget, not the two summed against twice it: the muscle
+    // capture is twenty times the bone capture and reaches the limit on its own, which summed
+    // reads as though the run stopped at half of what it was allowed.
+    const mb = (bytes: number) => `${(bytes / MEBIBYTE).toFixed(0)} MB`;
+    const held = simulation.muscleVolume
+      ? `muscles ${mb(rings.bytes)}, bones ${mb(capture.bytes)}, of ${mb(simulation.captureBudgetBytes)} each`
+      : `${mb(capture.bytes)} of ${mb(simulation.captureBudgetBytes)}`;
     must<HTMLElement>('#capture-status').textContent =
-      `Captured ${capture.frameCount} frames for export ` +
-      `(${(held / MEBIBYTE).toFixed(0)} of ${(budget / MEBIBYTE).toFixed(0)} MB)` +
+      `Captured ${capture.frameCount} frames for export (${held})` +
       (simulation.capturesStoppedBy === undefined
         ? '.'
         : simulation.capturesStoppedBy === 'muscles'
