@@ -206,11 +206,35 @@ these seven that loss is small -- the two biceps heads and brachioradialis are n
 anyway -- and it is largest for the triceps heads, where published angles run to about 12
 degrees, so their force along the tendon is overstated at short fiber lengths by up to a couple
 of per cent.
+**What the drawing needed from it, answered separately, 2026-09-16.** The mechanics still have no
+pennation angle and this entry still blocks giving them one. But pennation has a second consequence
+the render tier could not do without: a pennate muscle holds a large volume in a *long* belly,
+because its short fibers lie at an angle between two long aponeuroses. Tier V was drawing the belly
+as the flesh a Hill model reports, which is the fiber length, so every pennate muscle came out as a
+short fat bead -- of fifty-four units on one side thirty-one were drawn at the full width the
+aspect guard allowed, the median muscle was 0.60 as wide as it was long, and a gastrocnemius was
+127 mm by 76 where a real one is about 250 by 60.
+
+`bellySpread` measures, per muscle and once at rest, how much longer than its own flesh the belly
+has to be drawn to have a muscle's proportions (`BELLY_ASPECT`, a quarter). It is a ratio rather
+than a length, which is what keeps the bulge: pinning a pennate belly to a fixed length would have
+looked right and then never moved again, because a fixed length holds a fixed volume at a fixed
+radius.
+
+The ratios land where architecture says they should, which is the evidence that they measure
+something rather than fit a picture. Soleus comes out at 6.2 and is the most pennate muscle in the
+body, with roughly 40 mm fibers in a 300 mm belly; gastrocnemius 3.2, the middle deltoid 3.1,
+vastus lateralis 2.9; the long head of biceps 1.26 and semitendinosus 1.16, which are the two with
+the longest fibers and the ones that need no spreading at all. Nothing was told which muscles are
+pennate.
+
+None of it reaches a force: Tier V writes only the render channel (M-ADR-004), and the full suite
+passes with no golden moving.
 **Closes when:** per-muscle pennation angles are transcribed from a source that states them
 (Holzbaur 2005 does, for this region), and the peak forces are re-derived alongside them so the
 two stay consistent. Taking the angles alone would double-count the pennation the forces already
 include.
-**Status:** open
+**Status:** open for the mechanics; the drawing no longer waits on it.
 
 ### OQ-015 — Muscle path geometry carried over from the reference model
 **Needed for:** `packages/muscle-data/src/elbow.ts`, `packages/skeleton/src/muscleViaPoints.ts`

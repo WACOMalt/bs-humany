@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BELLY_ASPECT,
   MAX_WIDTH_OVER_LENGTH,
   PERFUSION_GAIN,
   SPECIFIC_TENSION,
@@ -7,6 +8,7 @@ import {
   bellyLength,
   bellyPlacement,
   bellyProfile,
+  bellySpread,
   createSweepScratch,
   createSweptMesh,
   enclosedVolume,
@@ -482,6 +484,64 @@ describe('where the belly starts and ends', () => {
     const belly = bellyLength(biceps, 0.4, 0.2767);
     expect(belly).toBeCloseTo(0.4 - 0.2767, 12);
     expect((2 * peakRadius(biceps, belly)) / belly).toBeLessThan(MAX_WIDTH_OVER_LENGTH);
+  });
+
+  it('spreads a pennate belly to the length a muscle that shape has', () => {
+    // Soleus: 5322 N through 44 mm fibers, which is the most pennate muscle in the body and the
+    // one the old rule drew worst -- 142 mm long and 85 across, a barrel. Spread, it is 255 by 64,
+    // and a real soleus is about 300 by 60.
+    const soleus = muscleVolume(5322, 0.044);
+    const path = 0.341;
+    const tendon = 0.2999;
+    const spread = bellySpread(soleus, path - tendon);
+    // The ratio is architecture, and lands where architecture says: a soleus has roughly 40 mm
+    // fibers in a 300 mm belly.
+    expect(spread).toBeGreaterThan(5);
+    expect(spread).toBeLessThan(8);
+    const belly = bellyLength(soleus, path, tendon, path, spread);
+    expect((2 * peakRadius(soleus, belly)) / belly).toBeCloseTo(BELLY_ASPECT, 6);
+  });
+
+  it('still bulges after spreading, which pinning the length would have stopped', () => {
+    // The trap this design avoids. Giving a pennate muscle a fixed belly length long enough to
+    // look right takes away the one thing the tier is for: a fixed length holds a fixed volume at
+    // a fixed radius, so the muscle never thickens. The spread is a ratio, so the belly still
+    // shortens with the flesh and still has to get wider to keep its volume.
+    const soleus = muscleVolume(5322, 0.044);
+    const tendon = 0.2999;
+    const spread = bellySpread(soleus, 0.341 - tendon);
+    const relaxed = peakRadius(soleus, bellyLength(soleus, 0.341, tendon, 0.341, spread));
+    const pulled = peakRadius(soleus, bellyLength(soleus, 0.32, tendon, 0.32, spread));
+    expect(pulled).toBeGreaterThan(relaxed);
+    // And it cannot thicken past the guard, however hard it pulls.
+    const extreme = bellyLength(soleus, 0.29, tendon, 0.29, spread);
+    expect((2 * peakRadius(soleus, extreme)) / extreme).toBeLessThanOrEqual(
+      MAX_WIDTH_OVER_LENGTH + 1e-9,
+    );
+  });
+
+  it('leaves a muscle already the right shape unspread', () => {
+    // Semitendinosus and the long head of biceps have long fibers and need no spreading to look
+    // like muscles: 1.16 and 1.26, against soleus at 6.2. That ordering is the architecture, and
+    // the rule reproducing it is the reason to believe it measures something.
+    const biceps = muscleVolume(422, 0.1272);
+    expect(bellySpread(biceps, 0.4 - 0.2767)).toBeGreaterThan(1);
+    expect(bellySpread(biceps, 0.4 - 0.2767)).toBeLessThan(1.4);
+    // A muscle whose flesh already holds its volume at the target shape is not spread at all.
+    expect(bellySpread(biceps, 0.3)).toBe(1);
+  });
+
+  it('stops a belly at the bone it lies along', () => {
+    // A spread belly may not grow past the joints either end of the stretch it lies in: a
+    // gastrocnemius fills the calf and stops, rather than reaching over the ankle into the foot.
+    const gastroc = muscleVolume(2211, 0.075);
+    const spread = bellySpread(gastroc, 0.461 - 0.39);
+    const free = bellyLength(gastroc, 0.461, 0.39, 0.461, spread);
+    const penned = bellyLength(gastroc, 0.461, 0.39, 0.12, spread);
+    expect(penned).toBeLessThan(free);
+    expect(penned).toBeCloseTo(0.12, 9);
+    // Except that a muscle whose own flesh is longer than the stretch keeps its flesh.
+    expect(bellyLength(gastroc, 0.461, 0.3, 0.05, 1)).toBeCloseTo(0.161, 9);
   });
 
   it('never runs the belly off the end of the path', () => {

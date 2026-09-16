@@ -553,6 +553,24 @@ function restPathLength(
   return total;
 }
 
+/**
+ * How much a joint has to move before a muscle needs a tendon to get past it, radians.
+ *
+ * @see the argument in `crossingFractions`, which is where the number is chosen.
+ */
+export const BELLY_BARRIER_RANGE = (30 * Math.PI) / 180;
+
+/** The widest range any one of a joint's coordinates has, radians. Zero for a weld. */
+function widestRange(joint: CompiledArticulation['joints'][number]): number {
+  let widest = 0;
+  for (const dof of joint.dofs) {
+    if (!dof.range) continue;
+    const span = dof.range[1] - dof.range[0];
+    if (span > widest) widest = span;
+  }
+  return widest;
+}
+
 /** Every segment from `segment` up to the root, nearest first. */
 function ancestry(articulation: CompiledArticulation, segment: number): number[] {
   const chain: number[] = [];
@@ -593,11 +611,19 @@ function crossingFractions(
   const centres: Vec3[] = [];
   for (const joint of articulation.joints) {
     if (!spanned.has(joint.childSegment)) continue;
-    // A joint with no coordinates is a weld, and a belly may lie across a weld: the two bones do
-    // not move against each other, so there is nothing for a tendon to accommodate. The foot is
-    // full of them -- the midfoot and forefoot are segments of their own with no coordinates at
-    // this profile -- and counting them chopped the sole into stretches that are not joints.
-    if (joint.dofs.length === 0) continue;
+    // A joint a belly may lie across is one the bones barely move at. A weld is the extreme --
+    // no coordinates at all, and the foot is full of them, the midfoot and forefoot being segments
+    // of their own with none at this profile -- but the spine is the case that matters: psoas
+    // major lies along four lumbar joints and its flesh spans every one of them, as does erector
+    // spinae's along a dozen. Flesh does not need a tendon to get past fifteen degrees.
+    //
+    // Thirty degrees, and the skeleton picks it rather than this file. Of its hundred and three
+    // jointed coordinates, forty-seven have a range under thirty degrees and all of them are in
+    // the spine and the girdle's small joints; exactly one lies between thirty and forty; and
+    // every limb joint a muscle in this model crosses is past it -- the subtalar at forty,
+    // the ankle and acromioclavicular at seventy, the knee at 120, the elbow 130, the hip 150,
+    // the forearm 180, the shoulder 225. The histogram has a hole where the line goes.
+    if (widestRange(joint) < BELLY_BARRIER_RANGE) continue;
     const parent = articulation.segments[joint.parentSegment];
     if (!parent) continue;
     const { translation: t, rotation: q } = parent.restWorld;

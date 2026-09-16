@@ -57,6 +57,7 @@ import { inverseTendonForceLength } from '@bs-humany/muscle-model';
 import {
   type SweepScratch,
   type SweptMesh,
+  bellySpread,
   createSweepScratch,
   createSweptMesh,
   muscleVolume,
@@ -140,6 +141,13 @@ export class MuscleVolumeModule implements SimModule {
    * channel. What reads it is `bellyPlacement`, which slides the drawn belly off them.
    */
   private readonly crossings: readonly (readonly number[])[];
+  /**
+   * How much longer than its own flesh each unit's belly is drawn.
+   *
+   * The pennation the model does not carry, as one ratio per muscle, measured from the muscle at
+   * rest. @see bellySpread
+   */
+  private readonly spread: Float64Array;
 
   /** One mesh, swept for each unit in turn into the channel. */
   private readonly mesh: SweptMesh;
@@ -170,6 +178,7 @@ export class MuscleVolumeModule implements SimModule {
     this.index = this.mesh.index;
 
     this.crossings = muscles.units.map((unit) => unit.jointCrossings);
+    this.spread = new Float64Array(this.units);
     this.tissue = new Float64Array(this.units);
     this.tendonSlack = new Float64Array(this.units);
     this.maxForce = new Float64Array(this.units);
@@ -179,6 +188,10 @@ export class MuscleVolumeModule implements SimModule {
       this.tissue[i] = muscleVolume(p.maxIsometricForce, p.optimalFiberLength);
       this.tendonSlack[i] = p.tendonSlackLength;
       this.maxForce[i] = p.maxIsometricForce;
+      // Measured from the muscle at rest, where its tendon is at slack length and its flesh is
+      // the rest of the path.
+      const restFlesh = (muscles.units[i]?.restLength ?? 0) - p.tendonSlackLength;
+      this.spread[i] = bellySpread(this.tissue[i] as number, restFlesh);
     }
 
     // Sized to the longest path any unit can produce, so one scratch serves them all.
@@ -288,6 +301,7 @@ export class MuscleVolumeModule implements SimModule {
         from: start[unit] as number,
         pointCount: count[unit] as number,
         crossings: this.crossings[unit],
+        spread: this.spread[unit] as number,
         volume,
         tendonLength,
         tendonRadius: this.tendonRadius,

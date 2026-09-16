@@ -140,11 +140,54 @@ export function peakRadius(volume: number, length: number): number {
 /**
  * The widest a belly may be drawn, as a fraction of its own length.
  *
- * Muscles are longer than they are thick. Sixty per cent leaves every fusiform unit in the elbow
- * set alone -- the two biceps heads come out at 0.34 and 0.20, brachioradialis at 0.34, the long
- * head of triceps at 0.31 -- and catches only the three that would otherwise be drawn as discs.
+ * Sixty per cent, and it is a guard rather than a shape: what it stops is a muscle being drawn as
+ * a discus when its belly has shortened as far as it can go. A relaxed muscle is nowhere near it
+ * -- `BELLY_ASPECT` sets that -- and the room between the two is how much a muscle may thicken as
+ * it contracts, which is what the tier exists to show.
  */
 export const MAX_WIDTH_OVER_LENGTH = 0.6;
+
+/**
+ * How wide a *relaxed* muscle is drawn, as a fraction of its belly's length.
+ *
+ * A quarter. Muscle bellies are long things: a biceps is about 150 mm of flesh and 40 across, a
+ * medial gastrocnemius 250 by 60, a soleus 300 by 60, a vastus lateralis 350 by 80. That is a
+ * width over length between a fifth and a third, and a quarter sits in the middle of it.
+ *
+ * What it stands in for is pennation. A pennate muscle holds a large volume in a long belly
+ * because its fibers are short and lie at an angle between two long aponeuroses, and this model
+ * has no pennation angle to say so -- OQ-014, and it cannot simply borrow one, because the source
+ * folded pennation into the peak forces and taking angles from elsewhere would count it twice.
+ * What survives that is the shape: whatever the fibers are doing inside it, the belly is long.
+ *
+ * Before this, the belly was the muscle's flesh and nothing more, and the flesh of a Hill model is
+ * its fiber length. Of fifty-four units on one side, thirty-one were drawn at the old guard's full
+ * width, the median muscle was 0.60 as wide as it was long, and a vastus lateralis came out 225 mm
+ * by 135, which is a barrel. Gastrocnemius was 127 by 76 where a real one is about 250 by 60.
+ *
+ * @see bellySpread, which turns this into a number per muscle.
+ */
+export const BELLY_ASPECT = 0.25;
+
+/**
+ * How much longer than its own flesh a muscle's belly is drawn, per muscle.
+ *
+ * The pennation the model does not carry, as one ratio: a belly this many times the length of the
+ * fibers inside it. Measured once from the muscle at rest, as whatever it takes to draw it at
+ * `BELLY_ASPECT`, and then applied at every length -- so a contracting muscle's belly still
+ * shortens and still thickens, which pinning it to a fixed length would have stopped.
+ *
+ * It lands where architecture says it should, which is the check that it is measuring something
+ * real rather than fitting a picture. Gastrocnemius comes out at 3.2, and a real medial
+ * gastrocnemius has 50 mm fibers in a 250 mm belly. The long head of biceps comes out at 1.26,
+ * and a real one has 130 mm fibers in a 150 mm belly. The muscles that need no spreading are the
+ * ones that turn out not to be pennate.
+ */
+export function bellySpread(volume: number, restFlesh: number): number {
+  if (!(restFlesh > 0)) return 1;
+  const wanted = lengthForAspect(volume, BELLY_ASPECT);
+  return wanted > restFlesh ? wanted / restFlesh : 1;
+}
 
 /**
  * How long a belly has to be to hold its volume without being drawn wider than it is long.
@@ -153,6 +196,23 @@ export const MAX_WIDTH_OVER_LENGTH = 0.6;
  */
 export function lengthForAspect(volume: number, aspect = MAX_WIDTH_OVER_LENGTH): number {
   return aspect > 0 ? Math.cbrt((2 * volume) / (aspect * aspect)) : 0;
+}
+
+/**
+ * The longest stretch of path between one crossed joint and the next, metres.
+ *
+ * What a belly may grow into. A muscle lies along a bone and stops at the joints either end of it,
+ * so this is how much bone there is to lie along.
+ */
+export function clearStretch(total: number, crossings: readonly number[] | undefined): number {
+  if (!crossings || crossings.length === 0) return total;
+  const bounds = [0, ...crossings.map((f) => f * total), total];
+  let widest = 0;
+  for (let i = 1; i < bounds.length; i++) {
+    const span = (bounds[i] as number) - (bounds[i - 1] as number);
+    if (span > widest) widest = span;
+  }
+  return widest;
 }
 
 /**
@@ -169,18 +229,37 @@ export function lengthForAspect(volume: number, aspect = MAX_WIDTH_OVER_LENGTH):
  * needs a tendon under tension -- so its drawn belly shrinks away from both attachments and sits
  * in the middle of a long thin cord, which is not a muscle and is not what happens.
  *
- * The floor is the pennate case. Optimal fiber length is not belly length: in a pennate muscle the
- * fibers are short and run at an angle inside a belly much longer than any one of them, and taking
- * the tendon off the path can still leave too little to hold the tissue. Brachialis is the case
- * that shows it -- 1169 N through 58 mm fibers is 150 cubic centimetres, and a spindle holding
- * that much over that little length is 36 mm in radius, a quarter wider than it is long. Drawn,
- * it is a discus. So the belly is never shorter than `lengthForAspect` allows, and never longer
- * than the path there is. Both bounds keep the volume exactly: the radius still follows from the
- * volume and whatever length comes out.
+ * `spread` is the pennate case. Optimal fiber length is not belly length: in a pennate muscle the
+ * fibers are short and run at an angle inside a belly much longer than any one of them, so the
+ * flesh a Hill model reports is a fraction of the muscle you would see. `bellySpread` measures
+ * that fraction per muscle and it is applied here, which keeps the bulge: the belly is a multiple
+ * of the flesh rather than a length of its own, so every millimetre the path loses still comes off
+ * it. Pinning a pennate belly to a fixed length would have looked right and moved nothing.
+ *
+ * Two bounds hold it. Below, `lengthForAspect` stops a belly that has shortened as far as it can
+ * from being drawn as a discus -- brachialis is the case, 1169 N through 58 mm fibers being 150
+ * cubic centimetres, which over that little length is a quarter wider than it is long. Above, the
+ * belly stops at the bone it lies along (`clearStretch`) and never runs off the path. All of them
+ * keep the volume exactly: the radius still follows from the volume and whatever length comes
+ * out.
  */
-export function bellyLength(volume: number, pathLength: number, tendonLength: number): number {
+
+export function bellyLength(
+  volume: number,
+  pathLength: number,
+  tendonLength: number,
+  clear = pathLength,
+  spread = 1,
+): number {
   const flesh = pathLength - tendonLength;
-  return Math.min(pathLength, Math.max(flesh, lengthForAspect(volume)));
+  // How long it wants to be: its flesh, spread over the length a belly holding those fibers has,
+  // and never so short that it would be drawn as a discus.
+  const wants = Math.max(flesh * spread, lengthForAspect(volume));
+  // How long it may be: as far as the bone it lies along goes, and never past the path. A muscle
+  // whose own flesh is longer than that bone keeps its flesh -- brachialis is nine tenths of its
+  // own path and does lie over the elbow -- so the ceiling never shortens a belly below it.
+  const allowed = Math.min(pathLength, Math.max(clear, flesh));
+  return Math.min(allowed, wants);
 }
 
 /** A muscle's tissue volume, cubic metres, from what the fiber model already knows about it. */
@@ -311,6 +390,8 @@ export interface SweepRequest {
    * Empty or absent leaves the belly at the middle of the path. @see bellyPlacement
    */
   readonly crossings?: readonly number[] | undefined;
+  /** How much longer than its flesh this muscle's belly is drawn. @see bellySpread */
+  readonly spread?: number | undefined;
 }
 
 /**
@@ -364,7 +445,13 @@ export function sweepMuscle(request: SweepRequest, scratch: SweepScratch, out: S
   // The belly is the path less its tendon, placed off the joints the muscle crosses. One slack
   // length is all the model carries, so how much tendon is at each end is not known -- but where
   // the joints are is, and flesh does not lie across one. OQ-019.
-  const belly = bellyLength(volume, total, request.tendonLength);
+  const belly = bellyLength(
+    volume,
+    total,
+    request.tendonLength,
+    clearStretch(total, request.crossings),
+    request.spread ?? 1,
+  );
   const bellyStart = bellyPlacement(total, belly, request.crossings);
   const radiusPeak = peakRadius(volume, belly);
 
