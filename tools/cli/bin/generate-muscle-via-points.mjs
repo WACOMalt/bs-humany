@@ -266,6 +266,28 @@ const LIMBS = [
       { unit: 'semimembranosus_r', tendon: 'semimem_r', from: 'hip_r' },
       { unit: 'gastrocnemius_lateral_r', tendon: 'gaslat_r', from: 'femur_r' },
       { unit: 'gastrocnemius_medial_r', tendon: 'gasmed_r', from: 'femur_r' },
+      // The hip. `from` is the bone the reference's first path point sits on, which for the
+      // gluteals and the adductors is the pelvis and for the vasti-like ones is the femur.
+      { unit: 'gluteus_maximus_superior_r', tendon: 'glmax1_r', from: 'hip_r' },
+      { unit: 'gluteus_maximus_middle_r', tendon: 'glmax2_r', from: 'hip_r' },
+      { unit: 'gluteus_medius_anterior_r', tendon: 'glmed1_r', from: 'hip_r' },
+      { unit: 'gluteus_medius_middle_r', tendon: 'glmed2_r', from: 'hip_r' },
+      { unit: 'gluteus_medius_posterior_r', tendon: 'glmed3_r', from: 'hip_r' },
+      { unit: 'gluteus_minimus_anterior_r', tendon: 'glmin1_r', from: 'hip_r' },
+      { unit: 'gluteus_minimus_middle_r', tendon: 'glmin2_r', from: 'hip_r' },
+      { unit: 'gluteus_minimus_posterior_r', tendon: 'glmin3_r', from: 'hip_r' },
+      { unit: 'iliacus_r', tendon: 'iliacus_r', from: 'hip_r' },
+      { unit: 'psoas_major_r', tendon: 'psoas_r', from: 'hip_r' },
+      { unit: 'adductor_longus_r', tendon: 'addlong_r', from: 'hip_r' },
+      { unit: 'adductor_brevis_r', tendon: 'addbrev_r', from: 'hip_r' },
+      { unit: 'adductor_magnus_proximal_r', tendon: 'addmagProx_r', from: 'hip_r' },
+      { unit: 'adductor_magnus_middle_r', tendon: 'addmagMid_r', from: 'hip_r' },
+      { unit: 'adductor_magnus_distal_r', tendon: 'addmagDist_r', from: 'hip_r' },
+      { unit: 'adductor_magnus_ischiocondylar_r', tendon: 'addmagIsch_r', from: 'hip_r' },
+      { unit: 'piriformis_r', tendon: 'piri_r', from: 'hip_r' },
+      { unit: 'tensor_fasciae_latae_r', tendon: 'tfl_r', from: 'hip_r' },
+      { unit: 'gracilis_r', tendon: 'grac_r', from: 'hip_r' },
+      { unit: 'sartorius_r', tendon: 'sart_r', from: 'hip_r' },
     ],
   },
 ];
@@ -547,9 +569,32 @@ for (const limb of LIMBS) {
       continue;
     }
     const names = viaPoints(spec.tendon);
-    // Reversed when the reference's first site is not on the bone our origin is on.
-    const first = allSites(spec.tendon)[0];
-    const reversed = first !== undefined && sites.get(first)?.bone !== spec.from;
+    // Which way round the reference lists this path, decided from whichever end can be identified.
+    //
+    // The obvious test -- is the first site on the bone our origin is on -- answers wrongly when
+    // it is on a bone this limb does not map. The leg's chain is rooted at the pelvis and the
+    // frame correspondence here is built from the femur, so pelvis sites are not carried and are
+    // not in `sites`; every muscle that starts on the pelvis, which is most of the hip's, came out
+    // `reversed` on the strength of a lookup that missed. Sartorius then ran from the iliac spine
+    // down to the tibia, back up to the femur and down to the tibia again: an 835 mm muscle.
+    //
+    // So: use the first site if it is on a bone we know, otherwise the last, and refuse if neither
+    // is. Reading it from the far end inverts the test, because a path that ends where our
+    // insertion is runs the same way ours does.
+    const ends = allSites(spec.tendon);
+    const first = ends[0];
+    const last = ends.at(-1);
+    const firstBone = first === undefined ? undefined : sites.get(first)?.bone;
+    const lastBone = last === undefined ? undefined : sites.get(last)?.bone;
+    let reversed;
+    if (firstBone !== undefined) reversed = firstBone !== spec.from;
+    else if (lastBone !== undefined) reversed = lastBone === spec.from;
+    else {
+      throw new Error(
+        `${spec.unit}: neither end of '${spec.tendon}' is on a bone this limb maps, so which ` +
+          'way round its path runs cannot be read. Add the bone to the limb, or the points to it.',
+      );
+    }
     if (reversed) names.reverse();
     direction.set(spec.unit, reversed ? 'reversed' : 'forward');
     let index = 0;

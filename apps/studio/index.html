@@ -150,15 +150,26 @@
           <input type="range" id="kneeFlexorDrive" min="0" max="100" step="1" value="0" />
           <label for="kneeExtensorDrive">Knee extensors <output id="kneeExtensorDrive-value">0%</output></label>
           <input type="range" id="kneeExtensorDrive" min="0" max="100" step="1" value="0" />
-          <p class="note">Fifty units: seven at each elbow (both heads of biceps, brachialis,
+          <label for="hipFlexorDrive">Hip flexors <output id="hipFlexorDrive-value">0%</output></label>
+          <input type="range" id="hipFlexorDrive" min="0" max="100" step="1" value="0" />
+          <label for="hipExtensorDrive">Hip extensors <output id="hipExtensorDrive-value">0%</output></label>
+          <input type="range" id="hipExtensorDrive" min="0" max="100" step="1" value="0" />
+          <label for="hipAbductorDrive">Hip abductors <output id="hipAbductorDrive-value">0%</output></label>
+          <input type="range" id="hipAbductorDrive" min="0" max="100" step="1" value="0" />
+          <label for="hipAdductorDrive">Hip adductors <output id="hipAdductorDrive-value">0%</output></label>
+          <input type="range" id="hipAdductorDrive" min="0" max="100" step="1" value="0" />
+          <p class="note">Ninety units: seven at each elbow (both heads of biceps, brachialis,
           brachioradialis, all three heads of triceps), eight at each shoulder (the three heads of
-          deltoid, the rotator cuff, teres major) and ten at each knee (the four of the
-          quadriceps, both heads of biceps femoris, semitendinosus, semimembranosus and both heads
-          of gastrocnemius). Force and fiber length come from the MyoSuite arm and leg models;
-          attachments come from each side's own markers, and each tendon's slack length is fitted
-          to the path it has on this skeleton. The sliders drive the elbow; the rest are along for
-          the ride until the range-of-motion scenarios land. Each slider drives its own muscles on
-          both sides at once.</p>
+          deltoid, the rotator cuff, teres major), ten at each knee (the four of the quadriceps,
+          both heads of biceps femoris, semitendinosus, semimembranosus and both heads of
+          gastrocnemius) and twenty at each hip (two parts of gluteus maximus, three each of
+          medius and minimus, iliacus and psoas, the three adductors in six parts, piriformis,
+          tensor fasciae latae, gracilis and sartorius). Peak force comes from the MyoSuite arm
+          and leg models; attachments come from each side's own markers, and both lengths are
+          derived against this skeleton — the tendon fitted to the path it has here, the fibre
+          scaled by how far the muscle travels here against how far it travels there. Each slider
+          drives its own muscles on both sides at once, and is squared, so the readout shows the
+          excitation given rather than where the handle sits.</p>
           <dl class="readout" id="muscle-readout">
             <dt title="Summed over the elbow flexors and extensors, which is what the two elbow sliders drive">Elbow, flex / ext</dt><dd id="muscle-flexion">&mdash;</dd>
             <dt title="Summed over the knee flexors and extensors, which is what the two knee sliders drive">Knee, flex / ext</dt><dd id="muscle-extension">&mdash;</dd>

@@ -26,6 +26,7 @@
     "generate:via-points": "node tools/cli/bin/generate-muscle-via-points.mjs",
     "generate:shoulder-muscles": "node tools/cli/bin/generate-shoulder-muscles.mjs",
     "generate:knee-muscles": "node tools/cli/bin/generate-knee-muscles.mjs",
+    "generate:hip-muscles": "node tools/cli/bin/generate-hip-muscles.mjs",
     "measure:muscle-ranges": "node tools/cli/bin/measure-muscle-ranges.mjs",
     "measure:source-travel": "node tools/cli/bin/measure-source-travel.mjs",
     "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs"

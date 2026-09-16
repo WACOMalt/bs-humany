@@ -263,14 +263,25 @@ from 0 to 130 degrees and puts each curve beside the reference model's own, comp
 
 **Still open, and why:**
 
-- **Brachialis never touches the surface it declares.** It peaks at 48 mm against the reference's
-  24, and the cause is not the wrap: our insertion marker sits 50 mm from the flexion axis where
-  the reference's sits 24, so the straight line from origin to insertion passes outside the
-  trochlea cylinder at every angle and the wrap has nothing to do. `Tuberosity_of_ulna` is a label
-  anchor rather than a measured attachment centroid, and the neighbouring `Coronoid_process_of_ulna`
-  sits at 29 mm. Moving the insertion to it was tried: the peak improves to 28 mm and the arm then
-  changes sign at deep flexion, because a point that close to the axis needs the wrap to hold it
-  and the wrap still does not engage. The fix is a measured attachment region, not another marker.
+- **Brachialis never touches the surface it declares.** The next one to do, and the last
+  disagreement at the elbow worth more than a few millimetres. It peaks at 41 mm against the
+  reference's 24, a mean error of 11.8, and travels 61 mm where the reference's travels 36 -- the
+  widest travel ratio in the set at 1.68. The cause is not the wrap: our insertion sits far enough
+  from the flexion axis that the straight line from origin to insertion passes outside the
+  trochlea cylinder at every angle, so the wrap has nothing to do.
+
+  Both ends are suspect and neither is a marker problem any more, because the markers have since
+  been put on their bones. The origin is `Anteromedial_surface_of_humerus`, which moved 47.7 mm in
+  that projection -- the largest move in the arm -- and names a *surface*, which is a footprint
+  rather than a point. The insertion is `Tuberosity_of_ulna`, and the neighbouring
+  `Coronoid_process_of_ulna` sits closer to the axis; moving the insertion there was tried before
+  the projection landed and made the arm change sign at deep flexion.
+
+  What to try, in order, with the machinery that now exists: the origin as a footprint over the
+  features Gray names for it (`footprint` in `attachments.ts`, which fixed the vasti), and the
+  insertion measured over its own region rather than taken from one marker. Neither is the ridge
+  trace that fixed brachioradialis -- this is a patch on a surface, not a line along a border --
+  so it wants a third measurement of the same family.
 - **Brachioradialis: was a quarter of the reference, now within 15 mm of it, and the cause was
   not what this said.** The wrap surface was blamed, and the reference's surface there turns out
   to be a 15 mm cylinder against our 12.4 mm trochlea -- close enough that it could never have

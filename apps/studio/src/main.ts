@@ -222,6 +222,10 @@ const ui = {
   extensorDrive: must<HTMLInputElement>('#extensorDrive'),
   kneeFlexorDrive: must<HTMLInputElement>('#kneeFlexorDrive'),
   kneeExtensorDrive: must<HTMLInputElement>('#kneeExtensorDrive'),
+  hipFlexorDrive: must<HTMLInputElement>('#hipFlexorDrive'),
+  hipExtensorDrive: must<HTMLInputElement>('#hipExtensorDrive'),
+  hipAbductorDrive: must<HTMLInputElement>('#hipAbductorDrive'),
+  hipAdductorDrive: must<HTMLInputElement>('#hipAdductorDrive'),
 };
 
 /**
@@ -266,12 +270,47 @@ const KNEE_EXTENSORS = sides(
   'vastus_intermedius',
 );
 
-/** The four driven groups, each with the slider that drives it and the readout it feeds. */
+const HIP_FLEXORS = sides('iliacus', 'psoas_major', 'sartorius', 'tensor_fasciae_latae');
+const HIP_EXTENSORS = sides(
+  'gluteus_maximus_superior',
+  'gluteus_maximus_middle',
+  'adductor_magnus_ischiocondylar',
+);
+/**
+ * The abductors, which have no opposite number on a slider of their own.
+ *
+ * Adduction is what the adductors do and they are five units a side, so the pair would be even
+ * enough; what stops it is that adduction on one leg is resisted by the other one's abductors
+ * through the ground rather than by anything at the same hip. The single-leg stance the gluteals
+ * are for is a scenario, not a slider.
+ */
+const HIP_ABDUCTORS = sides(
+  'gluteus_medius_anterior',
+  'gluteus_medius_middle',
+  'gluteus_medius_posterior',
+  'gluteus_minimus_anterior',
+  'gluteus_minimus_middle',
+  'gluteus_minimus_posterior',
+);
+const HIP_ADDUCTORS = sides(
+  'adductor_longus',
+  'adductor_brevis',
+  'adductor_magnus_proximal',
+  'adductor_magnus_middle',
+  'adductor_magnus_distal',
+  'gracilis',
+);
+
+/** The driven groups, each with the slider that drives it and the readout it feeds. */
 const DRIVEN = [
   { units: ELBOW_FLEXORS, slider: 'flexorDrive' },
   { units: ELBOW_EXTENSORS, slider: 'extensorDrive' },
   { units: KNEE_FLEXORS, slider: 'kneeFlexorDrive' },
   { units: KNEE_EXTENSORS, slider: 'kneeExtensorDrive' },
+  { units: HIP_FLEXORS, slider: 'hipFlexorDrive' },
+  { units: HIP_EXTENSORS, slider: 'hipExtensorDrive' },
+  { units: HIP_ABDUCTORS, slider: 'hipAbductorDrive' },
+  { units: HIP_ADDUCTORS, slider: 'hipAdductorDrive' },
 ] as const;
 
 function currentMorphology(): Morphology {
@@ -923,7 +962,16 @@ ui.muscles.addEventListener('change', () => {
     setSimulationStatus('Muscles start with the next run.');
   }
 });
-for (const slider of [ui.flexorDrive, ui.extensorDrive, ui.kneeFlexorDrive, ui.kneeExtensorDrive]) {
+for (const slider of [
+  ui.flexorDrive,
+  ui.extensorDrive,
+  ui.kneeFlexorDrive,
+  ui.kneeExtensorDrive,
+  ui.hipFlexorDrive,
+  ui.hipExtensorDrive,
+  ui.hipAbductorDrive,
+  ui.hipAdductorDrive,
+]) {
   slider.addEventListener('input', () => {
     const level = driveForSlider(Number(slider.value));
     must<HTMLElement>(`#${slider.id}-value`).textContent =

@@ -357,9 +357,13 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Gluteus maximus',
     section: 'The Gluteus maximus',
     bilateral: true,
+    // Gray: the gluteal surface of the ilium behind the posterior gluteal line, the dorsum of the
+    // sacrum and coccyx, and the sacrotuberous ligament -- which runs to the ischial tuberosity,
+    // and that is where the lowest fibres come from.
     origins: [
       ['hip_$', 'Gluteal_surface_of_ilium'],
       ['sacrum', 'Dorsal_surface_of_sacrum'],
+      ['hip_$', 'Ischial_tuberosity'],
     ],
     insertions: [['femur_$', 'Gluteal_tuberosity']],
   },
@@ -368,7 +372,15 @@ const MUSCLES: readonly MuscleSpec[] = [
     muscle: 'Gluteus medius',
     section: 'The Gluteus medius',
     bilateral: true,
-    origins: [['hip_$', 'Gluteal_surface_of_ilium']],
+    // Gray: the outer surface of the ilium between the crest and the posterior gluteal line above
+    // and the anterior gluteal line below. Its three parts pull in three directions -- the front
+    // flexes and rotates in, the back extends and rotates out -- so each gets the border it
+    // arises nearest, per M-ADR-005.
+    origins: [
+      ['hip_$', 'Outer_lip_of_iliac_crest'],
+      ['hip_$', 'Anterior_gluteal_line'],
+      ['hip_$', 'Posterior_gluteal_line'],
+    ],
     insertions: [['femur_$', 'Greater_trochanter']],
   },
   {
@@ -439,13 +451,120 @@ const MUSCLES: readonly MuscleSpec[] = [
     ligaments: [['tibia_$', 'Tibial_tuberosity']],
   },
   {
+    id: 'gluteus_minimus',
+    muscle: 'Gluteus minimus',
+    section: 'The Gluteus minimus',
+    bilateral: true,
+    // Gray: from the gluteal surface of the ilium between the anterior and inferior gluteal
+    // lines. The surface marker is the same one the medius uses; the lines are what separate
+    // them, and the footprint runs between the two.
+    origins: [
+      ['hip_$', 'Gluteal_surface_of_ilium'],
+      ['hip_$', 'Anterior_gluteal_line'],
+      ['hip_$', 'Inferior_gluteal_line'],
+    ],
+    footprint: [
+      ['hip_$', 'Anterior_gluteal_line'],
+      ['hip_$', 'Inferior_gluteal_line'],
+    ],
+    insertions: [['femur_$', 'Greater_trochanter']],
+  },
+  {
+    id: 'adductor_longus',
+    muscle: 'Adductor longus',
+    section: 'The Adductor longus',
+    bilateral: true,
+    // Gray: by a flat narrow tendon from the front of the pubis, in the angle between the crest
+    // and the symphysis.
+    origins: [['hip_$', 'Pubic_crest']],
+    insertions: [['femur_$', 'Linea_aspera']],
+  },
+  {
+    id: 'adductor_brevis',
+    muscle: 'Adductor brevis',
+    section: 'The Adductor brevis',
+    bilateral: true,
+    // Gray: from the outer surface of the inferior ramus of the pubis, between the gracilis and
+    // obturator externus.
+    origins: [['hip_$', 'Inferior_pubic_ramus']],
+    // Gray: into the line leading from the lesser trochanter to the linea aspera -- the pectineal
+    // line -- and the upper part of the linea aspera itself.
+    insertions: [['femur_$', 'Pectineal_line_of_femur']],
+  },
+  {
+    id: 'gracilis',
+    muscle: 'Gracilis',
+    section: 'The Gracilis',
+    bilateral: true,
+    // Gray: from the body and inferior ramus of the pubis, to the medial surface of the tibia
+    // below the condyle -- the pes anserinus, which it shares with sartorius and semitendinosus.
+    origins: [
+      ['hip_$', 'Body_of_pubis'],
+      ['hip_$', 'Inferior_pubic_ramus'],
+    ],
+    footprint: [
+      ['hip_$', 'Body_of_pubis'],
+      ['hip_$', 'Inferior_pubic_ramus'],
+    ],
+    insertions: [['tibia_$', 'Medial_surface_of_tibia']],
+  },
+  {
+    id: 'sartorius',
+    muscle: 'Sartorius',
+    section: 'The Sartorius',
+    bilateral: true,
+    // Gray: from the anterior superior iliac spine, to the medial surface of the tibia. The
+    // longest muscle in the body, and it crosses both the hip and the knee.
+    origins: [['hip_$', 'Anterior_superior_iliac_spine']],
+    insertions: [['tibia_$', 'Medial_surface_of_tibia']],
+  },
+  {
+    id: 'piriformis',
+    muscle: 'Piriformis',
+    section: 'The Piriformis',
+    bilateral: true,
+    // Gray: from the front of the sacrum, leaving the pelvis through the greater sciatic foramen
+    // to reach the upper border of the greater trochanter.
+    origins: [['sacrum', 'Pelvic_surface_of_sacrum']],
+    insertions: [['femur_$', 'Greater_trochanter']],
+  },
+  {
+    id: 'tensor_fasciae_latae',
+    muscle: 'Tensor fasciae latae',
+    section: 'The Tensor fasciae latae',
+    bilateral: true,
+    // Gray: from the anterior part of the outer lip of the iliac crest and the anterior superior
+    // iliac spine. It does not reach the femur -- it ends in the iliotibial tract, which does,
+    // and the tibia marks where that arrives.
+    origins: [
+      ['hip_$', 'Anterior_superior_iliac_spine'],
+      ['hip_$', 'Outer_lip_of_iliac_crest'],
+    ],
+    footprint: [
+      ['hip_$', 'Anterior_superior_iliac_spine'],
+      ['hip_$', 'Outer_lip_of_iliac_crest'],
+    ],
+    insertions: [['tibia_$', 'Tubercle_of_iliotibial_tract']],
+  },
+  {
     id: 'adductor_magnus',
     muscle: 'Adductor magnus',
     section: 'The Adductor magnus',
     bilateral: true,
-    origins: [['hip_$', 'Ischial_tuberosity']],
+    // Gray: the inferior ramus of the pubis, the ramus of the ischium, and the ischial
+    // tuberosity, in that order from front to back -- which is also the order its parts run in.
+    origins: [
+      ['hip_$', 'Inferior_pubic_ramus'],
+      ['hip_$', 'Ramus_of_ischium'],
+      ['hip_$', 'Ischial_tuberosity'],
+    ],
+    // Gray: into the rough line running from the greater trochanter to the linea aspera, then the
+    // linea aspera itself, then its medial prolongation -- and the ischiocondylar part alone into
+    // the adductor tubercle. Four stretches of femur for the four parts, front to back.
     insertions: [
+      ['femur_$', 'Gluteal_tuberosity'],
       ['femur_$', 'Linea_aspera'],
+      ['femur_$', 'Medial_supracondylar_line'],
       ['femur_$', 'Adductor_tubercle'],
     ],
   },

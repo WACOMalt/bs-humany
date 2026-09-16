@@ -7,6 +7,7 @@
  */
 
 export * from './elbow.js';
+export * from './hip.js';
 export * from './knee.js';
 export * from './ranges.js';
 export * from './schema.js';
