@@ -52,6 +52,9 @@ jobs:
       - name: Generated trunk data matches its source
         run: pnpm generate:trunk-muscles --check
 
+      - name: Generated forearm data matches its source
+        run: pnpm generate:forearm-muscles --check
+
       - name: Generated via points match their source
         run: pnpm generate:via-points --check
 

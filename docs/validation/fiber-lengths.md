@@ -17,7 +17,7 @@ the route is wrong here, or the joint's range is not the range the source gave i
 and look at: both caps bite where our path is longer than the one the parameters were measured on,
 which is a statement about the attachments rather than about the muscle.
 
-**20 of 108 units are capped.**
+**20 of 124 units are capped.**
 
 | unit | travel here | travel there | ratio | fiber stated | translated | whole path | source's own band |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -41,6 +41,8 @@ which is a statement about the attachments rather than about the muscle.
 | fibularis_brevis_r | 27 mm | 18 mm | 1.47 | 45 mm | 67 mm | 330 mm | 0.86 .. 1.25 |
 | sartorius_r **(capped)** | 182 mm | 131 mm | 1.39 | 403 mm | 504 mm | 631 mm | 0.84 .. 1.16 |
 | sartorius_l **(capped)** | 182 mm | 131 mm | 1.39 | 403 mm | 504 mm | 631 mm | 0.84 .. 1.16 |
+| extensor_carpi_radialis_brevis_r | 31 mm | 23 mm | 1.32 | 47 mm | 63 mm | 325 mm | 0.65 .. 1.14 |
+| extensor_carpi_radialis_brevis_l | 31 mm | 23 mm | 1.32 | 47 mm | 63 mm | 325 mm | 0.65 .. 1.14 |
 | deltoid_posterior_l **(capped)** | 50 mm | 39 mm | 1.29 | 111 mm | 138 mm | 173 mm | 0.86 .. 1.21 |
 | deltoid_posterior_r **(capped)** | 50 mm | 39 mm | 1.29 | 111 mm | 138 mm | 173 mm | 0.86 .. 1.21 |
 | gluteus_medius_middle_l | 83 mm | 65 mm | 1.27 | 73 mm | 92 mm | 177 mm | 0.31 .. 1.21 |
@@ -123,12 +125,26 @@ which is a statement about the attachments rather than about the muscle.
 | piriformis_r | 27 mm | 42 mm | 0.65 | 42 mm | 42 mm | 183 mm | 0.50 .. 1.50 |
 | gluteus_maximus_superior_l | 50 mm | 77 mm | 0.65 | 147 mm | 147 mm | 191 mm | 0.79 .. 1.32 |
 | gluteus_maximus_superior_r | 50 mm | 77 mm | 0.65 | 147 mm | 147 mm | 191 mm | 0.79 .. 1.32 |
+| extensor_carpi_radialis_longus_r | 33 mm | 53 mm | 0.63 | 42 mm | 42 mm | 349 mm | -0.02 .. 1.25 |
+| extensor_carpi_radialis_longus_l | 33 mm | 53 mm | 0.63 | 42 mm | 42 mm | 349 mm | -0.02 .. 1.25 |
 | deltoid_middle_l | 27 mm | 45 mm | 0.61 | 49 mm | 49 mm | 183 mm | 0.45 .. 1.37 |
 | deltoid_middle_r | 27 mm | 45 mm | 0.61 | 49 mm | 49 mm | 183 mm | 0.45 .. 1.37 |
 | gluteus_maximus_middle_l | 52 mm | 104 mm | 0.50 | 157 mm | 157 mm | 208 mm | 0.74 .. 1.40 |
 | iliacus_r | 47 mm | 95 mm | 0.49 | 107 mm | 107 mm | 154 mm | 0.32 .. 1.21 |
 | iliacus_l | 47 mm | 95 mm | 0.49 | 107 mm | 107 mm | 154 mm | 0.32 .. 1.21 |
 | gluteus_maximus_middle_r | 49 mm | 104 mm | 0.47 | 157 mm | 157 mm | 221 mm | 0.74 .. 1.40 |
+| flexor_carpi_ulnaris_l | 15 mm | 35 mm | 0.43 | 59 mm | 59 mm | 336 mm | 0.56 .. 1.15 |
+| flexor_carpi_ulnaris_r | 15 mm | 35 mm | 0.43 | 59 mm | 59 mm | 336 mm | 0.56 .. 1.15 |
+| flexor_carpi_radialis_l | 13 mm | 37 mm | 0.36 | 53 mm | 53 mm | 301 mm | 0.44 .. 1.13 |
+| flexor_carpi_radialis_r | 13 mm | 37 mm | 0.36 | 53 mm | 53 mm | 301 mm | 0.44 .. 1.13 |
+| pronator_teres_r | 12 mm | 40 mm | 0.31 | 34 mm | 34 mm | 157 mm | 0.12 .. 1.29 |
+| pronator_teres_l | 12 mm | 40 mm | 0.30 | 34 mm | 34 mm | 157 mm | 0.12 .. 1.29 |
+| supinator_r | 6 mm | 22 mm | 0.28 | 36 mm | 36 mm | 97 mm | 0.82 .. 1.44 |
+| supinator_l | 6 mm | 22 mm | 0.28 | 36 mm | 36 mm | 97 mm | 0.82 .. 1.44 |
+| pronator_quadratus_r | 3 mm | 15 mm | 0.21 | 23 mm | 23 mm | 144 mm | 0.60 .. 1.27 |
+| pronator_quadratus_l | 3 mm | 15 mm | 0.21 | 23 mm | 23 mm | 144 mm | 0.60 .. 1.27 |
+| anconeus_r | 1 mm | 26 mm | 0.03 | 26 mm | 26 mm | 35 mm | 0.10 .. 1.11 |
+| anconeus_l | 1 mm | 26 mm | 0.03 | 26 mm | 26 mm | 35 mm | 0.10 .. 1.11 |
 
 The last column is where the source runs each muscle on its own force-length curve over its own
 range of motion, in units of optimal fiber length. It fits nothing here. It is the evidence for

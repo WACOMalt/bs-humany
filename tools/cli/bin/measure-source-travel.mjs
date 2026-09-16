@@ -52,6 +52,7 @@ import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
 import {
   ELBOW_TENDONS,
+  FOREARM_TENDONS,
   LEG_TENDONS,
   MODELS,
   SHOULDER_TENDONS,
@@ -175,7 +176,7 @@ function travelOn(tendons, model) {
 }
 
 const measured = new Map([
-  ...travelOn({ ...ELBOW_TENDONS, ...SHOULDER_TENDONS }, MODELS.arm),
+  ...travelOn({ ...ELBOW_TENDONS, ...SHOULDER_TENDONS, ...FOREARM_TENDONS }, MODELS.arm),
   ...travelOn(LEG_TENDONS, MODELS.legs),
 ]);
 
@@ -183,6 +184,7 @@ const measured = new Map([
 const actuatorOf = new Map(
   [
     ...Object.entries(ELBOW_TENDONS),
+    ...Object.entries(FOREARM_TENDONS),
     ...Object.entries(SHOULDER_TENDONS),
     ...Object.entries(LEG_TENDONS),
   ].map(([tendon, unit]) => [unit, tendon.replace(/_tendon$/, '')]),
@@ -298,6 +300,7 @@ const compiled = modules.compileMuscleSet(
     ...muscleData.HIP_MUSCLES,
     ...muscleData.ANKLE_MUSCLES,
     ...muscleData.TRUNK_MUSCLES,
+    ...muscleData.FOREARM_MUSCLES,
     ...muscleData.TRUNK_MUSCLES,
   ],
   document.attachmentSites,

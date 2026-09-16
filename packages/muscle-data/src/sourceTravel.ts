@@ -118,6 +118,18 @@ export const SOURCE_MUSCLE_TRAVEL: readonly SourceMuscleTravel[] = [
     high: 1.05344,
   },
   {
+    unit: 'anconeus_r',
+    travel: 0.0261185,
+    low: 0.0999985,
+    high: 1.10671,
+  },
+  {
+    unit: 'anconeus_l',
+    travel: 0.0261185,
+    low: 0.0999985,
+    high: 1.10671,
+  },
+  {
     unit: 'biceps_brachii_long_r',
     travel: 0.0713227,
     low: 0.71083,
@@ -226,6 +238,30 @@ export const SOURCE_MUSCLE_TRAVEL: readonly SourceMuscleTravel[] = [
     high: 1.20868,
   },
   {
+    unit: 'extensor_carpi_radialis_brevis_r',
+    travel: 0.0233337,
+    low: 0.64928,
+    high: 1.14297,
+  },
+  {
+    unit: 'extensor_carpi_radialis_brevis_l',
+    travel: 0.0233337,
+    low: 0.64928,
+    high: 1.14297,
+  },
+  {
+    unit: 'extensor_carpi_radialis_longus_r',
+    travel: 0.0529954,
+    low: -0.0188327,
+    high: 1.24898,
+  },
+  {
+    unit: 'extensor_carpi_radialis_longus_l',
+    travel: 0.0529954,
+    low: -0.0188327,
+    high: 1.24898,
+  },
+  {
     unit: 'extensor_digitorum_longus_r',
     travel: 0.0420923,
     low: 0.710162,
@@ -272,6 +308,30 @@ export const SOURCE_MUSCLE_TRAVEL: readonly SourceMuscleTravel[] = [
     travel: 0.0169842,
     low: 0.885183,
     high: 1.21952,
+  },
+  {
+    unit: 'flexor_carpi_radialis_r',
+    travel: 0.0370255,
+    low: 0.43745,
+    high: 1.13061,
+  },
+  {
+    unit: 'flexor_carpi_radialis_l',
+    travel: 0.0370255,
+    low: 0.43745,
+    high: 1.13061,
+  },
+  {
+    unit: 'flexor_carpi_ulnaris_r',
+    travel: 0.0350962,
+    low: 0.555372,
+    high: 1.15027,
+  },
+  {
+    unit: 'flexor_carpi_ulnaris_l',
+    travel: 0.0350962,
+    low: 0.555372,
+    high: 1.15027,
   },
   {
     unit: 'flexor_digitorum_longus_r',
@@ -454,6 +514,18 @@ export const SOURCE_MUSCLE_TRAVEL: readonly SourceMuscleTravel[] = [
     high: 1.10529,
   },
   {
+    unit: 'palmaris_longus_r',
+    travel: 0.0441138,
+    low: 0.573762,
+    high: 1.15294,
+  },
+  {
+    unit: 'palmaris_longus_l',
+    travel: 0.0441138,
+    low: 0.573762,
+    high: 1.15294,
+  },
+  {
     unit: 'piriformis_r',
     travel: 0.0423035,
     low: 0.496117,
@@ -464,6 +536,30 @@ export const SOURCE_MUSCLE_TRAVEL: readonly SourceMuscleTravel[] = [
     travel: 0.0423035,
     low: 0.496117,
     high: 1.49988,
+  },
+  {
+    unit: 'pronator_quadratus_r',
+    travel: 0.0150623,
+    low: 0.599957,
+    high: 1.26583,
+  },
+  {
+    unit: 'pronator_quadratus_l',
+    travel: 0.0150623,
+    low: 0.599957,
+    high: 1.26583,
+  },
+  {
+    unit: 'pronator_teres_r',
+    travel: 0.0401773,
+    low: 0.119877,
+    high: 1.287,
+  },
+  {
+    unit: 'pronator_teres_l',
+    travel: 0.0401773,
+    low: 0.119877,
+    high: 1.287,
   },
   {
     unit: 'psoas_major_r',
@@ -548,6 +644,18 @@ export const SOURCE_MUSCLE_TRAVEL: readonly SourceMuscleTravel[] = [
     travel: 0.0381904,
     low: 0.82651,
     high: 1.3231,
+  },
+  {
+    unit: 'supinator_r',
+    travel: 0.0223842,
+    low: 0.822851,
+    high: 1.43938,
+  },
+  {
+    unit: 'supinator_l',
+    travel: 0.0223842,
+    low: 0.822851,
+    high: 1.43938,
   },
   {
     unit: 'supraspinatus_r',

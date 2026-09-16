@@ -53,6 +53,19 @@ export const ELBOW_TENDONS = Object.freeze({
   TRImed_tendon: 'triceps_brachii_medial_r',
 });
 
+/** The forearm's, which share the arm's files with the elbow's. */
+export const FOREARM_TENDONS = Object.freeze({
+  PT_tendon: 'pronator_teres_r',
+  PQ_tendon: 'pronator_quadratus_r',
+  SUP_tendon: 'supinator_r',
+  ANC_tendon: 'anconeus_r',
+  FCR_tendon: 'flexor_carpi_radialis_r',
+  FCU_tendon: 'flexor_carpi_ulnaris_r',
+  PL_tendon: 'palmaris_longus_r',
+  ECRL_tendon: 'extensor_carpi_radialis_longus_r',
+  ECRB_tendon: 'extensor_carpi_radialis_brevis_r',
+});
+
 /** The shoulder's tendons, which share the arm's files with the elbow's. */
 export const SHOULDER_TENDONS = Object.freeze({
   DELT1_tendon: 'deltoid_anterior_r',

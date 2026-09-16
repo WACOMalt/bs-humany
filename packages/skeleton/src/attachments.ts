@@ -295,6 +295,89 @@ const MUSCLES: readonly MuscleSpec[] = [
     insertions: [['radius_$', 'Pronator_tuberosity']],
   },
   {
+    id: 'pronator_quadratus',
+    muscle: 'Pronator quadratus',
+    section: 'The Pronator quadratus',
+    bilateral: true,
+    // Gray: from the lower quarter of the anterior surface of the ulna to the lower quarter of
+    // the anterior surface of the radius. The deepest muscle of the forearm and the one that
+    // pronates without flexing anything.
+    origins: [['ulna_$', 'Medial_surface_of_ulna']],
+    insertions: [['radius_$', 'Anterior_surface_of_radius']],
+  },
+  {
+    id: 'anconeus',
+    muscle: 'Anconeus',
+    section: 'The Anconaeus',
+    bilateral: true,
+    // Gray: from the back of the lateral epicondyle to the side of the olecranon and the upper
+    // quarter of the posterior surface of the ulna.
+    origins: [['humerus_$', 'Lateral_epicondyle_of_humerus']],
+    insertions: [['ulna_$', 'Olecranon']],
+  },
+  {
+    id: 'flexor_carpi_radialis',
+    muscle: 'Flexor carpi radialis',
+    section: 'The Flexor carpi radialis',
+    bilateral: true,
+    // Gray: from the medial epicondyle by the common flexor tendon, to the base of the second
+    // metacarpal. The dataset marks nothing on that bone and nothing on the left trapezium either,
+    // whose tubercle its tendon grooves; the scaphoid's tubercle is marked on both sides, is the
+    // radial anchor of the retinaculum this tendon passes under, and is where this one ends.
+    origins: [['humerus_$', 'Medial_epicondyle_of_humerus']],
+    insertions: [['scaphoid_$', 'Tubercle_of_scaphoid_bone']],
+  },
+  {
+    id: 'flexor_carpi_ulnaris',
+    muscle: 'Flexor carpi ulnaris',
+    section: 'The Flexor carpi ulnaris',
+    bilateral: true,
+    // Gray: two heads, one from the medial epicondyle and one from the olecranon and the upper
+    // two-thirds of the posterior border of the ulna, inserting into the pisiform and thence by
+    // ligaments to the hook of the hamate and the base of the fifth metacarpal. The pisiform is
+    // unmarked; the hook of the hamate is marked and is the next thing along that chain.
+    origins: [
+      ['humerus_$', 'Medial_epicondyle_of_humerus'],
+      ['ulna_$', 'Olecranon'],
+    ],
+    footprint: [['humerus_$', 'Medial_epicondyle_of_humerus']],
+    insertions: [['hamate_$', 'Hook_of_hamate_bone']],
+  },
+  {
+    id: 'palmaris_longus',
+    muscle: 'Palmaris longus',
+    section: 'The Palmaris longus',
+    bilateral: true,
+    // Gray: from the medial epicondyle to the flexor retinaculum and the palmar aponeurosis. The
+    // retinaculum spans the scaphoid and trapezium on one side to the pisiform and hamate on the
+    // other, and the scaphoid's tubercle is its marked radial anchor.
+    origins: [['humerus_$', 'Medial_epicondyle_of_humerus']],
+    insertions: [['scaphoid_$', 'Tubercle_of_scaphoid_bone']],
+  },
+  {
+    id: 'extensor_carpi_radialis_longus',
+    muscle: 'Extensor carpi radialis longus',
+    section: 'The Extensor carpi radialis longus',
+    bilateral: true,
+    // Gray: from the *lower third* of the lateral supracondylar ridge -- brachioradialis takes the
+    // upper two-thirds -- to the base of the second metacarpal. `ridgeAttachments.ts` measures
+    // both portions of that ridge; the second metacarpal is unmarked and the third's base stands
+    // in for it.
+    origins: [['humerus_$', 'Lateral_supracondylar_ridge__lower_third']],
+    insertions: [['metacarpal_3_$', 'Metacarpal_base']],
+  },
+  {
+    id: 'extensor_carpi_radialis_brevis',
+    muscle: 'Extensor carpi radialis brevis',
+    section: 'The Extensor carpi radialis brevis',
+    bilateral: true,
+    // Gray: from the lateral epicondyle by the common extensor tendon, to the base of the third
+    // metacarpal -- which the dataset marks as that bone's styloid process, and which is exactly
+    // where this tendon ends.
+    origins: [['humerus_$', 'Lateral_epicondyle_of_humerus']],
+    insertions: [['metacarpal_3_$', 'Styloid_process_of_third_metacarpal_bone']],
+  },
+  {
     id: 'supinator',
     muscle: 'Supinator',
     section: 'The Supinator',

@@ -88,6 +88,22 @@ const RIDGES: readonly RidgeSpec[] = [
       'supracondylar ridge over the bone’s lower third; Myology, The Brachioradialis: it ' +
       'arises from the upper two-thirds of that ridge',
   },
+  {
+    bone: 'humerus_$',
+    feature: 'Lateral_supracondylar_ridge',
+    named: 'Lateral_supracondylar_ridge__lower_third',
+    axis: ['Head_of_humerus', ['Medial_epicondyle_of_humerus', 'Lateral_epicondyle_of_humerus']],
+    outward: 'Lateral_epicondyle_of_humerus',
+    span: [0, 1 / 3],
+    // Gray, on extensor carpi radialis longus: it arises from the lower third of the same ridge
+    // brachioradialis takes the upper two-thirds of. Two muscles, one feature, one marker, and
+    // the difference between them is most of a moment arm.
+    portion: [0, 1 / 3],
+    anatomy:
+      'Gray 1918, Osteology: the lateral border of the humerus becomes the lateral ' +
+      'supracondylar ridge over the bone’s lower third; Myology, The Extensor carpi radialis ' +
+      'longus: it arises from the lower third of that ridge',
+  },
 ];
 
 interface Manifest {

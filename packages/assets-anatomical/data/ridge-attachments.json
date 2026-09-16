@@ -51,6 +51,44 @@
    "traced": 16,
    "rule": "the vertex furthest along the ridge's own outward direction in each of 24 bins across the stretch of bone the ridge runs, then the centroid of the bins in the portion the muscle arises from, settled onto the nearest vertex",
    "anatomy": "Gray 1918, Osteology: the lateral border of the humerus becomes the lateral supracondylar ridge over the bone’s lower third; Myology, The Brachioradialis: it arises from the upper two-thirds of that ridge"
+  },
+  {
+   "bone": "humerus_r",
+   "feature": "Lateral_supracondylar_ridge__lower_third",
+   "surface": [
+    0.242179,
+    1.118665,
+    0.048292
+   ],
+   "marker": [
+    0.238714,
+    1.121275,
+    0.0456
+   ],
+   "offset": 0.005106,
+   "height": 0.014182,
+   "traced": 8,
+   "rule": "the vertex furthest along the ridge's own outward direction in each of 24 bins across the stretch of bone the ridge runs, then the centroid of the bins in the portion the muscle arises from, settled onto the nearest vertex",
+   "anatomy": "Gray 1918, Osteology: the lateral border of the humerus becomes the lateral supracondylar ridge over the bone’s lower third; Myology, The Extensor carpi radialis longus: it arises from the lower third of that ridge"
+  },
+  {
+   "bone": "humerus_l",
+   "feature": "Lateral_supracondylar_ridge__lower_third",
+   "surface": [
+    -0.242179,
+    1.118665,
+    0.048292
+   ],
+   "marker": [
+    -0.238714,
+    1.121275,
+    0.0456
+   ],
+   "offset": 0.005106,
+   "height": 0.014182,
+   "traced": 8,
+   "rule": "the vertex furthest along the ridge's own outward direction in each of 24 bins across the stretch of bone the ridge runs, then the centroid of the bins in the portion the muscle arises from, settled onto the nearest vertex",
+   "anatomy": "Gray 1918, Osteology: the lateral border of the humerus becomes the lateral supracondylar ridge over the bone’s lower third; Myology, The Extensor carpi radialis longus: it arises from the lower third of that ridge"
   }
  ]
 }

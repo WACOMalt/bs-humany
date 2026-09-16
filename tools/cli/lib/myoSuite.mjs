@@ -49,14 +49,45 @@ export const LEGS = {
   chain: 'myolegs_chain.xml',
 };
 
-/** Hill-type parameters per actuator name, derived from what MuJoCo states. */
+/**
+ * How much of its own optimal fiber length a muscle typically travels over its joints' range.
+ *
+ * Two thirds, and it is measured rather than chosen: it is the median normalised travel of the
+ * fifty-four units whose architecture the source *does* state, swept on the source's own model.
+ * The quartiles are 0.50 and 0.90, so it is a middling muscle and not a tight one.
+ *
+ * What it is for is the actuators the source leaves silent -- see `readActuators`. Given a travel,
+ * it says how long the fibers covering it would be. Checked back against those fifty-four it is
+ * unbiased, median ratio 1.010, with 32 of 54 within a factor of 1.5 and 47 within 2: a stand-in
+ * good to about half, which is what it is described as everywhere it is used.
+ *
+ * It sits just above the band this model calls usable -- `FIBER_CEILING - FIBER_FLOOR` is 0.6 --
+ * which is corroboration rather than coincidence: both are saying a muscle works over roughly two
+ * thirds of its optimal length.
+ */
+export const TYPICAL_NORMALISED_TRAVEL = 0.667;
+
+/**
+ * Hill-type parameters per actuator name, derived from what MuJoCo states.
+ *
+ * The file writes actuators two ways and they do not say the same things. A `<general>` element
+ * carries an operating range of its own in `gainprm`, and that range with `lengthrange` determines
+ * optimal fiber length and tendon slack length exactly -- the derivation above. A `<muscle>`
+ * element states `force` and `lengthrange` and no range at all, so MuJoCo's own default of 0.75 to
+ * 1.05 applies, and that default is not a statement about any muscle: derived from it the forearm's
+ * fiber lengths come out 1.1 to 5.6 times published and pronator quadratus lands on a tendon of
+ * minus 16 mm. So `architecture` says which kind an actuator is, and a caller that needs a fiber
+ * length has to ask. OQ-022.
+ */
 export function readActuators(model = ARM) {
   const xml = readFileSync(join(MYO_SIM, model.muscle), 'utf8');
   const found = new Map();
   // Each actuator element, then its attributes by name: the two models write them in different
   // orders -- the arm leads with `name`, the legs with `biasprm` -- and a pattern that assumed
   // either would silently find nothing in the other.
-  const attribute = (element, key) => element.match(new RegExp(`${key}="([^"]+)"`))?.[1];
+  // Spaces are allowed around the equals sign and the forearm's actuators use them --
+  // `force = "479.8"` -- so a pattern that assumed none read the upper arm and missed the rest.
+  const attribute = (element, key) => element.match(new RegExp(`${key}\\s*=\\s*"([^"]+)"`))?.[1];
   for (const element of xml.match(/<general\b[^>]*\/>/g) ?? []) {
     const name = attribute(element, 'name');
     const gainprm = attribute(element, 'gainprm');
@@ -72,6 +103,7 @@ export function readActuators(model = ARM) {
     const optimalFiberLength = (lrmax - lrmin) / (rmax - rmin);
     const tendonSlackLength = lrmin - optimalFiberLength * rmin;
     found.set(name, {
+      architecture: 'stated',
       maxIsometricForce: force,
       optimalFiberLength,
       tendonSlackLength,
@@ -82,6 +114,33 @@ export function readActuators(model = ARM) {
       // actuator do not agree -- and a negative slack length is not a value to carry, because the
       // model divides tendon length by it.
       physical: tendonSlackLength > 0 && optimalFiberLength > 0,
+    });
+  }
+
+  // The other kind. `force` is stated and is the peak force along the tendon; `lengthrange` is
+  // stated and is the length range the model gives the muscle. Neither length can be derived,
+  // because the operating range that would divide them is MuJoCo's default rather than the file's,
+  // so what is recorded is the range itself and the fact that the architecture is missing.
+  for (const element of xml.match(/<muscle\b[^>]*\/>/g) ?? []) {
+    const name = attribute(element, 'name');
+    const force = attribute(element, 'force');
+    const lengthrange = attribute(element, 'lengthrange');
+    if (!name || !force || !lengthrange) continue;
+    if (found.has(name)) continue;
+    const [lrmin, lrmax] = lengthrange.trim().split(/\s+/).map(Number);
+    found.set(name, {
+      architecture: 'not stated',
+      maxIsometricForce: Number(force),
+      // What the source's own length range implies, at the travel a muscle typically has. It is a
+      // stand-in and the name says where it came from rather than what it is.
+      optimalFiberLength: (lrmax - lrmin) / TYPICAL_NORMALISED_TRAVEL,
+      lengthRange: [lrmin, lrmax],
+      // Not derivable, and not used: the compiler fits every tendon to this skeleton anyway. What
+      // is put here is the tendon that would leave the fibers at the bottom of their usable band
+      // at the muscle's shortest, which is the least surprising thing to carry.
+      tendonSlackLength: lrmin - ((lrmax - lrmin) / TYPICAL_NORMALISED_TRAVEL) * 0.6,
+      maxContractionVelocity: undefined,
+      physical: true,
     });
   }
   return found;
@@ -217,6 +276,22 @@ export const num = (v) => Number(v.toPrecision(6)).toString();
  * The shape is HSDL's `MuscleGroup`, and both generators write the same shape; what differs is
  * which units go in it and the prose around it.
  */
+/** Biome's configured line width, which generated output has to respect to survive `--check`. */
+const LINE_WIDTH = 100;
+
+/**
+ * One `name: 'value',` field at eight spaces, wrapped where the formatter would wrap it.
+ *
+ * A generated file has to be what `biome format` would leave behind or the lint gate and the
+ * `--check` gate disagree forever: one rewrites the file and the other then says the data is
+ * stale. Extensor carpi radialis brevis is the case -- its insertion is on the styloid process of
+ * the third metacarpal, and the site id that makes runs past a hundred columns.
+ */
+function quoted(name, value) {
+  const single = `        ${name}: '${value}',`;
+  return single.length <= LINE_WIDTH ? single : `        ${name}:\n          '${value}',`;
+}
+
 export function renderGroups(units, viaPointsFor, direction, model = ARM) {
   const groups = new Map();
   for (const unit of units) {
@@ -263,15 +338,18 @@ export function renderGroups(units, viaPointsFor, direction, model = ARM) {
       body.push(`      {
         id: '${unit.id}',
         displayName: '${unit.name}',
-        origin: '${unit.origin}',
-        insertion: '${unit.insertion}',
+${quoted('origin', unit.origin)}
+${quoted('insertion', unit.insertion)}
         path: ${path},
         parameters: {
           maxIsometricForce: ${num(p.maxIsometricForce)},
           optimalFiberLength: ${num(p.optimalFiberLength)},
           tendonSlackLength: ${num(p.tendonSlackLength)},
-          pennationAngle: 0,
-          maxContractionVelocity: ${num(p.maxContractionVelocity)},
+          pennationAngle: 0,${
+            p.maxContractionVelocity === undefined
+              ? ''
+              : `\n          maxContractionVelocity: ${num(p.maxContractionVelocity)},`
+          }
           source: ${model === LEGS ? 'myoLegs' : 'myoArm'}('${unit.actuator}'),
         },
       },`);

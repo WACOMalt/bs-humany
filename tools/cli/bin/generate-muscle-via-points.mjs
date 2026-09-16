@@ -182,6 +182,16 @@ const LIMBS = [
       // have, so their trunk-end points sit on the world body and are not carried; `from` names
       // the bone *our* origin is on, which no limb maps, and the direction is read from the far
       // end instead.
+      // The forearm and wrist. `from` is the bone our origin is on; the reference lists most of
+      // these from the hand inward, which the direction test reads from whichever end it knows.
+      { unit: 'pronator_teres_r', tendon: 'PT', from: 'humerus_r' },
+      { unit: 'pronator_quadratus_r', tendon: 'PQ', from: 'ulna_r' },
+      { unit: 'supinator_r', tendon: 'SUP', from: 'ulna_r' },
+      { unit: 'anconeus_r', tendon: 'ANC', from: 'humerus_r' },
+      { unit: 'flexor_carpi_radialis_r', tendon: 'FCR', from: 'humerus_r' },
+      { unit: 'flexor_carpi_ulnaris_r', tendon: 'FCU', from: 'humerus_r' },
+      { unit: 'extensor_carpi_radialis_longus_r', tendon: 'ECRL', from: 'humerus_r' },
+      { unit: 'extensor_carpi_radialis_brevis_r', tendon: 'ECRB', from: 'humerus_r' },
       { unit: 'latissimus_dorsi_thoracic_r', tendon: 'LAT1', from: 'vertebra_t8' },
       { unit: 'latissimus_dorsi_iliac_r', tendon: 'LAT3', from: 'hip_r' },
       { unit: 'pectoralis_major_sternal_r', tendon: 'PECM2', from: 'sternum' },

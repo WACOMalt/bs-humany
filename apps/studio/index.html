@@ -164,7 +164,15 @@
           <input type="range" id="ankleDorsiflexorDrive" min="0" max="100" step="1" value="0" />
           <label for="armAdductorDrive">Latissimus and pectoralis <output id="armAdductorDrive-value">0%</output></label>
           <input type="range" id="armAdductorDrive" min="0" max="100" step="1" value="0" />
-          <p class="note">A hundred and sixteen units: seven at each elbow (both heads of biceps, brachialis,
+          <label for="wristFlexorDrive">Wrist flexors <output id="wristFlexorDrive-value">0%</output></label>
+          <input type="range" id="wristFlexorDrive" min="0" max="100" step="1" value="0" />
+          <label for="wristExtensorDrive">Wrist extensors <output id="wristExtensorDrive-value">0%</output></label>
+          <input type="range" id="wristExtensorDrive" min="0" max="100" step="1" value="0" />
+          <label for="pronatorDrive">Pronators <output id="pronatorDrive-value">0%</output></label>
+          <input type="range" id="pronatorDrive" min="0" max="100" step="1" value="0" />
+          <label for="supinatorDrive">Supinator <output id="supinatorDrive-value">0%</output></label>
+          <input type="range" id="supinatorDrive" min="0" max="100" step="1" value="0" />
+          <p class="note">A hundred and thirty-two units: seven at each elbow (both heads of biceps, brachialis,
           brachioradialis, all three heads of triceps), eight at each shoulder (the three heads of
           deltoid, the rotator cuff, teres major), ten at each knee (the four of the quadriceps,
           both heads of biceps femoris, semitendinosus, semimembranosus and both heads of
@@ -173,8 +181,9 @@
           tensor fasciae latae, gracilis and sartorius) and nine at each ankle (soleus, both tibialis,
           both fibularis, and the four long toe muscles, which stop at the metatarsals because the
           dataset marks no phalanx), and four at each shoulder girdle (two parts each of latissimus dorsi
-          and pectoralis major, which are what pull an arm back down). Peak force comes from the
-          MyoSuite arm
+          and pectoralis major, which are what pull an arm back down) and eight at each forearm (both
+          pronators, supinator, anconeus, two wrist flexors and two wrist extensors). Peak force
+          comes from the MyoSuite arm
           and leg models; attachments come from each side's own markers, and both lengths are
           derived against this skeleton — the tendon fitted to the path it has here, the fibre
           scaled by how far the muscle travels here against how far it travels there. Each slider

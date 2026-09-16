@@ -760,6 +760,102 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_6_l/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
+  {
+    unit: 'pronator_teres_r',
+    shortest: 0.983461,
+    longest: 1.0614,
+    crosses: 'elbow_r/flexion, radioulnar_r/pronation',
+  },
+  {
+    unit: 'pronator_quadratus_r',
+    shortest: 0.990685,
+    longest: 1.01244,
+    crosses: 'radioulnar_r/pronation',
+  },
+  {
+    unit: 'supinator_r',
+    shortest: 0.998488,
+    longest: 1.06364,
+    crosses: 'radioulnar_r/pronation',
+  },
+  {
+    unit: 'anconeus_r',
+    shortest: 0.978198,
+    longest: 1,
+    crosses: 'elbow_r/flexion',
+  },
+  {
+    unit: 'flexor_carpi_radialis_r',
+    shortest: 0.963553,
+    longest: 1.00832,
+    crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
+  },
+  {
+    unit: 'flexor_carpi_ulnaris_r',
+    shortest: 0.96284,
+    longest: 1.00811,
+    crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
+  },
+  {
+    unit: 'extensor_carpi_radialis_longus_r',
+    shortest: 0.943626,
+    longest: 1.03849,
+    crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
+  },
+  {
+    unit: 'extensor_carpi_radialis_brevis_r',
+    shortest: 0.955433,
+    longest: 1.05051,
+    crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
+  },
+  {
+    unit: 'pronator_teres_l',
+    shortest: 0.983461,
+    longest: 1.06125,
+    crosses: 'elbow_l/flexion, radioulnar_l/pronation',
+  },
+  {
+    unit: 'pronator_quadratus_l',
+    shortest: 0.99065,
+    longest: 1.01238,
+    crosses: 'radioulnar_l/pronation',
+  },
+  {
+    unit: 'supinator_l',
+    shortest: 0.998446,
+    longest: 1.06338,
+    crosses: 'radioulnar_l/pronation',
+  },
+  {
+    unit: 'anconeus_l',
+    shortest: 0.978198,
+    longest: 1,
+    crosses: 'elbow_l/flexion',
+  },
+  {
+    unit: 'flexor_carpi_radialis_l',
+    shortest: 0.963528,
+    longest: 1.00832,
+    crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
+  },
+  {
+    unit: 'flexor_carpi_ulnaris_l',
+    shortest: 0.962814,
+    longest: 1.00811,
+    crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
+  },
+  {
+    unit: 'extensor_carpi_radialis_longus_l',
+    shortest: 0.943626,
+    longest: 1.03845,
+    crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
+  },
+  {
+    unit: 'extensor_carpi_radialis_brevis_l',
+    shortest: 0.955433,
+    longest: 1.05045,
+    crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
+  },
 ];
 
 /** One unit's range, or undefined for a unit nothing has measured. */

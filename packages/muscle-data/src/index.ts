@@ -8,6 +8,7 @@
 
 export * from './ankle.js';
 export * from './elbow.js';
+export * from './forearm.js';
 export * from './hip.js';
 export * from './knee.js';
 export * from './ranges.js';

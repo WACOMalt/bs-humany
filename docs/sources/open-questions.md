@@ -558,11 +558,33 @@ travel over 0.7 is unbiased: median ratio 0.96, 33 of 54 within a factor of 1.5 
 2. That is a stand-in good to about fifty per cent on any one muscle, which is far better than the
 default range gives and is not a transcription. Peak force would still be the source's, and force
 is most of what a muscle does.
+**What was done instead, 2026-09-16.** The travel route was taken, and in the course of building
+it the better version of it turned up. Deriving the fiber length from *our* travel -- the first
+plan -- is worse than it looked: our wrist flexes 45 degrees where a real one does 80, and the
+forearm's attachment markers sit nearer their joint axes than the muscles do, so these muscles
+travel less here than they should. It gave 18, 5, 20 and 23 mm for pronator teres, pronator
+quadratus and the two carpi flexors, against a published 36, 23, 52 and 51.
+
+The thing those actuators *do* state is a length range. Divided by the travel a muscle typically
+has -- `TYPICAL_NORMALISED_TRAVEL`, two thirds, measured as the median normalised travel of the
+fifty-four units whose architecture the source does state -- it lands close:
+
+    pronator teres        34 mm against 36     flexor carpi radialis   53 against 52
+    pronator quadratus    23 against 23        flexor carpi ulnaris    59 against 51
+    supinator             36 against 33        ext. carpi rad. brevis  63 against 59
+    anconeus              26 against 27        ext. carpi rad. longus  42 against 81
+
+Supinator and anconeus are the control: their actuators state an operating range, so those two are
+transcribed the ordinary way, and they agree with published architecture to within three
+millimetres. Extensor carpi radialis longus is the one that misses, at half.
+
+So the number is a stand-in, it is labelled one, and it is a good one. It passes through the same
+travel translation and the same tendon fit as every other set. Peak force is the source's
+throughout, and peak force is most of what a muscle does.
 **Closes when:** a source that states upper-limb architecture *and may be redistributed alongside
-CC BY-SA data* is found and vendored, or the travel-derived fiber length is accepted for the
-actuators the source leaves silent.
-**Status:** open, and blocking the wrist, the forearm and the hand. The vendoring route is closed
-until a permissively licensed model turns up.
+CC BY-SA data* is found and vendored, and the stand-in is replaced by it.
+**Status:** answered for now, by a stand-in that is measured rather than assumed. The vendoring
+route stays closed until a permissively licensed model turns up. The hand is still not built.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
 **Needed for:** `packages/muscle-path/src/wrap.ts`, ticket N1.4

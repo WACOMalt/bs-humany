@@ -53,6 +53,7 @@ import {
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
+  FOREARM_MUSCLES,
   HIP_MUSCLES,
   KNEE_MUSCLES,
   SHOULDER_MUSCLES,
@@ -285,6 +286,7 @@ export class Simulation {
           ...HIP_MUSCLES,
           ...ANKLE_MUSCLES,
           ...TRUNK_MUSCLES,
+          ...FOREARM_MUSCLES,
         ],
         document.attachmentSites,
         this.articulation,

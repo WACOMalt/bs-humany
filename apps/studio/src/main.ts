@@ -229,6 +229,10 @@ const ui = {
   anklePlantarflexorDrive: must<HTMLInputElement>('#anklePlantarflexorDrive'),
   ankleDorsiflexorDrive: must<HTMLInputElement>('#ankleDorsiflexorDrive'),
   armAdductorDrive: must<HTMLInputElement>('#armAdductorDrive'),
+  wristFlexorDrive: must<HTMLInputElement>('#wristFlexorDrive'),
+  wristExtensorDrive: must<HTMLInputElement>('#wristExtensorDrive'),
+  pronatorDrive: must<HTMLInputElement>('#pronatorDrive'),
+  supinatorDrive: must<HTMLInputElement>('#supinatorDrive'),
 };
 
 /**
@@ -333,6 +337,11 @@ const ARM_ADDUCTORS = sides(
   'pectoralis_major_abdominal',
 );
 
+const WRIST_FLEXORS = sides('flexor_carpi_radialis', 'flexor_carpi_ulnaris');
+const WRIST_EXTENSORS = sides('extensor_carpi_radialis_longus', 'extensor_carpi_radialis_brevis');
+const FOREARM_PRONATORS = sides('pronator_teres', 'pronator_quadratus');
+const FOREARM_SUPINATORS = sides('supinator');
+
 /** The driven groups, each with the slider that drives it and the readout it feeds. */
 const DRIVEN = [
   { units: ELBOW_FLEXORS, slider: 'flexorDrive' },
@@ -346,6 +355,10 @@ const DRIVEN = [
   { units: ANKLE_PLANTARFLEXORS, slider: 'anklePlantarflexorDrive' },
   { units: ANKLE_DORSIFLEXORS, slider: 'ankleDorsiflexorDrive' },
   { units: ARM_ADDUCTORS, slider: 'armAdductorDrive' },
+  { units: WRIST_FLEXORS, slider: 'wristFlexorDrive' },
+  { units: WRIST_EXTENSORS, slider: 'wristExtensorDrive' },
+  { units: FOREARM_PRONATORS, slider: 'pronatorDrive' },
+  { units: FOREARM_SUPINATORS, slider: 'supinatorDrive' },
 ] as const;
 
 function currentMorphology(): Morphology {
@@ -1009,6 +1022,10 @@ for (const slider of [
   ui.anklePlantarflexorDrive,
   ui.ankleDorsiflexorDrive,
   ui.armAdductorDrive,
+  ui.wristFlexorDrive,
+  ui.wristExtensorDrive,
+  ui.pronatorDrive,
+  ui.supinatorDrive,
 ]) {
   slider.addEventListener('input', () => {
     const level = driveForSlider(Number(slider.value));
