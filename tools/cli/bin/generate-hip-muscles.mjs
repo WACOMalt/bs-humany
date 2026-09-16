@@ -148,6 +148,12 @@ const UNITS = [
     id: 'iliacus_$',
     name: 'Iliacus',
     origin: 'iliacus_origin_$_iliac_fossa',
+    // Over the brim before it turns back to the trochanter. The reference holds this bend with a
+    // point in its pelvis frame, and this package has no pelvis correspondence to carry it
+    // through, so the bend is stated from our own anatomy instead -- see `path` in
+    // `attachments.ts`. Without it the path is a chord that passes behind the hip centre in
+    // extension and the flexor reads as an extensor.
+    via: ['iliacus_path_$_iliopubic_eminence'],
     insertion: 'iliacus_insertion_$_lesser_trochanter',
   },
   {
@@ -156,6 +162,8 @@ const UNITS = [
     id: 'psoas_major_$',
     name: 'Psoas major',
     origin: 'psoas_major_origin_$_vertebral_body',
+    // The same brim as iliacus, and for the same reason.
+    via: ['psoas_major_path_$_iliopubic_eminence'],
     insertion: 'psoas_major_insertion_$_lesser_trochanter',
   },
   {

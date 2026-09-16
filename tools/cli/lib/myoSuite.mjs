@@ -291,6 +291,7 @@ export function sided(units) {
         origin: put(unit.origin),
         insertion: put(unit.insertion),
         wrap: put(unit.wrap),
+        ...(unit.via === undefined ? {} : { via: unit.via.map((id) => put(id)) }),
         name: `${unit.name}, ${word}`,
         ...(unit.groupName === undefined ? {} : { groupName: `${unit.groupName}, ${word}` }),
         side_: s,
@@ -343,8 +344,18 @@ export function renderGroups(units, viaPointsFor, direction, model = ARM) {
     units: [`);
     for (const unit of members) {
       const p = unit.parameters;
-      // A unit may name its own model, for a set whose actuators are split across two files.
-      const elements = pathElements(unit, viaPointsFor, direction, unit.model ?? model)
+      // A unit may name path points of its own, ahead of whatever the reference contributes. Two
+      // reasons, and both are about a chord cutting through a body it should be lying against.
+      // The torso's are the reference's problem: it anchors its trunk muscles to bodies this
+      // skeleton has no counterpart for, so erector spinae gets none of them and would run from
+      // the sacrum to the sixth rib straight through the ribcage. The iliopsoas's is ours: the
+      // reference holds it over the pelvic brim with a point in its pelvis frame, and this
+      // package carries no pelvis frame correspondence, so only the femoral point survived and
+      // the path lost the one bend that keeps it in front of the hip.
+      const elements = [
+        ...(unit.via ?? []).map((id) => ({ kind: 'site', id })),
+        ...pathElements(unit, viaPointsFor, direction, unit.model ?? model),
+      ]
         .map((e) =>
           e.kind === 'site'
             ? `          { kind: 'site', site: '${e.id}' },\n`

@@ -198,6 +198,57 @@ export const MUSCLE_GROUPS: readonly { readonly title: string; readonly units: s
   },
 ];
 
+/**
+ * What a quietly standing person's muscles are actually doing, as a fraction of maximum.
+ *
+ * Standing still is not passive and it is not hard either. The line of gravity falls a few
+ * centimetres in front of the ankle, so the calf works continuously to stop the body toppling
+ * forward, and that is most of the story: soleus carries it, with gastrocnemius helping. Above
+ * the ankle the joints sit near the positions their own ligaments hold -- the knee is close to
+ * locked in extension and the hip near its own passive limit -- so the big muscles there are
+ * nearly silent, and what is left is postural tone: a few per cent in the back extensors and the
+ * abdominal wall to hold the trunk up, a few per cent in the hip abductors to keep the pelvis
+ * level over one leg's worth of stance width.
+ *
+ * The numbers are quiet-stance EMG as a fraction of a maximal contraction, in the band the
+ * textbook measurements report (Winter 2009, and Basmajian's survey before it): soleus around a
+ * tenth, gastrocnemius half that, the trunk and hip stabilisers a few per cent, tibialis anterior
+ * barely on -- it alternates with the calf as the body sways rather than pulling steadily.
+ *
+ * These are a *posture*, not a controller. Nothing here corrects a sway, so the body standing on
+ * them drifts the way a person standing on a numbed leg does. The scenario says so.
+ */
+export const POSTURAL_TONE: Readonly<Record<string, number>> = {
+  soleus: 0.08,
+  gastrocnemius_lateral: 0.04,
+  gastrocnemius_medial: 0.04,
+  tibialis_anterior: 0.02,
+  tibialis_posterior: 0.03,
+  fibularis_longus: 0.02,
+  erector_spinae: 0.04,
+  rectus_abdominis: 0.02,
+  external_oblique: 0.02,
+  internal_oblique: 0.02,
+  gluteus_maximus_superior: 0.02,
+  gluteus_maximus_middle: 0.02,
+  gluteus_maximus_inferior: 0.02,
+  gluteus_medius_anterior: 0.04,
+  gluteus_medius_middle: 0.04,
+  gluteus_medius_posterior: 0.04,
+  gluteus_minimus_anterior: 0.02,
+  gluteus_minimus_middle: 0.02,
+  gluteus_minimus_posterior: 0.02,
+  iliacus: 0.03,
+  psoas_major: 0.03,
+  vastus_lateralis: 0.02,
+  vastus_medialis: 0.02,
+  vastus_intermedius: 0.02,
+  rectus_femoris: 0.02,
+  biceps_femoris_long: 0.02,
+  semitendinosus: 0.02,
+  semimembranosus: 0.02,
+};
+
 function define(
   definition: Omit<ScenarioDefinition, 'build'> & {
     make(values: Record<string, number>): Omit<Scenario, 'id' | 'title' | 'description'>;
@@ -217,7 +268,117 @@ function define(
   };
 }
 
+/** Lean, in metres, that the reflex holds the body at: gravity in front of the ankle. */
+const STANCE_LEAN = 0.04;
+/** Excitation added per metre of lean past that, and per metre per second of sway. */
+const LEAN_GAIN = 9;
+const SWAY_GAIN = 2.2;
+/**
+ * Which half of the ankle strategy a muscle belongs to; anything unlisted is tone only.
+ *
+ * Only the ankle. A hip channel was tried on the same measurement taken at the pelvis -- hip
+ * flexors against a forward overhang, extensors against a backward one, which is the hip strategy
+ * as it is usually described -- and it did not help: the body went over at the same second either
+ * way, and with the gain high enough to matter it went over sooner. Holding a hip needs a servo
+ * that knows the joint's own angle, and a scenario script can see segment positions and nothing
+ * else. OQ-024.
+ */
+const REFLEX_CHANNEL: Readonly<Record<string, 'calf' | 'shin'>> = {
+  soleus: 'calf',
+  gastrocnemius_lateral: 'calf',
+  gastrocnemius_medial: 'calf',
+  tibialis_anterior: 'shin',
+};
+
+/**
+ * The ankle strategy, which is how a person stands still.
+ *
+ * Quiet standing is not a posture held by tone alone. The body is an inverted pendulum with its
+ * mass a metre up and its base the length of a foot, and the tone in `POSTURAL_TONE` is what it
+ * takes to hold that *at the lean it is already at* -- change the lean and the same tone is
+ * either too much or not enough, and the pendulum runs away. Driven on tone alone this body
+ * stands for about seven tenths of a second and then goes over, which is the right answer to the
+ * wrong question: it is what standing without the reflex that watches it looks like.
+ *
+ * So the calf is modulated by the sway. Lean is measured as the head over the ankles along the
+ * foot's own anterior direction -- taken from the foot rather than from the world, so it stays
+ * right if the body turns -- and the calf takes the forward half of it while tibialis anterior
+ * takes the backward half, each with a term in the lean and a term in its rate. That is the
+ * ankle strategy as the posture literature describes it, and nothing above the ankle is in the
+ * loop: no hip strategy, no stepping, no vestibular anything. Push this body hard enough and it
+ * falls over, which is correct.
+ *
+ * `reflex` at zero turns the loop off and leaves the tone, which is the comparison.
+ */
+function ankleStrategy(v: Record<string, number>): (time: number, api: ScenarioApi) => void {
+  let previousLean: number | undefined;
+  let previousTime = 0;
+  return (time, api) => {
+    const settle = v.settle as number;
+    const ramp = settle <= 0 ? 1 : Math.min(1, time / settle);
+    const tone = (v.tone as number) * ramp;
+
+    const head = api.segmentPosition(api.segment('head'));
+    const heel = api.segmentPosition(api.segment('calcaneus_r'));
+    const toe = api.segmentPosition(api.segment('forefoot_r'));
+    // The foot's own forward, flattened and normalised. A foot is never exactly level, and a
+    // lean measured along a tilted axis picks up the body's height as if it were sway.
+    const ax = toe.x - heel.x;
+    const az = toe.z - heel.z;
+    const length = Math.hypot(ax, az) || 1;
+    const ankle = api.segmentPosition(api.segment('talus_r'));
+    const lean = ((head.x - ankle.x) * ax + (head.z - ankle.z) * az) / length;
+    const dt = time - previousTime;
+    const rate = previousLean === undefined || dt <= 0 ? 0 : (lean - previousLean) / dt;
+    previousLean = lean;
+    previousTime = time;
+
+    const gain = (v.reflex as number) * ramp;
+    const excess = lean - STANCE_LEAN;
+    const forward = gain * (LEAN_GAIN * Math.max(0, excess) + SWAY_GAIN * Math.max(0, rate));
+    const backward = gain * (LEAN_GAIN * Math.max(0, -excess) + SWAY_GAIN * Math.max(0, -rate));
+
+    for (const [muscle, level] of Object.entries(POSTURAL_TONE)) {
+      const reflex = REFLEX_CHANNEL[muscle];
+      const added = reflex === 'calf' ? forward : reflex === 'shin' ? backward : 0;
+      for (const unit of both(muscle)) api.drive(unit, Math.min(1, tone * level + added));
+    }
+  };
+}
+
 export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
+  define({
+    id: 'quiet-standing',
+    title: 'Standing quietly',
+    description:
+      'The rest pose on the ground with the muscles at the tone a quietly standing person holds ' +
+      'them at -- mostly calf, a few per cent everywhere else -- with the calf modulated by the ' +
+      'sway, which is the ankle strategy and as much of standing as this can hold. Nothing above ' +
+      'the ankle is in the loop, so it stands for about a second and then goes over. That is ' +
+      'what standing looks like with the tone right and the reflexes missing (OQ-024).',
+    parameters: [
+      param('tone', 'Postural tone', 1, 0, 3, 0.05, '\u00d7'),
+      param('reflex', 'Ankle reflex', 1, 0, 3, 0.05, '\u00d7'),
+      param('settle', 'Ramp in over', 0.25, 0, 2, 0.05, ' s'),
+    ],
+    make: (v) => ({
+      profileId: 'l3_anatomical',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 3,
+      // On the ground rather than above it: this one is about what the muscles hold, and a drop
+      // would be about the landing.
+      clearance: 0,
+      ground: { height: 0 },
+      passiveJoints: true,
+      // A muscle is a source of energy, so the passive-system check does not apply.
+      passiveSystem: false,
+      // It is still moving at the end because it never stops: a body with no balance reflex on
+      // a set of tonic excitations sways and keeps swaying.
+      plausibility: { restKinetic: 30 },
+      script: ankleStrategy(v),
+    }),
+  }),
   define({
     id: 'drop-standing-collapse',
     title: 'Drop, standing',
@@ -523,6 +684,14 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
     }),
   }),
 ];
+
+/**
+ * The one a tool should open on, unless it has a reason not to.
+ *
+ * Named here rather than "the first definition", so that adding a scenario at the top of the list
+ * does not silently change what every consumer opens with.
+ */
+export const DEFAULT_SCENARIO = 'quiet-standing';
 
 /** The committed scenario set: every definition at its default parameters (spec 13.5). */
 export const SCENARIOS: readonly Scenario[] = SCENARIO_DEFINITIONS.map((d) => d.build());

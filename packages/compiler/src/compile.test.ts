@@ -184,13 +184,15 @@ describe('failure modes', () => {
     // L1 has sternoclavicular joints but no per-level lumbar, patella or acromioclavicular.
     expect(l1.constraints.length).toBe(4);
     // Per side: patella, two sternoclavicular, two scapular counter-rotations, three
-    // acromioclavicular. Plus the nine lumbar level shares, and one costal weld: L2 splits the
-    // thorax in two, so the seven per side that cross the split collapse onto that one pair.
-    expect(l2.constraints.length).toBe(9 + 2 * 8 + 1);
-    expect(l2.constraints.filter((c) => c.kind.type === 'weld')).toHaveLength(1);
-    // L3 gives every rib its own body, so every costal weld survives.
+    // acromioclavicular. Plus the nine lumbar level shares, and two costal welds: L2 splits the
+    // thorax in two, so of the ten per side only the pair that spans the split survives -- one
+    // sternocostal and one of the costal margin's.
+    expect(l2.constraints.length).toBe(9 + 2 * 8 + 2);
+    expect(l2.constraints.filter((c) => c.kind.type === 'weld')).toHaveLength(2);
+    // L3 gives every rib its own body, so every costal weld survives: thirteen to the sternum
+    // and six more down the costal margin.
     const l3 = compileArticulation(document, 'l3_anatomical', morphology).articulation;
-    expect(l3.constraints.filter((c) => c.kind.type === 'weld')).toHaveLength(13);
+    expect(l3.constraints.filter((c) => c.kind.type === 'weld')).toHaveLength(19);
     expect(emitMjcf(l3, {}).xml).toContain('<weld name="sternocostal_7_l"');
     const patella = l2.constraints.find((c) => c.id === 'patellofemoral_r_follows_knee');
     expect(patella?.kind.type === 'jointCoupling' && patella.kind.drivers[0]?.higher?.length).toBe(

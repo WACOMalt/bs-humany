@@ -33,6 +33,7 @@ import {
   toSkeletonGeometry,
 } from '@bs-humany/render-three';
 import {
+  DEFAULT_SCENARIO,
   SCENARIO_DEFINITIONS,
   type ScenarioDefinition,
   inertiaAudit,
@@ -1116,6 +1117,10 @@ for (const d of SCENARIO_DEFINITIONS) {
   option.textContent = d.title;
   ui.scenario.appendChild(option);
 }
+// Standing, rather than the bare drop this opened with for the whole of phase one. A muscle
+// module's front page should show muscles doing something, and the tone a quietly standing
+// person holds is the one posture everybody already knows the look of.
+ui.scenario.value = DEFAULT_SCENARIO;
 
 /**
  * Parameter values the sliders are currently showing, per scenario.
@@ -1172,7 +1177,7 @@ function refreshScenarioParameters(): void {
   scenarioValues.set(definition.id, values);
 }
 
-ui.scenario.addEventListener('change', () => {
+function scenarioChanged(): void {
   const definition = definitionFor(ui.scenario.value);
   must<HTMLElement>('#scenario-note').textContent = definition?.description ?? '';
   must<HTMLElement>('#dropHeight-control').hidden = definition !== undefined;
@@ -1186,7 +1191,11 @@ ui.scenario.addEventListener('change', () => {
     ui.muscles.checked = true;
     must<HTMLElement>('#muscle-control').hidden = false;
   }
-});
+}
+ui.scenario.addEventListener('change', scenarioChanged);
+// Once at startup, because the picker opens on a scenario rather than on nothing and the note,
+// the sliders and the muscle box all follow from which one that is.
+scenarioChanged();
 ui.exportRecording.addEventListener('click', () => {
   if (!simulation) return;
   download(

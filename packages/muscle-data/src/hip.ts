@@ -216,7 +216,10 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Iliacus, right',
         origin: 'iliacus_origin_r_iliac_fossa',
         insertion: 'iliacus_insertion_r_lesser_trochanter',
-        path: [{ kind: 'site', site: 'iliacus_r__via_1' }],
+        path: [
+          { kind: 'site', site: 'iliacus_path_r_iliopubic_eminence' },
+          { kind: 'site', site: 'iliacus_r__via_1' },
+        ],
         parameters: {
           maxIsometricForce: 977.408,
           optimalFiberLength: 0.1066,
@@ -231,7 +234,10 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Psoas major, right',
         origin: 'psoas_major_origin_r_vertebral_body',
         insertion: 'psoas_major_insertion_r_lesser_trochanter',
-        path: [{ kind: 'site', site: 'psoas_major_r__via_1' }],
+        path: [
+          { kind: 'site', site: 'psoas_major_path_r_iliopubic_eminence' },
+          { kind: 'site', site: 'psoas_major_r__via_1' },
+        ],
         parameters: {
           maxIsometricForce: 1385.41,
           optimalFiberLength: 0.1169,
@@ -637,7 +643,10 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Iliacus, left',
         origin: 'iliacus_origin_l_iliac_fossa',
         insertion: 'iliacus_insertion_l_lesser_trochanter',
-        path: [{ kind: 'site', site: 'iliacus_l__via_1' }],
+        path: [
+          { kind: 'site', site: 'iliacus_path_l_iliopubic_eminence' },
+          { kind: 'site', site: 'iliacus_l__via_1' },
+        ],
         parameters: {
           maxIsometricForce: 977.408,
           optimalFiberLength: 0.1066,
@@ -652,7 +661,10 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Psoas major, left',
         origin: 'psoas_major_origin_l_vertebral_body',
         insertion: 'psoas_major_insertion_l_lesser_trochanter',
-        path: [{ kind: 'site', site: 'psoas_major_l__via_1' }],
+        path: [
+          { kind: 'site', site: 'psoas_major_path_l_iliopubic_eminence' },
+          { kind: 'site', site: 'psoas_major_l__via_1' },
+        ],
         parameters: {
           maxIsometricForce: 1385.41,
           optimalFiberLength: 0.1169,

@@ -1,6 +1,6 @@
 {
   "arm-flail/l3_anatomical/mujoco": {
-    "hash": "eb2be507ce18b714",
+    "hash": "6e2a2e4d3b777e8b",
     "ticks": 8000,
     "platform": "linux-x64"
   },
@@ -30,8 +30,13 @@
     "platform": "linux-x64"
   },
   "muscle-range-of-motion/l3_anatomical/mujoco": {
-    "hash": "7efc8e310731ab09",
+    "hash": "17490578ce676ff0",
     "ticks": 14000,
+    "platform": "linux-x64"
+  },
+  "quiet-standing/l3_anatomical/mujoco": {
+    "hash": "4838a50c10eb5160",
+    "ticks": 3000,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/mujoco": {
@@ -40,7 +45,7 @@
     "platform": "linux-x64"
   },
   "skull-wiggle/l3_anatomical/mujoco": {
-    "hash": "16faec0c3c62118b",
+    "hash": "2f2ce76a938f103d",
     "ticks": 4000,
     "platform": "linux-x64"
   },

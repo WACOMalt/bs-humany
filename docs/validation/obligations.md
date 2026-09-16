@@ -11,7 +11,7 @@ thing, by importing the package rather than grepping for a word. Where it is beh
 evidence is a named test, and the check confirms that test still exists by that name; whether
 it passes is the test suite's business, and CI runs both.
 
-Generated 2026-09-15. 10 of 10 obligations met.
+Generated 2026-09-16. 10 of 10 obligations met.
 
 ## 1. DelayLine primitive built and tested, unused.
 
@@ -26,7 +26,7 @@ Generated 2026-09-15. 10 of 10 obligations met.
 
 **Met.**
 
-- 172 sites across 35 structures, as muscle_origin and muscle_insertion and ligament
+- 552 sites across 270 structures, as muscle_origin and muscle_insertion and tendon_via_point and ligament
 - every site names a bone the document carries
 - every site carries a citation
 

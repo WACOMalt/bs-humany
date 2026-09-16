@@ -198,9 +198,63 @@ function ribCageWelds(): ConstraintDef[] {
   return out;
 }
 
+/**
+ * The costal margin: ribs eight to ten bound to the rib above rather than to the sternum.
+ *
+ * Gray has the cartilages of the eighth, ninth and tenth ribs reaching the sternum only
+ * indirectly -- each joins the lower border of the cartilage above it, and the chain of them is
+ * the costal margin you can feel under the ribs. `ribCageWelds` closes the loop for the seven
+ * true ribs and stops there, which leaves these three hanging from their vertebrae by one
+ * pump-handle hinge each and joined to nothing in front: the same open-blind failure the true
+ * ribs had, three levels lower and with a longer lever.
+ *
+ * Bound to the rib above and not to the sternum, because that is the joint that exists. The
+ * eleventh and twelfth are left alone: they end in the muscle of the abdominal wall and are free
+ * in life, so a model that lets them move is right about them.
+ */
+function costalMarginWelds(): ConstraintDef[] {
+  const out: ConstraintDef[] = [];
+  for (const s of ['r', 'l'] as const) {
+    const side = s === 'r' ? 'right' : 'left';
+    for (let n = TRUE_RIBS + 1; n <= FALSE_RIBS; n++) {
+      out.push({
+        id: `interchondral_${n}_${s}`,
+        displayName: `Costal cartilage, rib ${n} to rib ${n - 1}, ${side}`,
+        kind: { type: 'weld', bodyA: `rib_${n - 1}_${s}`, bodyB: `rib_${n}_${s}` },
+        // Soft, where the sternocostal welds are rigid, and the difference is not a preference.
+        // Each of these ribs already hangs from its own thoracic vertebra, and the vertebrae move
+        // relative to one another, so a rigid weld to the rib above closes a loop the spine can
+        // pull on: the solver cannot satisfy both and the cage ends a settling scenario still
+        // buzzing, four joules of kinetic energy that will not go away. A compliant weld is what
+        // cartilage is anyway, and it settles.
+        soft: true,
+        source: provisional(
+          'gray1918',
+          'OQ-011',
+          'The cartilages of the eighth, ninth and tenth ribs articulate with the cartilage of ' +
+            'the rib above. Compliant rather than rigid, because the rib also hangs from its own ' +
+            'vertebra and the pair of them over-constrains a moving spine; no cited stiffness ' +
+            'for the cartilage is in hand, and the alternative in place before this was no ' +
+            'connection at all.',
+        ),
+      });
+    }
+  }
+  return out;
+}
+
 /** Ribs bound directly to the sternum by their own cartilage. */
 export const TRUE_RIBS = 7;
 
+/** The last rib whose cartilage reaches the costal margin; the eleventh and twelfth float. */
+export const FALSE_RIBS = 10;
+
 export function buildConstraints(): ConstraintDef[] {
-  return [...lumbarCouplings(), ...sideCouplings('r'), ...sideCouplings('l'), ...ribCageWelds()];
+  return [
+    ...lumbarCouplings(),
+    ...sideCouplings('r'),
+    ...sideCouplings('l'),
+    ...ribCageWelds(),
+    ...costalMarginWelds(),
+  ];
 }

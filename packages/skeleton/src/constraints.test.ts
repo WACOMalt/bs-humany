@@ -1,7 +1,6 @@
 import { isSourced, validateDocument } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
-import { buildConstraints } from './constraints.js';
-import { TRUE_RIBS } from './constraints.js';
+import { FALSE_RIBS, TRUE_RIBS, buildConstraints } from './constraints.js';
 import { buildDocument } from './document.js';
 
 describe('joint couplings', () => {
@@ -36,13 +35,34 @@ describe('joint couplings', () => {
 
   it('close the rib cage, which a tree of joints cannot', () => {
     const welds = document.constraints.filter((c) => c.kind.type === 'weld');
-    // Both sides of ribs 1 to 7, less the first right rib, which carries the sternum already.
-    expect(welds).toHaveLength(2 * TRUE_RIBS - 1);
+    // Both sides of ribs 1 to 7 to the sternum, less the first right rib, which carries the
+    // sternum already; plus both sides of ribs 8 to 10 to the rib above, which is the costal
+    // margin. The eleventh and twelfth float, in life and here.
+    expect(welds).toHaveLength(2 * TRUE_RIBS - 1 + 2 * (FALSE_RIBS - TRUE_RIBS));
     expect(welds.map((c) => c.id)).toContain('sternocostal_7_l');
     expect(welds.map((c) => c.id)).not.toContain('sternocostal_1_r');
+    expect(welds.map((c) => c.id)).toContain('interchondral_8_r');
+    expect(welds.map((c) => c.id)).not.toContain('interchondral_11_r');
     for (const c of welds) {
       if (c.kind.type !== 'weld') throw new Error(c.id);
-      expect([c.kind.bodyA, c.kind.bodyB]).toContain('sternum');
+      const bodies = [c.kind.bodyA, c.kind.bodyB];
+      if (c.id.startsWith('interchondral_')) {
+        // Rib to the rib above, never to the sternum: that is the joint the costal margin is.
+        expect(
+          bodies.every((b) => b.startsWith('rib_')),
+          c.id,
+        ).toBe(true);
+        continue;
+      }
+      expect(bodies).toContain('sternum');
+    }
+  });
+
+  it('hold the costal margin compliantly and the sternum rigidly', () => {
+    for (const c of document.constraints.filter((x) => x.kind.type === 'weld')) {
+      // A rib that hangs from its own vertebra and is also tied to the rib above closes a loop a
+      // moving spine pulls on. Rigid, that loop never settles; compliant, it does.
+      expect(c.soft, c.id).toBe(c.id.startsWith('interchondral_'));
     }
   });
 

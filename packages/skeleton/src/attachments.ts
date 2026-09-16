@@ -132,6 +132,18 @@ interface MuscleSpec {
    * all four sits at a quarter of the way down the femur -- higher than the muscle goes.
    */
   readonly footprint?: ReadonlyArray<readonly [string, string]>;
+  /**
+   * Bony features the muscle passes over on its way, rather than attaches to.
+   *
+   * A via point in the usual sense, but stated the way everything else in this file is stated --
+   * as a feature Gray names in the muscle's own description -- because these are the ones the
+   * reference model holds in a frame this package has no correspondence for. The iliopsoas is
+   * the case: Gray has it crossing the pelvic brim at the iliopubic eminence before it turns back
+   * to the lesser trochanter, and without that bend the drawn path is a chord that passes behind
+   * the hip's centre once the thigh is extended, so the flexor reads as an extensor and the leg
+   * cannot be brought back.
+   */
+  readonly path?: ReadonlyArray<readonly [string, string]>;
   readonly bilateral: boolean;
 }
 
@@ -411,9 +423,16 @@ const MUSCLES: readonly MuscleSpec[] = [
       ['sacrum', 'Dorsal_surface_of_sacrum'],
       ['hip_$', 'Iliac_crest'],
     ],
+    // Gray: it splits as it ascends and attaches all the way up -- the transverse and spinous
+    // processes of the lumbar and thoracic vertebrae, and the angles of the ribs. Those are
+    // attachments and they are also the line the muscle follows, which is why two of them are
+    // path points in the torso set: a straight run from the sacrum to the sixth rib chords
+    // through the abdomen instead of lying in the groove beside the spine.
     insertions: [
       ['rib_6_$', 'Angle_of_rib'],
       ['vertebra_l3', 'Transverse_process'],
+      ['vertebra_l3', 'Spinous_process'],
+      ['vertebra_t8', 'Spinous_process_tip'],
     ],
   },
   {
@@ -455,6 +474,10 @@ const MUSCLES: readonly MuscleSpec[] = [
       ['vertebra_l3', 'Transverse_process'],
     ],
     insertions: [['femur_$', 'Lesser_trochanter']],
+    // Gray: it passes beneath the inguinal ligament over the brim of the pelvis, and the brim it
+    // crosses is the iliopubic eminence. That is a bend and not an attachment, which is what
+    // `path` is for.
+    path: [['hip_$', 'Iliopubic_eminence']],
   },
   {
     id: 'iliacus',
@@ -463,6 +486,8 @@ const MUSCLES: readonly MuscleSpec[] = [
     bilateral: true,
     origins: [['hip_$', 'Iliac_fossa']],
     insertions: [['femur_$', 'Lesser_trochanter']],
+    // The same brim, joined to the same tendon. See psoas major above.
+    path: [['hip_$', 'Iliopubic_eminence']],
   },
   {
     id: 'gluteus_maximus',
@@ -858,7 +883,12 @@ function side(bone: string, s: 'l' | 'r'): string {
 export function attachmentGaps(): string[] {
   const gaps: string[] = [];
   for (const m of MUSCLES) {
-    for (const [bone, feature] of [...m.origins, ...m.insertions, ...(m.ligaments ?? [])]) {
+    for (const [bone, feature] of [
+      ...m.origins,
+      ...m.insertions,
+      ...(m.ligaments ?? []),
+      ...(m.path ?? []),
+    ]) {
       const id = side(bone, 'r');
       // `located` is the question, not the raw table: a point measured along a ridge is located,
       // and the dataset's own marker for that ridge is not where the muscle starts.
@@ -965,6 +995,7 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
       place(m.origins, 'muscle_origin', 'origin');
       place(m.insertions, 'muscle_insertion', 'insertion');
       if (m.ligaments) place(m.ligaments, 'ligament', 'ligament');
+      if (m.path) place(m.path, 'tendon_via_point', 'path');
       if (m.footprint) placeFootprint(m, s, out, seen);
     }
   }

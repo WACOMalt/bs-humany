@@ -59,6 +59,12 @@ const UNITS = [
     id: 'erector_spinae_$',
     name: 'Erector spinae',
     origin: 'erector_spinae_origin_$_dorsal_surface_of_sacrum',
+    // Up the back, through two of its own attachments. Without them the path is a chord from the
+    // sacrum to the sixth rib and runs inside the ribcage.
+    via: [
+      'erector_spinae_insertion_$_spinous_process',
+      'erector_spinae_insertion_$_spinous_process_tip',
+    ],
     insertion: 'erector_spinae_insertion_$_angle_of_rib',
   },
   {

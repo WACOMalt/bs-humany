@@ -758,3 +758,60 @@ asset pack whose muscle meshes show where the belly actually begins (section 9.4
 that reports proximal and distal tendon lengths separately.
 **Status:** partly addressed -- the belly is off the joints; where it sits between them is still a
 guess.
+
+### OQ-024 — Standing up is a reflex, and a scenario script cannot see enough to be one
+**Needed for:** the `quiet-standing` scenario, which is what the studio opens on
+**Provisional value:** the ankle strategy alone, on the tone in `POSTURAL_TONE`.
+
+Quiet standing looks passive and is not. The body is an inverted pendulum with most of its mass a
+metre up and a base the length of a foot, and the excitations a standing person holds -- soleus
+around a tenth of maximum, gastrocnemius half that, a few per cent in the trunk and hip
+stabilisers -- hold it only at the lean it already has. Move the lean and the same tone is either
+too much or not enough.
+
+So `quiet-standing` closes one loop: lean measured as the head over the ankle along the foot's own
+anterior, the calf taking the forward half and tibialis anterior the backward half, each with a
+term in the lean and a term in its rate. That is the ankle strategy, and it buys about a second.
+Then the hips fold -- both driven to their thirty-degree extension stop -- and the body goes over.
+
+**What was tried, 2026-09-16.** A hip channel on the same measurement taken at the pelvis: flexors
+against a forward overhang, extensors against a backward one, which is the hip strategy as the
+posture literature describes it. It did not help. At a gain small enough to be stable it changed
+the time of the fall by a twentieth of a second; at a gain large enough to matter it brought the
+fall forward. The reason is visible in the diagnostic rather than in the gain: the hip is not
+falling because the pelvis has drifted over the ankle, it is falling because nothing is holding
+*the joint*, and a controller aimed at the body's position cannot hold a joint it cannot measure.
+
+`ScenarioApi` offers `segment`, `segmentPosition`, `grab` and `drive`. There is no way to ask what
+angle a joint is at, which is what a postural servo needs and what every published standing
+controller uses. Widening that interface is the fix and it is not a one-line one: a scenario is
+data, deliberately ignorant of the muscle and articulation packages, and handing it joint state
+means deciding what a scenario is allowed to know.
+
+**Closes when:** either `ScenarioApi` carries joint state and `quiet-standing` closes a servo per
+postural joint, or the scenario is honest about being a posture and a separate control module owns
+standing. Until then the scenario stands for a second and says so in its own description.
+**Status:** open. The muscle loads are right; the reflexes above the ankle are missing.
+
+### OQ-025 — The intercostals have no source for what they can pull with
+**Needed for:** muscles between the ribs, which the rib cage has none of
+**Provisional value:** none. The ribs are held together by cartilage constraints instead.
+
+The rib cage is now closed twice over: the seven true ribs welded to the sternum, and ribs eight
+to ten down the costal margin to the rib above, compliantly, because each also hangs from its own
+vertebra and a rigid loop there never settles. What holds the cage is therefore the cartilage, and
+what is missing is every muscle in it -- eleven pairs of external intercostals and eleven of
+internal, on each side, plus the diaphragm.
+
+The obstacle is peak force and only peak force. Path is not a problem: Gray gives every
+interspace, the dataset marks the ribs, and the geometry would come out of this package the way
+every other muscle's does. Optimal fiber length is not a problem either -- OQ-022 settled that a
+travel-derived stand-in is good to about fifty per cent, and an intercostal is a short parallel
+muscle spanning one interspace, which is the easy case. But force is `PCSA` times specific
+tension, and nothing this project may use states an intercostal's cross-sectional area. The
+vendored MyoSuite torso is a lumbar spine model with a rigid thorax: two hundred and ten fascicles
+and not one of them between two ribs.
+
+**Closes when:** a source that states intercostal architecture is added to the bibliography and
+the units are generated from it, the way every other region's are.
+**Status:** open, and the reason the rib cage is bound by constraints rather than by muscle.

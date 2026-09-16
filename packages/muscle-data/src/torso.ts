@@ -48,7 +48,10 @@ export const TORSO_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Erector spinae, right',
         origin: 'erector_spinae_origin_r_dorsal_surface_of_sacrum',
         insertion: 'erector_spinae_insertion_r_angle_of_rib',
-        path: [],
+        path: [
+          { kind: 'site', site: 'erector_spinae_insertion_r_spinous_process' },
+          { kind: 'site', site: 'erector_spinae_insertion_r_spinous_process_tip' },
+        ],
         parameters: {
           maxIsometricForce: 2481.1,
           optimalFiberLength: 0.180453,
@@ -144,7 +147,10 @@ export const TORSO_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Erector spinae, left',
         origin: 'erector_spinae_origin_l_dorsal_surface_of_sacrum',
         insertion: 'erector_spinae_insertion_l_angle_of_rib',
-        path: [],
+        path: [
+          { kind: 'site', site: 'erector_spinae_insertion_l_spinous_process' },
+          { kind: 'site', site: 'erector_spinae_insertion_l_spinous_process_tip' },
+        ],
         parameters: {
           maxIsometricForce: 2435.99,
           optimalFiberLength: 0.165819,
