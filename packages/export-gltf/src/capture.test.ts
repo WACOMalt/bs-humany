@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BoneCapture,
   CAPTURE_BUDGET_BYTES,
+  EXPORT_PEAK_MULTIPLE,
   MIN_CAPTURE_BUDGET_BYTES,
   captureCeilingBytes,
   defaultCaptureBudgetBytes,
@@ -148,12 +149,15 @@ describe('BoneCapture', () => {
 
   it('sizes its default budget from what the machine will admit to', () => {
     // Neither `performance.memory` nor `navigator.deviceMemory` exists under Node, which is the
-    // fallback path: four gigabytes assumed, two thirds of it taken, and never below the floor.
+    // fallback path: four gigabytes assumed, a fifth of it taken, and never below the floor.
     const ceiling = captureCeilingBytes();
     expect(ceiling).toBeGreaterThanOrEqual(MIN_CAPTURE_BUDGET_BYTES);
     expect(defaultCaptureBudgetBytes()).toBe(
-      Math.max(MIN_CAPTURE_BUDGET_BYTES, Math.floor((ceiling * 2) / 3)),
+      Math.max(MIN_CAPTURE_BUDGET_BYTES, Math.floor(ceiling / EXPORT_PEAK_MULTIPLE)),
     );
+    // The default has to survive the export, which needs several copies of the capture live at
+    // once: a budget that fills happily and dies on the Export button is the worst failure here.
+    expect(defaultCaptureBudgetBytes() * EXPORT_PEAK_MULTIPLE).toBeLessThanOrEqual(ceiling);
     expect(defaultCaptureBudgetBytes()).toBeLessThanOrEqual(ceiling);
   });
 

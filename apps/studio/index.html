@@ -256,11 +256,15 @@
           bones and one for the muscle cross-sections, and whichever fills first stops both. Pause
           before raising it and the capture carries on from where it stopped; raise it while the
           run is going and capture starts again from that moment, because the ticks in between
-          were never taken and the export promises a keyframe for every one. The ceiling is this
-          tab's own JavaScript heap rather than the machine's memory: a page is not given the host,
-          and a capture that runs past the heap does not stop politely &mdash; the tab dies and
-          takes the run with it. A muscle frame is about twenty times a bone frame, so a run with
-          the full set costs roughly a hundred and ten kilobytes a tick.</p>
+          were never taken and the export promises a keyframe for every one.</p>
+          <p class="note">The ceiling is this tab's own JavaScript heap rather than the machine's
+          memory: a page is not given the host, and a capture that runs past the heap does not stop
+          politely &mdash; the tab dies and takes the run with it. It opens at a fifth of that
+          ceiling because writing the file needs about five copies of the capture live at once, so
+          a bigger budget captures happily and then dies on the Export button. Above the default is
+          yours to judge. A muscle frame is about twenty times a bone frame: a run with the full
+          set costs roughly a hundred and ten kilobytes a tick, so a gigabyte is about nineteen
+          seconds at 500 Hz.</p>
           <input type="file" id="load-file" accept="application/json" hidden />
         </div>
       </section>

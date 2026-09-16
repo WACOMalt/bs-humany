@@ -32,9 +32,8 @@ export const MIN_CAPTURE_BUDGET_BYTES = 32 * 1024 * 1024;
  * which is the host's RAM rounded to a power of two and capped at eight gigabytes for
  * fingerprinting reasons -- an approximation, and the only one the platform offers.
  *
- * Two thirds of that ceiling, because the capture is not the only thing on the heap: the skeleton
- * meshes, the physics state and the swept muscle geometry all live there too, and a capture that
- * took everything left would only move the crash.
+ * What a *default* takes of that ceiling is a fifth, and the reason is the export rather than the
+ * capture: writing the file needs several copies of it live at once. See `EXPORT_PEAK_MULTIPLE`.
  */
 export function captureCeilingBytes(): number {
   const heap = (
@@ -47,9 +46,30 @@ export function captureCeilingBytes(): number {
   return 4 * 1024 * 1024 * 1024;
 }
 
-/** The budget to start from on this machine: two thirds of the ceiling, and never below the floor. */
+/**
+ * Roughly how much heap the export needs, as a multiple of the capture, at the moment it writes.
+ *
+ * Counted rather than guessed, for a run with the muscle set going -- which is the expensive case,
+ * because the ring capture is twenty times the bone capture:
+ *
+ *   1.00  the capture itself, in its growable chunks
+ *   1.00  `view()`, which copies those chunks into one contiguous block per stream
+ *   1.25  the exporter's own keyframe arrays, which cover ring joints and bones together
+ *   1.25  the glTF buffer they are packed into
+ *
+ * A little over four and a half, called five. A budget above a fifth of the ceiling is therefore
+ * a budget that captures happily and dies on the Export button, which is the worst of the
+ * available failures -- so that is where the default sits. The slider goes higher because the
+ * number is an estimate and the person at the keyboard may know better than the estimate.
+ */
+export const EXPORT_PEAK_MULTIPLE = 5;
+
+/** The budget to start from on this machine: what the export can afford, never below the floor. */
 export function defaultCaptureBudgetBytes(): number {
-  return Math.max(MIN_CAPTURE_BUDGET_BYTES, Math.floor((captureCeilingBytes() * 2) / 3));
+  return Math.max(
+    MIN_CAPTURE_BUDGET_BYTES,
+    Math.floor(captureCeilingBytes() / EXPORT_PEAK_MULTIPLE),
+  );
 }
 
 const CHUNK_FRAMES = 256;
