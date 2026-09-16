@@ -130,16 +130,24 @@
         <label class="checkbox"><input type="checkbox" id="floor" checked /> Floor collision</label>
         <label class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
         <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
-        <label class="checkbox"><input type="checkbox" id="fullFidelity" /> Run in simulated time, not real time</label>
-        <div class="control" id="fidelity-control" hidden>
-          <label for="targetRate">Simulated rate <output id="targetRate-value">1000 Hz</output></label>
-          <input type="range" id="targetRate" min="10" max="2000" step="10" value="1000" />
-          <p class="note">Simulated time produced per second of real time. Set it to the profile's
-          own rate for life speed, lower for slow motion with every tick still taken. A fixed step
-          never skips a tick &mdash; what the default drops when it falls behind is elapsed
-          <em>real</em> time &mdash; and this does not discard either: ask for more than the
-          machine can sustain and it falls behind rather than skipping. Pause and use Step to go a
-          tick at a time.</p>
+        <div class="control">
+          <label for="outputFramerate">Output frame rate <output id="outputFramerate-value">60 fps</output></label>
+          <input type="range" id="outputFramerate" min="1" max="240" step="1" value="60" />
+          <label for="stepsPerSecond">Simulation steps per second <output id="stepsPerSecond-value">500</output></label>
+          <input type="range" id="stepsPerSecond" min="60" max="2000" step="20" value="500" />
+          <p class="note live" id="rate-note"></p>
+          <p class="note">A second of simulated time is a second of the exported timeline, always.
+          The step rate says how finely that second is computed and there is one keyframe for every
+          step; the output rate says how finely the Blender timeline is divided. Nothing is
+          resampled between them &mdash; a thousand steps into a 60 fps scene puts about seventeen
+          keyframes inside each frame and they are all real, so raising the scene's rate later
+          gives you frames rather than interpolation.</p>
+          <p class="note">One rendered frame advances the simulation by exactly one output frame,
+          whatever the machine was doing: every step is taken and every step is captured. A slow
+          machine takes longer in wall-clock seconds and produces the identical run. Playback moves
+          one output frame per display refresh, so 60 fps output on a 60 Hz display is life speed
+          and 24 is two and a half times life; neither changes the export. Changing the step rate
+          starts a new run, because the timestep is fixed for the life of one.</p>
         </div>
         <label class="checkbox"><input type="checkbox" id="muscles" checked /> Muscles</label>
         <div class="control" id="muscle-control">

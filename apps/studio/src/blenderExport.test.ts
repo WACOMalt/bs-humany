@@ -26,7 +26,11 @@ const assets = await loadSkeletonAssetsFromDisk(
   fileURLToPath(new URL('../../../packages/assets-anatomical/data', import.meta.url)),
 );
 
-async function running(ticks: number, captureBudgetBytes?: number): Promise<Simulation> {
+async function running(
+  ticks: number,
+  captureBudgetBytes?: number,
+  rates: { outputFramerate?: number; stepsPerSecond?: number } = {},
+): Promise<Simulation> {
   const simulation = new Simulation(
     document,
     resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 }),
@@ -39,6 +43,7 @@ async function running(ticks: number, captureBudgetBytes?: number): Promise<Simu
       groundHeight: 0,
       muscles: true,
       captureBudgetBytes,
+      ...rates,
     },
   );
   await simulation.start();
@@ -89,6 +94,54 @@ describe('the Blender export, with muscles', () => {
     }
     // And the skeleton is still there, which a muscle change must not cost.
     expect(json.nodes.some((n) => n.name === 'humerus_r')).toBe(true);
+    simulation.dispose();
+  }, 60_000);
+
+  it('runs the same ticks per frame however long the frames took', async () => {
+    // "Play every frame", pinned. `advance` takes an elapsed time and must not pace by it: what a
+    // frame advances is one output frame's worth of simulated time. So a run fed a jittering
+    // clock -- a browser stalling on garbage collection, a tab in the background -- has to land on
+    // exactly the tick a run fed a steady one did, or a capture is at the mercy of how busy the
+    // machine was when it was taken.
+    const steady = await running(0, undefined, { outputFramerate: 30 });
+    for (let f = 0; f < 20; f++) steady.advance(1 / 60);
+    const jittery = await running(0, undefined, { outputFramerate: 30 });
+    const stalls = [0, 0.001, 2.5, 0.016, 0.4, 0.0001, 1, 0.016, 0.016, 0.9];
+    for (let f = 0; f < 20; f++) jittery.advance(stalls[f % stalls.length] as number);
+
+    // Twenty frames at 30 fps output is two thirds of a second, whatever the clock did. The
+    // fractional tick is carried rather than rounded per frame, so the total is the floor of the
+    // whole sum and not the sum of twenty roundings.
+    expect(steady.ticks).toBe(jittery.ticks);
+    expect(steady.ticks).toBe(Math.floor((20 / 30) * steady.stepsPerSecond));
+    expect(steady.capture.frameCount).toBe(steady.ticks);
+    expect(jittery.capture.frameCount).toBe(jittery.ticks);
+    steady.dispose();
+    jittery.dispose();
+  }, 60_000);
+
+  it('gives the timeline a second for every simulated second, at either rate', async () => {
+    // The timing contract, from the capture through to the scene the script sets up. Sixty steps
+    // and 30 fps out: half a second of run, half a second of timeline, and sixty keyframes still
+    // in it rather than thirty -- the output rate divides the timeline, it does not resample the
+    // motion.
+    const simulation = await running(60, undefined, { outputFramerate: 30, stepsPerSecond: 120 });
+    expect(simulation.stepsPerSecond).toBe(120);
+    const exported = buildBlenderExport(simulation, document, assets);
+    expect(exported.rate).toBe(120);
+    expect(exported.outputFramerate).toBe(30);
+    expect(exported.seconds).toBeCloseTo(0.5, 6);
+    expect(exported.frames).toBe(60);
+    expect(exported.script).toContain('scene.render.fps = 30');
+    expect(exported.script).toContain('scene.frame_end = 15');
+
+    // And in the file itself: keyframe times are tick over step rate, in seconds, evenly spaced.
+    const { json, binary } = readGlb(exported.glb) as unknown as { json: Gltf; binary: Uint8Array };
+    const sampler = json.animations[0]?.samplers[0];
+    const times = floats(json, binary, sampler?.input as number);
+    expect(times).toHaveLength(60);
+    expect(times[0]).toBeCloseTo(0, 6);
+    expect(times[59]).toBeCloseTo(59 / 120, 6);
     simulation.dispose();
   }, 60_000);
 

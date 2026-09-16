@@ -170,11 +170,36 @@ describe('the animated glb', () => {
 });
 
 describe('the Blender script', () => {
-  it('sets the scene rate to the simulation rate before importing', () => {
-    const script = blenderImportScript({ glbFileName: 'run.glb', rate: 500, frames: 2500 });
-    expect(script).toContain('scene.render.fps = 500');
-    expect(script).toContain('scene.frame_end = 2499');
+  it('sets the scene to the output rate, and the range to the run in seconds', () => {
+    // Five seconds of a 500 Hz run into a 60 fps scene: 300 frames, not 2500, and the 2500
+    // keyframes stay where they are between them. The scene rate is the output rate -- that is
+    // the whole of the split, and it is what makes a simulated second a second of timeline.
+    const script = blenderImportScript({
+      glbFileName: 'run.glb',
+      rate: 500,
+      outputFramerate: 60,
+      frames: 2500,
+    });
+    expect(script).toContain('scene.render.fps = 60');
+    expect(script).toContain('scene.frame_end = 300');
     expect(script).toContain('bpy.ops.import_scene.gltf(filepath=path)');
+    // And a second of simulated time is a second of timeline at any pair of rates, which is the
+    // property worth pinning: frame_end over fps has to equal frames over the step rate.
+    for (const [rate, fps, frames] of [
+      [500, 60, 2500],
+      [1000, 24, 4000],
+      [500, 500, 1500],
+      [240, 30, 481],
+    ] as const) {
+      const other = blenderImportScript({
+        glbFileName: 'x.glb',
+        rate,
+        outputFramerate: fps,
+        frames,
+      });
+      const end = Number(/scene\.frame_end = (\d+)/.exec(other)?.[1]);
+      expect(end / fps).toBeCloseTo(frames / rate, 2);
+    }
     expect(script).toContain('"run.glb"');
     // A hundred metre-wide empties would bury the skeleton in axes.
     expect(script).toContain('empty_display_size = 0.01');

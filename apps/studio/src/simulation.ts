@@ -22,12 +22,7 @@ import {
 import { BoneCapture, MuscleRingCapture, defaultCaptureBudgetBytes } from '@bs-humany/export-gltf';
 import type { Quat, Vec3 } from '@bs-humany/frames';
 import type { HsdlDocument } from '@bs-humany/hsdl';
-import {
-  type FrameStepPlan,
-  Kernel,
-  type KernelSnapshot,
-  accumulateFrame,
-} from '@bs-humany/kernel';
+import { type FrameStepPlan, Kernel, type KernelSnapshot } from '@bs-humany/kernel';
 import {
   BODY_BONE_TRANSFORMS,
   BODY_JOINT_STATE,
@@ -93,6 +88,15 @@ export interface SimulationOptions {
    * twice over to prove what happens there.
    */
   readonly captureBudgetBytes?: number | undefined;
+  /**
+   * Simulation steps per second of simulated time. Defaults to the profile's own solver rate.
+   *
+   * Fixed for the life of the run: `dt` is immutable, which is what makes two runs of a scenario
+   * identical, so the panel restarts rather than retunes.
+   */
+  readonly stepsPerSecond?: number | undefined;
+  /** Frames a second of simulated time is divided into, for playback and for the export. */
+  readonly outputFramerate?: number | undefined;
 }
 
 export interface BoneTransformsView {
@@ -132,7 +136,8 @@ export interface Recording {
  * schedules more work, which makes the next frame slower still. Sixty at 1000 Hz is 60 ms of
  * simulated time in one frame, which is far more than a display can use and still bounded.
  */
-const MAX_TICKS_PER_FRAME = 60;
+/** Frames a second of output is divided into, when nobody has said otherwise. */
+export const DEFAULT_OUTPUT_FRAMERATE = 60;
 
 function makeBackend(id: BackendId): IPhysicsBackend {
   return id === 'rapier' ? new RapierBackend() : new MujocoBackend();
@@ -161,7 +166,6 @@ export class Simulation {
   readonly groundHeight: number;
   readonly dt: number;
   readonly recording: Recording;
-  private accumulator = 0;
   private started = false;
   private readonly snapshotEvery: number;
   private readonly recordEvery: number;
@@ -169,46 +173,40 @@ export class Simulation {
   private readonly timeline: { tick: number; snapshot: KernelSnapshot }[] = [];
   private readonly timelineCapacity = 600;
   private scriptApi: ScenarioApi | undefined;
-  /** Ticks run so far, wall-clock cost of the last frame's ticks, and whether time was dropped. */
+  /** Ticks run so far, and the wall-clock cost of the last frame's ticks. */
   ticks = 0;
   paused = false;
-  clamped = false;
   lastStepMs = 0;
   /**
-   * Advance in simulated time rather than chasing the wall clock.
+   * Frames a second of simulated time is divided into for playback and for the export.
    *
-   * Worth being exact about what the default gives up, because the name it used to have here was
-   * wrong. A fixed timestep never skips a tick: the kernel runs tick N, then N+1, and simulated
-   * time advances by exactly `dt` each one. What `accumulateFrame` discards when the machine
-   * falls behind is elapsed *real* time -- so the simulation stays complete and falls behind the
-   * clock, rather than staying with the clock and going coarse.
+   * The wall clock has nothing to do with this and that is the point. One rendered frame advances
+   * the simulation by exactly one output frame's worth of simulated time -- `stepsPerSecond /
+   * outputFramerate` ticks, with the remainder carried so the average is exact -- and it does that
+   * whether the frame took two milliseconds or two seconds. A slow machine produces the same
+   * frames more slowly. It never produces fewer of them.
    *
-   * So this is not about fidelity within a run. It is about not having the playback rate depend
-   * on how busy the machine was: each rendered frame advances exactly `ticksPerFrame` ticks, the
-   * speed is yours to set, and at one tick per frame it advances a frame at a time. Two runs of
-   * the same scenario were always identical; this makes them take the same number of frames too.
+   * What that replaces is a pair of modes that both chased the wall clock, one of which discarded
+   * elapsed time to stay with it and reported the loss as "frames are being dropped". No tick was
+   * ever actually lost -- a fixed timestep cannot skip one -- but the phrase was earned in the
+   * sense that mattered least and alarming in the sense that mattered most, and neither mode had
+   * any business being the thing a capture for export depended on.
+   *
+   * On playback this means the picture advances one output frame per display refresh: at 60 fps
+   * output on a 60 Hz display that is life speed, and at 24 it is two and a half times life. The
+   * export does not notice either way -- a keyframe's time comes from its tick index and
+   * `stepsPerSecond`, and neither of those knows what the display was doing.
    */
-  fullFidelity = false;
-  /**
-   * Simulated seconds to produce per second of wall-clock time, expressed as a tick rate.
-   *
-   * Set it to the profile's own rate and the simulation runs at life speed; set it lower and it
-   * runs in slow motion, every tick still taken. Nothing is discarded to hit the target: the
-   * remainder carries between frames, so asking for a rate the machine cannot sustain makes the
-   * simulation fall behind rather than skip, and `achievedRateHz` is where that shows.
-   */
-  targetRateHz: number;
-  /** Ticks left owing from earlier frames. Bounded, so a slow machine cannot build a backlog. */
-  private owed = 0;
+  outputFramerate: number;
+  /** Fractional ticks carried between frames, so a non-integer ticks-per-frame averages out. */
+  private owedTicks = 0;
   /**
    * Ticks actually run per second of wall-clock time, over the last half second.
    *
-   * Not the same as the profile's rate, and the difference is worth seeing. The profile says what
-   * a second of *simulated* time is divided into; this says how fast that simulated time is being
-   * produced. They agree only when the machine is keeping up. Below the declared rate in the
-   * normal mode means time is being discarded to stay with the clock; in full fidelity nothing is
-   * discarded and this is simply how fast the simulation is running, which may be slower than
-   * life and is then the honest answer rather than a fault.
+   * Not a target and not a fault: nothing is discarded to reach a number, so this is simply how
+   * fast simulated time is coming out. Against `declaredRateHz` it reads as a speed -- equal is
+   * life speed, half is half speed -- and on a machine that cannot keep up it is lower and the
+   * run takes longer in wall-clock seconds and is otherwise identical.
    */
   achievedRateHz = 0;
   /** Wall-clock seconds and ticks accumulated toward the next `achievedRateHz` reading. */
@@ -257,7 +255,10 @@ export class Simulation {
         );
     this.staticBoxes = options.scenario?.staticBoxes ?? [];
     this.groundHeight = options.scenario?.ground.height ?? options.groundHeight;
-    const rate = profile.solver?.rate ?? 500;
+    // The profile's own rate unless somebody asked for another. It is fixed for the life of the
+    // clock -- `dt` is immutable, which is what makes a run reproducible -- so changing it in the
+    // panel starts a new run rather than bending this one.
+    const rate = options.stepsPerSecond ?? profile.solver?.rate ?? 500;
     this.dt = 1 / rate;
     this.backendId = options.backend;
     const backend = makeBackend(options.backend);
@@ -322,8 +323,7 @@ export class Simulation {
       this.kernel.register(this.muscleVolume);
     }
 
-    // Life speed, which is where a run starts before anyone slows it down to watch something.
-    this.targetRateHz = rate;
+    this.outputFramerate = options.outputFramerate ?? DEFAULT_OUTPUT_FRAMERATE;
     this.snapshotEvery = Math.max(1, Math.round((options.snapshotEverySeconds ?? 0.1) * rate));
     this.recordEvery = options.recordEveryTicks ?? Math.round(rate / 50);
     this.recording = {
@@ -369,38 +369,35 @@ export class Simulation {
     return this.ticks * this.dt;
   }
 
-  /** Advance by wall-clock elapsed seconds, in fixed ticks, unless paused. */
+  /** Simulation steps a second of simulated time is divided into. `dt` is the authority. */
+  get stepsPerSecond(): number {
+    return Math.round(1 / this.dt);
+  }
+
+  /** Ticks one output frame is worth, which is what a rendered frame advances. */
+  get ticksPerOutputFrame(): number {
+    return this.stepsPerSecond / Math.max(1, this.outputFramerate);
+  }
+
+  /**
+   * Advance by exactly one output frame, unless paused.
+   *
+   * `elapsedSeconds` is measurement and nothing else -- it feeds `achievedRateHz` and does not
+   * decide how much to run. That is the whole change: how far the simulation goes this frame is a
+   * function of `stepsPerSecond` and `outputFramerate`, both of which somebody chose, and of
+   * nothing the machine was doing at the time. Two runs of one scenario produce the same ticks in
+   * the same frames on any machine, and the capture the export reads is the same either way.
+   */
   advance(elapsedSeconds: number): FrameStepPlan {
     if (!this.started || this.paused) return { ticks: 0, alpha: 0, remainder: 0, clamped: false };
-    if (this.fullFidelity) {
-      this.owed += Math.max(0, this.targetRateHz) * elapsedSeconds;
-      // A ceiling on one frame's work, so a slow frame cannot schedule a slower one. What it does
-      // not do is throw the surplus away: it stays owed, and the simulation catches up on the
-      // frames that have room.
-      const ticks = Math.min(Math.floor(this.owed), MAX_TICKS_PER_FRAME);
-      this.owed -= ticks;
-      // Beyond a frame's worth of backlog the machine is simply not keeping up with the rate it
-      // was asked for, and holding more would only make the lag grow without bound. Capping it
-      // means the simulation runs as fast as it can; `achievedRateHz` says how fast that is.
-      this.owed = Math.min(this.owed, MAX_TICKS_PER_FRAME);
-
-      const started = performance.now();
-      for (let i = 0; i < ticks; i++) this.tick();
-      if (ticks > 0) this.lastStepMs = (performance.now() - started) / ticks;
-      this.measureRate(elapsedSeconds, ticks);
-      // The wall-clock accumulator belongs to the other mode and is not what drives this one.
-      this.accumulator = 0;
-      this.clamped = false;
-      return { ticks, alpha: 0, remainder: 0, clamped: false };
-    }
-    const plan = accumulateFrame(this.accumulator, elapsedSeconds, this.dt);
-    this.accumulator = plan.remainder;
+    this.owedTicks += this.ticksPerOutputFrame;
+    const ticks = Math.floor(this.owedTicks);
+    this.owedTicks -= ticks;
     const started = performance.now();
-    for (let i = 0; i < plan.ticks; i++) this.tick();
-    this.lastStepMs = plan.ticks > 0 ? (performance.now() - started) / plan.ticks : this.lastStepMs;
-    this.clamped = plan.clamped;
-    this.measureRate(elapsedSeconds, plan.ticks);
-    return plan;
+    for (let i = 0; i < ticks; i++) this.tick();
+    if (ticks > 0) this.lastStepMs = (performance.now() - started) / ticks;
+    this.measureRate(elapsedSeconds, ticks);
+    return { ticks, alpha: 0, remainder: this.owedTicks, clamped: false };
   }
 
   /**

@@ -28,7 +28,12 @@ export interface BlenderExport {
   readonly glbFileName: string;
   readonly scriptFileName: string;
   readonly frames: number;
+  /** Simulation steps per second: one keyframe each, and what sets a keyframe's time. */
   readonly rate: number;
+  /** Frames a second of the exported timeline is divided into. */
+  readonly outputFramerate: number;
+  /** Simulated seconds the export covers, which is the same number of seconds in Blender. */
+  readonly seconds: number;
   readonly full: boolean;
 }
 
@@ -133,7 +138,11 @@ export function buildBlenderExport(
   assets: SkeletonAssets,
 ): BlenderExport {
   const capture = simulation.capture.view();
-  const rate = Math.round(1 / simulation.dt);
+  // One keyframe per simulation step, timed in seconds. That is the whole of the timing contract:
+  // a second of simulated time is a second of Blender timeline, however many steps went into it
+  // and whatever frame rate the scene is set to. Nothing here resamples.
+  const rate = simulation.stepsPerSecond;
+  const outputFramerate = Math.max(1, Math.round(simulation.outputFramerate));
   const context = simulation.resolved.context;
   const stature = evaluate(param('stature'), context);
   const datasetScale = stature / assets.manifest.subjectStature;
@@ -353,13 +362,18 @@ export function buildBlenderExport(
 
   const times = Float64Array.from({ length: capture.frames }, (_, f) => f / rate);
 
-  const stem = `bs-humany-${simulation.recording.scenario}-${simulation.articulation.profileId}-${rate}hz`;
+  const seconds = capture.frames / rate;
+  const stem =
+    `bs-humany-${simulation.recording.scenario}-${simulation.articulation.profileId}` +
+    `-${rate}hz-${outputFramerate}fps`;
   const glb = buildAnimatedGlb({
     nodes,
     animation: { times, position, orientation, scale },
     generator: 'bs-humany studio (export-gltf)',
     extras: {
       rateHz: rate,
+      outputFramerate,
+      seconds,
       frames: capture.frames,
       firstTick: capture.firstTick,
       captureFull: capture.full,
@@ -381,11 +395,18 @@ export function buildBlenderExport(
   });
   return {
     glb,
-    script: blenderImportScript({ glbFileName: `${stem}.glb`, rate, frames: capture.frames }),
+    script: blenderImportScript({
+      glbFileName: `${stem}.glb`,
+      rate,
+      outputFramerate,
+      frames: capture.frames,
+    }),
     glbFileName: `${stem}.glb`,
     scriptFileName: `${stem}.py`,
     frames: capture.frames,
     rate,
+    outputFramerate,
+    seconds,
     full: capture.full,
   };
 }

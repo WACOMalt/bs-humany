@@ -222,9 +222,9 @@ const ui = {
   showMuscles: must<HTMLInputElement>('#showMuscles'),
   showMuscleVolumes: must<HTMLInputElement>('#showMuscleVolumes'),
   muscles: must<HTMLInputElement>('#muscles'),
-  fullFidelity: must<HTMLInputElement>('#fullFidelity'),
+  outputFramerate: must<HTMLInputElement>('#outputFramerate'),
+  stepsPerSecond: must<HTMLInputElement>('#stepsPerSecond'),
   captureBudget: must<HTMLInputElement>('#captureBudget'),
-  targetRate: must<HTMLInputElement>('#targetRate'),
   flexorDrive: must<HTMLInputElement>('#flexorDrive'),
   extensorDrive: must<HTMLInputElement>('#extensorDrive'),
   kneeFlexorDrive: must<HTMLInputElement>('#kneeFlexorDrive'),
@@ -743,6 +743,10 @@ async function startSimulation(
       // there to keep them off the runs that do not need them, not to make a muscle scenario
       // silently run a bare skeleton.
       muscles: ui.muscles.checked || chosen?.muscles === true,
+      // Only when somebody moved it. Left alone, each profile keeps the step rate its solver was
+      // tuned for, which is the number that ought to win by default.
+      ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
+      outputFramerate: Number(ui.outputFramerate.value),
     });
     await sim.start();
     // A fresh backend always starts with gravity and a solid floor; both toggles are session
@@ -750,11 +754,10 @@ async function startSimulation(
     if (!ui.gravity.checked) sim.setGravity(false);
     if (!ui.floor.checked) sim.setGroundCollision(false);
     applyMuscleDrive(sim);
-    // A fresh run opens at the profile's own rate, which is life speed, unless the slider has
-    // been moved off it.
-    if (!fidelityTouched) ui.targetRate.value = String(Math.round(sim.declaredRateHz));
+    // A fresh run opens at the profile's own step rate, unless the slider has been moved off it.
+    if (!fidelityTouched) ui.stepsPerSecond.value = String(sim.stepsPerSecond);
     applyFidelity(sim);
-    showTargetRate();
+    showRates();
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
     if (carry) {
       const unmatched = sim.carryFrom(carry.state, carry.ticks);
@@ -866,11 +869,16 @@ function muscleTension(
   return tensionScratch;
 }
 
-/** Push the fidelity controls into the running simulation. Safe before a run, and on change. */
+/**
+ * Push the live controls into the running simulation. Safe before a run, and on change.
+ *
+ * The output frame rate is live because it only says how much simulated time one rendered frame
+ * covers. The step rate is not here, and cannot be: `dt` is fixed for the life of a run, which is
+ * what makes two runs of a scenario the same run, so changing it restarts.
+ */
 function applyFidelity(sim: Simulation | null | undefined): void {
   if (!sim) return;
-  sim.fullFidelity = ui.fullFidelity.checked;
-  sim.targetRateHz = Number(ui.targetRate.value);
+  sim.outputFramerate = Number(ui.outputFramerate.value);
   sim.captureBudgetBytes = Number(ui.captureBudget.value) * 1024 * 1024;
 }
 
@@ -906,37 +914,39 @@ ui.captureBudget.addEventListener('input', () => {
   applyFidelity(simulation);
 });
 
-ui.fullFidelity.addEventListener('change', () => {
-  must<HTMLElement>('#fidelity-control').hidden = !ui.fullFidelity.checked;
-  showTargetRate();
+/** Whether the step rate has been set by hand, so a new run does not overwrite the choice. */
+let fidelityTouched = false;
+ui.outputFramerate.addEventListener('input', () => {
+  showRates();
   applyFidelity(simulation);
 });
-/** Whether the rate has been set by hand, so a new run does not overwrite the choice. */
-let fidelityTouched = false;
-ui.targetRate.addEventListener('input', () => {
+ui.stepsPerSecond.addEventListener('input', () => {
   fidelityTouched = true;
-  showTargetRate();
-  applyFidelity(simulation);
+  showRates();
 });
 
 /**
- * The rate, and what it comes to as a speed.
+ * What the two rates come to together, in the terms somebody exporting cares about.
  *
- * Against the profile's own rate rather than against a fixed number, because that is what makes
- * it a speed: a thousand hertz is life speed on L3 and twice life speed on L1, and a reader
- * should not have to remember which profile they picked to know which they are watching.
+ * Three things, because three things follow from the pair and none of them is obvious from either
+ * alone: how many keyframes land inside one output frame, how long a second of run is on the
+ * timeline (always a second, and saying so is the point), and how far the simulation moves per
+ * rendered frame, which is what playback speed actually is here.
  */
-function showTargetRate(): void {
-  const target = Number(ui.targetRate.value);
-  const declared = simulation?.declaredRateHz ?? 1000;
-  const speed = target / declared;
-  const label =
-    Math.abs(speed - 1) < 0.005
-      ? 'life speed'
-      : speed < 1
-        ? `1/${(1 / speed).toFixed(speed > 0.1 ? 1 : 0)} speed`
-        : `${speed.toFixed(1)}x speed`;
-  must<HTMLElement>('#targetRate-value').textContent = `${target} Hz · ${label}`;
+function showRates(): void {
+  const fps = Number(ui.outputFramerate.value);
+  const steps = Number(ui.stepsPerSecond.value);
+  must<HTMLOutputElement>('#outputFramerate-value').textContent = `${fps} fps`;
+  must<HTMLOutputElement>('#stepsPerSecond-value').textContent = `${steps}`;
+  const perFrame = steps / Math.max(1, fps);
+  const running = simulation?.stepsPerSecond;
+  const pending =
+    running !== undefined && running !== steps
+      ? ` · running at ${running}; restart to use ${steps}`
+      : '';
+  must<HTMLElement>('#rate-note').textContent =
+    `${perFrame === Math.round(perFrame) ? perFrame : perFrame.toFixed(2)} steps a frame, ` +
+    `${steps} keyframes a second of timeline, ${fps} frames a second of timeline${pending}.`;
 }
 
 /**
@@ -1043,15 +1053,15 @@ function updateDiagnostics(sim: Simulation): void {
     sim.physics.contactsSeen > contacts.count
       ? `${contacts.count} shown of ${sim.physics.contactsSeen}`
       : String(contacts.count);
-  // What the solver is actually managing, against what the profile asks for. Below the declared
-  // rate in the normal mode means simulated time is being discarded to keep up with the clock.
+  // How fast simulated time is coming out, against how finely it is divided. Below the step rate
+  // means the run is taking longer in wall-clock seconds than the time it covers -- not that
+  // anything was skipped, because nothing is: every step is taken and every step is captured.
   const declared = sim.declaredRateHz;
   const achieved = sim.achievedRateHz;
   must<HTMLElement>('#diag-rate').textContent =
     achieved > 0
-      ? `${achieved.toFixed(0)} Hz of ${declared.toFixed(0)} declared` +
-        (achieved < declared * 0.95 ? ` (${((achieved / declared) * 100).toFixed(0)}%)` : '')
-      : `${declared.toFixed(0)} Hz declared`;
+      ? `${achieved.toFixed(0)} Hz of ${declared.toFixed(0)} steps · ${(achieved / declared).toFixed(2)}x life`
+      : `${declared.toFixed(0)} Hz steps`;
   updateMuscles(sim);
 }
 
@@ -1449,7 +1459,9 @@ function animate(): void {
   controls.update();
 
   if (simulation && skinned) {
-    const plan = simulation.advance(Math.min(elapsed, 250) / 1000);
+    // The elapsed time is measurement only: what the frame advances is one output frame's worth
+    // of simulated time, whatever the clock says.
+    simulation.advance(Math.min(elapsed, 250) / 1000);
     const transforms = simulation.boneTransforms();
     skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
     if (overlays) {
@@ -1493,18 +1505,15 @@ function animate(): void {
           : ' — capture budget reached; earlier frames kept. Pause, raise the budget below, and ' +
             'it carries on.');
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
+    // How fast, never whether anything was lost: nothing is. Below life speed the machine is
+    // simply taking longer over the same ticks, and the run it produces is the same run.
+    const speed = simulation.achievedRateHz / simulation.declaredRateHz;
     setSimulationStatus(
       simulation.paused
         ? `Paused at ${seconds} s.`
-        : simulation.fullFidelity
-          ? // Not a warning: the mode is doing what it was asked to. What is worth saying is the
-            // rate asked for, because the Tick rate readout says what is being managed and the
-            // difference between the two is whether the machine is keeping up.
-            `Running, ${seconds} s simulated, asking for ${Math.round(simulation.targetRateHz)} Hz.`
-          : plan.clamped
-            ? `Running, ${seconds} s simulated. Slower than real time: frames are being dropped.`
-            : `Running, ${seconds} s simulated.`,
-      plan.clamped,
+        : speed > 0.01 && Math.abs(speed - 1) >= 0.05
+          ? `Running, ${seconds} s simulated, at ${speed.toFixed(2)}x life speed.`
+          : `Running, ${seconds} s simulated.`,
     );
   }
 
