@@ -220,29 +220,59 @@ const ui = {
   targetRate: must<HTMLInputElement>('#targetRate'),
   flexorDrive: must<HTMLInputElement>('#flexorDrive'),
   extensorDrive: must<HTMLInputElement>('#extensorDrive'),
+  kneeFlexorDrive: must<HTMLInputElement>('#kneeFlexorDrive'),
+  kneeExtensorDrive: must<HTMLInputElement>('#kneeExtensorDrive'),
 };
 
 /**
- * Which elbow units flex and which extend, on both arms.
+ * Which units flex and which extend, at each joint the panel drives, on both sides.
  *
- * Split by anatomy rather than by measuring a moment arm, because the sign of a moment arm is
- * what the validation harness checks and using it here would make the panel agree with itself
- * by construction. Both arms answer to the same two sliders: a muscle is a flexor on either side.
+ * Split by anatomy rather than by measuring a moment arm, because the sign of a moment arm is what
+ * the validation harness checks and using it here would make the panel agree with itself by
+ * construction. Each group answers to one slider on both sides at once: a muscle is a flexor on
+ * either side of the body.
+ *
+ * The elbow and the knee have a slider apiece because they are hinges -- one axis, two directions,
+ * and a person already thinks of them that way. The shoulder does not: it has three axes, and
+ * "flexor" there names a different muscle depending on where the arm already is. It stays along
+ * for the ride until the range-of-motion scenarios give it something better than a slider.
  */
 const sides = <T extends string>(...names: T[]): string[] =>
   names.flatMap((name) => [`${name}_r`, `${name}_l`]);
 
-const FLEXORS = sides(
+const ELBOW_FLEXORS = sides(
   'biceps_brachii_long',
   'biceps_brachii_short',
   'brachialis',
   'brachioradialis',
 );
-const EXTENSORS = sides(
+const ELBOW_EXTENSORS = sides(
   'triceps_brachii_long',
   'triceps_brachii_lateral',
   'triceps_brachii_medial',
 );
+const KNEE_FLEXORS = sides(
+  'biceps_femoris_long',
+  'biceps_femoris_short',
+  'semitendinosus',
+  'semimembranosus',
+  'gastrocnemius_lateral',
+  'gastrocnemius_medial',
+);
+const KNEE_EXTENSORS = sides(
+  'rectus_femoris',
+  'vastus_lateralis',
+  'vastus_medialis',
+  'vastus_intermedius',
+);
+
+/** The four driven groups, each with the slider that drives it and the readout it feeds. */
+const DRIVEN = [
+  { units: ELBOW_FLEXORS, slider: 'flexorDrive' },
+  { units: ELBOW_EXTENSORS, slider: 'extensorDrive' },
+  { units: KNEE_FLEXORS, slider: 'kneeFlexorDrive' },
+  { units: KNEE_EXTENSORS, slider: 'kneeExtensorDrive' },
+] as const;
 
 function currentMorphology(): Morphology {
   return {
@@ -766,14 +796,14 @@ function showTargetRate(): void {
   must<HTMLElement>('#targetRate-value').textContent = `${target} Hz · ${label}`;
 }
 
-/** Push both sliders into the drive module. Safe to call before a run, and on every change. */
+/** Push every slider into the drive module. Safe to call before a run, and on every change. */
 function applyMuscleDrive(sim: Simulation | null | undefined): void {
   const drive = sim?.muscleDrive;
   if (!drive) return;
-  const flexion = Number(ui.flexorDrive.value) / 100;
-  const extension = Number(ui.extensorDrive.value) / 100;
-  for (const unit of FLEXORS) drive.setOverride(unit, flexion);
-  for (const unit of EXTENSORS) drive.setOverride(unit, extension);
+  for (const group of DRIVEN) {
+    const level = Number(ui[group.slider].value) / 100;
+    for (const unit of group.units) drive.setOverride(unit, level);
+  }
 }
 
 /**
@@ -788,23 +818,28 @@ function updateMuscles(sim: Simulation): void {
   const state = sim.muscleState();
   const units = sim.muscles?.units;
   if (!state || !units) return;
-  let flexion = 0;
-  let extension = 0;
+  const pulled = [0, 0, 0, 0];
   let loaded = 0;
   let strained = 0;
   for (let i = 0; i < units.length; i++) {
     const force = state.tendonForce[i] ?? 0;
     if (force > 0) loaded++;
     if ((state.diagnostic[i] ?? 0) !== 0) strained++;
-    // Only the elbow, because these two numbers are what the two sliders drive. Before the
-    // shoulder set arrived "not a flexor" meant "an extensor"; now it would mean the deltoid too,
-    // and the readout would say a hanging arm's extensors were pulling ten kilonewtons.
+    // Summed per driven group, and nothing outside one is counted. Before the shoulder set
+    // arrived "not a flexor" meant "an extensor"; now it would mean the deltoid too, and the
+    // readout would say a hanging arm's extensors were pulling ten kilonewtons.
     const id = units[i]?.id ?? '';
-    if (FLEXORS.includes(id)) flexion += force;
-    else if (EXTENSORS.includes(id)) extension += force;
+    DRIVEN.forEach((group, at) => {
+      if (group.units.includes(id)) pulled[at] = (pulled[at] ?? 0) + force;
+    });
   }
-  must<HTMLElement>('#muscle-flexion').textContent = `${flexion.toFixed(0)} N`;
-  must<HTMLElement>('#muscle-extension').textContent = `${extension.toFixed(0)} N`;
+  const pair = (flex: number, extend: number) =>
+    `${(flex ?? 0).toFixed(0)} / ${(extend ?? 0).toFixed(0)} N`;
+  must<HTMLElement>('#muscle-flexion').textContent = pair(pulled[0] as number, pulled[1] as number);
+  must<HTMLElement>('#muscle-extension').textContent = pair(
+    pulled[2] as number,
+    pulled[3] as number,
+  );
   must<HTMLElement>('#muscle-loaded').textContent = `${loaded} of ${units.length} units`;
   // How many tendons are in contact with a bone right now. A muscle that is wrapping has its
   // path bent over a surface rather than cutting through it, so this is also the quickest way to
@@ -864,7 +899,7 @@ ui.muscles.addEventListener('change', () => {
     setSimulationStatus('Muscles start with the next run.');
   }
 });
-for (const slider of [ui.flexorDrive, ui.extensorDrive]) {
+for (const slider of [ui.flexorDrive, ui.extensorDrive, ui.kneeFlexorDrive, ui.kneeExtensorDrive]) {
   slider.addEventListener('input', () => {
     must<HTMLElement>(`#${slider.id}-value`).textContent = `${slider.value}%`;
     applyMuscleDrive(simulation);
