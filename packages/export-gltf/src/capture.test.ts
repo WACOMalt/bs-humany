@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BoneCapture, CAPTURE_BUDGET_BYTES } from './capture.js';
+import {
+  BoneCapture,
+  CAPTURE_BUDGET_BYTES,
+  MIN_CAPTURE_BUDGET_BYTES,
+  captureCeilingBytes,
+  defaultCaptureBudgetBytes,
+} from './capture.js';
 
 import { buildAnimatedGlb, readGlb } from './glb.js';
 
@@ -108,6 +114,47 @@ describe('BoneCapture', () => {
     expect(new Set(ticks).size).toBe(ticks.length);
     // The default budget is the one the studio runs with; a minute at 500 Hz fits comfortably.
     expect(CAPTURE_BUDGET_BYTES).toBeGreaterThan(206 * 28 * 500 * 60);
+  });
+
+  it('takes frames again when the budget is raised, and stops when it is lowered', () => {
+    const perFrame = BONES * 28;
+    const capture = new BoneCapture(perFrame * 10);
+    for (let tick = 1; tick <= 40; tick++) {
+      const f = frame(tick);
+      capture.append(tick, f.position, f.orientation);
+    }
+    expect(capture.full).toBe(true);
+    expect(capture.frameCount).toBe(10);
+
+    // Raised and resumed on the very next tick, so the frames stay contiguous and the ten it
+    // already had are still at the front. This is the case the panel asks for by pausing first.
+    capture.setBudget(perFrame * 30);
+    expect(capture.full).toBe(false);
+    for (let tick = 11; tick <= 25; tick++) {
+      const f = frame(tick);
+      capture.append(tick, f.position, f.orientation);
+    }
+    expect(capture.frameCount).toBe(25);
+    expect(ticksIn(capture)).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+
+    // Lowered below what is held: it stops, and nothing already taken is thrown away.
+    capture.setBudget(perFrame * 12);
+    expect(capture.full).toBe(true);
+    expect(capture.frameCount).toBe(25);
+    const f = frame(26);
+    capture.append(26, f.position, f.orientation);
+    expect(capture.frameCount).toBe(25);
+  });
+
+  it('sizes its default budget from what the machine will admit to', () => {
+    // Neither `performance.memory` nor `navigator.deviceMemory` exists under Node, which is the
+    // fallback path: four gigabytes assumed, two thirds of it taken, and never below the floor.
+    const ceiling = captureCeilingBytes();
+    expect(ceiling).toBeGreaterThanOrEqual(MIN_CAPTURE_BUDGET_BYTES);
+    expect(defaultCaptureBudgetBytes()).toBe(
+      Math.max(MIN_CAPTURE_BUDGET_BYTES, Math.floor((ceiling * 2) / 3)),
+    );
+    expect(defaultCaptureBudgetBytes()).toBeLessThanOrEqual(ceiling);
   });
 
   it('exports keyframe times that are unique and strictly increasing', () => {

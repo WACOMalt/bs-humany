@@ -19,7 +19,7 @@ import {
   compileArticulation,
   transferJointState,
 } from '@bs-humany/compiler';
-import { BoneCapture, MuscleRingCapture } from '@bs-humany/export-gltf';
+import { BoneCapture, MuscleRingCapture, defaultCaptureBudgetBytes } from '@bs-humany/export-gltf';
 import type { Quat, Vec3 } from '@bs-humany/frames';
 import type { HsdlDocument } from '@bs-humany/hsdl';
 import {
@@ -88,8 +88,9 @@ export interface SimulationOptions {
    */
   readonly muscles?: boolean | undefined;
   /**
-   * Bytes each export capture may hold. Injectable so a test can reach the limit without
-   * allocating a quarter of a gigabyte twice over to prove what happens there.
+   * Bytes each export capture may hold. Settable from the panel while a run is going, and
+   * injectable here so a test can reach the limit without allocating a quarter of a gigabyte
+   * twice over to prove what happens there.
    */
   readonly captureBudgetBytes?: number | undefined;
 }
@@ -234,8 +235,9 @@ export class Simulation {
   constructor(document: HsdlDocument, morphology: ResolvedMorphology, options: SimulationOptions) {
     const profile = document.segmentation.find((p) => p.id === options.profileId);
     if (!profile) throw new Error(`No profile '${options.profileId}'.`);
-    this.capture = new BoneCapture(options.captureBudgetBytes);
-    this.muscleCapture = new MuscleRingCapture(options.captureBudgetBytes);
+    this.captureBudget = options.captureBudgetBytes ?? defaultCaptureBudgetBytes();
+    this.capture = new BoneCapture(this.captureBudget);
+    this.muscleCapture = new MuscleRingCapture(this.captureBudget);
     const compiled = compileArticulation(document, options.profileId, morphology);
     this.compileReport = compiled.report;
     this.resolved = morphology;
@@ -699,6 +701,27 @@ export class Simulation {
 
   /** Which capture reached its budget first, once one has. */
   capturesStoppedBy: 'muscles' | 'bones' | undefined;
+
+  /**
+   * How many bytes each capture may hold, changeable while a run is going.
+   *
+   * Both get the same number rather than a split, because which of them binds depends on what is
+   * loaded -- a muscle frame is twenty times a bone frame with the full set running and nothing
+   * at all without it -- and a fixed split would waste whichever side was idle.
+   */
+  set captureBudgetBytes(bytes: number) {
+    this.captureBudget = bytes;
+    this.capture.setBudget(bytes);
+    this.muscleCapture.setBudget(bytes);
+    // Given room again, forget which one had run out: it may not be the same one next time.
+    if (!this.capture.full && !this.muscleCapture.full) this.capturesStoppedBy = undefined;
+  }
+
+  get captureBudgetBytes(): number {
+    return this.captureBudget;
+  }
+
+  private captureBudget: number;
 
   muscleMesh():
     | {

@@ -10,7 +10,48 @@
  * capture stops itself at a byte budget and says so rather than growing without bound.
  */
 
+/**
+ * What a capture may hold when nobody has said otherwise.
+ *
+ * A floor rather than a policy: `defaultCaptureBudgetBytes` picks a real one from what the
+ * machine will admit to, and this is what it falls back to on a runtime that will not say.
+ */
 export const CAPTURE_BUDGET_BYTES = 256 * 1024 * 1024;
+
+/** The smallest and largest a caller may set a budget to. */
+export const MIN_CAPTURE_BUDGET_BYTES = 32 * 1024 * 1024;
+
+/**
+ * As much as this machine should be asked for, and why it is not half the host's memory.
+ *
+ * The studio runs in a browser and a browser does not hand a page the host. What binds is the
+ * tab's own JavaScript heap, which Chrome caps around two to four gigabytes however much RAM is
+ * underneath, and a capture that runs past it does not stop politely -- the tab dies and takes
+ * the run with it. So the ceiling is the heap limit where the runtime reports one
+ * (`performance.memory`, Chrome and Edge only), and otherwise a share of `navigator.deviceMemory`,
+ * which is the host's RAM rounded to a power of two and capped at eight gigabytes for
+ * fingerprinting reasons -- an approximation, and the only one the platform offers.
+ *
+ * Two thirds of that ceiling, because the capture is not the only thing on the heap: the skeleton
+ * meshes, the physics state and the swept muscle geometry all live there too, and a capture that
+ * took everything left would only move the crash.
+ */
+export function captureCeilingBytes(): number {
+  const heap = (
+    globalThis.performance as unknown as { memory?: { jsHeapSizeLimit?: number } } | undefined
+  )?.memory?.jsHeapSizeLimit;
+  if (typeof heap === 'number' && heap > 0) return heap;
+  const device = (globalThis.navigator as unknown as { deviceMemory?: number } | undefined)
+    ?.deviceMemory;
+  if (typeof device === 'number' && device > 0) return device * 1024 * 1024 * 1024;
+  return 4 * 1024 * 1024 * 1024;
+}
+
+/** The budget to start from on this machine: two thirds of the ceiling, and never below the floor. */
+export function defaultCaptureBudgetBytes(): number {
+  return Math.max(MIN_CAPTURE_BUDGET_BYTES, Math.floor((captureCeilingBytes() * 2) / 3));
+}
+
 const CHUNK_FRAMES = 256;
 
 export interface CaptureView {
@@ -36,7 +77,7 @@ export interface CaptureView {
  */
 class FrameStore {
   private readonly components: readonly number[];
-  private readonly budgetBytes: number;
+  private budgetBytes: number;
   private items = 0;
   private firstTickValue = 0;
   private frames = 0;
@@ -71,6 +112,22 @@ class FrameStore {
   /** Stop taking frames without dropping what is held. */
   stop(): void {
     this.full = true;
+  }
+
+  /**
+   * Change the budget mid-run, keeping every frame already held.
+   *
+   * Raising it lets a capture that had stopped take frames again, which is the point: somebody
+   * watching the status line say the budget was reached should be able to give it more without
+   * losing the run. Whether it carries on or starts a new window is the continuity check's
+   * business and not this one's -- resume on the next tick and the frames are contiguous, resume
+   * after a thousand and they are not, and a capture that promises a keyframe per tick cannot
+   * pretend otherwise. Lowering the budget below what is already held does not throw frames
+   * away: it stops, and what is there is still exportable.
+   */
+  setBudget(bytes: number): void {
+    this.budgetBytes = bytes;
+    this.full = this.bytes + this.floatsPerFrame * 4 > bytes;
   }
 
   clear(): void {
@@ -171,6 +228,11 @@ export class MuscleRingCapture {
     this.store.stop();
   }
 
+  /** Change the budget mid-run, keeping every frame already held; see `BoneCapture.setBudget`. */
+  setBudget(bytes: number): void {
+    this.store.setBudget(bytes);
+  }
+
   clear(): void {
     this.store.clear();
   }
@@ -216,7 +278,7 @@ export class BoneCapture {
    * Bytes this capture may hold. Injectable so a test can reach the limit without allocating a
    * quarter of a gigabyte to prove it stops.
    */
-  private readonly budgetBytes: number;
+  private budgetBytes: number;
 
   constructor(budgetBytes: number = CAPTURE_BUDGET_BYTES) {
     this.budgetBytes = budgetBytes;
@@ -250,6 +312,17 @@ export class BoneCapture {
    */
   stop(): void {
     this.full = true;
+  }
+
+  /**
+   * Change the budget mid-run, keeping every frame already held.
+   *
+   * Raising it lets a capture that had stopped take frames again; see `FrameStore.setBudget` for
+   * what happens to contiguity when the run has moved on in the meantime.
+   */
+  setBudget(bytes: number): void {
+    this.budgetBytes = bytes;
+    this.full = this.bytes + this.bones * 28 > bytes;
   }
 
   clear(): void {

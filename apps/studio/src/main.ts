@@ -21,6 +21,11 @@ import manifestUrl from '@bs-humany/assets-anatomical/data/manifest.json?url';
 import skeletonLod1BinUrl from '@bs-humany/assets-anatomical/data/skeleton-lod1.bin?url';
 import skeletonBinUrl from '@bs-humany/assets-anatomical/data/skeleton.bin?url';
 import { compileArticulation } from '@bs-humany/compiler';
+import {
+  MIN_CAPTURE_BUDGET_BYTES,
+  captureCeilingBytes,
+  defaultCaptureBudgetBytes,
+} from '@bs-humany/export-gltf';
 import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
 import {
   QUALITY_HIGH,
@@ -218,6 +223,7 @@ const ui = {
   showMuscleVolumes: must<HTMLInputElement>('#showMuscleVolumes'),
   muscles: must<HTMLInputElement>('#muscles'),
   fullFidelity: must<HTMLInputElement>('#fullFidelity'),
+  captureBudget: must<HTMLInputElement>('#captureBudget'),
   targetRate: must<HTMLInputElement>('#targetRate'),
   flexorDrive: must<HTMLInputElement>('#flexorDrive'),
   extensorDrive: must<HTMLInputElement>('#extensorDrive'),
@@ -865,7 +871,40 @@ function applyFidelity(sim: Simulation | null | undefined): void {
   if (!sim) return;
   sim.fullFidelity = ui.fullFidelity.checked;
   sim.targetRateHz = Number(ui.targetRate.value);
+  sim.captureBudgetBytes = Number(ui.captureBudget.value) * 1024 * 1024;
 }
+
+const MEBIBYTE = 1024 * 1024;
+
+/** The slider's own reading, and the sentence under it that says where its top end came from. */
+function showCaptureBudget(): void {
+  const mib = Number(ui.captureBudget.value);
+  must<HTMLOutputElement>('#captureBudget-value').textContent =
+    mib >= 1024 ? `${(mib / 1024).toFixed(1)} GB` : `${mib} MB`;
+}
+
+/**
+ * Fit the slider to this machine and start it where a fresh simulation would.
+ *
+ * The range is the platform's answer rather than a guess: `captureCeilingBytes` reads the tab's
+ * heap limit where the runtime reports one and falls back to `navigator.deviceMemory`, and the
+ * default is two thirds of it. Done once at startup, because neither number changes.
+ */
+function sizeCaptureBudget(): void {
+  const ceiling = Math.floor(captureCeilingBytes() / MEBIBYTE);
+  const step = Number(ui.captureBudget.step) || 32;
+  ui.captureBudget.max = String(Math.max(step, Math.floor(ceiling / step) * step));
+  ui.captureBudget.min = String(Math.floor(MIN_CAPTURE_BUDGET_BYTES / MEBIBYTE));
+  ui.captureBudget.value = String(
+    Math.min(Number(ui.captureBudget.max), Math.round(defaultCaptureBudgetBytes() / MEBIBYTE)),
+  );
+  showCaptureBudget();
+}
+sizeCaptureBudget();
+ui.captureBudget.addEventListener('input', () => {
+  showCaptureBudget();
+  applyFidelity(simulation);
+});
 
 ui.fullFidelity.addEventListener('change', () => {
   must<HTMLElement>('#fidelity-control').hidden = !ui.fullFidelity.checked;
@@ -1437,14 +1476,18 @@ function animate(): void {
     // a frame of bones, so on the same budget the rings run out after about five seconds while
     // this line went on counting bone frames to ninety.
     const rings = simulation.muscleCapture;
-    const megabytes = (capture.bytes + (simulation.muscleVolume ? rings.bytes : 0)) / 1048576;
+    const held = capture.bytes + (simulation.muscleVolume ? rings.bytes : 0);
+    const budget = simulation.captureBudgetBytes * (simulation.muscleVolume ? 2 : 1);
     must<HTMLElement>('#capture-status').textContent =
-      `Captured ${capture.frameCount} frames for export (${megabytes.toFixed(0)} MB)` +
+      `Captured ${capture.frameCount} frames for export ` +
+      `(${(held / MEBIBYTE).toFixed(0)} of ${(budget / MEBIBYTE).toFixed(0)} MB)` +
       (simulation.capturesStoppedBy === undefined
-        ? ''
+        ? '.'
         : simulation.capturesStoppedBy === 'muscles'
-          ? ' — the muscle capture reached its budget and both stopped; earlier frames kept.'
-          : ' — capture budget reached; earlier frames kept.');
+          ? ' — the muscle capture reached its budget and both stopped; earlier frames kept. ' +
+            'Pause, raise the budget below, and it carries on.'
+          : ' — capture budget reached; earlier frames kept. Pause, raise the budget below, and ' +
+            'it carries on.');
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     setSimulationStatus(
       simulation.paused

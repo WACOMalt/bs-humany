@@ -250,6 +250,17 @@
             <button type="button" id="export-blender-script" disabled title="Sets the Blender frame rate to the simulation rate and imports the .glb">Import script (.py)</button>
           </div>
           <p class="note live" id="capture-status"></p>
+          <label for="captureBudget">Export capture budget <output id="captureBudget-value">&mdash;</output></label>
+          <input type="range" id="captureBudget" min="32" max="4096" step="32" value="256" />
+          <p class="note">How much the Blender export may hold, per capture &mdash; one for the
+          bones and one for the muscle cross-sections, and whichever fills first stops both. Pause
+          before raising it and the capture carries on from where it stopped; raise it while the
+          run is going and capture starts again from that moment, because the ticks in between
+          were never taken and the export promises a keyframe for every one. The ceiling is this
+          tab's own JavaScript heap rather than the machine's memory: a page is not given the host,
+          and a capture that runs past the heap does not stop politely &mdash; the tab dies and
+          takes the run with it. A muscle frame is about twenty times a bone frame, so a run with
+          the full set costs roughly a hundred and ten kilobytes a tick.</p>
           <input type="file" id="load-file" accept="application/json" hidden />
         </div>
       </section>
