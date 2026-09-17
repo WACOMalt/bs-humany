@@ -213,15 +213,36 @@
         </div>
         <div class="control">
           <div class="buttons">
-            <button type="button" id="drop">Run</button>
-            <button type="button" id="pause" disabled>Pause</button>
-            <button type="button" id="step" disabled>Step</button>
+            <button type="button" id="simStart">Start sim</button>
+            <button type="button" id="simPause" disabled>Pause sim</button>
             <button type="button" id="reset" disabled>Reset</button>
           </div>
+          <p class="note">Computing the run and watching it are two different things and these are
+          the first. Start begins a run, or carries one on from wherever it was left; Pause stops
+          computing and leaves everything that has been computed where it is. Reset takes the body
+          back to the pose it started in and throws the recording away.</p>
         </div>
         <div class="control" id="timeline-control" hidden>
-          <label for="timeline">Timeline <output id="timeline-value">0.00 s</output></label>
-          <input type="range" id="timeline" min="0" max="0" step="0.01" value="0" />
+          <label for="timeline">Playhead <output id="timeline-value">&mdash;</output></label>
+          <input type="range" id="timeline" min="0" max="0" step="1" value="0" />
+          <div class="buttons">
+            <button type="button" id="playToggle">Play</button>
+            <button type="button" id="frameBack" title="One output frame back">&#9664; Frame</button>
+            <button type="button" id="frameForward" title="One output frame on; at the end of the recording, computes one">Frame &#9654;</button>
+            <button type="button" id="goLive">Live</button>
+          </div>
+          <p class="note live" id="playback-note"></p>
+          <p class="note">Everything the run has computed is here to be scrubbed, at the output
+          frame rate set above: Play runs it back at that rate in real time, so a second of
+          simulated time takes a second to watch. Nothing is recomputed and nothing is lost &mdash;
+          the recording is the same one the Blender export writes.</p>
+          <p class="note">Scrubbing pauses the simulation, because the playhead is somewhere it
+          has already been. Live jumps back to the newest frame, and so does Start sim. At the end
+          of the recording, Frame &#9654; computes one more rather than stopping.</p>
+          <p class="note">Bones and muscle bellies replay exactly. What was never recorded cannot:
+          the muscle paths, the tension colour, the contacts and the centre of mass are live
+          readings a tick wide, so those overlays hide while the playhead is off the newest
+          frame rather than showing a stale one.</p>
         </div>
         <p class="note live" id="sim-status">At rest.</p>
         <dl class="readout" id="diagnostics" hidden>

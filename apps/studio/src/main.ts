@@ -66,6 +66,7 @@ import {
 import { buildBlenderExport } from './blenderExport.js';
 import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
+import { Playback } from './playback.js';
 import {
   type SessionFile,
   type SessionSettings,
@@ -201,10 +202,13 @@ const ui = {
   grabStrength: must<HTMLInputElement>('#grabStrength'),
   gravity: must<HTMLInputElement>('#gravity'),
   floor: must<HTMLInputElement>('#floor'),
-  drop: must<HTMLButtonElement>('#drop'),
-  pause: must<HTMLButtonElement>('#pause'),
-  stepOnce: must<HTMLButtonElement>('#step'),
+  simStart: must<HTMLButtonElement>('#simStart'),
+  simPause: must<HTMLButtonElement>('#simPause'),
   reset: must<HTMLButtonElement>('#reset'),
+  playToggle: must<HTMLButtonElement>('#playToggle'),
+  frameBack: must<HTMLButtonElement>('#frameBack'),
+  frameForward: must<HTMLButtonElement>('#frameForward'),
+  goLive: must<HTMLButtonElement>('#goLive'),
   backend: must<HTMLSelectElement>('#backend'),
   scenario: must<HTMLSelectElement>('#scenario'),
   scenarioParameters: must<HTMLDivElement>('#scenario-parameters'),
@@ -626,17 +630,40 @@ function stopSimulation(): void {
   setSimulationStatus('At rest.');
 }
 
+/**
+ * The two sets of buttons, which answer two different questions.
+ *
+ * Start and Pause are about whether the simulation is computing. Play, the frame steps and the
+ * playhead are about where in what it has already computed you are looking. They were one set
+ * before -- Run, Pause, Step, Reset and a timeline that re-simulated what you scrubbed over --
+ * and the reason that was confusing is that it was two things wearing one set of labels.
+ */
 function setRunControls(running: boolean): void {
-  // Run always restarts with the current settings; a run in progress is replaced.
-  ui.drop.disabled = false;
-  ui.drop.textContent = running ? 'Restart' : 'Run';
-  ui.pause.disabled = !running;
-  ui.stepOnce.disabled = !running;
+  // Start always begins a run with the current settings; a run in progress is replaced.
+  ui.simStart.disabled = false;
+  ui.simStart.textContent = !running ? 'Start sim' : simulation?.paused ? 'Resume sim' : 'Restart';
+  ui.simPause.disabled = !running || simulation?.paused === true;
   ui.reset.disabled = !running;
   ui.exportRecording.disabled = !running;
   ui.exportBlender.disabled = !running;
   ui.exportBlenderScript.disabled = !running;
-  ui.pause.textContent = simulation?.paused ? 'Resume' : 'Pause';
+  setPlaybackControls(running);
+}
+
+/**
+ * The playback buttons, refreshed every frame rather than only when one is pressed.
+ *
+ * Whether there is anything to play back changes as the run computes, and nothing presses a
+ * button when it does: left to `setRunControls` alone, Play stayed greyed out through a whole run
+ * because the last thing to call it was the run starting, when the recording was empty.
+ */
+function setPlaybackControls(running: boolean): void {
+  const frames = capturedFrames();
+  ui.playToggle.disabled = frames <= 1;
+  ui.playToggle.textContent = playback.playing ? 'Pause' : 'Play';
+  ui.frameBack.disabled = frames <= 0 || (following ? frames <= 1 : playback.frame < 1);
+  ui.frameForward.disabled = !running;
+  ui.goLive.disabled = !running || following;
 }
 
 function currentSettings(): SessionSettings {
@@ -766,6 +793,8 @@ async function startSimulation(
         console.warn('DoFs without a counterpart, left at neutral:', unmatched);
     }
     simulation = sim;
+    following = true;
+    playback.rewind();
     overlays = createOverlays(sim.articulation, {
       musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
     });
@@ -786,39 +815,131 @@ async function startSimulation(
   }
 }
 
+/**
+ * The playhead, and whether it is following the newest frame or sitting somewhere behind it.
+ *
+ * `following` is the whole of the mode: true and the picture is the live simulation, false and it
+ * is a frame read back out of the recording. Scrubbing, stepping and playing all set it false and
+ * pause the simulation, because the playhead being somewhere the run has already been is exactly
+ * what "not live" means.
+ */
+const playback = new Playback();
+let following = true;
+
+/** Output frames the recording holds, which is what the playhead counts in. */
+function capturedFrames(): number {
+  if (!simulation) return 0;
+  return Playback.frames(simulation.capture.frameCount, simulation.ticksPerOutputFrame);
+}
+
+/** Leave live, pause the simulation, and put the playhead where it is being asked for. */
+function scrubTo(frame: number): void {
+  if (!simulation) return;
+  const frames = capturedFrames();
+  if (frames <= 0) return;
+  following = false;
+  playback.playing = false;
+  simulation.paused = true;
+  playback.frame = Math.min(Math.max(frame, 0), frames - 1);
+  applyOverlayVisibility();
+  setRunControls(true);
+  updateTimeline(simulation);
+}
+
+/** Back to the newest frame, and following it again. */
+function goLive(): void {
+  if (!simulation) return;
+  following = true;
+  playback.playing = false;
+  playback.frame = Math.max(0, capturedFrames() - 1);
+  applyOverlayVisibility();
+  setRunControls(true);
+  updateTimeline(simulation);
+}
+
 function updateTimeline(sim: Simulation): void {
-  const seconds = sim.recordedSeconds;
-  ui.timeline.max = seconds.toFixed(2);
-  if (!scrubbing) ui.timeline.value = seconds.toFixed(2);
+  const frames = capturedFrames();
+  const frame = following ? Math.max(0, frames - 1) : playback.clampedFrame(frames);
+  ui.timeline.max = String(Math.max(0, frames - 1));
+  if (!scrubbing) ui.timeline.value = String(frame);
+  const fps = Math.max(1, sim.outputFramerate);
   must<HTMLOutputElement>('#timeline-value').textContent =
-    `${Number(ui.timeline.value).toFixed(2)} s`;
+    frames === 0
+      ? '—'
+      : `frame ${frame} of ${frames - 1} · ${(frame / fps).toFixed(2)} s` +
+        (following ? ' · live' : '');
+  must<HTMLElement>('#playback-note').textContent =
+    frames === 0
+      ? ''
+      : `${frames} frames recorded at ${fps} fps, ${(frames / fps).toFixed(2)} s` +
+        (following ? '.' : ' — the simulation is paused while the playhead is behind it.');
+  setPlaybackControls(true);
 }
 
 let scrubbing = false;
 ui.timeline.addEventListener('pointerdown', () => {
   scrubbing = true;
-  if (simulation) {
-    simulation.paused = true;
-    setRunControls(true);
-  }
 });
 ui.timeline.addEventListener('input', () => {
-  if (!simulation) return;
-  simulation.scrubTo(Number(ui.timeline.value));
-  must<HTMLOutputElement>('#timeline-value').textContent =
-    `${Number(ui.timeline.value).toFixed(2)} s`;
+  scrubTo(Number(ui.timeline.value));
 });
 window.addEventListener('pointerup', () => {
   scrubbing = false;
 });
 
+ui.playToggle.addEventListener('click', () => {
+  if (!simulation || capturedFrames() <= 1) return;
+  if (playback.playing) {
+    playback.playing = false;
+  } else {
+    following = false;
+    simulation.paused = true;
+    // Replaying from the end plays nothing, so a Play pressed there starts over.
+    if (playback.clampedFrame(capturedFrames()) >= capturedFrames() - 1) playback.frame = 0;
+    playback.playing = true;
+  }
+  applyOverlayVisibility();
+  setRunControls(true);
+});
+ui.frameBack.addEventListener('click', () => {
+  scrubTo(playback.clampedFrame(capturedFrames()) - 1);
+});
+ui.frameForward.addEventListener('click', () => {
+  if (!simulation) return;
+  const frames = capturedFrames();
+  const at = following ? frames - 1 : playback.clampedFrame(frames);
+  // At the newest frame there is nothing ahead to step to, so one is computed. That is what the
+  // old Step button did, and it is the same gesture: go one frame further on.
+  if (at >= frames - 1) {
+    simulation.paused = true;
+    const ticks = Math.max(1, Math.round(simulation.ticksPerOutputFrame));
+    for (let i = 0; i < ticks; i++) simulation.tick();
+    simulation.pose.step();
+    simulation.metrics.step();
+    goLive();
+    return;
+  }
+  scrubTo(at + 1);
+});
+ui.goLive.addEventListener('click', goLive);
+
+/**
+ * Which overlays are drawn, and which cannot be while the playhead is behind the newest frame.
+ *
+ * Bones and bellies are recorded, so they replay. Joint axes, the centre of mass, the contact
+ * manifolds and the muscle path polylines are live readings a tick wide and nothing holds a
+ * history of them; drawn during playback they would show the newest tick's answer against a body
+ * in a pose from four seconds ago, which is worse than not drawing them. The checkboxes keep
+ * whatever they were set to and come back on at Live.
+ */
 function applyOverlayVisibility(): void {
   if (!overlays) return;
+  const live = following;
   overlays.proxies.visible = ui.showProxies.checked;
-  overlays.axes.visible = ui.showAxes.checked;
-  overlays.com.visible = ui.showCom.checked;
-  overlays.contacts.visible = ui.showContacts.checked;
-  overlays.muscles.visible = ui.showMuscles.checked;
+  overlays.axes.visible = ui.showAxes.checked && live;
+  overlays.com.visible = ui.showCom.checked && live;
+  overlays.contacts.visible = ui.showContacts.checked && live;
+  overlays.muscles.visible = ui.showMuscles.checked && live;
   overlays.muscleVolumes.visible = ui.showMuscleVolumes.checked;
 }
 for (const input of [
@@ -853,6 +974,60 @@ function muscleOverlay(sim: Simulation) {
     tension,
     mesh: sim.muscleMesh(),
   };
+}
+
+/**
+ * Bone transforms for the frame the playhead is on, or nothing if it cannot be read.
+ *
+ * Nothing is stepped to get here: the recording already holds every tick, and the playhead's
+ * output frame is one of them.
+ */
+function replayFrame(
+  sim: Simulation,
+): { position: Float64Array; orientation: Float64Array } | undefined {
+  const frames = capturedFrames();
+  if (frames <= 0) return undefined;
+  const tick = Playback.tickOf(playback.clampedFrame(frames), sim.ticksPerOutputFrame);
+  return playback.bonesAt(sim.capture, tick);
+}
+
+/**
+ * The bellies for the frame the playhead is on, rebuilt from the ring recording.
+ *
+ * Path polylines and tension are not recorded, so `pointCount` is left at zero -- which draws no
+ * lines -- and every unit is drawn relaxed. The panel says so.
+ */
+function replayedMuscles(sim: Simulation) {
+  const volume = sim.muscleVolume;
+  const units = sim.muscles?.units.length ?? 0;
+  const live = sim.muscleMesh();
+  const frames = capturedFrames();
+  if (!volume || !live || units === 0 || frames <= 0) return undefined;
+  const tick = Playback.tickOf(playback.clampedFrame(frames), sim.ticksPerOutputFrame);
+  const mesh = playback.bellyAt(
+    sim.muscleCapture,
+    tick,
+    { index: live.index, verticesPerUnit: live.verticesPerUnit },
+    volume.rings,
+    live.verticesPerUnit / volume.rings,
+  );
+  if (!mesh) return undefined;
+  const path = sim.channel('muscle.path').fields;
+  return {
+    count: units,
+    pointStart: path.pointStart as unknown as Int32Array,
+    pointCount: emptyPointCounts(units),
+    point: sim.channel('muscle.polyline').fields.point as Float64Array,
+    tension: playback.units(units),
+    mesh,
+  };
+}
+
+/** Zero lengths for every unit's polyline, grown once. */
+let emptyCounts = new Int32Array(0);
+function emptyPointCounts(units: number): Int32Array {
+  if (emptyCounts.length !== units) emptyCounts = new Int32Array(units);
+  return emptyCounts;
 }
 
 /** Scratch for the tension fractions, grown once to fit whatever set is running. */
@@ -1108,27 +1283,26 @@ for (const slider of [
   });
 }
 
-ui.drop.addEventListener('click', () => {
+ui.simStart.addEventListener('click', () => {
+  // Paused mid-run, or scrubbed back into it: carry on from the newest frame rather than
+  // throwing the run away. Anything else starts a fresh one with the settings as they stand.
+  if (simulation && (simulation.paused || !following)) {
+    simulation.paused = false;
+    goLive();
+    return;
+  }
   void startSimulation();
 });
-ui.pause.addEventListener('click', () => {
-  if (!simulation) return;
-  simulation.paused = !simulation.paused;
-  setRunControls(true);
-});
-ui.stepOnce.addEventListener('click', () => {
+ui.simPause.addEventListener('click', () => {
   if (!simulation) return;
   simulation.paused = true;
-  simulation.tick();
-  simulation.pose.step();
-  simulation.metrics.step();
   setRunControls(true);
 });
 ui.reset.addEventListener('click', () => {
   if (!simulation) return;
   simulation.reset();
   simulation.paused = true;
-  setRunControls(true);
+  goLive();
 });
 // Gravity can go off mid-flight: the body keeps whatever motion it had and coasts.
 ui.gravity.addEventListener('change', () => {
@@ -1461,24 +1635,36 @@ function animate(): void {
   controls.update();
 
   if (simulation && skinned) {
-    // The elapsed time is measurement only: what the frame advances is one output frame's worth
-    // of simulated time, whatever the clock says.
-    simulation.advance(Math.min(elapsed, 250) / 1000);
-    const transforms = simulation.boneTransforms();
+    const frameSeconds = Math.min(elapsed, 250) / 1000;
+    if (following) {
+      // The elapsed time is measurement only: what the frame advances is one output frame's worth
+      // of simulated time, whatever the clock says.
+      simulation.advance(frameSeconds);
+    } else {
+      // Playback is the other way round -- paced by the clock, because what is being watched is
+      // finished and watching it should take the time it took.
+      playback.advance(frameSeconds, simulation.outputFramerate, capturedFrames());
+      if (!playback.playing) setRunControls(true);
+    }
+    const replay = following ? undefined : replayFrame(simulation);
+    const transforms = replay ?? simulation.boneTransforms();
     skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
     if (overlays) {
       const pose = simulation.channel('body.pose').fields;
       const limits = simulation.channel('diagnostics.limits').fields;
       const contacts = simulation.channel('contact.manifolds');
       overlays.update({
+        // Off the live edge the pose overlays have no history to draw, so they are hidden rather
+        // than fed the newest tick's -- see `applyOverlayVisibility`. What is passed here is what
+        // they would draw if they were visible.
         position: pose.position as Float64Array,
         orientation: pose.orientation as Float64Array,
         proximity: limits.proximity as Float64Array,
-        contactCount: contacts.count,
+        contactCount: replay ? 0 : contacts.count,
         contactPoint: contacts.fields.point as Float64Array,
         contactNormal: contacts.fields.normal as Float64Array,
         contactCapacity: (contacts.fields.point as Float64Array).length / 3,
-        muscles: muscleOverlay(simulation),
+        muscles: replay ? replayedMuscles(simulation) : muscleOverlay(simulation),
       });
     }
     updateDiagnostics(simulation);

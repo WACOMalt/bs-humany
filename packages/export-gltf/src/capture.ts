@@ -183,6 +183,28 @@ class FrameStore {
     this.frames += 1;
   }
 
+  /**
+   * Read one frame's streams into arrays the caller owns.
+   *
+   * For playback, which wants one frame at a time and wants it every display refresh. `read()`
+   * copies the whole capture into fresh contiguous arrays -- a gigabyte of it, at the budgets this
+   * runs at -- which is right for an export and ruinous sixty times a second.
+   */
+  frameInto(index: number, out: readonly Float32Array[]): boolean {
+    if (index < 0 || index >= this.frames) return false;
+    const chunk = this.chunks[Math.floor(index / CHUNK_FRAMES)];
+    if (!chunk) return false;
+    const slot = index % CHUNK_FRAMES;
+    for (let i = 0; i < this.components.length; i++) {
+      const c = this.components[i] as number;
+      const source = chunk[i];
+      const target = out[i];
+      if (!source || !target) continue;
+      target.set(source.subarray(slot * this.items * c, (slot + 1) * this.items * c));
+    }
+    return true;
+  }
+
   truncate(tick: number): void {
     const keep = Math.max(0, Math.min(this.frames, tick - this.firstTickValue + 1));
     if (keep === 0) {
@@ -251,6 +273,27 @@ export class MuscleRingCapture {
   /** Change the budget mid-run, keeping every frame already held; see `BoneCapture.setBudget`. */
   setBudget(bytes: number): void {
     this.store.setBudget(bytes);
+  }
+
+  /** Rings in one frame; see `BoneCapture.frameInto`. */
+  get ringCount(): number {
+    return this.store.itemCount;
+  }
+
+  /**
+   * Read one frame's rings into arrays the caller owns: `rings * 3`, `rings * 4`, `rings`.
+   *
+   * What playback needs to put the bellies back. A ring is a circle of vertices in the plane its
+   * frame's X and Y span, at its own radius, which is how the frame was measured off the swept
+   * mesh in the first place -- so the mesh comes back exactly rather than approximately.
+   */
+  frameInto(
+    index: number,
+    position: Float32Array,
+    orientation: Float32Array,
+    radius: Float32Array,
+  ): boolean {
+    return this.store.frameInto(index, [position, orientation, radius]);
   }
 
   clear(): void {
@@ -401,6 +444,29 @@ export class BoneCapture {
     const chunks = Math.ceil(keep / CHUNK_FRAMES);
     this.positionChunks.length = chunks;
     this.orientationChunks.length = chunks;
+  }
+
+  /**
+   * Read one frame's transforms into arrays the caller owns: `bones * 3` and `bones * 4`.
+   *
+   * For playback. `view()` copies the whole capture and allocates while doing it, which is the
+   * right shape for an export and the wrong one for sixty times a second.
+   */
+  frameInto(index: number, position: Float32Array, orientation: Float32Array): boolean {
+    if (index < 0 || index >= this.frames) return false;
+    const chunk = Math.floor(index / CHUNK_FRAMES);
+    const slot = index % CHUNK_FRAMES;
+    const p = this.positionChunks[chunk];
+    const o = this.orientationChunks[chunk];
+    if (!p || !o) return false;
+    position.set(p.subarray(slot * this.bones * 3, (slot + 1) * this.bones * 3));
+    orientation.set(o.subarray(slot * this.bones * 4, (slot + 1) * this.bones * 4));
+    return true;
+  }
+
+  /** Bones in one frame, as the capture was fed them. */
+  get boneCount(): number {
+    return this.bones;
   }
 
   /** One contiguous copy of the capture. */
