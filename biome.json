@@ -6,6 +6,7 @@
       "node_modules",
       "coverage",
       "target",
+      "apps/studio/src-tauri/gen/**",
       "**/*.tsbuildinfo",
       "packages/assets-anatomical/data/**"
     ]

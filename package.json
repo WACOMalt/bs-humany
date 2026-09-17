@@ -20,7 +20,7 @@
     "build:studio": "pnpm --filter @bs-humany/studio build",
     "desktop:dev": "pnpm --filter @bs-humany/studio tauri dev",
     "desktop:build": "pnpm --filter @bs-humany/studio tauri build --no-bundle",
-    "desktop:appimage": "pnpm --filter @bs-humany/studio tauri build --bundles appimage",
+    "desktop:appimage": "NO_STRIP=true pnpm --filter @bs-humany/studio tauri build --bundles appimage",
     "module:lint": "node tools/cli/bin/module-lint.mjs",
     "bench": "node tools/cli/bin/bench.mjs",
     "validate:external": "node tools/cli/bin/external-validate.mjs",

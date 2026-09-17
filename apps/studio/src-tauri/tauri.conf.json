@@ -32,7 +32,7 @@
   "bundle": {
     "active": true,
     "targets": ["appimage"],
-    "category": "Science",
+    "category": "Education",
     "shortDescription": "An anatomical body simulator.",
     "longDescription": "The bs-humany studio: a compiled skeleton, a physics backend and a Hill-type muscle set, with the scenarios that drive them.",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png"],
