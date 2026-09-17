@@ -1,6 +1,6 @@
 {
   "name": "bs-humany",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Modular simulation framework for the human body. Phase 1: parametric articulated skeleton.",
   "license": "Apache-2.0",
