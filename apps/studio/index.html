@@ -275,9 +275,14 @@
             <button type="button" id="load">Load session</button>
           </div>
           <div class="buttons">
-            <button type="button" id="export-blender" disabled title="Animated glTF: every tick a keyframe, bones nested with their meshes">Export for Blender (.glb)</button>
-            <button type="button" id="export-blender-script" disabled title="Sets the Blender frame rate to the simulation rate and imports the .glb">Import script (.py)</button>
+            <button type="button" id="export-blender" disabled title="Three files: the glTF, the muscle vertex cache, and the script that imports them">Export for Blender</button>
           </div>
+          <p class="note">Export for Blender writes three files that belong together: the glTF with
+          the bones and the belly mesh, a <code>.pc2</code> vertex cache the muscles stream from,
+          and the Python script that imports the pair. Keep them in one folder. The muscles are a
+          streamed cache rather than an armature because as armatures they cost 4.3 GB of Blender
+          for six tenths of a second of simulation; as a cache the same import is under 600 MB and
+          a longer run costs disk instead of memory.</p>
           <p class="note live" id="capture-status"></p>
           <label for="captureBudget">Export capture budget <output id="captureBudget-value">&mdash;</output></label>
           <input type="range" id="captureBudget" min="32" max="4096" step="32" value="256" />

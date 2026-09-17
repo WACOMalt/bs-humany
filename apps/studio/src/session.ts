@@ -163,6 +163,38 @@ export async function download(
 }
 
 /**
+ * Write several files that belong together.
+ *
+ * A Blender export is three of them -- the glTF, the vertex cache the bellies stream from, and the
+ * import script -- and none is any use without the others. In the desktop shell that is one folder
+ * dialog and three files written into it, because three save dialogs is three chances to put one
+ * of them somewhere the other two are not. In a browser it is three downloads, which is the only
+ * thing a page can do.
+ */
+export async function downloadSet(
+  files: readonly { readonly name: string; readonly bytes: Uint8Array; readonly type: string }[],
+): Promise<boolean> {
+  if (files.length === 0) return false;
+  if (isTauri()) {
+    const total = files.reduce((t, f) => t + f.bytes.byteLength, 0);
+    const body = new Uint8Array(total);
+    let at = 0;
+    for (const f of files) {
+      body.set(f.bytes, at);
+      at += f.bytes.byteLength;
+    }
+    return await invoke<boolean>('save_file_set', body, {
+      headers: {
+        'x-file-names': JSON.stringify(files.map((f) => f.name)),
+        'x-file-sizes': JSON.stringify(files.map((f) => f.bytes.byteLength)),
+      },
+    });
+  }
+  for (const f of files) await downloadBytes(f.name, f.bytes, f.type);
+  return true;
+}
+
+/**
  * Ask for a text file, through a native dialog where there is one.
  *
  * Undefined means the shell handled it and nothing was chosen; a browser returns undefined too,

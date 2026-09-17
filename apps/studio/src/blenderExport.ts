@@ -16,10 +16,12 @@ import {
   boxMesh,
   buildAnimatedGlb,
   planeMesh,
+  writePointCache,
 } from '@bs-humany/export-gltf';
 import { IDENTITY_TRANSFORM, type Transform, compose, transformPoint } from '@bs-humany/frames';
 import { type HsdlDocument, evaluate, param } from '@bs-humany/hsdl';
 import { computeWorldTransforms } from '@bs-humany/skeleton';
+import { Playback } from './playback.js';
 import type { Simulation } from './simulation.js';
 
 export interface BlenderExport {
@@ -27,8 +29,13 @@ export interface BlenderExport {
   readonly script: string;
   readonly glbFileName: string;
   readonly scriptFileName: string;
+  /** Keyframes written, which is the recording's samples after the stride. */
   readonly frames: number;
-  /** Simulation steps per second: one keyframe each, and what sets a keyframe's time. */
+  /** Recorded samples skipped between keyframes; 1 when every one was kept. */
+  readonly stride: number;
+  /** The belly vertex cache and its file name, absent when no muscles were running. */
+  readonly pointCache?: { readonly name: string; readonly bytes: Uint8Array } | undefined;
+  /** Simulation steps per second, which is what sets a keyframe's time. */
   readonly rate: number;
   /** Frames a second of the exported timeline is divided into. */
   readonly outputFramerate: number;
@@ -75,61 +82,70 @@ function worldMesh(
   return { positions, indices: mesh.indices };
 }
 
-/** One ring's rest pose, from the first captured frame: where the bind mesh is authored. */
-function ringRest(
-  rings: { position: Float32Array; orientation: Float32Array },
-  at: number,
-): Transform {
-  return {
-    translation: {
-      x: rings.position[3 * at] ?? 0,
-      y: rings.position[3 * at + 1] ?? 0,
-      z: rings.position[3 * at + 2] ?? 0,
-    },
-    rotation: {
-      x: rings.orientation[4 * at] ?? 0,
-      y: rings.orientation[4 * at + 1] ?? 0,
-      z: rings.orientation[4 * at + 2] ?? 0,
-      w: rings.orientation[4 * at + 3] ?? 1,
-    },
-  };
+/** One muscle's slice of the joined belly mesh, so the import script can name it. */
+/**
+ * The most keyframes worth writing inside one output frame.
+ *
+ * Fifty is a ceiling rather than a target, and it is there because a sample costs one thing here
+ * and another in Blender: twenty-eight bytes in a flat array against a BezTriple with two handles
+ * and an interpolation mode, some seventy bytes, in a curve that has to be sorted and evaluated.
+ * Fifty inside a frame is already more resolution than a frame can show; past that the file is
+ * paying for detail only a re-render at a far higher frame rate could reach, in the one currency
+ * Blender is short of.
+ */
+export const MAX_SAMPLES_PER_FRAME = 50;
+
+/** Recorded samples to skip between keyframes, so no output frame holds more than the ceiling. */
+export function exportStride(stepsPerSecond: number, outputFramerate: number): number {
+  const perFrame = stepsPerSecond / Math.max(1, outputFramerate);
+  return Math.max(1, Math.ceil(perFrame / MAX_SAMPLES_PER_FRAME));
+}
+
+/** Keyframes a recording of this many samples yields at this stride. */
+export function sampleCount(frames: number, stride: number): number {
+  if (frames <= 0) return 0;
+  return Math.floor((frames - 1) / stride) + 1;
+}
+
+export interface MuscleVertexGroup {
+  readonly name: string;
+  readonly displayName: string;
+  readonly start: number;
+  readonly count: number;
 }
 
 /**
- * One muscle's bind mesh, rebuilt from the first frame's ring transforms.
+ * The ring capture's flat view, in the shape `Playback` reads a frame out of.
  *
- * Not captured: reconstructed, because it is exactly what the sweep would have produced. A ring's
- * vertices are a circle of its own radius in its own frame, so the ring transforms captured for
- * the animation already say where every vertex was at bind time, and capturing the vertices as
- * well would be storing the same fact twice.
- *
- * Each vertex is bound to its own ring at full weight, which is what makes the skin exact rather
- * than an approximation of the sweep.
+ * The view is already one contiguous block per stream, so a frame is a subarray and this copies
+ * it into the caller's buffers the way the live capture does. Written here rather than reaching
+ * into the capture, because the export holds a view rather than the capture itself.
  */
-function bindMesh(
-  rings: { position: Float32Array; orientation: Float32Array; radius: Float32Array },
-  unit: number,
-  ringCount: number,
-  segments: number,
-): { positions: Float32Array; vertexJoint: Uint16Array } {
-  const positions = new Float32Array(ringCount * segments * 3);
-  const vertexJoint = new Uint16Array(ringCount * segments);
-  for (let ring = 0; ring < ringCount; ring++) {
-    const at = unit * ringCount + ring;
-    const rest = ringRest(rings, at);
-    const radius = rings.radius[at] ?? 0;
-    for (let s = 0; s < segments; s++) {
-      const angle = (2 * Math.PI * s) / segments;
-      const local = { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: 0 };
-      const world = transformPoint(rest, local);
-      const v = ring * segments + s;
-      positions[3 * v] = world.x;
-      positions[3 * v + 1] = world.y;
-      positions[3 * v + 2] = world.z;
-      vertexJoint[v] = ring;
-    }
-  }
-  return { positions, vertexJoint };
+function capturedRings(view: {
+  readonly frames: number;
+  readonly rings: number;
+  readonly position: Float32Array;
+  readonly orientation: Float32Array;
+  readonly radius: Float32Array;
+}) {
+  return {
+    frameCount: view.frames,
+    ringCount: view.rings,
+    frameInto(
+      index: number,
+      position: Float32Array,
+      orientation: Float32Array,
+      radius: Float32Array,
+    ): boolean {
+      if (index < 0 || index >= view.frames) return false;
+      position.set(view.position.subarray(index * view.rings * 3, (index + 1) * view.rings * 3));
+      orientation.set(
+        view.orientation.subarray(index * view.rings * 4, (index + 1) * view.rings * 4),
+      );
+      radius.set(view.radius.subarray(index * view.rings, (index + 1) * view.rings));
+      return true;
+    },
+  };
 }
 
 export function buildBlenderExport(
@@ -143,6 +159,12 @@ export function buildBlenderExport(
   // and whatever frame rate the scene is set to. Nothing here resamples.
   const rate = simulation.stepsPerSecond;
   const outputFramerate = Math.max(1, Math.round(simulation.outputFramerate));
+  // How many recorded samples to skip between keyframes. One means none are skipped, which is the
+  // usual answer: a thousand steps a second into a sixty fps scene is seventeen samples a frame,
+  // well inside the ceiling. It bites when the output rate is low against the step rate -- a
+  // thousand steps into twelve fps is eighty-three a frame, and eighty-three keyframes inside one
+  // frame is eighty-three nobody will ever see between two they will.
+  const stride = exportStride(rate, outputFramerate);
   const context = simulation.resolved.context;
   const stature = evaluate(param('stature'), context);
   const datasetScale = stature / assets.manifest.subjectStature;
@@ -254,63 +276,87 @@ export function buildBlenderExport(
   // frame against the same budget, so the muscle capture stops first and the bone capture runs
   // on. A belly animation that holds its last pose is a better answer than no belly.
   const muscleAvailable = muscleRings.frames;
-  // Where the ring capture's first frame falls among the pose capture's. Outside the span the
-  // rings hold the nearest frame they were captured at rather than collapsing to the origin.
-  const muscleOffset = Math.max(0, muscleRings.firstTick - capture.firstTick);
-  const ringNodes: number[][] = [];
+  // The bellies: one mesh, and their movement in a cache beside the file rather than in it.
+  //
+  // They used to be a hundred and forty-eight skinned meshes over 3552 armature bones, keyed
+  // every sample -- ninety-six per cent of every animation channel in the file, and measured at
+  // 4.3 GB of Blender for six tenths of a second of simulation. See `pointCache.ts`. What leaves
+  // now is the mesh at its first frame, joined into one object, with a PC2 vertex cache Blender
+  // streams from disk through a Mesh Cache modifier. No keyframes, and the memory a scene needs
+  // stops depending on how long the run was.
+  const muscleGroups: MuscleVertexGroup[] = [];
+  let pointCache: Uint8Array | undefined;
+  let pointCacheSamples = 0;
   if (volume && units && muscleAvailable > 0 && muscleRings.rings === units.length * volume.rings) {
-    const muscleRoot =
-      nodes.push({
-        id: 'muscles',
-        parent: -1,
-        restWorld: IDENTITY_TRANSFORM,
-        animated: false,
-        extras: { role: 'muscle bellies, skinned to one joint per cross-section' },
-      }) - 1;
+    const perUnit = volume.rings * volume.segments;
+    const vertices = units.length * perUnit;
+    // One index buffer for the joined mesh: each unit's own connectivity, shifted past the units
+    // before it.
+    const indices = new Uint32Array(units.length * volume.index.length);
     for (let unit = 0; unit < units.length; unit++) {
-      const id = units[unit]?.id ?? `unit_${unit}`;
-      const joints: number[] = [];
-      for (let ring = 0; ring < volume.rings; ring++) {
-        const at = unit * volume.rings + ring;
-        joints.push(
-          nodes.push({
-            id: `muscle__${id}__ring${String(ring).padStart(2, '0')}`,
-            parent: muscleRoot,
-            restWorld: ringRest(muscleRings, at),
-            // The ring is authored as a unit circle and drawn at its own radius, so its bind
-            // scale is that radius and its keyframes are the radius it has at each frame.
-            bindScale: muscleRings.radius[at] || 1,
-            extras: { role: 'muscle cross-section', unit: id, ring },
-          }) - 1,
-        );
+      const offset = unit * perUnit;
+      for (let k = 0; k < volume.index.length; k++) {
+        indices[unit * volume.index.length + k] = (volume.index[k] as number) + offset;
       }
-      ringNodes.push(joints);
-      const bind = bindMesh(muscleRings, unit, volume.rings, volume.segments);
-      nodes.push({
-        id: `muscle__${id}`,
-        parent: muscleRoot,
-        restWorld: IDENTITY_TRANSFORM,
-        animated: false,
-        mesh: { positions: bind.positions, indices: volume.index },
-        skin: { joints, vertexJoint: bind.vertexJoint },
-        extras: {
-          role: 'muscle belly',
-          unit: id,
-          rings: volume.rings,
-          segments: volume.segments,
-          displayName: units[unit]?.displayName,
-        },
+      muscleGroups.push({
+        name: units[unit]?.id ?? `unit_${unit}`,
+        displayName: units[unit]?.displayName ?? units[unit]?.id ?? `unit_${unit}`,
+        start: offset,
+        count: perUnit,
       });
     }
+
+    // The mesh itself is the first sample, because a Mesh Cache modifier replaces every vertex
+    // anyway and a rest shape that is one of the real ones is the least surprising thing to find
+    // when the modifier is turned off.
+    const replay = new Playback();
+    const template = { index: indices, verticesPerUnit: perUnit };
+    const held = capturedRings(muscleRings);
+    const first = replay.bellyAt(held, 0, template, volume.rings, volume.segments);
+    const positions = new Float64Array(vertices * 3);
+    if (first) positions.set(first.position.subarray(0, vertices * 3));
+
+    nodes.push({
+      id: 'muscles',
+      parent: -1,
+      restWorld: IDENTITY_TRANSFORM,
+      animated: false,
+      mesh: { positions, indices },
+      extras: {
+        role: 'muscle bellies, one mesh; the movement is in the .pc2 beside this file',
+        units: units.length,
+        rings: volume.rings,
+        segments: volume.segments,
+        verticesPerUnit: perUnit,
+      },
+    });
+
+    // One sample per output frame, which is what a mesh cache is: Blender plays frames, and a
+    // cache finer than the frames it is played at is bytes nobody reads. The bone curves keep
+    // every sample -- they are cheap and they are the part somebody edits.
+    pointCacheSamples = Math.max(
+      1,
+      Math.floor(((muscleAvailable - 1) * outputFramerate) / rate) + 1,
+    );
+    pointCache = writePointCache(
+      { points: vertices, samples: pointCacheSamples, startFrame: 0, sampleRate: 1 },
+      (index, into) => {
+        const at = Math.min(muscleAvailable - 1, Math.round((index * rate) / outputFramerate));
+        const frame = replay.bellyAt(held, at, template, volume.rings, volume.segments);
+        if (frame) for (let v = 0; v < vertices * 3; v++) into[v] = frame.position[v] as number;
+      },
+    );
   }
 
   // Keyframes in node order; a bone the pose channel does not carry stays at rest, as does
   // scene geometry.
   const n = nodes.length;
-  const position = new Float32Array(capture.frames * n * 3);
-  const orientation = new Float32Array(capture.frames * n * 4);
-  const scale = new Float32Array(capture.frames * n * 3).fill(1);
-  for (let f = 0; f < capture.frames; f++) {
+  const samples = sampleCount(capture.frames, stride);
+  const position = new Float32Array(samples * n * 3);
+  const orientation = new Float32Array(samples * n * 4);
+  const scale = new Float32Array(samples * n * 3).fill(1);
+  for (let f = 0; f < samples; f++) {
+    const source = Math.min(capture.frames - 1, f * stride);
     nodes.forEach((node, i) => {
       const c = channelIndex.get(node.id);
       const p = (f * n + i) * 3;
@@ -321,46 +367,17 @@ export function buildBlenderExport(
         orientation.set([t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w], q);
         return;
       }
-      position.set(
-        capture.position.subarray((f * capture.bones + c) * 3, (f * capture.bones + c) * 3 + 3),
-        p,
-      );
-      orientation.set(
-        capture.orientation.subarray((f * capture.bones + c) * 4, (f * capture.bones + c) * 4 + 4),
-        q,
-      );
+      const at = source * capture.bones + c;
+      position.set(capture.position.subarray(at * 3, at * 3 + 3), p);
+      orientation.set(capture.orientation.subarray(at * 4, at * 4 + 4), q);
     });
   }
-  // The ring joints' own keyframes, which the loop above could not fill: they are not bones and
-  // the pose channel does not carry them.
-  ringNodes.forEach((joints, unit) => {
-    joints.forEach((node, ring) => {
-      const at = unit * (volume?.rings ?? 0) + ring;
-      for (let f = 0; f < capture.frames; f++) {
-        // Clamped, so a ring capture that started late or stopped early holds its nearest frame
-        // instead of leaving zeros -- a zero quaternion and a zero scale draw the belly as a
-        // point at the world origin, which is what an unfilled frame would look like.
-        const source = Math.min(Math.max(f - muscleOffset, 0), muscleAvailable - 1);
-        const from = (source * muscleRings.rings + at) * 3;
-        const fromQ = (source * muscleRings.rings + at) * 4;
-        const to = (f * n + node) * 3;
-        const toQ = (f * n + node) * 4;
-        position[to] = muscleRings.position[from] ?? 0;
-        position[to + 1] = muscleRings.position[from + 1] ?? 0;
-        position[to + 2] = muscleRings.position[from + 2] ?? 0;
-        orientation[toQ] = muscleRings.orientation[fromQ] ?? 0;
-        orientation[toQ + 1] = muscleRings.orientation[fromQ + 1] ?? 0;
-        orientation[toQ + 2] = muscleRings.orientation[fromQ + 2] ?? 0;
-        orientation[toQ + 3] = muscleRings.orientation[fromQ + 3] ?? 1;
-        const radius = muscleRings.radius[source * muscleRings.rings + at] ?? 1;
-        scale[to] = radius;
-        scale[to + 1] = radius;
-        scale[to + 2] = radius;
-      }
-    });
-  });
-
-  const times = Float64Array.from({ length: capture.frames }, (_, f) => f / rate);
+  // Times stay in seconds off the recorded index, so dropping samples shortens the curve without
+  // moving anything on it: a second of simulated time is still a second of timeline.
+  const times = Float64Array.from(
+    { length: samples },
+    (_, f) => Math.min(capture.frames - 1, f * stride) / rate,
+  );
 
   const seconds = capture.frames / rate;
   const stem =
@@ -374,7 +391,9 @@ export function buildBlenderExport(
       rateHz: rate,
       outputFramerate,
       seconds,
-      frames: capture.frames,
+      frames: samples,
+      stride,
+      recordedSteps: capture.frames,
       firstTick: capture.firstTick,
       captureFull: capture.full,
       profile: simulation.articulation.profileId,
@@ -388,7 +407,7 @@ export function buildBlenderExport(
         'and the scenario furniture under a static "scene" root; muscle bellies under a ' +
         '"muscles" root, each a skinned mesh bound one ring at a time to a joint per ' +
         'cross-section, which carries both the bend of the path and the swell of the belly',
-      muscles: ringNodes.length,
+      muscles: muscleGroups.length,
       attribution: attributionText(assets.manifest),
       dataLicense: assets.manifest.dataset.license,
     },
@@ -399,11 +418,22 @@ export function buildBlenderExport(
       glbFileName: `${stem}.glb`,
       rate,
       outputFramerate,
-      frames: capture.frames,
+      frames: samples,
+      stride,
+      steps: capture.frames,
+      ...(pointCache
+        ? {
+            pointCacheFileName: `${stem}.pc2`,
+            pointCacheSamples,
+            muscleGroups,
+          }
+        : {}),
     }),
     glbFileName: `${stem}.glb`,
     scriptFileName: `${stem}.py`,
-    frames: capture.frames,
+    frames: samples,
+    stride,
+    ...(pointCache ? { pointCache: { name: `${stem}.pc2`, bytes: pointCache } } : {}),
     rate,
     outputFramerate,
     seconds,

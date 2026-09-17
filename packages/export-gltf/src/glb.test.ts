@@ -179,6 +179,8 @@ describe('the Blender script', () => {
       rate: 500,
       outputFramerate: 60,
       frames: 2500,
+      stride: 1,
+      steps: 2500,
     });
     expect(script).toContain('scene.render.fps = 60');
     expect(script).toContain('scene.frame_end = 300');
@@ -196,6 +198,8 @@ describe('the Blender script', () => {
         rate,
         outputFramerate: fps,
         frames,
+        stride: 1,
+        steps: frames,
       });
       const end = Number(/scene\.frame_end = (\d+)/.exec(other)?.[1]);
       expect(end / fps).toBeCloseTo(frames / rate, 2);

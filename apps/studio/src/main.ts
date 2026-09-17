@@ -72,7 +72,7 @@ import {
   type SessionSettings,
   deserializeSnapshot,
   download,
-  downloadBytes,
+  downloadSet,
   isSessionFile,
   openTextFile,
   serializeSnapshot,
@@ -217,7 +217,6 @@ const ui = {
   timeline: must<HTMLInputElement>('#timeline'),
   exportRecording: must<HTMLButtonElement>('#export'),
   exportBlender: must<HTMLButtonElement>('#export-blender'),
-  exportBlenderScript: must<HTMLButtonElement>('#export-blender-script'),
   save: must<HTMLButtonElement>('#save'),
   load: must<HTMLButtonElement>('#load'),
   loadFile: must<HTMLInputElement>('#load-file'),
@@ -648,7 +647,6 @@ function setRunControls(running: boolean): void {
   ui.reset.disabled = !running;
   ui.exportRecording.disabled = !running;
   ui.exportBlender.disabled = !running;
-  ui.exportBlenderScript.disabled = !running;
   setPlaybackControls(running);
 }
 
@@ -1448,12 +1446,28 @@ ui.exportRecording.addEventListener('click', () => {
 ui.exportBlender.addEventListener('click', () => {
   if (!simulation || !assets) return;
   const built = buildBlenderExport(simulation, document_, assets);
-  void saving(built.glbFileName, downloadBytes(built.glbFileName, built.glb, 'model/gltf-binary'));
-});
-ui.exportBlenderScript.addEventListener('click', () => {
-  if (!simulation || !assets) return;
-  const built = buildBlenderExport(simulation, document_, assets);
-  void saving(built.scriptFileName, download(built.scriptFileName, built.script, 'text/x-python'));
+  // All three together, because none is any use without the others: the glTF holds the bones and
+  // the belly mesh, the cache holds the bellies' movement, and the script is what wires the one
+  // to the other. One folder in the desktop shell; three downloads in a browser, which is all a
+  // page can do.
+  const files = [
+    { name: built.glbFileName, bytes: built.glb, type: 'model/gltf-binary' },
+    ...(built.pointCache
+      ? [
+          {
+            name: built.pointCache.name,
+            bytes: built.pointCache.bytes,
+            type: 'application/octet-stream',
+          },
+        ]
+      : []),
+    {
+      name: built.scriptFileName,
+      bytes: new TextEncoder().encode(built.script),
+      type: 'text/x-python',
+    },
+  ];
+  void saving(`${files.length} files for Blender`, downloadSet(files));
 });
 ui.save.addEventListener('click', () => {
   const file: SessionFile = {

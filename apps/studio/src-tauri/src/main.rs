@@ -72,6 +72,66 @@ async fn save_file(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> R
     Ok(true)
 }
 
+/// Save several files that belong together, into one folder the person picks.
+///
+/// A Blender export is three files now -- the glTF, the vertex cache the bellies stream from, and
+/// the import script -- and none of them is any use without the others. Three save dialogs for
+/// one export is three chances to put one of them somewhere else, so this asks for the folder
+/// once and writes all three into it under the names the export chose.
+///
+/// The names are the export's own and are checked to be bare file names: a name with a separator
+/// or a parent segment in it is refused rather than joined, so this cannot be talked into writing
+/// outside the folder that was picked.
+#[tauri::command]
+async fn save_file_set(
+    app: tauri::AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<bool, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let header = |k: &str| {
+        request
+            .headers()
+            .get(k)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.to_owned())
+    };
+    let names: Vec<String> = serde_json::from_str(
+        &header("x-file-names").ok_or("save_file_set wants an x-file-names header.")?,
+    )
+    .map_err(|e| e.to_string())?;
+    let sizes: Vec<usize> = serde_json::from_str(
+        &header("x-file-sizes").ok_or("save_file_set wants an x-file-sizes header.")?,
+    )
+    .map_err(|e| e.to_string())?;
+    if names.len() != sizes.len() || names.is_empty() {
+        return Err("save_file_set wants one size per name, and at least one of each.".into());
+    }
+    for name in &names {
+        let bare = std::path::Path::new(name);
+        if bare.components().count() != 1 || name.contains('/') || name.contains('\\') {
+            return Err(format!("'{name}' is not a plain file name."));
+        }
+    }
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("save_file_set wants the files' bytes as the request body.".into());
+    };
+    if bytes.len() != sizes.iter().sum::<usize>() {
+        return Err("save_file_set was given a body that is not the sizes it was promised.".into());
+    }
+    let Some(folder) = app.dialog().file().blocking_pick_folder() else {
+        return Ok(false);
+    };
+    let folder = folder.into_path().map_err(|e| e.to_string())?;
+    let mut at = 0usize;
+    for (name, size) in names.iter().zip(sizes.iter()) {
+        let path = folder.join(name);
+        std::fs::write(&path, &bytes[at..at + size])
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        at += size;
+    }
+    Ok(true)
+}
+
 /// Read a file the person picks, as text. `None` when they cancel.
 ///
 /// Sessions only, which is the one thing this application opens. The page does not name a path
@@ -101,7 +161,7 @@ fn main() {
         // The dialog plugin is here for its Rust side only: the two commands above call it, and
         // the page cannot. Nothing of it is exposed to JavaScript.
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![save_file, open_text_file])
+        .invoke_handler(tauri::generate_handler![save_file, save_file_set, open_text_file])
         .run(tauri::generate_context!())
         .expect("bs-humany studio: the web view failed to start");
 }

@@ -15,10 +15,10 @@
 import { fileURLToPath } from 'node:url';
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { loadSkeletonAssetsFromDisk } from '@bs-humany/assets-anatomical';
-import { readGlb } from '@bs-humany/export-gltf';
+import { PC2_HEADER_BYTES, readGlb } from '@bs-humany/export-gltf';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
-import { buildBlenderExport } from './blenderExport.js';
+import { buildBlenderExport, exportStride, sampleCount } from './blenderExport.js';
 import { Simulation } from './simulation.js';
 
 const document = buildDocument();
@@ -75,23 +75,22 @@ const floats = (json: Gltf, binary: Uint8Array, accessor: number): Float32Array 
 };
 
 describe('the Blender export, with muscles', () => {
-  it('carries a skinned belly for every unit, and the bones as well', async () => {
+  it('carries one belly mesh, the bones, and nothing skinned', async () => {
     const simulation = await running(40);
     const exported = buildBlenderExport(simulation, document, assets);
     const { json } = readGlb(exported.glb) as unknown as { json: Gltf };
 
-    const bellies = json.nodes.filter((n) => n.name.startsWith('muscle__') && n.skin !== undefined);
-    expect(bellies).toHaveLength(simulation.muscles?.units.length ?? 0);
-    expect(bellies.length).toBeGreaterThan(0);
-    // One joint per cross-section, and each joint is a real node in the scene.
-    const rings = simulation.muscleVolume?.rings ?? 0;
-    for (const belly of bellies) {
-      const skin = json.skins?.[belly.skin as number];
-      expect(skin?.joints, belly.name).toHaveLength(rings);
-      for (const joint of skin?.joints ?? []) {
-        expect(json.nodes[joint]?.name, belly.name).toMatch(/__ring\d+$/);
-      }
-    }
+    const volume = simulation.muscleVolume;
+    const units = simulation.muscles?.units.length ?? 0;
+    if (!volume) throw new Error('the simulation has no muscle volume');
+    const belly = json.nodes.find((n) => n.name === 'muscles');
+    expect(belly?.mesh).toBeDefined();
+    expect(units).toBeGreaterThan(0);
+    // One mesh holding every unit, rather than one mesh each: a Mesh Cache modifier is per object
+    // and a hundred and forty-eight of them is a hundred and forty-eight file handles.
+    expect(json.nodes.filter((n) => n.name.startsWith('muscle__'))).toHaveLength(0);
+    const positions = json.meshes[belly?.mesh as number]?.primitives[0]?.attributes.POSITION;
+    expect(json.accessors[positions as number]?.count).toBe(units * volume.rings * volume.segments);
     // And the skeleton is still there, which a muscle change must not cost.
     expect(json.nodes.some((n) => n.name === 'humerus_r')).toBe(true);
     simulation.dispose();
@@ -145,6 +144,68 @@ describe('the Blender export, with muscles', () => {
     simulation.dispose();
   }, 60_000);
 
+  it('sends the bellies as a streamed cache rather than as armature keyframes', async () => {
+    // The change this file exists to pin. As skinned meshes over one bone per cross-section the
+    // muscles were 96% of every animation channel, and six tenths of a second of them cost 4.3 GB
+    // of Blender. Now they are one mesh and a PC2 the Mesh Cache modifier streams from disk.
+    const simulation = await running(120);
+    const units = simulation.muscles?.units.length ?? 0;
+    const volume = simulation.muscleVolume;
+    if (!volume) throw new Error('the simulation has no muscle volume');
+    const exported = buildBlenderExport(simulation, document, assets);
+    const { json } = readGlb(exported.glb) as unknown as { json: Gltf };
+
+    // No skins, no ring joints, no per-unit belly objects: one mesh named for what it is.
+    expect(json.skins ?? []).toHaveLength(0);
+    expect(json.nodes.filter((n) => /__ring\d+$/.test(n.name))).toHaveLength(0);
+    const belly = json.nodes.find((n) => n.name === 'muscles');
+    expect(belly?.mesh).toBeDefined();
+
+    // The cache is one sample per output frame and one point per vertex of that mesh.
+    const points = units * volume.rings * volume.segments;
+    if (!exported.pointCache) throw new Error('no vertex cache');
+    const view = new DataView(
+      exported.pointCache.bytes.buffer,
+      exported.pointCache.bytes.byteOffset,
+      exported.pointCache.bytes.byteLength,
+    );
+    expect(new TextDecoder().decode(exported.pointCache.bytes.subarray(0, 11))).toBe('POINTCACHE2');
+    expect(view.getInt32(16, true)).toBe(points);
+    const samples = view.getInt32(28, true);
+    expect(samples).toBe(Math.floor(((120 - 1) * exported.outputFramerate) / exported.rate) + 1);
+    expect(exported.pointCache.bytes.length).toBe(PC2_HEADER_BYTES + points * samples * 12);
+    expect(exported.pointCache.name.endsWith('.pc2')).toBe(true);
+
+    // And the animation is now the bones alone, which is what made it affordable.
+    const channels = json.animations[0]?.channels.length ?? 0;
+    expect(channels).toBeLessThan(600);
+    simulation.dispose();
+  }, 60_000);
+
+  it('thins the keyframes when one output frame would hold more than the ceiling', async () => {
+    // A thousand steps a second into twelve frames a second is 83 samples inside one frame. The
+    // ceiling is 50, so every second step is kept and the timing does not move: sample 2k is
+    // still at 2k/1000 seconds.
+    expect(exportStride(1000, 60)).toBe(1);
+    expect(exportStride(1000, 12)).toBe(2);
+    expect(exportStride(2000, 10)).toBe(4);
+    expect(sampleCount(120, 2)).toBe(60);
+    expect(sampleCount(0, 2)).toBe(0);
+
+    const simulation = await running(120, undefined, { outputFramerate: 12 });
+    const exported = buildBlenderExport(simulation, document, assets);
+    expect(exported.stride).toBe(2);
+    expect(exported.frames).toBe(60);
+    // Half the keyframes, the same span of seconds.
+    expect(exported.seconds).toBeCloseTo(120 / exported.rate, 6);
+    const { json, binary } = readGlb(exported.glb) as unknown as { json: Gltf; binary: Uint8Array };
+    const times = floats(json, binary, json.animations[0]?.samplers[0]?.input as number);
+    expect(times).toHaveLength(60);
+    expect(times[1]).toBeCloseTo(2 / exported.rate, 6);
+    expect(times[59]).toBeCloseTo(118 / exported.rate, 6);
+    simulation.dispose();
+  }, 60_000);
+
   it('keeps the bellies when the ring capture runs out of budget first', async () => {
     // The regression. A frame of rings is about twenty times a frame of bones -- a hundred and
     // forty-eight units at twenty-four cross-sections apiece against a couple of hundred bodies
@@ -167,111 +228,43 @@ describe('the Blender export, with muscles', () => {
     expect(short.capture.frameCount).toBeLessThan(40);
     expect(short.capturesStoppedBy).toBe('muscles');
 
-    const { json } = readGlb(buildBlenderExport(short, document, assets).glb) as unknown as {
-      json: Gltf;
-    };
-    const bellies = json.nodes.filter((n) => n.name.startsWith('muscle__') && n.skin !== undefined);
-    expect(bellies).toHaveLength(short.muscles?.units.length ?? 0);
-    expect(bellies.length).toBeGreaterThan(0);
+    const exported = buildBlenderExport(short, document, assets);
+    const { json } = readGlb(exported.glb) as unknown as { json: Gltf };
+    expect(json.nodes.find((n) => n.name === 'muscles')?.mesh).toBeDefined();
+    expect(exported.pointCache).toBeDefined();
     short.dispose();
   }, 60_000);
 
-  it('puts every vertex where the sweep had it, through the file’s own matrices', async () => {
-    // The whole chain in one assertion: ring frames read off the swept mesh, captured, written as
-    // keyframes and inverse bind matrices, then skinned back. A degree of twist in a ring frame
-    // or a transposed matrix moves vertices by millimetres, and the belly is centimetres across.
-    const ticks = 40;
-    const simulation = await running(ticks);
+  it('puts every vertex of the cache where the sweep had it', async () => {
+    // The whole chain in one assertion, as before, but a shorter chain: the swept mesh, the ring
+    // frames measured off it, the cache written from those. The skinning that used to sit in the
+    // middle -- inverse bind matrices, per-ring weights -- is gone, and with it the only thing in
+    // this file that could be subtly wrong without being obviously wrong.
+    const simulation = await running(1);
     const live = simulation.muscleMesh();
     const volume = simulation.muscleVolume;
     if (!live || !volume) throw new Error('the simulation has no muscle mesh');
-
     const exported = buildBlenderExport(simulation, document, assets);
-    const { json, binary } = readGlb(exported.glb) as unknown as {
-      json: Gltf;
-      binary: Uint8Array;
-    };
-    const frame = exported.frames - 1;
-    const nodeIndex = new Map(json.nodes.map((n, i) => [n.name, i]));
+    if (!exported.pointCache) throw new Error('no vertex cache');
 
-    const sampled = (node: number, path: string, components: number): Float32Array | undefined => {
-      const channel = json.animations[0]?.channels.find(
-        (c) => c.target.node === node && c.target.path === path,
-      );
-      if (!channel) return undefined;
-      const sampler = json.animations[0]?.samplers[channel.sampler];
-      if (!sampler) return undefined;
-      const all = floats(json, binary, sampler.output);
-      return all.subarray(frame * components, (frame + 1) * components);
-    };
-
-    const unitId = simulation.muscles?.units[0]?.id as string;
-    const belly = json.nodes[nodeIndex.get(`muscle__${unitId}`) as number];
-    const skin = json.skins?.[belly?.skin as number];
-    const matrices = floats(json, binary, skin?.inverseBindMatrices as number);
-    const attributes = json.meshes[belly?.mesh as number]?.primitives[0]?.attributes as Record<
-      string,
-      number
-    >;
-    const bind = floats(json, binary, attributes.POSITION as number);
+    const bytes = exported.pointCache.bytes;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const points = view.getInt32(16, true);
+    expect(points).toBe(live.position.length / 3);
 
     let worst = 0;
-    for (let ring = 0; ring < volume.rings; ring++) {
-      const joint = skin?.joints[ring] as number;
-      const translation = sampled(joint, 'translation', 3);
-      const rotation = sampled(joint, 'rotation', 4);
-      const scale = sampled(joint, 'scale', 3);
-      if (!translation || !rotation) throw new Error(`ring ${ring} has no keyframes`);
-      const s = scale?.[0] ?? 1;
-      const [qx, qy, qz, qw] = [
-        rotation[0] as number,
-        rotation[1] as number,
-        rotation[2] as number,
-        rotation[3] as number,
-      ];
-      for (let segment = 0; segment < volume.segments; segment++) {
-        const v = ring * volume.segments + segment;
-        // Bind vertex into the joint's frame by the matrix in the file...
-        const m = 16 * ring;
-        const b = [bind[3 * v] as number, bind[3 * v + 1] as number, bind[3 * v + 2] as number];
-        const local = [0, 1, 2].map(
-          (row) =>
-            (matrices[m + row] as number) * (b[0] as number) +
-            (matrices[m + 4 + row] as number) * (b[1] as number) +
-            (matrices[m + 8 + row] as number) * (b[2] as number) +
-            (matrices[m + 12 + row] as number),
+    for (let v = 0; v < points; v++) {
+      for (let k = 0; k < 3; k++) {
+        worst = Math.max(
+          worst,
+          Math.abs(
+            view.getFloat32(PC2_HEADER_BYTES + v * 12 + k * 4, true) -
+              (live.position[v * 3 + k] as number),
+          ),
         );
-        // ...scaled, rotated and translated by the joint's keyframe, which is glTF's own rule.
-        const scaled = local.map((c) => c * s);
-        const t = [
-          2 * (qy * (scaled[2] as number) - qz * (scaled[1] as number)),
-          2 * (qz * (scaled[0] as number) - qx * (scaled[2] as number)),
-          2 * (qx * (scaled[1] as number) - qy * (scaled[0] as number)),
-        ];
-        const skinned = [
-          (scaled[0] as number) +
-            qw * (t[0] as number) +
-            (qy * (t[2] as number) - qz * (t[1] as number)) +
-            (translation[0] as number),
-          (scaled[1] as number) +
-            qw * (t[1] as number) +
-            (qz * (t[0] as number) - qx * (t[2] as number)) +
-            (translation[1] as number),
-          (scaled[2] as number) +
-            qw * (t[2] as number) +
-            (qx * (t[1] as number) - qy * (t[0] as number)) +
-            (translation[2] as number),
-        ];
-        const at = 3 * v;
-        for (let c = 0; c < 3; c++) {
-          worst = Math.max(
-            worst,
-            Math.abs((skinned[c] as number) - (live.position[at + c] as number)),
-          );
-        }
       }
     }
-    // A tenth of a millimetre, which is the width of the single-precision the capture holds.
+    // The cache is single precision, which over a belly centimetres across is microns.
     expect(worst).toBeLessThan(1e-4);
     simulation.dispose();
   }, 60_000);

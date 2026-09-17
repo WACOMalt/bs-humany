@@ -7,12 +7,14 @@ What this crate adds is a window, two headers, and two commands for saving and o
 
 The commands are not a preference. A web view is not a browser: `<a download>` has no download
 handler behind it and `<input type="file">` has no file chooser, so in the binary Save, Load and
-both Exports clicked and did nothing and said nothing. They go through a native dialog instead.
+Export clicked and did nothing and said nothing. They go through a native dialog instead.
 
-The shape keeps that at what a Save button means. The page hands over a file name and the bytes;
+The shape keeps that at what a Save button means. The page hands over file names and the bytes;
 it does not name a path and never learns the one chosen, so the dialog is the only thing that
-decides where a file lands. Nothing else is exposed -- the dialog plugin is registered for its
-Rust side alone and no part of it is reachable from JavaScript.
+decides where a file lands. `save_file_set` asks for a folder once, because a Blender export is
+three files that are no use apart, and it refuses any name that is not a plain file name. Nothing
+else is exposed -- the dialog plugin is registered for its Rust side alone and no part of it is
+reachable from JavaScript.
 
 ## Building
 
