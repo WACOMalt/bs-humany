@@ -13,10 +13,12 @@ rust-version = "1.77.2"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# No plugins and no commands: the studio is the same web application the container serves, and
-# it asks the host for nothing. What this crate adds is a window and the two headers that window
-# has to send -- see `tauri.conf.json`.
+# A window, two headers and two commands. The commands exist because a web view is not a browser:
+# `<a download>` and `<input type="file">` do nothing inside WebKitGTK, so saving and loading have
+# to go through a native dialog. `main.rs` argues for the shape they take -- the page hands over
+# bytes and a name and never names or learns a path.
 tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
 
 # A single binary somebody can copy to another machine is the point, so it is built for size and
 # stripped. `panic = "abort"` drops the unwinding tables; a panic here is a bug that has already

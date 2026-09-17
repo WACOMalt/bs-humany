@@ -7,6 +7,7 @@
  */
 
 import type { KernelSnapshot } from '@bs-humany/kernel';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 
 export interface SessionSettings {
   readonly sex: number;
@@ -109,9 +110,31 @@ export function isSessionFile(value: unknown): value is SessionFile {
   );
 }
 
-/** Trigger a browser download of text content. */
-/** Offer bytes as a file download. */
-export function downloadBytes(filename: string, bytes: Uint8Array, type: string): void {
+/**
+ * Put bytes in a file, by whichever of the two routes exists here.
+ *
+ * In a browser that is an anchor with a `download` attribute and an object URL, which is the only
+ * way a page may write a file and works everywhere. In the desktop shell it is neither: a web
+ * view has no download handler, so the anchor is clicked and nothing happens and nothing says so
+ * -- which is exactly what Save, Load and both Exports did in the binary. There it goes to a
+ * native save dialog instead, over the raw request body, because a Blender export is a hundred
+ * megabytes and JSON would spell every byte of it as a number.
+ *
+ * Resolves false when the dialog was cancelled, and true when a file was written. A browser
+ * cannot tell the difference and says true.
+ */
+export async function downloadBytes(
+  filename: string,
+  bytes: Uint8Array,
+  type: string,
+): Promise<boolean> {
+  if (isTauri()) {
+    // A fresh copy, because the bytes may be a view onto a larger buffer and the bridge sends the
+    // whole buffer rather than the view.
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    return await invoke<boolean>('save_file', copy, { headers: { 'x-file-name': filename } });
+  }
   const blob = new Blob([bytes as BlobPart], { type });
   const url = URL.createObjectURL(blob);
   const a = window.document.createElement('a');
@@ -119,9 +142,16 @@ export function downloadBytes(filename: string, bytes: Uint8Array, type: string)
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 
-export function download(filename: string, content: string, type = 'application/json'): void {
+/** The same, for text. */
+export async function download(
+  filename: string,
+  content: string,
+  type = 'application/json',
+): Promise<boolean> {
+  if (isTauri()) return downloadBytes(filename, new TextEncoder().encode(content), type);
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -129,4 +159,22 @@ export function download(filename: string, content: string, type = 'application/
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
+}
+
+/**
+ * Ask for a text file, through a native dialog where there is one.
+ *
+ * Undefined means the shell handled it and nothing was chosen; a browser returns undefined too,
+ * and the caller falls back to the hidden `<input type="file">` that works there.
+ */
+export async function openTextFile(): Promise<string | undefined> {
+  if (!isTauri()) return undefined;
+  const text = await invoke<string | null>('open_text_file');
+  return typeof text === 'string' ? text : undefined;
+}
+
+/** Whether the file pickers have to go through the desktop shell rather than the DOM. */
+export function usesNativeFilePickers(): boolean {
+  return isTauri();
 }

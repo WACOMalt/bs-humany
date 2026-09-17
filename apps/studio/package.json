@@ -27,6 +27,7 @@
     "@bs-humany/render-three": "workspace:*",
     "@bs-humany/scenarios": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
+    "@tauri-apps/api": "^2.9.0",
     "three": "^0.186.0"
   },
   "devDependencies": {

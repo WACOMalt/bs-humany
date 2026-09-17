@@ -3,8 +3,16 @@
 The same web application the container serves, in a native window instead of a browser tab. The
 container stays exactly as it was: this is a second way to run the studio, not a replacement.
 
-What this crate adds is a window and two headers. There are no Tauri commands and no plugins --
-the page asks the host for nothing, so it is given nothing.
+What this crate adds is a window, two headers, and two commands for saving and opening files.
+
+The commands are not a preference. A web view is not a browser: `<a download>` has no download
+handler behind it and `<input type="file">` has no file chooser, so in the binary Save, Load and
+both Exports clicked and did nothing and said nothing. They go through a native dialog instead.
+
+The shape keeps that at what a Save button means. The page hands over a file name and the bytes;
+it does not name a path and never learns the one chosen, so the dialog is the only thing that
+decides where a file lands. Nothing else is exposed -- the dialog plugin is registered for its
+Rust side alone and no part of it is reachable from JavaScript.
 
 ## Building
 
@@ -18,13 +26,13 @@ Each runs `pnpm build:studio` first, so the bundle in the binary is never stale.
 
 | Command | Output | Built |
 | --- | --- | --- |
-| `pnpm desktop:build` | `target/release/bs-humany-studio` | 12 MB |
-| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_0.0.0_amd64.AppImage` | 113 MB |
+| `pnpm desktop:build` | `target/release/bs-humany-studio` | 11.5 MB |
+| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_0.0.0_amd64.AppImage` | 112 MB |
 
 The studio's `dist` is about 27 MB -- the MuJoCo wasm, the skeleton meshes and the landmark
 tables -- and all of it is embedded in the binary rather than fetched, so nothing is downloaded at
 run time. Tauri compresses it on the way in, which is why 27 MB of assets plus a web view shell
-comes out at twelve.
+comes out at eleven and a half.
 
 ## What "portable" means here, and what it does not
 
@@ -35,8 +43,8 @@ Fedora, Nobara, Ubuntu 24.04 or Arch and absent on anything older. `ldd` on the 
 exactly what it wants.
 
 The AppImage is the answer to that and it is why it is worth having: it carries the web view and
-its dependencies with it, so it runs on distributions whose own web view is too old. It is 113 MB
-against 12. Build the binary for a machine you know and the AppImage for one you do not.
+its dependencies with it, so it runs on distributions whose own web view is too old. It is 112 MB
+against 11.5. Build the binary for a machine you know and the AppImage for one you do not.
 
 ## Prerequisites
 

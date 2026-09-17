@@ -74,7 +74,9 @@ import {
   download,
   downloadBytes,
   isSessionFile,
+  openTextFile,
   serializeSnapshot,
+  usesNativeFilePickers,
 } from './session.js';
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
@@ -1421,22 +1423,37 @@ ui.scenario.addEventListener('change', scenarioChanged);
 // Once at startup, because the picker opens on a scenario rather than on nothing and the note,
 // the sliders and the muscle box all follow from which one that is.
 scenarioChanged();
+/**
+ * Write a file and say what happened, because in the desktop shell it can fail.
+ *
+ * A browser download cannot be refused and cannot report anything; a native save dialog can be
+ * cancelled and a native write can hit a full disk or a read-only directory. Both of those used
+ * to be silent -- the button did nothing and the panel said nothing, which is indistinguishable
+ * from the button being broken.
+ */
+async function saving(what: string, write: Promise<boolean>): Promise<void> {
+  try {
+    if (await write) setSimulationStatus(`Wrote ${what}.`);
+  } catch (error) {
+    console.error(`Writing ${what} failed.`, error);
+    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+  }
+}
+
 ui.exportRecording.addEventListener('click', () => {
   if (!simulation) return;
-  download(
-    `bs-humany-${simulation.recording.scenario}-${simulation.backendId}.json`,
-    simulation.exportRecording(),
-  );
+  const name = `bs-humany-${simulation.recording.scenario}-${simulation.backendId}.json`;
+  void saving(name, download(name, simulation.exportRecording()));
 });
 ui.exportBlender.addEventListener('click', () => {
   if (!simulation || !assets) return;
   const built = buildBlenderExport(simulation, document_, assets);
-  downloadBytes(built.glbFileName, built.glb, 'model/gltf-binary');
+  void saving(built.glbFileName, downloadBytes(built.glbFileName, built.glb, 'model/gltf-binary'));
 });
 ui.exportBlenderScript.addEventListener('click', () => {
   if (!simulation || !assets) return;
   const built = buildBlenderExport(simulation, document_, assets);
-  download(built.scriptFileName, built.script, 'text/x-python');
+  void saving(built.scriptFileName, download(built.scriptFileName, built.script, 'text/x-python'));
 });
 ui.save.addEventListener('click', () => {
   const file: SessionFile = {
@@ -1452,20 +1469,36 @@ ui.save.addEventListener('click', () => {
         }
       : {}),
   };
-  download('bs-humany-session.json', JSON.stringify(file));
+  void saving('bs-humany-session.json', download('bs-humany-session.json', JSON.stringify(file)));
 });
-ui.load.addEventListener('click', () => ui.loadFile.click());
-ui.loadFile.addEventListener('change', async () => {
-  const file = ui.loadFile.files?.[0];
-  if (!file) return;
+/** Apply a session file's contents, whichever picker they came through. */
+async function loadSessionText(text: string): Promise<void> {
   try {
-    const parsed: unknown = JSON.parse(await file.text());
+    const parsed: unknown = JSON.parse(text);
     if (!isSessionFile(parsed)) throw new Error('Not a bs-humany session file.');
     applySettings(parsed.settings);
     if (parsed.simulation) await startSimulation(parsed.simulation);
   } catch (error) {
     console.error('The session failed to load.', error);
     setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+  }
+}
+
+ui.load.addEventListener('click', async () => {
+  // The hidden `<input type="file">` is a browser's only way to ask for a file and a web view's
+  // no way at all: clicking it there opens nothing. The shell has a dialog instead.
+  if (usesNativeFilePickers()) {
+    const text = await openTextFile();
+    if (text !== undefined) await loadSessionText(text);
+    return;
+  }
+  ui.loadFile.click();
+});
+ui.loadFile.addEventListener('change', async () => {
+  const file = ui.loadFile.files?.[0];
+  if (!file) return;
+  try {
+    await loadSessionText(await file.text());
   } finally {
     ui.loadFile.value = '';
   }
