@@ -4,6 +4,13 @@ The studio is a static site: everything runs in the browser, and the server only
 out files with two headers. The repository ships a `Dockerfile` that builds it and serves it
 with nginx.
 
+The image is not published to any registry. It is two lines to build and it embeds a 27 MB asset
+pack that changes whenever the data does, so a registry copy would be a second thing to keep true
+rather than a convenience. Build it from the repository at whichever commit you want to serve.
+
+For one person on one machine, the desktop build in `apps/studio/src-tauri/README.md` is less
+ceremony than a container.
+
 ## Build and run
 
 On the machine that will serve it, with Docker or Podman installed:

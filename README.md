@@ -55,6 +55,35 @@ pnpm test
 pnpm dev
 ```
 
+## Running the studio
+
+Three ways, and none of them needs the others.
+
+**A desktop application.** The releases page carries two builds per version:
+
+| | |
+| --- | --- |
+| `bs-humany-studio_<version>_amd64.AppImage` | runs anywhere; carries its own web view |
+| `bs-humany-studio-<version>-linux-x86_64.tar.gz` | the bare binary, a third of the size, wanting a current `libwebkit2gtk-4.1` |
+
+`chmod +x` the AppImage and run it. The tarball holds the binary and its attribution; unpack it
+anywhere and run `./bs-humany-studio`. Build either yourself with `pnpm desktop:appimage` or
+`pnpm desktop:build` — see `apps/studio/src-tauri/README.md` for what they need.
+
+**A container**, which is the right answer for serving it to more than one person. The image is
+not published anywhere: build it from the repository, which takes one command and no account.
+
+```bash
+docker build -t bs-humany-studio .
+docker run -d --name bs-humany -p 8080:80 --restart unless-stopped bs-humany-studio
+```
+
+Then open `http://localhost:8080/`. `podman` works in place of `docker`, and
+`docker compose up -d --build` does both steps at once. `docs/guides/deploy.md` covers updating
+it, what is in the image, and the two headers it has to serve.
+
+**The dev server**, which is `pnpm dev`.
+
 ## Naming
 
 Project: `bs-humany`. Workspace scope: `@bs-humany/*`. Where a globally-unique identifier is needed

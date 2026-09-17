@@ -8,3 +8,4 @@ coverage/
 apps/*/dist/
 tools/*/dist/
 .venv/
+dist-release/
