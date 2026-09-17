@@ -82,6 +82,29 @@ function worldMesh(
   return { positions, indices: mesh.indices };
 }
 
+/**
+ * Our coordinates into the ones Blender's glTF importer will have left everything else in.
+ *
+ * glTF is +Y up and Blender is +Z up, and the importer does not resolve that with an object
+ * rotation -- it bakes `(x, y, z) -> (x, -z, y)` into the mesh data and leaves the object's matrix
+ * at identity. Measured, not assumed: a vertex written at `(0.1588, 1.6116, 0.0342)` comes back
+ * out of the importer at `(0.1588, -0.0342, 1.6116)`.
+ *
+ * The vertex cache does not go through that importer. It is read by a modifier, straight off
+ * disk, into the mesh's own space -- so it has to arrive already converted or the bellies sit
+ * ninety degrees about X away from the bones they belong to, which is exactly what they did.
+ *
+ * The rest mesh in the glTF is deliberately *not* converted here: that one does go through the
+ * importer and would be converted twice.
+ */
+function toBlenderAxes(from: Float64Array, into: Float32Array, vertices: number): void {
+  for (let v = 0; v < vertices; v++) {
+    into[v * 3] = from[v * 3] as number;
+    into[v * 3 + 1] = -(from[v * 3 + 2] as number);
+    into[v * 3 + 2] = from[v * 3 + 1] as number;
+  }
+}
+
 /** One muscle's slice of the joined belly mesh, so the import script can name it. */
 /**
  * The most keyframes worth writing inside one output frame.
@@ -343,7 +366,7 @@ export function buildBlenderExport(
       (index, into) => {
         const at = Math.min(muscleAvailable - 1, Math.round((index * rate) / outputFramerate));
         const frame = replay.bellyAt(held, at, template, volume.rings, volume.segments);
-        if (frame) for (let v = 0; v < vertices * 3; v++) into[v] = frame.position[v] as number;
+        if (frame) toBlenderAxes(frame.position, into, vertices);
       },
     );
   }

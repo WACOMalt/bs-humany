@@ -235,7 +235,7 @@ describe('the Blender export, with muscles', () => {
     short.dispose();
   }, 60_000);
 
-  it('puts every vertex of the cache where the sweep had it', async () => {
+  it('puts every vertex of the cache where the sweep had it, in Blender axes', async () => {
     // The whole chain in one assertion, as before, but a shorter chain: the swept mesh, the ring
     // frames measured off it, the cache written from those. The skinning that used to sit in the
     // middle -- inverse bind matrices, per-ring weights -- is gone, and with it the only thing in
@@ -252,15 +252,23 @@ describe('the Blender export, with muscles', () => {
     const points = view.getInt32(16, true);
     expect(points).toBe(live.position.length / 3);
 
+    // Through the axis conversion, which is the part that was wrong for a commit: glTF is +Y up
+    // and Blender is +Z up, the importer bakes `(x, y, z) -> (x, -z, y)` into mesh data, and a
+    // cache read by a modifier never passes through the importer. Written unconverted the bellies
+    // land ninety degrees about X from the bones, and every check that compared the cache against
+    // itself said it was perfect.
     let worst = 0;
     for (let v = 0; v < points; v++) {
+      const at = PC2_HEADER_BYTES + v * 12;
+      const wanted = [
+        live.position[v * 3] as number,
+        -(live.position[v * 3 + 2] as number),
+        live.position[v * 3 + 1] as number,
+      ];
       for (let k = 0; k < 3; k++) {
         worst = Math.max(
           worst,
-          Math.abs(
-            view.getFloat32(PC2_HEADER_BYTES + v * 12 + k * 4, true) -
-              (live.position[v * 3 + k] as number),
-          ),
+          Math.abs(view.getFloat32(at + k * 4, true) - (wanted[k] as number)),
         );
       }
     }
