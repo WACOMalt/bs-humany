@@ -734,13 +734,15 @@ export class MujocoBackend implements IPhysicsBackend {
     // Then held under what an explicit spring can survive at this step on this body: a whole-body
     // spring on a fifteen-gram phalanx would otherwise shake it at tens of metres a second and
     // trip MuJoCo's bad-acceleration guard, which resets the run -- the "restart" a headset saw
-    // when it took hold of a finger. Stiffness so the natural period is many steps, damping so
-    // one step's decay is a fraction; the leash already bounds the force, so a light segment
-    // simply gets a gentler hold.
+    // when it took hold of a finger. Stiffness so the natural period is many steps; damping so a
+    // step removes no more than three halves of the velocity, which is inside the semi-implicit
+    // step's limit of two and, at L1's four-hundred-gram hand and two-millisecond step, just
+    // above the sizing the goldens were baked with, so those stay put. The leash already bounds
+    // the force, so a light segment simply gets a gentler hold.
     const dt = this.mjModel?.opt.timestep ?? 1e-3;
     const cap = (k: number, d: number, m: number): [number, number] => [
       Math.min(k, (0.2 * m) / (dt * dt)),
-      Math.min(d, (0.5 * m) / dt),
+      Math.min(d, (1.5 * m) / dt),
     ];
     const [stiffnessHeld, damping] = cap(stiffness, wantedDamping, segment.mass);
     const [angularStiffness, angularDamping] = cap(
