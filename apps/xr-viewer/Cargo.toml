@@ -1,0 +1,27 @@
+[package]
+name = "bs-humany-xr-viewer"
+version = "0.1.0"
+description = "An OpenXR viewer for the bs-humany skeleton, native and outside the web view."
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+rust-version = "1.77.2"
+
+[dependencies]
+# The OpenXR loader's bindings. `loaded` rather than `linked`: the loader is opened at run time
+# with dlopen rather than linked at build time. Two reasons, and the second is the real one.
+# Linking wants libopenxr_loader.so, which lives in a -devel package a user running the binary has
+# no reason to have -- while libopenxr_loader.so.1, which dlopen finds, ships with every runtime.
+# And a binary that merely fails to find a loader can say so, where one that will not link cannot
+# be built at all on a machine without the headers.
+openxr = { version = "0.22", features = ["loaded"] }
+# Raw Vulkan rather than wgpu, because OpenXR dictates the instance and device it will accept and
+# handing those requirements to a portability layer is the part that goes wrong. See README.
+ash = "0.38"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
