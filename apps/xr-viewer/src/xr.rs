@@ -355,8 +355,17 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
     // together, and reopened together whenever the publisher's generation changes, which is how
     // a scenario switch reaches this side.
+    // Opened now if the publisher is already there; otherwise the loop keeps trying every status
+    // poll, drawing the rest pose meanwhile, because "viewer first, then the run" is a perfectly
+    // good order to do things in and the studio's Connect button does exactly that.
     let mut feeds = match follow {
-        Some(path) => Some(Feeds::open(path, pack, &mut renderer)?),
+        Some(path) => match Feeds::open(path, pack, &mut renderer) {
+            Ok(f) => Some(f),
+            Err(e) => {
+                println!("waiting for a publisher at {}: {e}", path.display());
+                None
+            }
+        },
         None => None,
     };
     let status_path = follow.map(|p| std::path::PathBuf::from(format!("{}-status.json", p.display())));
@@ -457,6 +466,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         // moved. A publisher that has not written one yet, or that is between generations, is
         // simply not there this poll.
         if frames % 15 == 0 {
+            if let (None, Some(follow_path)) = (feeds.as_ref(), follow) {
+                if let Ok(opened) = Feeds::open(follow_path, pack, &mut renderer) {
+                    feeds = Some(opened);
+                    last_tick = None;
+                    last_muscle_tick = None;
+                    muscle_vertices.clear();
+                }
+            }
             if let Some(path) = &status_path {
                 if let Some(fresh) = crate::bridge::read_status(path) {
                     let generation = fresh.generation;

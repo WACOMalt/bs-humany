@@ -108,6 +108,11 @@ class TauriSink implements BridgeSink {
 
   close(): void {}
 
+  /** Settled once everything queued so far has landed. */
+  flush(): Promise<void> {
+    return this.chain;
+  }
+
   private enqueue(task: () => Promise<unknown>): void {
     this.chain = this.chain.then(task).then(
       () => undefined,
@@ -120,6 +125,7 @@ export class VrLink {
   private simulation: Simulation | null = null;
   private poses: PoseBridgeWriter | null = null;
   private muscles: MuscleBridgeWriter | null = null;
+  private sinks: TauriSink[] = [];
   private order: readonly string[] = [];
   private generation = 0;
   private lastTick = -1;
@@ -142,6 +148,14 @@ export class VrLink {
   async connect(): Promise<string> {
     this.live = true;
     this.started = performance.now();
+    // The bridges first, and landed, so the viewer never opens a file of zeros. A viewer that is
+    // launched before a run exists waits for one, but there is no reason to make it.
+    const simulation = this.host.simulation();
+    if (simulation) {
+      this.simulation = simulation;
+      this.reopen(simulation);
+      await Promise.all(this.sinks.map((sink) => sink.flush()));
+    }
     const launched = await invoke<string>('xr_viewer_launch');
     this.host.log(`VR viewer: ${launched}`);
     return launched;
@@ -202,15 +216,19 @@ export class VrLink {
     this.lastTick = -1;
     this.order = simulation.boneOrder();
     const rest = this.host.restPose(simulation);
+    const poseSink = new TauriSink('', this.host.log);
+    this.sinks = [poseSink];
     this.poses = new PoseBridgeWriter(
       new PoseBridgeCodec(rest, undefined, () => BigInt(Math.round(performance.now() * 1e6))),
-      new TauriSink('', this.host.log),
+      poseSink,
     );
     const rings = simulation.muscleRings();
     if (rings) {
+      const muscleSink = new TauriSink('-muscles', this.host.log);
+      this.sinks.push(muscleSink);
       this.muscles = new MuscleBridgeWriter(
         new MuscleBridgeCodec({ units: rings.units, rings: rings.rings, segments: rings.segments }),
-        new TauriSink('-muscles', this.host.log),
+        muscleSink,
       );
     } else {
       this.muscles = null;

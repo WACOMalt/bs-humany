@@ -236,6 +236,14 @@ impl Panel {
         let ctx = egui::Context::default();
         ctx.set_pixels_per_point(2.0);
         ctx.set_visuals(egui::Visuals::dark());
+        // A click, to egui, is a press that moves under six points before release. Six points
+        // here is six millimetres, and a hand pulling a trigger moves more than that -- so nearly
+        // every press was a drag and buttons hardly ever fired. Four centimetres of travel and
+        // three seconds still make a click; a slider drags regardless.
+        ctx.options_mut(|options| {
+            options.input_options.max_click_dist = 40.0;
+            options.input_options.max_click_duration = 3.0;
+        });
         ctx.style_mut(|style| {
             for (_, font) in style.text_styles.iter_mut() {
                 font.size *= 1.3;
