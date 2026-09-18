@@ -724,17 +724,35 @@ export class MujocoBackend implements IPhysicsBackend {
     if (!segment) throw new RangeError(`Segment index ${segmentIndex} has no body.`);
     const stiffness =
       (strength * GRAB_FORCE_FRACTION * model.totalMass * STANDARD_GRAVITY_MAGNITUDE) / GRAB_LEASH;
-    const damping = 2 * Math.sqrt(stiffness * Math.max(segment.mass, model.totalMass / 8));
-    // The same spring at a hand's lever, and critically damped against a segment's worth of
-    // inertia at that lever.
-    const angularStiffness = stiffness * GRAB_LEVER * GRAB_LEVER;
-    const inertia = Math.max(segment.mass, model.totalMass / 8) * GRAB_LEVER * GRAB_LEVER;
-    const angularDamping = 2 * Math.sqrt(angularStiffness * inertia);
+    const wantedDamping = 2 * Math.sqrt(stiffness * Math.max(segment.mass, model.totalMass / 8));
+    // The same spring at a hand's lever, and critically damped against the segment's own
+    // inertia, taken along its least axis since that is the one a twist finds first.
+    const wantedAngularStiffness = stiffness * GRAB_LEVER * GRAB_LEVER;
+    const I = segment.inertia;
+    const inertia = Math.max(Math.min(I[0], I[4], I[8]), 1e-9);
+    const wantedAngularDamping = 2 * Math.sqrt(wantedAngularStiffness * inertia);
+    // Then held under what an explicit spring can survive at this step on this body: a whole-body
+    // spring on a fifteen-gram phalanx would otherwise shake it at tens of metres a second and
+    // trip MuJoCo's bad-acceleration guard, which resets the run -- the "restart" a headset saw
+    // when it took hold of a finger. Stiffness so the natural period is many steps, damping so
+    // one step's decay is a fraction; the leash already bounds the force, so a light segment
+    // simply gets a gentler hold.
+    const dt = this.mjModel?.opt.timestep ?? 1e-3;
+    const cap = (k: number, d: number, m: number): [number, number] => [
+      Math.min(k, (0.2 * m) / (dt * dt)),
+      Math.min(d, (0.5 * m) / dt),
+    ];
+    const [stiffnessHeld, damping] = cap(stiffness, wantedDamping, segment.mass);
+    const [angularStiffness, angularDamping] = cap(
+      wantedAngularStiffness,
+      wantedAngularDamping,
+      inertia,
+    );
     const handle = new MujocoGrab(this, {
       segment: segmentIndex,
       local: { x: localPoint.x, y: localPoint.y, z: localPoint.z },
       target: { x: worldTarget.x, y: worldTarget.y, z: worldTarget.z },
-      stiffness,
+      stiffness: stiffnessHeld,
       damping,
       orientation: { x: 0, y: 0, z: 0, w: 1 },
       holdsOrientation: false,
