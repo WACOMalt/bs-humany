@@ -36,7 +36,7 @@
  *   and bumps `generation` in the status so the renderer knows to reopen them.
  */
 
-import { fstatSync, openSync, readSync, renameSync, writeFileSync } from 'node:fs';
+import { fstatSync, openSync, readSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
@@ -125,6 +125,9 @@ async function build(scenarioId) {
         { path: `${path}-muscles` },
       )
     : undefined;
+  // A scenario without muscles must not leave the last one's rings behind for a viewer that
+  // reopens the files to find and draw, frozen.
+  if (!rings) rmSync(`${path}-muscles`, { force: true });
   // Per bone, in `boneOrder()` -- what the studio skins from. Not `body.pose`, which is per rigid
   // segment in the segment order: the same numbers, differently arranged, and a skeleton that was
   // fed them came out as a scatter of vertebrae.
