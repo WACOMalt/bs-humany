@@ -1686,6 +1686,7 @@ function animate(): void {
   if (ui.spin.checked) controls.orbit(0.0032);
   controls.update();
 
+  if (!simulation) vrLink?.idle();
   if (simulation && skinned) {
     const frameSeconds = Math.min(elapsed, 250) / 1000;
     if (following) {
@@ -1901,7 +1902,7 @@ const vrHost = {
       datasetScale: Number(ui.stature.value) / (assets?.manifest.subjectStature ?? 1),
     };
   },
-  status(sim: Simulation): VrStatus {
+  status(sim: Simulation | null): VrStatus {
     const option = (select: HTMLSelectElement) =>
       Array.from(select.options).map((o) => ({
         id: o.value,
@@ -1914,7 +1915,7 @@ const vrHost = {
       profiles: Array.from(ui.profile.options).map((o) => o.value),
       profile: ui.profile.value,
       settings: {
-        muscles: sim.muscles !== undefined,
+        muscles: sim ? sim.muscles !== undefined : ui.muscles.checked,
         sex: Number(ui.sex.value),
         stature: Number(ui.stature.value),
         mass: Number(ui.mass.value),
@@ -1927,7 +1928,7 @@ const vrHost = {
         gravity: ui.gravity.checked,
         floor: ui.floor.checked,
         fps: Number(ui.outputFramerate.value),
-        stepsPerSecond: sim.stepsPerSecond,
+        stepsPerSecond: sim?.stepsPerSecond ?? Number(ui.stepsPerSecond.value),
       },
       driveGroups: DRIVEN.map((group) => ({
         title:
@@ -1936,8 +1937,8 @@ const vrHost = {
             ?.firstChild?.textContent?.trim() ?? group.slider,
         level: Number(ui[group.slider].value),
       })),
-      groundHeight: sim.groundHeight,
-      staticBoxes: sim.staticBoxes.map((b) => ({
+      groundHeight: sim?.groundHeight ?? 0,
+      staticBoxes: (sim?.staticBoxes ?? []).map((b) => ({
         halfExtents: [b.halfExtents.x, b.halfExtents.y, b.halfExtents.z],
         position: [b.position.x, b.position.y, b.position.z],
         rotation: b.rotation
@@ -1945,8 +1946,9 @@ const vrHost = {
           : [0, 0, 0, 1],
       })),
       grabStrength: Number(ui.grabStrength.value),
-      diagnostics: diagnosticsOf(sim),
-      paused: sim.paused || !following,
+      diagnostics: sim ? diagnosticsOf(sim) : {},
+      // No run at all reads as paused: the panel's Resume is then Start Sim.
+      paused: !sim || sim.paused || !following,
     };
   },
   command(command: VrCommand): void {

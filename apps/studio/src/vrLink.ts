@@ -58,7 +58,8 @@ export interface VrHost {
   simulation(): Simulation | null;
   /** The rest pose the mesh pack's vertices are relative to, in the simulation's bone order. */
   restPose(simulation: Simulation): RestPose;
-  status(simulation: Simulation): VrStatus;
+  /** With no run, what the controls are set to and that there is nothing running. */
+  status(simulation: Simulation | null): VrStatus;
   command(command: VrCommand): void;
   log(message: string): void;
 }
@@ -142,6 +143,7 @@ export class VrLink {
   private lastTick = -1;
   private readonly intents = new GrabIntents();
   private grabsInFlight = false;
+  private grabsComplained = false;
   private lastCommands = 0;
   private lastStatus = 0;
   private ticksAtStatus = 0;
@@ -205,7 +207,10 @@ export class VrLink {
         }
       }
     }
-    if (!simulation || !this.poses) return;
+    if (!simulation || !this.poses) {
+      this.idle();
+      return;
+    }
     const now = performance.now();
 
     if (simulation.ticks !== this.lastTick || this.lastTick < 0) {
@@ -230,6 +235,31 @@ export class VrLink {
       this.lastStatus = now;
       this.ticksAtStatus = simulation.ticks;
       void this.writeStatus(simulation);
+    }
+  }
+
+  /**
+   * With no run: still read the panel's commands -- its Resume is how a run is started from the
+   * headset -- and still say so in the status, so the panel shows the controls rather than what
+   * the last session left behind.
+   */
+  idle(): void {
+    if (!this.live) return;
+    const simulation = this.host.simulation();
+    if (simulation !== this.simulation) {
+      this.simulation = simulation;
+      this.intents.letGo(null);
+      if (simulation) this.reopen(simulation);
+      return;
+    }
+    const now = performance.now();
+    if (now - this.lastCommands >= 100) {
+      this.lastCommands = now;
+      void this.pollCommands();
+    }
+    if (now - this.lastStatus >= 250) {
+      this.lastStatus = now;
+      void this.writeStatus(null);
     }
   }
 
@@ -277,8 +307,14 @@ export class VrLink {
             status.grabStrength,
           );
         }
-      } catch {
-        // No grab file yet: the viewer has not opened its end. Not an error.
+      } catch (error) {
+        // No grab file yet -- the viewer has not opened its end -- is not an error. Anything
+        // else is, and is said once.
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/No such file/.test(message) && !this.grabsComplained) {
+          this.grabsComplained = true;
+          this.host.log(`VR grabs: ${message}`);
+        }
       } finally {
         this.grabsInFlight = false;
       }
@@ -303,18 +339,18 @@ export class VrLink {
     }
   }
 
-  private async writeStatus(simulation: Simulation): Promise<void> {
+  private async writeStatus(simulation: Simulation | null): Promise<void> {
     const status = this.host.status(simulation);
     const text = JSON.stringify({
       ...status,
       generation: this.generation,
-      simSeconds: simulation.ticks * simulation.dt,
+      simSeconds: simulation ? simulation.ticks * simulation.dt : 0,
       wallSeconds: (performance.now() - this.started) / 1000,
       speed: status.paused ? 0 : this.speed,
-      muscles: this.muscles !== null,
+      muscles: simulation !== null && this.muscles !== null,
       holding: this.intents.holding(),
-      stepsPerSecond: simulation.stepsPerSecond,
-      fps: simulation.outputFramerate,
+      stepsPerSecond: simulation?.stepsPerSecond ?? 0,
+      fps: simulation?.outputFramerate ?? 0,
     });
     try {
       await invoke('bridge_text', { suffix: '-status.json', text });
