@@ -743,7 +743,11 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 pack.bones.len(),
                 if f.muscles.is_some() { "muscles on" } else { "no muscles" }
             ),
-            (None, _) => "Not following a simulation: run with --follow.".to_string(),
+            (None, Some(path)) => format!(
+                "Waiting for a publisher at {}: start a run in the studio, or `pnpm publish:pose`.",
+                path.display()
+            ),
+            (None, None) => "Not following a simulation: run with --follow.".to_string(),
         };
         let panel_frame = panel.run(status.as_ref(), pointer, &feeds_line);
         if !panel_frame.textures.is_empty() {
