@@ -233,7 +233,7 @@ impl Graphics {
 /// rest pose that distinction is invisible; it is the shape the loop has to have before a
 /// simulation is attached to it, and retrofitting it afterwards is how a headset ends up stalling
 /// on a slow tick.
-pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
+pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::Path>) -> Result<()> {
     let entry = unsafe { openxr::Entry::load(&()) }
         .context("opening libopenxr_loader.so.1 -- install an OpenXR runtime (SteamVR, Monado)")?;
     let available = entry.enumerate_extensions()?;
@@ -325,6 +325,32 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
         pack.triangle_count()
     );
 
+    // Following a simulation: the bridge, and which pack bone each of its bones is. Matched by
+    // name once, because the pack and the pose are in different orders and the pose may carry
+    // bones the pack has no mesh for.
+    let mut bridge = match follow {
+        Some(path) => Some(crate::bridge::PoseBridge::open(path)?),
+        None => None,
+    };
+    let pose_index: Vec<Option<usize>> = pack
+        .bones
+        .iter()
+        .map(|bone| bridge.as_ref().and_then(|b| b.names.iter().position(|n| *n == bone.id)))
+        .collect();
+    if let Some(b) = &bridge {
+        let matched = pose_index.iter().filter(|m| m.is_some()).count();
+        println!(
+            "following {}: {} of {} pack bones have a pose, dataset scale {:.4}",
+            follow.map(|p| p.display().to_string()).unwrap_or_default(),
+            matched,
+            pack.bones.len(),
+            b.dataset_scale
+        );
+    }
+    let place = crate::render::placement();
+    let mut matrices: Vec<[f32; 16]> = vec![place; pack.bones.len()];
+    let mut last_tick: Option<u64> = None;
+
     let stage =
         session.create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)?;
     let mut event_storage = openxr::EventDataBuffer::new();
@@ -383,9 +409,45 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
             state.predicted_display_time,
             &stage,
         )?;
+        // The newest pose, if there is one and it is newer than the one already applied. Per
+        // ADR-012 this never waits: no frame yet, or one mid-write, means the matrices stand.
+        if let Some(b) = bridge.as_mut() {
+            if let Some(frame) = b.newest() {
+                if last_tick != Some(frame.tick) {
+                    last_tick = Some(frame.tick);
+                    let scale = crate::render::scale_matrix(b.dataset_scale as f32);
+                    for (i, found) in pose_index.iter().enumerate() {
+                        matrices[i] = match found {
+                            Some(j) => {
+                                let p = &frame.pose[j * 7..j * 7 + 7];
+                                let r = &b.rest[j * 7..j * 7 + 7];
+                                // place * current * rest^-1 * scale: the studio's own skin, with
+                                // the pack scaled to this body's stature on the way in.
+                                let current =
+                                    crate::render::pose_matrix([p[0], p[1], p[2]], [p[3], p[4], p[5], p[6]]);
+                                let rest_inverse =
+                                    crate::render::inverse_pose([r[0], r[1], r[2]], [r[3], r[4], r[5], r[6]]);
+                                crate::render::multiply(
+                                    &place,
+                                    &crate::render::multiply(
+                                        &current,
+                                        &crate::render::multiply(&rest_inverse, &scale),
+                                    ),
+                                )
+                            }
+                            None => place,
+                        };
+                    }
+                }
+            }
+        }
         let image = swapchain.acquire_image()?;
         swapchain.wait_image(openxr::Duration::INFINITE)?;
-        renderer.draw(image as usize, &crate::render::view_projections(&views, 0.05, 50.0))?;
+        renderer.draw(
+            image as usize,
+            &crate::render::view_projections(&views, 0.05, 50.0),
+            bridge.as_ref().map(|_| matrices.as_slice()),
+        )?;
         swapchain.release_image()?;
         let cpu_ms = cpu_started.elapsed().as_secs_f64() * 1000.0;
         worst_cpu = worst_cpu.max(cpu_ms);
@@ -422,8 +484,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
         window_frames += 1;
         let window = window_started.elapsed().as_secs_f64();
         if window >= 2.0 {
+            let pose_age = bridge
+                .as_ref()
+                .map(|b| format!(", pose {:.0} ms old", b.stale_for().as_secs_f64() * 1000.0))
+                .unwrap_or_default();
             println!(
-                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms",
+                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms{pose_age}",
                 window_frames as f64 / window
             );
             window_started = std::time::Instant::now();

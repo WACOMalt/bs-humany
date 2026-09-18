@@ -47,14 +47,11 @@ pub struct Renderer {
     pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
     descriptor_pool: vk::DescriptorPool,
-    descriptor_set: vk::DescriptorSet,
     set_layout: vk::DescriptorSetLayout,
     command_pool: vk::CommandPool,
 
     vertex: Buffer,
     index: Buffer,
-    views_ubo: Buffer,
-    bones_ubo: Buffer,
     index_count: u32,
 
     depth: Image,
@@ -62,11 +59,20 @@ pub struct Renderer {
     extent: vk::Extent2D,
 }
 
+/// Everything that belongs to one swapchain image, including its own copy of both uniform buffers.
+///
+/// Per image rather than shared, because a shared buffer written for frame N+1 while the GPU is
+/// still reading it for frame N tears -- and the fence that says frame N is finished belongs to
+/// frame N's image, not to whichever one is being recorded now. Three copies of thirteen
+/// kilobytes is the whole cost of not having that bug.
 struct Target {
     view: vk::ImageView,
     framebuffer: vk::Framebuffer,
     command_buffer: vk::CommandBuffer,
     fence: vk::Fence,
+    views_ubo: Buffer,
+    bones_ubo: Buffer,
+    descriptor_set: vk::DescriptorSet,
 }
 
 struct Buffer {
@@ -122,26 +128,13 @@ impl Renderer {
         vertex.write(bytes_of(&vertices));
         index.write(bytes_of(&indices));
 
-        // Two view-projection matrices, rewritten every frame from the eye poses.
-        let views_ubo = Buffer::new(
-            &device,
-            &memory_properties,
-            2 * 64,
-            vk::BufferUsageFlags::UNIFORM_BUFFER,
-        )?;
-        // One transform per bone. Identity for now, and where a pose will be written.
-        let bones_ubo = Buffer::new(
-            &device,
-            &memory_properties,
-            MAX_BONES * 64,
-            vk::BufferUsageFlags::UNIFORM_BUFFER,
-        )?;
+        // Every bone starts where the placement puts the rest pose; a followed simulation
+        // overwrites this every frame, and a static view never touches it again.
         let mut model = [0f32; MAX_BONES * 16];
-        let placed = translation(STANDS_AT[0], STANDS_AT[1], STANDS_AT[2], true);
+        let placed = placement();
         for bone in 0..MAX_BONES {
             model[bone * 16..bone * 16 + 16].copy_from_slice(&placed);
         }
-        bones_ubo.write(bytes_of(&model));
 
         // --- render pass, with both eyes in one subpass ----------------------------------------
         let render_pass = multiview_render_pass(&device, format)?;
@@ -172,46 +165,17 @@ impl Renderer {
         }?;
         let pipeline = build_pipeline(&device, render_pass, pipeline_layout, extent)?;
 
+        let images = swapchain_images.len() as u32;
         let descriptor_pool = unsafe {
             device.create_descriptor_pool(
                 &vk::DescriptorPoolCreateInfo::default()
-                    .max_sets(1)
+                    .max_sets(images)
                     .pool_sizes(&[vk::DescriptorPoolSize::default()
                         .ty(vk::DescriptorType::UNIFORM_BUFFER)
-                        .descriptor_count(2)]),
+                        .descriptor_count(2 * images)]),
                 None,
             )
         }?;
-        let descriptor_set = unsafe {
-            device.allocate_descriptor_sets(
-                &vk::DescriptorSetAllocateInfo::default()
-                    .descriptor_pool(descriptor_pool)
-                    .set_layouts(&[set_layout]),
-            )
-        }?[0];
-        let view_info = [vk::DescriptorBufferInfo::default()
-            .buffer(views_ubo.handle)
-            .range(vk::WHOLE_SIZE)];
-        let bone_info = [vk::DescriptorBufferInfo::default()
-            .buffer(bones_ubo.handle)
-            .range(vk::WHOLE_SIZE)];
-        unsafe {
-            device.update_descriptor_sets(
-                &[
-                    vk::WriteDescriptorSet::default()
-                        .dst_set(descriptor_set)
-                        .dst_binding(0)
-                        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                        .buffer_info(&view_info),
-                    vk::WriteDescriptorSet::default()
-                        .dst_set(descriptor_set)
-                        .dst_binding(1)
-                        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                        .buffer_info(&bone_info),
-                ],
-                &[],
-            );
-        }
 
         // --- depth, shared by every swapchain image ---------------------------------------------
         let depth = Image::depth(&device, &memory_properties, extent)?;
@@ -265,6 +229,50 @@ impl Renderer {
                     None,
                 )
             }?;
+            // This image's own uniform buffers and the set that points at them.
+            let views_ubo = Buffer::new(
+                &device,
+                &memory_properties,
+                2 * 64,
+                vk::BufferUsageFlags::UNIFORM_BUFFER,
+            )?;
+            let bones_ubo = Buffer::new(
+                &device,
+                &memory_properties,
+                MAX_BONES * 64,
+                vk::BufferUsageFlags::UNIFORM_BUFFER,
+            )?;
+            bones_ubo.write(bytes_of(&model));
+            let descriptor_set = unsafe {
+                device.allocate_descriptor_sets(
+                    &vk::DescriptorSetAllocateInfo::default()
+                        .descriptor_pool(descriptor_pool)
+                        .set_layouts(&[set_layout]),
+                )
+            }?[0];
+            let view_info = [vk::DescriptorBufferInfo::default()
+                .buffer(views_ubo.handle)
+                .range(vk::WHOLE_SIZE)];
+            let bone_info = [vk::DescriptorBufferInfo::default()
+                .buffer(bones_ubo.handle)
+                .range(vk::WHOLE_SIZE)];
+            unsafe {
+                device.update_descriptor_sets(
+                    &[
+                        vk::WriteDescriptorSet::default()
+                            .dst_set(descriptor_set)
+                            .dst_binding(0)
+                            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                            .buffer_info(&view_info),
+                        vk::WriteDescriptorSet::default()
+                            .dst_set(descriptor_set)
+                            .dst_binding(1)
+                            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                            .buffer_info(&bone_info),
+                    ],
+                    &[],
+                );
+            }
             targets.push(Target {
                 view,
                 framebuffer,
@@ -275,6 +283,9 @@ impl Renderer {
                         None,
                     )
                 }?,
+                views_ubo,
+                bones_ubo,
+                descriptor_set,
             });
         }
 
@@ -285,13 +296,10 @@ impl Renderer {
             pipeline_layout,
             pipeline,
             descriptor_pool,
-            descriptor_set,
             set_layout,
             command_pool,
             vertex,
             index,
-            views_ubo,
-            bones_ubo,
             index_count,
             depth,
             targets,
@@ -300,13 +308,28 @@ impl Renderer {
     }
 
     /// Record and submit one frame into the given swapchain image.
-    pub fn draw(&self, image: usize, view_projections: &[f32; 32]) -> Result<()> {
-        self.views_ubo.write(bytes_of(view_projections));
+    ///
+    /// `bones` is one matrix per pack bone, or `None` to leave whatever this image's buffer last
+    /// held -- which is the placement, for a viewer that is not following anything.
+    pub fn draw(
+        &self,
+        image: usize,
+        view_projections: &[f32; 32],
+        bones: Option<&[[f32; 16]]>,
+    ) -> Result<()> {
         let target = &self.targets[image];
         let device = &self.device;
         unsafe {
+            // Only after the fence: this image's buffers are read by the frame this fence
+            // belongs to, and writing them any earlier is the tear the per-image copies exist to
+            // prevent.
             device.wait_for_fences(&[target.fence], true, u64::MAX)?;
             device.reset_fences(&[target.fence])?;
+            target.views_ubo.write(bytes_of(view_projections));
+            if let Some(bones) = bones {
+                let count = bones.len().min(MAX_BONES);
+                target.bones_ubo.write(bytes_of(&bones[..count]));
+            }
             device.reset_command_buffer(
                 target.command_buffer,
                 vk::CommandBufferResetFlags::empty(),
@@ -348,7 +371,7 @@ impl Renderer {
                 vk::PipelineBindPoint::GRAPHICS,
                 self.pipeline_layout,
                 0,
-                &[self.descriptor_set],
+                &[target.descriptor_set],
                 &[],
             );
             device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[self.vertex.handle], &[0]);
@@ -384,6 +407,8 @@ impl Drop for Renderer {
                 self.device.destroy_fence(target.fence, None);
                 self.device.destroy_framebuffer(target.framebuffer, None);
                 self.device.destroy_image_view(target.view, None);
+                target.views_ubo.destroy(&self.device);
+                target.bones_ubo.destroy(&self.device);
             }
             self.device.destroy_command_pool(self.command_pool, None);
             self.device.destroy_descriptor_pool(self.descriptor_pool, None);
@@ -392,7 +417,7 @@ impl Drop for Renderer {
             self.device.destroy_pipeline_layout(self.pipeline_layout, None);
             self.device.destroy_render_pass(self.render_pass, None);
             self.depth.destroy(&self.device);
-            for buffer in [&self.vertex, &self.index, &self.views_ubo, &self.bones_ubo] {
+            for buffer in [&self.vertex, &self.index] {
                 buffer.destroy(&self.device);
             }
         }
@@ -726,6 +751,64 @@ fn bytes_of<T>(slice: &[T]) -> &[u8] {
     }
 }
 
+/// Where the body stands and which way it faces: the matrix every bone is placed by.
+pub(crate) fn placement() -> [f32; 16] {
+    translation(STANDS_AT[0], STANDS_AT[1], STANDS_AT[2], true)
+}
+
+/// A uniform scale, which is how a pack at one stature is drawn at another.
+pub(crate) fn scale_matrix(s: f32) -> [f32; 16] {
+    [
+        s, 0.0, 0.0, 0.0, //
+        0.0, s, 0.0, 0.0, //
+        0.0, 0.0, s, 0.0, //
+        0.0, 0.0, 0.0, 1.0,
+    ]
+}
+
+/// A rigid transform from a position and a quaternion, column-major.
+pub(crate) fn pose_matrix(p: [f32; 3], q: [f32; 4]) -> [f32; 16] {
+    let r = rotation(q);
+    [
+        r[0], r[1], r[2], 0.0, //
+        r[3], r[4], r[5], 0.0, //
+        r[6], r[7], r[8], 0.0, //
+        p[0], p[1], p[2], 1.0,
+    ]
+}
+
+/// The inverse of that: rotation transposed, translation carried back through it.
+pub(crate) fn inverse_pose(p: [f32; 3], q: [f32; 4]) -> [f32; 16] {
+    let r = rotation(q);
+    let t = [
+        -(r[0] * p[0] + r[1] * p[1] + r[2] * p[2]),
+        -(r[3] * p[0] + r[4] * p[1] + r[5] * p[2]),
+        -(r[6] * p[0] + r[7] * p[1] + r[8] * p[2]),
+    ];
+    [
+        r[0], r[3], r[6], 0.0, //
+        r[1], r[4], r[7], 0.0, //
+        r[2], r[5], r[8], 0.0, //
+        t[0], t[1], t[2], 1.0,
+    ]
+}
+
+/// A quaternion as a 3x3 rotation, column-major.
+fn rotation(q: [f32; 4]) -> [f32; 9] {
+    let (x, y, z, w) = (q[0], q[1], q[2], q[3]);
+    [
+        1.0 - 2.0 * (y * y + z * z),
+        2.0 * (x * y + z * w),
+        2.0 * (x * z - y * w),
+        2.0 * (x * y - z * w),
+        1.0 - 2.0 * (x * x + z * z),
+        2.0 * (y * z + x * w),
+        2.0 * (x * z + y * w),
+        2.0 * (y * z - x * w),
+        1.0 - 2.0 * (x * x + y * y),
+    ]
+}
+
 /// A translation, optionally turned half a circle about Y so the body faces the viewer.
 fn translation(x: f32, y: f32, z: f32, facing_viewer: bool) -> [f32; 16] {
     let s = if facing_viewer { -1.0 } else { 1.0 };
@@ -770,43 +853,15 @@ fn projection_from_fov(fov: openxr::Fovf, near: f32, far: f32) -> [f32; 16] {
     ]
 }
 
-/// The inverse of a pose, which is the view matrix: a rigid transform inverts by transposing its
-/// rotation and negating the rotated translation.
+/// The inverse of a pose, which is the view matrix.
 fn inverse_rigid(pose: openxr::Posef) -> [f32; 16] {
-    let (x, y, z, w) = (
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z,
-        pose.orientation.w,
-    );
-    // Rotation, column-major.
-    let r = [
-        1.0 - 2.0 * (y * y + z * z),
-        2.0 * (x * y + z * w),
-        2.0 * (x * z - y * w),
-        2.0 * (x * y - z * w),
-        1.0 - 2.0 * (x * x + z * z),
-        2.0 * (y * z + x * w),
-        2.0 * (x * z + y * w),
-        2.0 * (y * z - x * w),
-        1.0 - 2.0 * (x * x + y * y),
-    ];
-    let p = [pose.position.x, pose.position.y, pose.position.z];
-    // Transposed rotation, and the translation carried through it.
-    let t = [
-        -(r[0] * p[0] + r[1] * p[1] + r[2] * p[2]),
-        -(r[3] * p[0] + r[4] * p[1] + r[5] * p[2]),
-        -(r[6] * p[0] + r[7] * p[1] + r[8] * p[2]),
-    ];
-    [
-        r[0], r[3], r[6], 0.0, //
-        r[1], r[4], r[7], 0.0, //
-        r[2], r[5], r[8], 0.0, //
-        t[0], t[1], t[2], 1.0,
-    ]
+    inverse_pose(
+        [pose.position.x, pose.position.y, pose.position.z],
+        [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w],
+    )
 }
 
-fn multiply(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
+pub(crate) fn multiply(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
     let mut out = [0f32; 16];
     for column in 0..4 {
         for row in 0..4 {

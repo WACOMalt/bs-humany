@@ -10,10 +10,12 @@
 //!   bs-humany-xr-viewer probe              which runtime, which headset, which views. No session.
 //!   bs-humany-xr-viewer session [seconds]  begin a session and run the frame loop. No drawing.
 //!   bs-humany-xr-viewer view [seconds]     draw the skeleton, both eyes in one pass.
+//!   bs-humany-xr-viewer view 60 --follow   ...and pose it from a running `pnpm publish:pose`.
 //!
 //! The first needs no hardware at all. The second needs a runtime but no headset. Only the third
 //! needs a headset, which is the order in which things stop being checkable from a terminal.
 
+mod bridge;
 mod pack;
 mod render;
 mod xr;
@@ -32,8 +34,15 @@ fn main() -> Result<()> {
         }
         Some("view") => {
             let seconds = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(30.0);
+            // `--follow` alone means the bridge's default path; `--follow <path>` names one.
+            let follow = args.iter().position(|a| a == "--follow").map(|at| {
+                args.get(at + 1)
+                    .filter(|p| !p.starts_with("--"))
+                    .cloned()
+                    .unwrap_or_else(|| "/dev/shm/bs-humany-pose".to_owned())
+            });
             let pack = pack::load(&default_pack_dir()).context("loading the mesh pack")?;
-            xr::view(&pack, seconds)
+            xr::view(&pack, seconds, follow.as_deref().map(std::path::Path::new))
         }
         other => {
             if let Some(word) = other {
@@ -41,7 +50,7 @@ fn main() -> Result<()> {
             }
             eprintln!(
                 "usage: bs-humany-xr-viewer <check-pack [dir] | probe | session [seconds] \
-                 | view [seconds]>"
+                 | view [seconds] [--follow [path]]>"
             );
             std::process::exit(2);
         }

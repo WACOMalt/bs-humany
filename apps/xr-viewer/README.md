@@ -10,6 +10,7 @@ cargo run --release -- check-pack     # needs no hardware at all
 cargo run --release -- probe          # needs a runtime, not a headset
 cargo run --release -- session 10     # needs a headset
 cargo run --release -- view 30       # needs a headset, and draws
+cargo run --release -- view 60 --follow   # ...posed live by a running simulation
 ```
 
 **`check-pack`** loads `manifest.json` and `skeleton.bin` and says what came out. It is the half
@@ -77,6 +78,39 @@ simulation, which is what it is, rather than an unusable one.
 
 ADR-012 is where this is written down, along with what it means for the transport: latest-wins,
 non-blocking in both directions, no queue.
+
+## Following a live simulation
+
+Two terminals. The simulation, headless, publishing a pose every output frame:
+
+```bash
+pnpm publish:pose                                   # default scenario, L1, 144 poses a second
+pnpm publish:pose quiet-standing --profile l3_anatomical --fps 90
+```
+
+And the viewer, reading them:
+
+```bash
+cargo run --release -- view 120 --follow
+```
+
+The two never wait for each other, which is ADR-012 and is what `packages/pose-bridge` exists to
+make true: the simulation writes the newest pose into a small ring on tmpfs and the viewer reads
+whichever slot is newest each frame. A simulation that cannot keep up -- L3 with muscles, today --
+publishes in slow motion and the headset shows a slow body in a perfectly tracked room. One that
+has stopped shows a still body, and the viewer's status line says how old the pose is, because
+"not moving" and "died" would otherwise look identical:
+
+```
+  142.9 Hz, worst CPU frame 0.41 ms, pose 7 ms old
+```
+
+Measured with the publisher on L1 with the full muscle set: `1.00x life` -- it keeps up exactly,
+which is the 35 per cent the belly-sweep divisor bought.
+
+What crosses the bridge is bones: 206 of them, seven floats each, plus the rest pose and the
+stature scale once. The muscle bellies do not yet -- that is a hundred times the bytes and the
+next thing to carry.
 
 ## Choosing a runtime
 
@@ -151,5 +185,7 @@ that — `body.pose`, `muscle.polyline`, `RENDER_MUSCLE_MESH` and the rest are S
 a double-buffered transport built for the worker boundary, and M-ADR-004 already forbids Tier V
 from writing anything else, so a second renderer is additive by construction.
 
-This crate is step one of that: prove the runtime, the pack and the frame budget. The bridge and
-the pipeline come after, in that order.
+This crate was step one of that -- prove the runtime, the pack and the frame budget -- and is now
+the renderer end of the bridge as well. `src/bridge.rs` reads the ring; `fixtures/pose-bridge.bin`
+is written by the TypeScript side and read by a test here, which is how two implementations of
+one binary layout in two languages are kept honest with each other.

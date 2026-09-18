@@ -1,0 +1,8 @@
+{
+  "format": "bs-humany.pose-bridge/1",
+  "bones": [
+    "pelvis",
+    "femur_r",
+    "tibia_r"
+  ]
+}

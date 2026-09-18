@@ -9,7 +9,8 @@
       "apps/studio/src-tauri/gen/**",
       "**/*.tsbuildinfo",
       "packages/assets-anatomical/data/**",
-      "apps/xr-viewer/target"
+      "apps/xr-viewer/target",
+      "apps/xr-viewer/fixtures/**"
     ]
   },
   "formatter": {

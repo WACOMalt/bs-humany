@@ -61,6 +61,9 @@ jobs:
       - name: Generated via points match their source
         run: pnpm generate:via-points --check
 
+      - name: Pose-bridge fixture matches its writer
+        run: pnpm generate:pose-bridge-fixture --check
+
       - name: Measured muscle travel matches this skeleton
         run: pnpm measure:muscle-ranges --check
 

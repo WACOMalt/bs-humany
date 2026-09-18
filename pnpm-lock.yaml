@@ -312,6 +312,8 @@ importers:
         specifier: workspace:*
         version: link:../hsdl
 
+  packages/pose-bridge: {}
+
   packages/render-three:
     dependencies:
       '@bs-humany/anthropometry':
