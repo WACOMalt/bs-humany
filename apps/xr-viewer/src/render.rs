@@ -35,6 +35,8 @@ pub const CONTROLLERS: usize = 2;
 pub const MARKERS: usize = 2;
 /// The edge of a pointer mark, which is a small cube where the aim ray meets the panel.
 pub const MARKER_EDGE: f32 = 0.012;
+/// After the grid, the scenery: the scenario's static boxes, in the simulation's frame.
+pub const SCENE_SLOTS: usize = 1;
 /// The floor grid: lines this far apart, out to this far, this wide, all in metres.
 const GRID_SPACING: f32 = 0.5;
 const GRID_REACH: f32 = 5.0;
@@ -73,6 +75,8 @@ pub struct Renderer {
     memory_properties: vk::PhysicalDeviceMemoryProperties,
     /// The muscle tubes, once a bridge has said how many rings there are.
     muscles: Option<Muscles>,
+    /// The scenery, rebuilt whenever the publisher's generation changes.
+    scene: Option<(Buffer, Buffer, u32)>,
     panel: PanelGpu,
 
     depth: Image,
@@ -167,7 +171,7 @@ impl Renderer {
 
         // --- geometry, flattened into one pair of buffers -------------------------------------
         let (vertices, indices) = flatten(pack);
-        if pack.bones.len() + CONTROLLERS + 1 + MARKERS + 1 > MAX_BONES {
+        if pack.bones.len() + CONTROLLERS + 1 + MARKERS + 1 + SCENE_SLOTS > MAX_BONES {
             bail!(
                 "the pack has {} bones, and with the controllers, markers and world slot the shader holds {MAX_BONES}.",
                 pack.bones.len()
@@ -192,7 +196,7 @@ impl Renderer {
         // Every bone starts where the placement puts the rest pose; a followed simulation
         // overwrites this every frame, and a static view never touches it again.
         let mut model = [0f32; MAX_BONES * 16];
-        let placed = placement();
+        let placed = placement(0.0);
         for bone in 0..MAX_BONES {
             model[bone * 16..bone * 16 + 16].copy_from_slice(&placed);
         }
@@ -221,7 +225,7 @@ impl Renderer {
         let push = [vk::PushConstantRange::default()
             .stage_flags(vk::ShaderStageFlags::FRAGMENT)
             .offset(0)
-            .size(12)];
+            .size(16)];
         let pipeline_layout = unsafe {
             device.create_pipeline_layout(
                 &vk::PipelineLayoutCreateInfo::default()
@@ -372,6 +376,7 @@ impl Renderer {
             first_controller: pack.bones.len(),
             memory_properties,
             muscles: None,
+            scene: None,
             panel,
             depth,
             targets,
@@ -488,6 +493,7 @@ impl Renderer {
                     self.first_controller as u32,
                     self.world_slot() as u32,
                     self.stage_slot() as u32,
+                    self.scene_slot() as u32,
                 ]),
             );
             device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[self.vertex.handle], &[0]);
@@ -517,6 +523,12 @@ impl Renderer {
                     );
                     device.cmd_draw_indexed(target.command_buffer, tubes.index_count, 1, 0, 0, 0);
                 }
+            }
+            // The scenery, in the simulation's frame like the muscles.
+            if let Some((vertex, index, count)) = &self.scene {
+                device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[vertex.handle], &[0]);
+                device.cmd_bind_index_buffer(target.command_buffer, index.handle, 0, vk::IndexType::UINT32);
+                device.cmd_draw_indexed(target.command_buffer, *count, 1, 0, 0, 0);
             }
             // And the panel, on its own pipeline: blended, textured, one draw a mesh.
             if let Some(panel) = panel {
@@ -595,6 +607,47 @@ impl Renderer {
     /// The slot the floor grid is drawn by: its matrix is the identity, the stage itself.
     pub fn stage_slot(&self) -> usize {
         self.world_slot() + 1 + MARKERS
+    }
+
+    /// The slot the scenery is drawn by; its matrix is the placement, like the world slot's.
+    pub fn scene_slot(&self) -> usize {
+        self.stage_slot() + 1
+    }
+
+    /// Replace the scenery with these boxes. Waits for the device, which is fine for something
+    /// that happens when a scenario changes.
+    pub fn set_scene(&mut self, boxes: &[crate::bridge::StaticBox]) -> Result<()> {
+        unsafe {
+            let _ = self.device.device_wait_idle();
+            if let Some((vertex, index, _)) = self.scene.take() {
+                vertex.destroy(&self.device);
+                index.destroy(&self.device);
+            }
+        }
+        if boxes.is_empty() {
+            return Ok(());
+        }
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for b in boxes {
+            posed_box(self.scene_slot() as u32, b, &mut vertices, &mut indices);
+        }
+        let vertex = Buffer::new(
+            &self.device,
+            &self.memory_properties,
+            std::mem::size_of_val(&vertices[..]),
+            vk::BufferUsageFlags::VERTEX_BUFFER,
+        )?;
+        let index = Buffer::new(
+            &self.device,
+            &self.memory_properties,
+            std::mem::size_of_val(&indices[..]),
+            vk::BufferUsageFlags::INDEX_BUFFER,
+        )?;
+        vertex.write(bytes_of(&vertices));
+        index.write(bytes_of(&indices));
+        self.scene = Some((vertex, index, indices.len() as u32));
+        Ok(())
     }
 
     /// The slot a hand's pointer mark is drawn by.
@@ -817,6 +870,10 @@ impl Drop for Renderer {
                     buffer.destroy(&self.device);
                 }
             }
+            if let Some((vertex, index, _)) = &self.scene {
+                vertex.destroy(&self.device);
+                index.destroy(&self.device);
+            }
             self.panel.destroy(&self.device);
         }
     }
@@ -851,6 +908,50 @@ fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
     }
     grid((pack.bones.len() + CONTROLLERS + 1 + MARKERS) as u32, &mut vertices, &mut indices);
     (vertices, indices)
+}
+
+/// A static box as six flat faces, its half extents turned by its rotation and carried to its
+/// position, all in the simulation's frame.
+fn posed_box(slot: u32, b: &crate::bridge::StaticBox, vertices: &mut Vec<f32>, indices: &mut Vec<u32>) {
+    let r = rotation(b.rotation);
+    let turn = |v: [f32; 3]| {
+        [
+            r[0] * v[0] + r[3] * v[1] + r[6] * v[2],
+            r[1] * v[0] + r[4] * v[1] + r[7] * v[2],
+            r[2] * v[0] + r[5] * v[1] + r[8] * v[2],
+        ]
+    };
+    let faces: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
+        ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+        ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        ([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]),
+    ];
+    let h = b.half_extents;
+    for (n, u, v) in faces {
+        let base = (vertices.len() / 7) as u32;
+        let normal = turn(n);
+        for (su, sv) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            let local = [
+                h[0] * (n[0] + su * u[0] + sv * v[0]),
+                h[1] * (n[1] + su * u[1] + sv * v[1]),
+                h[2] * (n[2] + su * u[2] + sv * v[2]),
+            ];
+            let p = turn(local);
+            vertices.extend_from_slice(&[
+                p[0] + b.position[0],
+                p[1] + b.position[1],
+                p[2] + b.position[2],
+                normal[0],
+                normal[1],
+                normal[2],
+                f32::from_bits(slot),
+            ]);
+        }
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
 }
 
 /// The floor: lines every half metre out to five, as flat strips a hair above y = 0 so nothing
@@ -1565,15 +1666,43 @@ fn bytes_of<T>(slice: &[T]) -> &[u8] {
     }
 }
 
-/// Where the body stands and which way it faces: the matrix every bone is placed by.
-pub(crate) fn placement() -> [f32; 16] {
-    translation(STANDS_AT[0], STANDS_AT[1], STANDS_AT[2], true)
+/// Where the body stands and which way it faces: the matrix every bone is placed by. The
+/// simulation's ground is lifted to the stage's floor, so a scenario with a raised ground still
+/// has the body standing on the grid.
+pub(crate) fn placement(ground_height: f32) -> [f32; 16] {
+    translation(STANDS_AT[0], STANDS_AT[1] - ground_height, STANDS_AT[2], true)
 }
 
 /// The inverse of the placement, for a point: where in the simulation's own frame a point in the
 /// room is. Rotation by half a turn about Y is its own inverse, so this is subtract, then flip.
-pub(crate) fn unplace(p: [f32; 3]) -> [f32; 3] {
-    [-(p[0] - STANDS_AT[0]), p[1] - STANDS_AT[1], -(p[2] - STANDS_AT[2])]
+pub(crate) fn unplace(p: [f32; 3], ground_height: f32) -> [f32; 3] {
+    [
+        -(p[0] - STANDS_AT[0]),
+        p[1] - (STANDS_AT[1] - ground_height),
+        -(p[2] - STANDS_AT[2]),
+    ]
+}
+
+/// A rotation in the room, in the simulation's frame: conjugated by the placement's half turn
+/// about Y, which is its own inverse.
+pub(crate) fn unplace_rotation(q: [f32; 4]) -> [f32; 4] {
+    let half_turn = [0.0, 1.0, 0.0, 0.0];
+    quaternion_multiply(quaternion_multiply(half_turn, q), quaternion_conjugate(half_turn))
+}
+
+/// `a` then `b`, as xyzw quaternions: the rotation `b` applied after `a`... which is to say the
+/// product `a * b` in the convention where `q * v` turns `v` by `q`.
+pub(crate) fn quaternion_multiply(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
+    [
+        a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+        a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+        a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+        a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+    ]
+}
+
+pub(crate) fn quaternion_conjugate(q: [f32; 4]) -> [f32; 4] {
+    [-q[0], -q[1], -q[2], q[3]]
 }
 
 /// A uniform scale, which is how a pack at one stature is drawn at another.
@@ -1841,11 +1970,30 @@ mod tests {
     #[test]
     fn unplace_takes_a_room_point_back_to_where_the_simulation_thinks_it_is() {
         let sim = [0.2, 1.1, 0.3];
-        let room = apply(&placement(), [sim[0], sim[1], sim[2], 1.0]);
-        let back = unplace([room[0], room[1], room[2]]);
+        let room = apply(&placement(0.0), [sim[0], sim[1], sim[2], 1.0]);
+        let back = unplace([room[0], room[1], room[2]], 0.0);
         for axis in 0..3 {
             assert!((back[axis] - sim[axis]).abs() < 1e-6, "axis {axis}: {back:?}");
         }
+    }
+
+    #[test]
+    fn a_rotation_in_the_room_matches_the_same_rotation_of_a_placed_vector() {
+        // Turn a vector by q in the room, take it into the simulation's frame; that must equal
+        // taking the vector into the simulation's frame and turning it by unplace_rotation(q).
+        // Only directions, so the ground and the standing spot fall out.
+        let q: [f32; 4] = [0.2, 0.5, -0.1, 0.83]; // normalised just below
+        let n = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt();
+        let q = [q[0] / n, q[1] / n, q[2] / n, q[3] / n];
+        let v = [0.3, 0.1, 0.7];
+        let flip = |p: [f32; 3]| [-p[0], p[1], -p[2]];
+        let a = flip(rotate(v, q));
+        let b = rotate(flip(v), unplace_rotation(q));
+        for axis in 0..3 {
+            assert!((a[axis] - b[axis]).abs() < 1e-5, "{a:?} vs {b:?}");
+        }
+        let id = quaternion_multiply(q, quaternion_conjugate(q));
+        assert!((id[3] - 1.0).abs() < 1e-5 && id[0].abs() < 1e-5);
     }
 
     #[test]

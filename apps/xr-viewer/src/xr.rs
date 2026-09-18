@@ -331,11 +331,20 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         pack.triangle_count()
     );
 
-    let place = crate::render::placement();
-    // Bones, the two controllers, the world slot at the placement, and a pointer mark a hand.
+    // Where the body stands: the simulation's ground lifted to the stage floor. Known once the
+    // status says the ground's height; zero, which is nearly every scenario, until then.
+    let mut ground = 0.0f32;
+    let mut place = crate::render::placement(ground);
+    // Bones, the two controllers, the world slot at the placement, a pointer mark a hand, the
+    // grid at the identity, and the scenery at the placement.
     let mut matrices: Vec<[f32; 16]> = vec![
         place;
-        pack.bones.len() + crate::render::CONTROLLERS + 1 + crate::render::MARKERS + 1
+        pack.bones.len()
+            + crate::render::CONTROLLERS
+            + 1
+            + crate::render::MARKERS
+            + 1
+            + crate::render::SCENE_SLOTS
     ];
     for hand in 0..crate::render::MARKERS {
         matrices[renderer.marker_slot(hand)] = crate::render::scale_matrix(0.0);
@@ -360,6 +369,11 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     };
     let mut holding: [Option<Hold>; crate::bridge::HANDS] = [None, None];
     let mut hand_seen = [false; crate::bridge::HANDS];
+    // A trigger that was already down when its ray reached the panel presses nothing until it
+    // is let go: squeezing to grab a bone tends to pull the trigger too, and the ray sweeping
+    // the panel then was clicking whatever it crossed.
+    let mut trigger_armed = [true; crate::bridge::HANDS];
+    let mut scene_generation: Option<u64> = None;
     let controller_scale = crate::render::scale_matrix(1.0);
     let mut muscle_vertices: Vec<f32> = Vec::new();
     let mut last_tick: Option<u64> = None;
@@ -439,6 +453,19 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             if let Some(path) = &status_path {
                 if let Some(fresh) = crate::bridge::read_status(path) {
                     let generation = fresh.generation;
+                    if scene_generation != Some(generation) {
+                        scene_generation = Some(generation);
+                        ground = fresh.ground_height as f32;
+                        place = crate::render::placement(ground);
+                        matrices[renderer.world_slot()] = place;
+                        matrices[renderer.scene_slot()] = place;
+                        renderer.set_scene(&fresh.static_boxes)?;
+                        println!(
+                            "scene: ground at {:.2} m, {} static boxes",
+                            fresh.ground_height,
+                            fresh.static_boxes.len()
+                        );
+                    }
                     status = Some(fresh);
                     if let (Some(f), Some(follow_path)) = (feeds.as_ref(), follow) {
                         if f.generation != generation {
@@ -529,54 +556,102 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             // being the pointer.
             let marker = renderer.marker_slot(hand);
             matrices[marker] = crate::render::scale_matrix(0.0);
-            if let Some((position, orientation)) =
-                hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?
-            {
+            let pressed = hands.trigger(&session, hand)?;
+            if !pressed {
+                trigger_armed[hand] = true;
+            }
+            let aimed = hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?;
+            let on_panel = aimed.and_then(|(position, orientation)| {
                 let forward = crate::render::rotate([0.0, 0.0, -1.0], orientation);
-                if let Some(at) = placement.hit(position, forward) {
+                placement.hit(position, forward)
+            });
+            match on_panel {
+                // A hand that is holding a bone is busy; its ray is not a pointer.
+                Some(at) if holding[hand].is_none() => {
                     let world = placement.to_world(at);
                     matrices[marker] = crate::render::pose_matrix(world, [0.0, 0.0, 0.0, 1.0]);
-                    let pressed = hands.trigger(&session, hand)?;
+                    let pressing = pressed && trigger_armed[hand];
                     let keep = pointer_hand == Some(hand);
                     if keep || pointer_candidate.is_none() {
-                        pointer_candidate = Some((hand, at, pressed));
+                        pointer_candidate = Some((hand, at, pressing));
+                    }
+                }
+                _ => {
+                    if pressed {
+                        trigger_armed[hand] = false;
                     }
                 }
             }
             let Some(f) = feeds.as_mut() else { continue };
             let squeezing = hands.squeezing(&session, hand)?;
-            let in_sim = located.map(|(p, _)| crate::render::unplace(p));
-            let intent = match (&holding[hand], squeezing, in_sim) {
-                (None, true, Some(at)) => {
-                    // A grab begins: the bone whose posed extent the hand is nearest to, if any
-                    // is within reach. Nothing in reach is a squeeze in empty air, which sends
-                    // nothing and holds nothing.
-                    match nearest_bone(pack, &matrices, &f.pose_index, f.bridge.dataset_scale as f32, located.unwrap().0) {
-                        Some((pack_bone, pose_bone)) => {
+            let intent = match (&holding[hand], squeezing, located) {
+                (None, true, Some((hand_at, hand_q))) => {
+                    // A grab begins: the nearest point on the nearest bone's surface, if any is
+                    // within reach. Nothing in reach is a squeeze in empty air, which sends
+                    // nothing and holds nothing. From here the point rides with the hand.
+                    match nearest_surface(pack, &matrices, &f.pose_index, f.bridge.dataset_scale as f32, hand_at) {
+                        Some((pack_bone, pose_bone, surface)) => {
                             println!(
                                 "hand {}: grabbed {}",
                                 ["left", "right"][hand],
                                 pack.bones[pack_bone].id
                             );
-                            holding[hand] = Some(Hold { pose_bone, point: at });
+                            let point = crate::render::unplace(surface, ground);
+                            holding[hand] = Some(Hold {
+                                pose_bone,
+                                point,
+                                offset: [
+                                    surface[0] - hand_at[0],
+                                    surface[1] - hand_at[1],
+                                    surface[2] - hand_at[2],
+                                ],
+                                hand_q,
+                            });
                             crate::bridge::GrabIntent {
                                 active: true,
                                 bone: pose_bone as i32,
-                                point: at,
-                                target: at,
+                                point,
+                                target: point,
                                 strength: 1.0,
+                                rotation: crate::render::unplace_rotation(hand_q),
                             }
                         }
                         None => crate::bridge::GrabIntent::default(),
                     }
                 }
-                (Some(hold), true, at) => crate::bridge::GrabIntent {
-                    active: true,
-                    bone: hold.pose_bone as i32,
-                    point: hold.point,
-                    target: at.unwrap_or(hold.point),
-                    strength: 1.0,
-                },
+                (Some(hold), true, at) => {
+                    // The grabbed point, carried by the hand: its offset from the hand at the
+                    // grab, turned by however much the hand has turned since.
+                    let (target, rotation) = match at {
+                        Some((hand_at, hand_q)) => {
+                            let delta = crate::render::quaternion_multiply(
+                                hand_q,
+                                crate::render::quaternion_conjugate(hold.hand_q),
+                            );
+                            let carried = crate::render::rotate(hold.offset, delta);
+                            (
+                                crate::render::unplace(
+                                    [
+                                        hand_at[0] + carried[0],
+                                        hand_at[1] + carried[1],
+                                        hand_at[2] + carried[2],
+                                    ],
+                                    ground,
+                                ),
+                                crate::render::unplace_rotation(hand_q),
+                            )
+                        }
+                        None => (hold.point, crate::render::unplace_rotation(hold.hand_q)),
+                    };
+                    crate::bridge::GrabIntent {
+                        active: true,
+                        bone: hold.pose_bone as i32,
+                        point: hold.point,
+                        target,
+                        strength: 1.0,
+                        rotation,
+                    }
+                }
                 (Some(_), false, _) => {
                     println!("hand {}: let go", ["left", "right"][hand]);
                     holding[hand] = None;
@@ -772,27 +847,35 @@ impl Feeds {
     }
 }
 
-/// What a hand is holding: which pose bone, and where in the simulation's frame it took hold.
+/// What a hand is holding: which pose bone, where in the simulation's frame it took hold, and
+/// how the grabbed point sat relative to the hand in the room at that moment.
 struct Hold {
     pose_bone: usize,
     point: [f32; 3],
+    /// Grabbed point minus hand position, in the stage, at the grab.
+    offset: [f32; 3],
+    /// The hand's orientation in the stage, at the grab.
+    hand_q: [f32; 4],
 }
 
-/// The bone nearest a hand in the room, if the hand is within reach of it.
+/// The nearest point on a bone's surface to a hand in the room, with the bone, if any is within
+/// reach.
 ///
-/// Reach is judged against each bone's posed extent: its centroid carried by its current matrix,
-/// and half its bounding diagonal at the body's scale, plus a margin about the width of a
-/// controller. Of the bones the hand is inside, the one whose surface is nearest wins. Bones
-/// with no pose cannot be grabbed, since there is nothing behind them to pull.
-fn nearest_bone(
+/// Bones are first sieved by their posed extent -- centroid carried by the current matrix, half
+/// the bounding diagonal at the body's scale, a controller's width of margin -- and only the
+/// survivors have their vertices carried into the room and measured, which is a few thousand
+/// points at most. Bones with no pose cannot be grabbed, since there is nothing behind them to
+/// pull. The nearest vertex stands in for the nearest surface point: the meshes are dense enough
+/// that the difference is under a millimetre.
+fn nearest_surface(
     pack: &crate::pack::Pack,
     matrices: &[[f32; 16]],
     pose_index: &[Option<usize>],
     dataset_scale: f32,
     hand: [f32; 3],
-) -> Option<(usize, usize)> {
-    const REACH: f32 = 0.04;
-    let mut best: Option<(f32, usize, usize)> = None;
+) -> Option<(usize, usize, [f32; 3])> {
+    const REACH: f32 = 0.05;
+    let mut best: Option<(f32, usize, usize, [f32; 3])> = None;
     for (i, packed) in pack.manifest.bones.iter().enumerate() {
         let Some(pose_bone) = pose_index.get(i).copied().flatten() else { continue };
         let m = &matrices[i];
@@ -811,15 +894,23 @@ fn nearest_bone(
             .map(|a| hand[a] - centre[a])
             .fold(0.0f32, |acc, d| acc + d * d)
             .sqrt();
-        let outside = distance - radius;
-        if outside > REACH {
+        if distance - radius > REACH {
             continue;
         }
-        if best.map(|(o, _, _)| outside < o).unwrap_or(true) {
-            best = Some((outside, i, pose_bone));
+        // Inside the sieve: measure the surface itself.
+        for vertex in pack.bones[i].vertices.chunks_exact(6) {
+            let p = [
+                m[0] * vertex[0] + m[4] * vertex[1] + m[8] * vertex[2] + m[12],
+                m[1] * vertex[0] + m[5] * vertex[1] + m[9] * vertex[2] + m[13],
+                m[2] * vertex[0] + m[6] * vertex[1] + m[10] * vertex[2] + m[14],
+            ];
+            let d = ((hand[0] - p[0]).powi(2) + (hand[1] - p[1]).powi(2) + (hand[2] - p[2]).powi(2)).sqrt();
+            if d <= REACH && best.map(|(o, _, _, _)| d < o).unwrap_or(true) {
+                best = Some((d, i, pose_bone, p));
+            }
         }
     }
-    best.map(|(_, i, j)| (i, j))
+    best.map(|(_, i, j, p)| (i, j, p))
 }
 
 /// The tracked controllers as OpenXR actions: a grip pose, an aim pose, a squeeze and a trigger,

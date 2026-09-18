@@ -291,11 +291,23 @@ function applyGrabs() {
         };
         const [tx, ty, tz] = intent.target;
         simulation.grab.grab(segment, local, { x: tx, y: ty, z: tz }, grabStrength, hand);
-        held[hand] = { segment, bone: order[intent.bone] };
+        // The hand's orientation at the moment of the grab, and the segment's: from here on the
+        // segment is turned by however much the hand has turned since.
+        const [hx, hy, hz, hw] = intent.rotation;
+        held[hand] = {
+          segment,
+          bone: order[intent.bone],
+          handAtGrab: { x: hx, y: hy, z: hz, w: hw },
+          segmentAtGrab: { ...at.rotation },
+        };
         grabsSeen += 1;
       } else if (held[hand] !== null) {
         const [tx, ty, tz] = intent.target;
-        simulation.grab.moveTo({ x: tx, y: ty, z: tz }, hand);
+        const h = held[hand];
+        const [hx, hy, hz, hw] = intent.rotation;
+        // target = hand_now * conj(hand_at_grab) * segment_at_grab
+        const delta = qmul({ x: hx, y: hy, z: hz, w: hw }, qconj(h.handAtGrab));
+        simulation.grab.moveTo({ x: tx, y: ty, z: tz }, hand, qmul(delta, h.segmentAtGrab));
       }
     } else if (held[hand] !== null) {
       simulation.grab.release(hand);
@@ -303,6 +315,14 @@ function applyGrabs() {
     }
   }
 }
+
+const qmul = (a, b) => ({
+  x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+  y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+  z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+  w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+});
+const qconj = (q) => ({ x: -q.x, y: -q.y, z: -q.z, w: q.w });
 
 function letGo() {
   live.simulation.grab.release();
@@ -345,6 +365,16 @@ function writeStatus() {
       stepsPerSecond: simulation.stepsPerSecond,
     },
     driveGroups: MUSCLE_GROUPS.map((g, i) => ({ title: g.title, level: drives[i] })),
+    // The scenery, which the viewer has no other way to know: the ground's height and every
+    // static box, in the simulation's frame.
+    groundHeight: chosen.ground.height,
+    staticBoxes: (chosen.staticBoxes ?? []).map((b) => ({
+      halfExtents: [b.halfExtents.x, b.halfExtents.y, b.halfExtents.z],
+      position: [b.position.x, b.position.y, b.position.z],
+      rotation: b.rotation
+        ? [b.rotation.x, b.rotation.y, b.rotation.z, b.rotation.w]
+        : [0, 0, 0, 1],
+    })),
     diagnostics: diagnostics(simulation),
   };
   const tmp = `${path}-status.json.tmp`;

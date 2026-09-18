@@ -334,6 +334,7 @@ export function readBridge(bytes: Uint8Array): {
  *     16  f32  x3 point    world point where the grab began, in the simulation's frame
  *     28  f32  x3 target   world point the hand is at now, in the simulation's frame
  *     40  f32  strength    the spring the grab module scales; 1 is the studio's default
+ *     44  f32  x4 rotation the hand's orientation now, xyzw, in the simulation's frame
  *
  * The renderer converts out of its own stage space before writing, so both points arrive in the
  * simulation's world -- the frame `segmentPose` answers in -- and the simulation never has to
@@ -354,6 +355,7 @@ export interface GrabIntent {
   readonly point: readonly [number, number, number];
   readonly target: readonly [number, number, number];
   readonly strength: number;
+  readonly rotation: readonly [number, number, number, number];
 }
 
 /** Parse one hand's slot out of a whole-file buffer, or undefined if it is mid-write or unwritten. */
@@ -377,6 +379,12 @@ export function readGrabSlot(bytes: Uint8Array, hand: number): GrabIntent | unde
       view.getFloat32(base + 36, true),
     ],
     strength: view.getFloat32(base + 40, true),
+    rotation: [
+      view.getFloat32(base + 44, true),
+      view.getFloat32(base + 48, true),
+      view.getFloat32(base + 52, true),
+      view.getFloat32(base + 56, true),
+    ],
   };
 }
 

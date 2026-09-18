@@ -114,6 +114,8 @@ class RapierGrab implements GrabHandle {
   setTarget(world: Vec3): void {
     this.backend.moveGrab(this, world);
   }
+  /** A kinematic anchor on a spherical joint holds a point; orientation is not something it has. */
+  setTargetOrientation(): void {}
   release(): void {
     this.backend.releaseGrab(this);
   }

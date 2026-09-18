@@ -307,6 +307,8 @@ pub struct GrabIntent {
     /// Where the hand is now.
     pub target: [f32; 3],
     pub strength: f32,
+    /// The hand's orientation now, xyzw, in the simulation's frame.
+    pub rotation: [f32; 4],
 }
 
 /// The writing end of the grab channel, the mirror of `PoseBridge`: two slots, one a hand,
@@ -347,13 +349,16 @@ impl GrabIntentWriter {
         let ptr = self.map.as_mut_ptr();
         self.seq[hand] += 1;
         unsafe { std::ptr::write_volatile(ptr.add(base) as *mut u64, self.seq[hand]) };
-        let body = &mut self.map[base + 8..base + 44];
+        let body = &mut self.map[base + 8..base + 60];
         body[0..4].copy_from_slice(&(intent.active as u32).to_le_bytes());
         body[4..8].copy_from_slice(&intent.bone.to_le_bytes());
         for (i, v) in intent.point.iter().chain(intent.target.iter()).enumerate() {
             body[8 + i * 4..12 + i * 4].copy_from_slice(&v.to_le_bytes());
         }
         body[32..36].copy_from_slice(&intent.strength.to_le_bytes());
+        for (i, v) in intent.rotation.iter().enumerate() {
+            body[36 + i * 4..40 + i * 4].copy_from_slice(&v.to_le_bytes());
+        }
         self.seq[hand] += 1;
         unsafe { std::ptr::write_volatile(ptr.add(base) as *mut u64, self.seq[hand]) };
         self.written += 1;
@@ -426,6 +431,7 @@ mod tests {
                 point: [0.1, 1.2, -0.3],
                 target: [0.15, 1.25, -0.35],
                 strength: 1.0,
+                rotation: [0.0, 0.7071, 0.0, 0.7071],
             },
         );
         writer.publish(1, &GrabIntent::default());
@@ -452,6 +458,8 @@ mod tests {
         assert_eq!(f32_at(96), 1.25);
         assert_eq!(f32_at(100), -0.35);
         assert_eq!(f32_at(104), 1.0);
+        assert_eq!(f32_at(112), 0.7071, "rotation y at 44");
+        assert_eq!(f32_at(120), 0.7071, "rotation w at 56");
         // Right hand, slot 1 at 128: written twice, so its sequence is four, and it holds nothing.
         assert_eq!(u64_at(128), 4);
         assert_eq!(u32_at(136), 0);
@@ -504,6 +512,24 @@ pub struct Status {
     pub drive_groups: Vec<DriveGroup>,
     #[serde(default)]
     pub diagnostics: Diagnostics,
+    #[serde(default)]
+    pub ground_height: f64,
+    #[serde(default)]
+    pub static_boxes: Vec<StaticBox>,
+}
+
+/// A box in the scenery, in the simulation's frame.
+#[derive(serde::Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StaticBox {
+    pub half_extents: [f32; 3],
+    pub position: [f32; 3],
+    #[serde(default = "identity")]
+    pub rotation: [f32; 4],
+}
+
+fn identity() -> [f32; 4] {
+    [0.0, 0.0, 0.0, 1.0]
 }
 
 /// Everything the panel can set, as the publisher currently has it.

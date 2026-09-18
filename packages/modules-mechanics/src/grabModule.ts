@@ -9,7 +9,7 @@
  */
 
 import type { CompiledArticulation, GrabHandle, IPhysicsBackend } from '@bs-humany/compiler';
-import type { Vec3 } from '@bs-humany/frames';
+import type { Quat, Vec3 } from '@bs-humany/frames';
 import type {
   ChannelSpec,
   ModuleInitContext,
@@ -145,12 +145,16 @@ export class GrabModule implements SimModule {
     this.publish();
   }
 
-  /** Move a slot's target; applied, leashed, on the next step. */
-  moveTo(worldTarget: Vec3, slot = 0): void {
+  /**
+   * Move a slot's target; applied, leashed, on the next step. With an `orientation` the segment
+   * is also turned toward it, which is what a hand that twists expects.
+   */
+  moveTo(worldTarget: Vec3, slot = 0, orientation: Quat | null = null): void {
     const s = this.slotAt(slot);
     s.target.x = worldTarget.x;
     s.target.y = worldTarget.y;
     s.target.z = worldTarget.z;
+    s.handle?.setTargetOrientation(orientation);
   }
 
   /** Let go of one slot, or of everything when no slot is named. */

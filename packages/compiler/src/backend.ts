@@ -130,6 +130,11 @@ export interface MotorTarget {
 
 export interface GrabHandle {
   setTarget(world: Vec3): void;
+  /**
+   * Also hold the segment's orientation toward this one, in world; `null` to hold position only.
+   * A backend without a rotational spring may ignore it.
+   */
+  setTargetOrientation(world: { x: number; y: number; z: number; w: number } | null): void;
   release(): void;
 }
 

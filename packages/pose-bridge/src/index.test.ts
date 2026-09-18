@@ -138,6 +138,10 @@ describe('the pose bridge file', () => {
       bytes.writeFloatLE(1.25, base + 32);
       bytes.writeFloatLE(-0.35, base + 36);
       bytes.writeFloatLE(1, base + 40);
+      bytes.writeFloatLE(0, base + 44);
+      bytes.writeFloatLE(0.7071, base + 48);
+      bytes.writeFloatLE(0, base + 52);
+      bytes.writeFloatLE(0.7071, base + 56);
     };
     slot(0, 4n, 1, 17); // complete: squeezing, holding bone 17
     slot(1, 3n, 1, 5); // odd: caught mid-write, must not be trusted
@@ -148,6 +152,8 @@ describe('the pose bridge file', () => {
     expect(left?.point[1]).toBeCloseTo(1.2, 6);
     expect(left?.target[2]).toBeCloseTo(-0.35, 6);
     expect(left?.strength).toBe(1);
+    expect(left?.rotation[1]).toBeCloseTo(0.7071, 4);
+    expect(left?.rotation[3]).toBeCloseTo(0.7071, 4);
     expect(readGrabSlot(bytes, 1)).toBeUndefined();
 
     // And through the reader, from a file, which is how the simulation gets it.

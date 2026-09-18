@@ -131,9 +131,22 @@ all in the simulation's own frame. The publisher reads both slots every tick and
 segment's frame, and holds it toward the hand. Letting go is one inactive slot, read once.
 Each hand is its own grab slot, so both can hold at once, and the same bone with both if you like.
 
-Which bone is judged in the room, not the simulation: each bone's posed centroid and half its
-bounding diagonal, with a controller's width of reach on top, and the nearest surface among the
-bones the hand is inside wins. Squeezing empty air grabs nothing and sends nothing.
+Which bone, and where on it, is judged in the room: bones are sieved by their posed extent, the
+survivors have their vertices carried into the room, and the nearest vertex within five
+centimetres of the hand is the point taken. From then on that point rides with the hand -- its
+offset at the grab, turned by however much the hand has turned since -- and the hand's
+orientation goes across too, so twisting the hand twists the bone: the MuJoCo backend holds a
+grabbed segment with a rotational spring beside the point spring, sized as the same spring at a
+hand's lever and leashed to a radian. Squeezing empty air grabs nothing and sends nothing.
+
+A trigger that was already down when its ray reached the panel presses nothing until it is let
+go, and a hand holding a bone is not a pointer at all. Both because squeezing to grab tends to
+pull the trigger, and a ray sweeping the panel with the trigger held was clicking whatever it
+crossed -- including the buttons that rebuild the run.
+
+The scenery comes with the status: the ground's height, which lifts the body so it stands on
+the grid whatever the scenario's floor is at, and every static box -- the stairs, the seat --
+drawn in the simulation's frame.
 
 The status lines say what is happening on both sides:
 

@@ -6,7 +6,7 @@ layout(location = 0) out vec4 outColour;
 
 // Slots from firstController up are the tracked controllers, and worldSlot is the muscles: each
 // drawn in a colour no bone is.
-layout(push_constant) uniform Push { uint firstController; uint worldSlot; uint stageSlot; } push;
+layout(push_constant) uniform Push { uint firstController; uint worldSlot; uint stageSlot; uint sceneSlot; } push;
 
 void main() {
     vec3 n = normalize(vNormal);
@@ -19,7 +19,9 @@ void main() {
     vec3 controller = vec3(0.25, 0.60, 1.00);
     vec3 muscle = vec3(0.72, 0.26, 0.28);
     vec3 grid = vec3(0.34, 0.36, 0.40);
-    vec3 albedo = vBone == push.stageSlot ? grid
+    vec3 scenery = vec3(0.52, 0.50, 0.46);
+    vec3 albedo = vBone == push.sceneSlot ? scenery
+        : vBone == push.stageSlot ? grid
         : vBone == push.worldSlot ? muscle
         : vBone >= push.firstController ? controller
         : bone;

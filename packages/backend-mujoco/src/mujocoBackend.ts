@@ -45,6 +45,13 @@ import loadMujoco from '@mujoco/mujoco';
 /** Grab spring sizing, shared with the Rapier backend by value: same leash, same force fraction. */
 export const GRAB_LEASH = 0.3;
 export const GRAB_FORCE_FRACTION = 0.8;
+/**
+ * The rotational spring's sizing: the linear stiffness acting at this lever, and a hand's worth
+ * of angle it may lead by before the torque stops growing -- a twist beyond that is a twist the
+ * body is refusing, and the spring is not there to win.
+ */
+export const GRAB_LEVER = 0.1;
+export const GRAB_ANGULAR_LEASH = 1.0;
 const STANDARD_GRAVITY_MAGNITUDE = 9.80665;
 const OBJ_BODY = 1;
 const OBJ_GEOM = 5;
@@ -68,6 +75,11 @@ interface Grab {
   readonly target: { x: number; y: number; z: number };
   readonly stiffness: number;
   readonly damping: number;
+  /** World orientation to hold the segment toward, or null for a point grab. */
+  readonly orientation: { x: number; y: number; z: number; w: number };
+  holdsOrientation: boolean;
+  readonly angularStiffness: number;
+  readonly angularDamping: number;
 }
 
 class MujocoGrab implements GrabHandle {
@@ -79,6 +91,15 @@ class MujocoGrab implements GrabHandle {
     this.grab.target.x = world.x;
     this.grab.target.y = world.y;
     this.grab.target.z = world.z;
+  }
+  setTargetOrientation(world: { x: number; y: number; z: number; w: number } | null): void {
+    this.grab.holdsOrientation = world !== null;
+    if (world) {
+      this.grab.orientation.x = world.x;
+      this.grab.orientation.y = world.y;
+      this.grab.orientation.z = world.z;
+      this.grab.orientation.w = world.w;
+    }
   }
   release(): void {
     this.backend.releaseGrab(this);
@@ -396,6 +417,35 @@ export class MujocoBackend implements IPhysicsBackend {
       xfrc[6 * b + 3] = (xfrc[6 * b + 3] as number) + (ay * fz - az * fy);
       xfrc[6 * b + 4] = (xfrc[6 * b + 4] as number) + (az * fx - ax * fz);
       xfrc[6 * b + 5] = (xfrc[6 * b + 5] as number) + (ax * fy - ay * fx);
+      if (grab.holdsOrientation) {
+        // The rotation still to make: target * conj(current), as an axis times an angle, leashed.
+        const t = grab.orientation;
+        // conj(current) is (bw, -bx, -by, -bz); product q = t * conj(current).
+        const qw = t.w * bw + t.x * bx + t.y * by + t.z * bz;
+        let qx = -t.w * bx + t.x * bw - t.y * bz + t.z * by;
+        let qy = -t.w * by + t.x * bz + t.y * bw - t.z * bx;
+        let qz = -t.w * bz - t.x * by + t.y * bx + t.z * bw;
+        // The shorter way round.
+        const sign = qw < 0 ? -1 : 1;
+        qx *= sign;
+        qy *= sign;
+        qz *= sign;
+        const sinHalf = Math.hypot(qx, qy, qz);
+        const angle = 2 * Math.atan2(sinHalf, Math.abs(qw));
+        if (sinHalf > 1e-9) {
+          const lead = Math.min(angle, GRAB_ANGULAR_LEASH) / sinHalf;
+          const tx = grab.angularStiffness * qx * lead - grab.angularDamping * ox;
+          const ty = grab.angularStiffness * qy * lead - grab.angularDamping * oy;
+          const tz = grab.angularStiffness * qz * lead - grab.angularDamping * oz;
+          xfrc[6 * b + 3] = (xfrc[6 * b + 3] as number) + tx;
+          xfrc[6 * b + 4] = (xfrc[6 * b + 4] as number) + ty;
+          xfrc[6 * b + 5] = (xfrc[6 * b + 5] as number) + tz;
+        } else {
+          xfrc[6 * b + 3] = (xfrc[6 * b + 3] as number) - grab.angularDamping * ox;
+          xfrc[6 * b + 4] = (xfrc[6 * b + 4] as number) - grab.angularDamping * oy;
+          xfrc[6 * b + 5] = (xfrc[6 * b + 5] as number) - grab.angularDamping * oz;
+        }
+      }
     }
   }
 
@@ -675,12 +725,21 @@ export class MujocoBackend implements IPhysicsBackend {
     const stiffness =
       (strength * GRAB_FORCE_FRACTION * model.totalMass * STANDARD_GRAVITY_MAGNITUDE) / GRAB_LEASH;
     const damping = 2 * Math.sqrt(stiffness * Math.max(segment.mass, model.totalMass / 8));
+    // The same spring at a hand's lever, and critically damped against a segment's worth of
+    // inertia at that lever.
+    const angularStiffness = stiffness * GRAB_LEVER * GRAB_LEVER;
+    const inertia = Math.max(segment.mass, model.totalMass / 8) * GRAB_LEVER * GRAB_LEVER;
+    const angularDamping = 2 * Math.sqrt(angularStiffness * inertia);
     const handle = new MujocoGrab(this, {
       segment: segmentIndex,
       local: { x: localPoint.x, y: localPoint.y, z: localPoint.z },
       target: { x: worldTarget.x, y: worldTarget.y, z: worldTarget.z },
       stiffness,
       damping,
+      orientation: { x: 0, y: 0, z: 0, w: 1 },
+      holdsOrientation: false,
+      angularStiffness,
+      angularDamping,
     });
     this.grabs.add(handle);
     return handle;
