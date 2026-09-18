@@ -9,6 +9,7 @@ native route is worth taking before weeks go into it.
 cargo run --release -- check-pack     # needs no hardware at all
 cargo run --release -- probe          # needs a runtime, not a headset
 cargo run --release -- session 10     # needs a headset
+cargo run --release -- view 30       # needs a headset, and draws
 ```
 
 **`check-pack`** loads `manifest.json` and `skeleton.bin` and says what came out. It is the half
@@ -34,7 +35,14 @@ the point of it: it exercises frame timing, the session state machine and head t
 single line of rendering, so if it holds the headset's rate then everything left is ordinary
 Vulkan rather than an unknown.
 
-Drawing is deliberately not here yet. Two hundred rigid meshes is not the risky part.
+**`view`** is the one that draws: the skeleton standing a metre and a half away, both eyes in one
+multiview pass, for as many seconds as you ask. It reports the frame rate it held and the worst
+CPU frame at the end.
+
+Its loop already has the shape ADR-012 requires -- it takes the head pose the runtime predicts for
+this frame and draws from the pose buffer as it stands, never waiting for anything upstream. With
+a rest pose that is invisible; it is the shape the loop has to have before a simulation is
+attached, and retrofitting it afterwards is how a headset ends up stalling on a slow tick.
 
 ## What it answered, on the machine it was written for
 
@@ -82,6 +90,18 @@ mkdir -p ~/.config/openxr/1 && ln -sf ~/.local/share/Steam/steamapps/common/Stea
 ```
 
 `probe` will tell you which one answered.
+
+## The shaders
+
+GLSL in `shaders/`, compiled to the `.spv` beside it and committed, which the viewer embeds with
+`include_bytes!`. An ordinary build therefore needs no shader toolchain. To change a shader:
+
+```bash
+SHADERC_LIB_DIR=/usr/lib64 cargo run --example compile-shaders
+```
+
+An example rather than a binary so `shaderc` stays a dev-dependency. Same bargain as the generated
+data elsewhere in the repository: a generator, its output committed, and the two expected to agree.
 
 ## Why ash and not wgpu
 

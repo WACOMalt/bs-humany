@@ -25,3 +25,8 @@ serde_json = "1"
 [profile.release]
 opt-level = 3
 lto = true
+
+[dev-dependencies]
+# Only for `cargo run --example compile-shaders`, which regenerates the committed SPIR-V. A normal
+# build never touches it, so nobody needs a shader toolchain to build the viewer.
+shaderc = "0.9"

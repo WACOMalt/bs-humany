@@ -17,6 +17,9 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::path::Path;
 
+/// The manifest's own description of a bone. `centroid`, `min` and `max` are unused by the
+/// renderer and kept because they are the manifest, and because a pose pipeline indexes by them.
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct PackedBone {
     pub id: String,
@@ -59,6 +62,8 @@ pub struct Manifest {
 
 /// One bone, ready to hand to a graphics API: interleaved position and normal, local indices.
 pub struct BoneMesh {
+    /// Read by diagnostics rather than by the renderer, which draws every bone in one call.
+    #[allow(dead_code)]
     pub id: String,
     /// `vertex_count * 6` floats: x, y, z, nx, ny, nz.
     pub vertices: Vec<f32>,

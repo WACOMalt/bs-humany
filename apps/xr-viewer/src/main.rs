@@ -9,11 +9,13 @@
 //!   bs-humany-xr-viewer check-pack [dir]   load the mesh pack, report what is in it. No XR.
 //!   bs-humany-xr-viewer probe              which runtime, which headset, which views. No session.
 //!   bs-humany-xr-viewer session [seconds]  begin a session and run the frame loop. No drawing.
+//!   bs-humany-xr-viewer view [seconds]     draw the skeleton, both eyes in one pass.
 //!
 //! The first needs no hardware at all. The second needs a runtime but no headset. Only the third
 //! needs a headset, which is the order in which things stop being checkable from a terminal.
 
 mod pack;
+mod render;
 mod xr;
 
 use anyhow::{Context, Result};
@@ -28,11 +30,19 @@ fn main() -> Result<()> {
             let seconds = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(5.0);
             xr::run_session(seconds)
         }
+        Some("view") => {
+            let seconds = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(30.0);
+            let pack = pack::load(&default_pack_dir()).context("loading the mesh pack")?;
+            xr::view(&pack, seconds)
+        }
         other => {
             if let Some(word) = other {
                 eprintln!("bs-humany-xr-viewer: no idea what '{word}' means.\n");
             }
-            eprintln!("usage: bs-humany-xr-viewer <check-pack [dir] | probe | session [seconds]>");
+            eprintln!(
+                "usage: bs-humany-xr-viewer <check-pack [dir] | probe | session [seconds] \
+                 | view [seconds]>"
+            );
             std::process::exit(2);
         }
     }

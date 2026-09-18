@@ -117,6 +117,8 @@ pub fn probe() -> Result<()> {
 
 /// A Vulkan instance and device built the way the runtime insists, and nothing more.
 pub struct Graphics {
+    /// Held so the loaded Vulkan library outlives everything created from it.
+    #[allow(dead_code)]
     pub entry: ash::Entry,
     pub instance: ash::Instance,
     pub physical: vk::PhysicalDevice,
@@ -222,6 +224,202 @@ impl Graphics {
             queue_family,
         })
     }
+}
+
+/// Begin a session, build the renderer and draw the skeleton until told to stop.
+///
+/// The frame loop takes the head pose the runtime predicts for *this* frame and draws from the
+/// pose buffer as it stands, never waiting for anything upstream -- ADR-012. While the body is a
+/// rest pose that distinction is invisible; it is the shape the loop has to have before a
+/// simulation is attached to it, and retrofitting it afterwards is how a headset ends up stalling
+/// on a slow tick.
+pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
+    let entry = unsafe { openxr::Entry::load(&()) }
+        .context("opening libopenxr_loader.so.1 -- install an OpenXR runtime (SteamVR, Monado)")?;
+    let available = entry.enumerate_extensions()?;
+    let mut wanted = openxr::ExtensionSet::default();
+    wanted.khr_vulkan_enable2 = available.khr_vulkan_enable2;
+    let xr = entry.create_instance(
+        &openxr::ApplicationInfo {
+            application_name: "bs-humany xr viewer",
+            application_version: 1,
+            engine_name: "bs-humany",
+            engine_version: 1,
+            api_version: openxr::Version::new(1, 0, 0),
+        },
+        &wanted,
+        &[],
+        &(),
+    )?;
+    let system = xr.system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY)?;
+    let graphics = Graphics::for_runtime(&xr, system)?;
+
+    let configs = xr.enumerate_view_configuration_views(
+        system,
+        openxr::ViewConfigurationType::PRIMARY_STEREO,
+    )?;
+    let extent = ash::vk::Extent2D {
+        width: configs[0].recommended_image_rect_width,
+        height: configs[0].recommended_image_rect_height,
+    };
+
+    let (session, mut frame_wait, mut frame_stream) = unsafe {
+        xr.create_session::<openxr::Vulkan>(
+            system,
+            &openxr::vulkan::SessionCreateInfo {
+                instance: graphics.instance.handle().as_raw() as _,
+                physical_device: graphics.physical.as_raw() as _,
+                device: graphics.device.handle().as_raw() as _,
+                queue_family_index: graphics.queue_family,
+                queue_index: 0,
+            },
+        )
+    }?;
+
+    // The runtime's preferred format, filtered to the ones this pipeline writes. Taking its first
+    // choice is what keeps the compositor from converting every frame.
+    let offered = session.enumerate_swapchain_formats()?;
+    let format = offered
+        .iter()
+        .copied()
+        .find(|f| {
+            *f == ash::vk::Format::R8G8B8A8_SRGB.as_raw() as u32
+                || *f == ash::vk::Format::B8G8R8A8_SRGB.as_raw() as u32
+        })
+        .map(|f| ash::vk::Format::from_raw(f as i32))
+        .context("the runtime offered no 8-bit sRGB swapchain format")?;
+    println!("swapchain: {}x{}, format {format:?}, 2 layers", extent.width, extent.height);
+
+    let mut swapchain = session.create_swapchain(&openxr::SwapchainCreateInfo {
+        create_flags: openxr::SwapchainCreateFlags::EMPTY,
+        usage_flags: openxr::SwapchainUsageFlags::COLOR_ATTACHMENT
+            | openxr::SwapchainUsageFlags::SAMPLED,
+        format: format.as_raw() as u32,
+        sample_count: 1,
+        width: extent.width,
+        height: extent.height,
+        face_count: 1,
+        // Two, one an eye: this is what makes the swapchain a multiview target.
+        array_size: 2,
+        mip_count: 1,
+    })?;
+    let images: Vec<ash::vk::Image> = swapchain
+        .enumerate_images()?
+        .into_iter()
+        .map(|i| ash::vk::Image::from_raw(i))
+        .collect();
+
+    let renderer = crate::render::Renderer::new(
+        &graphics.instance,
+        graphics.physical,
+        graphics.device.clone(),
+        graphics.queue_family,
+        format,
+        extent,
+        &images,
+        pack,
+    )?;
+    println!(
+        "renderer: {} bones, {} triangles, one draw a frame for both eyes",
+        pack.bones.len(),
+        pack.triangle_count()
+    );
+
+    let stage =
+        session.create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)?;
+    let mut event_storage = openxr::EventDataBuffer::new();
+    let mut running = false;
+    let mut frames = 0u32;
+    let mut worst_cpu = 0f64;
+    let started = std::time::Instant::now();
+
+    while started.elapsed().as_secs_f32() < seconds {
+        while let Some(event) = xr.poll_event(&mut event_storage)? {
+            use openxr::Event::*;
+            if let SessionStateChanged(e) = event {
+                println!("session: {:?}", e.state());
+                match e.state() {
+                    openxr::SessionState::READY => {
+                        session.begin(openxr::ViewConfigurationType::PRIMARY_STEREO)?;
+                        running = true;
+                    }
+                    openxr::SessionState::STOPPING => {
+                        session.end()?;
+                        running = false;
+                    }
+                    openxr::SessionState::EXITING | openxr::SessionState::LOSS_PENDING => {
+                        renderer.wait_idle();
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if !running {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            continue;
+        }
+
+        let state = frame_wait.wait()?;
+        frame_stream.begin()?;
+        if !state.should_render {
+            frame_stream.end(
+                state.predicted_display_time,
+                openxr::EnvironmentBlendMode::OPAQUE,
+                &[],
+            )?;
+            continue;
+        }
+
+        let cpu_started = std::time::Instant::now();
+        let (_flags, views) = session.locate_views(
+            openxr::ViewConfigurationType::PRIMARY_STEREO,
+            state.predicted_display_time,
+            &stage,
+        )?;
+        let image = swapchain.acquire_image()?;
+        swapchain.wait_image(openxr::Duration::INFINITE)?;
+        renderer.draw(image as usize, &crate::render::view_projections(&views, 0.05, 50.0))?;
+        swapchain.release_image()?;
+        worst_cpu = worst_cpu.max(cpu_started.elapsed().as_secs_f64() * 1000.0);
+
+        let rect = openxr::Rect2Di {
+            offset: openxr::Offset2Di { x: 0, y: 0 },
+            extent: openxr::Extent2Di {
+                width: extent.width as i32,
+                height: extent.height as i32,
+            },
+        };
+        let eyes: Vec<_> = (0..2)
+            .map(|eye| {
+                openxr::CompositionLayerProjectionView::new()
+                    .pose(views[eye].pose)
+                    .fov(views[eye].fov)
+                    .sub_image(
+                        openxr::SwapchainSubImage::new()
+                            .swapchain(&swapchain)
+                            .image_array_index(eye as u32)
+                            .image_rect(rect),
+                    )
+            })
+            .collect();
+        frame_stream.end(
+            state.predicted_display_time,
+            openxr::EnvironmentBlendMode::OPAQUE,
+            &[&openxr::CompositionLayerProjection::new()
+                .space(&stage)
+                .views(&eyes)],
+        )?;
+        frames += 1;
+    }
+
+    renderer.wait_idle();
+    println!(
+        "{frames} frames in {:.1} s -- {:.1} Hz, worst CPU frame {worst_cpu:.2} ms",
+        started.elapsed().as_secs_f32(),
+        frames as f32 / started.elapsed().as_secs_f32()
+    );
+    Ok(())
 }
 
 /// Begin a session and run the frame loop for a while, submitting no layers.
