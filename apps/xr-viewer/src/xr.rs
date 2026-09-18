@@ -309,6 +309,11 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         .map(|i| ash::vk::Image::from_raw(i))
         .collect();
 
+    // The hands. One action set: where each grip is, and whether it is squeezing. Bound for the
+    // Index controller this was built against and for the simple profile every runtime knows, so
+    // a headset with some other controller still gets a trigger that grabs.
+    let hands = Hands::new(&xr, &session)?;
+
     let renderer = crate::render::Renderer::new(
         &graphics.instance,
         graphics.physical,
@@ -348,8 +353,22 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         );
     }
     let place = crate::render::placement();
-    let mut matrices: Vec<[f32; 16]> = vec![place; pack.bones.len()];
+    let mut matrices: Vec<[f32; 16]> =
+        vec![place; pack.bones.len() + crate::render::CONTROLLERS];
     let mut last_tick: Option<u64> = None;
+
+    // Grabbing, when there is a simulation to grab. Intents go back beside the pose bridge; the
+    // publisher looks for them there. What is held is remembered here so a hand that keeps
+    // squeezing keeps the same bone, and a hand that opens sends one last inactive intent.
+    let mut grabs = match follow {
+        Some(path) => Some(crate::bridge::GrabIntentWriter::create(&std::path::PathBuf::from(
+            format!("{}-grab", path.display()),
+        ))?),
+        None => None,
+    };
+    let mut holding: [Option<Hold>; crate::bridge::HANDS] = [None, None];
+    let mut hand_seen = [false; crate::bridge::HANDS];
+    let controller_scale = crate::render::scale_matrix(1.0);
 
     let stage =
         session.create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)?;
@@ -441,12 +460,74 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 }
             }
         }
+        // The hands: located in the stage like the eyes, drawn as cubes at their grips, and asked
+        // whether they are squeezing. A hand the runtime cannot place this frame keeps its last
+        // cube and cannot begin a grab, but a grab already begun continues at the last target.
+        hands.sync(&session)?;
+        for hand in 0..crate::bridge::HANDS {
+            let slot = renderer.controller_slot(hand);
+            let located = hands.locate(hand, &stage, state.predicted_display_time)?;
+            if let Some((position, orientation)) = located {
+                if !hand_seen[hand] {
+                    hand_seen[hand] = true;
+                    println!("hand {}: tracked", ["left", "right"][hand]);
+                }
+                matrices[slot] = crate::render::multiply(
+                    &crate::render::pose_matrix(position, orientation),
+                    &controller_scale,
+                );
+            }
+            let Some(writer) = grabs.as_mut() else { continue };
+            let squeezing = hands.squeezing(&session, hand)?;
+            let in_sim = located.map(|(p, _)| crate::render::unplace(p));
+            let intent = match (&holding[hand], squeezing, in_sim) {
+                (None, true, Some(at)) => {
+                    // A grab begins: the bone whose posed extent the hand is nearest to, if any
+                    // is within reach. Nothing in reach is a squeeze in empty air, which sends
+                    // nothing and holds nothing.
+                    let b = bridge.as_ref().expect("grabs exist only when following");
+                    match nearest_bone(pack, &matrices, &pose_index, b.dataset_scale as f32, located.unwrap().0) {
+                        Some((pack_bone, pose_bone)) => {
+                            println!(
+                                "hand {}: grabbed {}",
+                                ["left", "right"][hand],
+                                pack.bones[pack_bone].id
+                            );
+                            holding[hand] = Some(Hold { pose_bone, point: at });
+                            crate::bridge::GrabIntent {
+                                active: true,
+                                bone: pose_bone as i32,
+                                point: at,
+                                target: at,
+                                strength: 1.0,
+                            }
+                        }
+                        None => crate::bridge::GrabIntent::default(),
+                    }
+                }
+                (Some(hold), true, at) => crate::bridge::GrabIntent {
+                    active: true,
+                    bone: hold.pose_bone as i32,
+                    point: hold.point,
+                    target: at.unwrap_or(hold.point),
+                    strength: 1.0,
+                },
+                (Some(_), false, _) => {
+                    println!("hand {}: let go", ["left", "right"][hand]);
+                    holding[hand] = None;
+                    crate::bridge::GrabIntent::default()
+                }
+                _ => crate::bridge::GrabIntent::default(),
+            };
+            writer.publish(hand, &intent);
+        }
+
         let image = swapchain.acquire_image()?;
         swapchain.wait_image(openxr::Duration::INFINITE)?;
         renderer.draw(
             image as usize,
             &crate::render::view_projections(&views, 0.05, 50.0),
-            bridge.as_ref().map(|_| matrices.as_slice()),
+            Some(matrices.as_slice()),
         )?;
         swapchain.release_image()?;
         let cpu_ms = cpu_started.elapsed().as_secs_f64() * 1000.0;
@@ -488,8 +569,15 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 .as_ref()
                 .map(|b| format!(", pose {:.0} ms old", b.stale_for().as_secs_f64() * 1000.0))
                 .unwrap_or_default();
+            let held = holding
+                .iter()
+                .flatten()
+                .map(|h| bridge.as_ref().map(|b| b.names[h.pose_bone].clone()).unwrap_or_default())
+                .collect::<Vec<_>>()
+                .join(" and ");
+            let held = if held.is_empty() { held } else { format!(", holding {held}") };
             println!(
-                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms{pose_age}",
+                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms{pose_age}{held}",
                 window_frames as f64 / window
             );
             window_started = std::time::Instant::now();
@@ -505,6 +593,140 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         frames as f32 / started.elapsed().as_secs_f32()
     );
     Ok(())
+}
+
+/// What a hand is holding: which pose bone, and where in the simulation's frame it took hold.
+struct Hold {
+    pose_bone: usize,
+    point: [f32; 3],
+}
+
+/// The bone nearest a hand in the room, if the hand is within reach of it.
+///
+/// Reach is judged against each bone's posed extent: its centroid carried by its current matrix,
+/// and half its bounding diagonal at the body's scale, plus a margin about the width of a
+/// controller. Of the bones the hand is inside, the one whose surface is nearest wins. Bones
+/// with no pose cannot be grabbed, since there is nothing behind them to pull.
+fn nearest_bone(
+    pack: &crate::pack::Pack,
+    matrices: &[[f32; 16]],
+    pose_index: &[Option<usize>],
+    dataset_scale: f32,
+    hand: [f32; 3],
+) -> Option<(usize, usize)> {
+    const REACH: f32 = 0.04;
+    let mut best: Option<(f32, usize, usize)> = None;
+    for (i, packed) in pack.manifest.bones.iter().enumerate() {
+        let Some(pose_bone) = pose_index.get(i).copied().flatten() else { continue };
+        let m = &matrices[i];
+        let c = packed.centroid.map(|v| v as f32);
+        let centre = [
+            m[0] * c[0] + m[4] * c[1] + m[8] * c[2] + m[12],
+            m[1] * c[0] + m[5] * c[1] + m[9] * c[2] + m[13],
+            m[2] * c[0] + m[6] * c[1] + m[10] * c[2] + m[14],
+        ];
+        let extent = (0..3)
+            .map(|a| (packed.max[a] - packed.min[a]) as f32)
+            .fold(0.0f32, |acc, e| acc + e * e)
+            .sqrt();
+        let radius = extent / 2.0 * dataset_scale;
+        let distance = (0..3)
+            .map(|a| hand[a] - centre[a])
+            .fold(0.0f32, |acc, d| acc + d * d)
+            .sqrt();
+        let outside = distance - radius;
+        if outside > REACH {
+            continue;
+        }
+        if best.map(|(o, _, _)| outside < o).unwrap_or(true) {
+            best = Some((outside, i, pose_bone));
+        }
+    }
+    best.map(|(_, i, j)| (i, j))
+}
+
+/// The tracked controllers as OpenXR actions: a grip pose and a squeeze, per hand.
+struct Hands {
+    set: openxr::ActionSet,
+    #[allow(dead_code)]
+    grip: openxr::Action<openxr::Posef>,
+    squeeze: openxr::Action<bool>,
+    paths: [openxr::Path; crate::bridge::HANDS],
+    spaces: Vec<openxr::Space>,
+}
+
+impl Hands {
+    fn new(xr: &openxr::Instance, session: &openxr::Session<openxr::Vulkan>) -> Result<Self> {
+        let paths = [
+            xr.string_to_path("/user/hand/left")?,
+            xr.string_to_path("/user/hand/right")?,
+        ];
+        let set = xr.create_action_set("hands", "Hands", 0)?;
+        let grip = set.create_action::<openxr::Posef>("grip", "Grip pose", &paths)?;
+        let squeeze = set.create_action::<bool>("grab", "Grab", &paths)?;
+        // Suggested per profile; the runtime picks the profile for the controller in hand. The
+        // Index binds the squeeze to the grip sensor, which is what grabbing feels like; the
+        // simple profile has only a select, so that is the grab there.
+        let suggest = |profile: &str, squeeze_input: &str| -> Result<()> {
+            let mut bindings = Vec::new();
+            for side in ["left", "right"] {
+                bindings.push(openxr::Binding::new(
+                    &grip,
+                    xr.string_to_path(&format!("/user/hand/{side}/input/grip/pose"))?,
+                ));
+                bindings.push(openxr::Binding::new(
+                    &squeeze,
+                    xr.string_to_path(&format!("/user/hand/{side}/input/{squeeze_input}"))?,
+                ));
+            }
+            xr.suggest_interaction_profile_bindings(xr.string_to_path(profile)?, &bindings)?;
+            Ok(())
+        };
+        suggest("/interaction_profiles/valve/index_controller", "squeeze/value")?;
+        if let Err(e) = suggest("/interaction_profiles/khr/simple_controller", "select/click") {
+            println!("hands: the simple controller profile was refused ({e}); Index only");
+        }
+        session.attach_action_sets(&[&set])?;
+        let spaces = paths
+            .iter()
+            .map(|&path| grip.create_space(session, path, openxr::Posef::IDENTITY))
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(Self {
+            set,
+            grip,
+            squeeze,
+            paths,
+            spaces,
+        })
+    }
+
+    fn sync(&self, session: &openxr::Session<openxr::Vulkan>) -> Result<()> {
+        session.sync_actions(&[openxr::ActiveActionSet::new(&self.set)])?;
+        Ok(())
+    }
+
+    /// Where a hand's grip is in `base` at `time`, if the runtime can say.
+    fn locate(
+        &self,
+        hand: usize,
+        base: &openxr::Space,
+        time: openxr::Time,
+    ) -> Result<Option<([f32; 3], [f32; 4])>> {
+        let located = self.spaces[hand].locate(base, time)?;
+        let wanted = openxr::SpaceLocationFlags::POSITION_VALID
+            | openxr::SpaceLocationFlags::ORIENTATION_VALID;
+        if !located.location_flags.contains(wanted) {
+            return Ok(None);
+        }
+        let p = located.pose.position;
+        let q = located.pose.orientation;
+        Ok(Some(([p.x, p.y, p.z], [q.x, q.y, q.z, q.w])))
+    }
+
+    fn squeezing(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<bool> {
+        let state = self.squeeze.state(session, self.paths[hand])?;
+        Ok(state.is_active && state.current_state)
+    }
 }
 
 /// Begin a session and run the frame loop for a while, submitting no layers.

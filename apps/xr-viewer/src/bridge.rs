@@ -28,7 +28,7 @@
 //! cannot share code; they can share a file, and a gate on each side of it.
 
 use anyhow::{Context, Result, bail};
-use memmap2::Mmap;
+use memmap2::{Mmap, MmapMut};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -184,6 +184,81 @@ struct Sidecar {
     bones: Vec<String>,
 }
 
+// ---------------------------------------------------------------------------------------------
+// The other direction: what the hands are doing, for the simulation to act on.
+// ---------------------------------------------------------------------------------------------
+
+const GRAB_MAGIC: u32 = 0x4241_5247;
+const GRAB_VERSION: u32 = 1;
+pub const HANDS: usize = 2;
+const GRAB_SLOT_BYTES: usize = 64;
+const GRAB_BYTES: usize = HEADER_BYTES + HANDS * GRAB_SLOT_BYTES;
+
+/// One hand's state, as the simulation wants it: in the simulation's own frame, not the room's.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GrabIntent {
+    pub active: bool,
+    /// Index into the pose bridge's bone order, or -1 for none.
+    pub bone: i32,
+    /// Where the grab began.
+    pub point: [f32; 3],
+    /// Where the hand is now.
+    pub target: [f32; 3],
+    pub strength: f32,
+}
+
+/// The writing end of the grab channel, the mirror of `PoseBridge`: two slots, one a hand,
+/// rewritten every frame under the same seqlock. The layout is stated with the reader, in
+/// `packages/pose-bridge/src/index.ts`.
+pub struct GrabIntentWriter {
+    map: MmapMut,
+    seq: [u64; HANDS],
+    written: u64,
+}
+
+impl GrabIntentWriter {
+    pub fn create(path: &Path) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .with_context(|| format!("creating {}", path.display()))?;
+        file.set_len(GRAB_BYTES as u64)?;
+        let mut map = unsafe { MmapMut::map_mut(&file) }.context("mapping the grab channel")?;
+        map[0..4].copy_from_slice(&GRAB_MAGIC.to_le_bytes());
+        map[4..8].copy_from_slice(&GRAB_VERSION.to_le_bytes());
+        map[8..12].copy_from_slice(&(HANDS as u32).to_le_bytes());
+        map[12..16].copy_from_slice(&(GRAB_SLOT_BYTES as u32).to_le_bytes());
+        Ok(Self {
+            map,
+            seq: [0; HANDS],
+            written: 0,
+        })
+    }
+
+    /// Overwrite one hand's slot. Odd, body, even: a reader that sees the same even sequence on
+    /// both sides of its copy has a whole intent; any other reading is discarded on its side.
+    pub fn publish(&mut self, hand: usize, intent: &GrabIntent) {
+        let base = HEADER_BYTES + hand * GRAB_SLOT_BYTES;
+        let ptr = self.map.as_mut_ptr();
+        self.seq[hand] += 1;
+        unsafe { std::ptr::write_volatile(ptr.add(base) as *mut u64, self.seq[hand]) };
+        let body = &mut self.map[base + 8..base + 44];
+        body[0..4].copy_from_slice(&(intent.active as u32).to_le_bytes());
+        body[4..8].copy_from_slice(&intent.bone.to_le_bytes());
+        for (i, v) in intent.point.iter().chain(intent.target.iter()).enumerate() {
+            body[8 + i * 4..12 + i * 4].copy_from_slice(&v.to_le_bytes());
+        }
+        body[32..36].copy_from_slice(&intent.strength.to_le_bytes());
+        self.seq[hand] += 1;
+        unsafe { std::ptr::write_volatile(ptr.add(base) as *mut u64, self.seq[hand]) };
+        self.written += 1;
+        unsafe { std::ptr::write_volatile(ptr.add(16) as *mut u64, self.written) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,6 +290,52 @@ mod tests {
         assert!((frame.pose[16] - 4.0).abs() < 1e-6, "tibia z {}", frame.pose[16]);
         assert!((frame.pose[8] - 0.8).abs() < 1e-6, "femur y {}", frame.pose[8]);
         assert_eq!(frame.pose.len(), 3 * FLOATS_PER_BONE);
+    }
+
+    #[test]
+    fn writes_a_grab_intent_where_the_typescript_reader_looks() {
+        // The same offsets the TypeScript test builds by hand; the two tests pin one layout.
+        let dir = std::env::temp_dir().join(format!("bs-humany-grab-{}", std::process::id()));
+        let _ = std::fs::remove_file(&dir);
+        let mut writer = GrabIntentWriter::create(&dir).expect("the channel is created");
+        writer.publish(
+            0,
+            &GrabIntent {
+                active: true,
+                bone: 17,
+                point: [0.1, 1.2, -0.3],
+                target: [0.15, 1.25, -0.35],
+                strength: 1.0,
+            },
+        );
+        writer.publish(1, &GrabIntent::default());
+        writer.publish(1, &GrabIntent::default());
+        let bytes = std::fs::read(&dir).expect("readable");
+        let _ = std::fs::remove_file(&dir);
+        assert_eq!(bytes.len(), GRAB_BYTES);
+        let u32_at = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+        let u64_at = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
+        let f32_at = |at: usize| f32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+        assert_eq!(u32_at(0), 0x4241_5247);
+        assert_eq!(u32_at(4), 1);
+        assert_eq!(u32_at(8), 2);
+        assert_eq!(u32_at(12), 64);
+        assert_eq!(u64_at(16), 3, "three slot writes");
+        // Left hand, slot 0 at 64: even after one write, active, bone 17, the points, strength.
+        assert_eq!(u64_at(64), 2);
+        assert_eq!(u32_at(72), 1);
+        assert_eq!(u32_at(76) as i32, 17);
+        assert_eq!(f32_at(80), 0.1);
+        assert_eq!(f32_at(84), 1.2);
+        assert_eq!(f32_at(88), -0.3);
+        assert_eq!(f32_at(92), 0.15);
+        assert_eq!(f32_at(96), 1.25);
+        assert_eq!(f32_at(100), -0.35);
+        assert_eq!(f32_at(104), 1.0);
+        // Right hand, slot 1 at 128: written twice, so its sequence is four, and it holds nothing.
+        assert_eq!(u64_at(128), 4);
+        assert_eq!(u32_at(136), 0);
+        assert_eq!(u32_at(140) as i32, 0);
     }
 
     #[test]

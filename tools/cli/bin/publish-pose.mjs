@@ -55,7 +55,9 @@ const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.
 const { scenario, DEFAULT_SCENARIO } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
-const { PoseBridgeWriter } = await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
+const { PoseBridgeWriter, GrabIntentReader } = await jiti.import(
+  join(ROOT, 'packages/pose-bridge/src/index.ts'),
+);
 
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
@@ -107,6 +109,61 @@ console.log(`  muscles ${simulation.muscles ? 'on' : 'off'}; Ctrl-C to stop`);
 
 const pose = simulation.channel('body.pose').fields;
 const ticksPerFrame = simulation.ticksPerOutputFrame;
+
+// Grabs, coming the other way. The renderer writes a slot per hand beside the pose bridge; this
+// reads both every tick and does what the studio's Ctrl-click does: find the segment the bone
+// belongs to, express the grabbed point in that segment's own frame, and hold it toward wherever
+// the hand is now. One grab at a time, because the grab module holds one; a second hand that
+// squeezes while the first is holding is ignored until the first lets go.
+let grabs = GrabIntentReader.open(`${path}-grab`);
+let held = null;
+let grabsSeen = 0;
+function applyGrabs() {
+  if (!grabs) {
+    grabs = GrabIntentReader.open(`${path}-grab`);
+    if (!grabs) return;
+    console.log('  hands: a renderer is writing grab intents');
+  }
+  const hands = grabs.read();
+  for (let hand = 0; hand < hands.length; hand++) {
+    const intent = hands[hand];
+    if (!intent) continue;
+    if (intent.active) {
+      if (held === null && intent.bone >= 0 && intent.bone < order.length) {
+        const segment = simulation.segmentOfBone(order[intent.bone]);
+        if (segment < 0) continue;
+        const at = simulation.segmentPose(segment);
+        const [px, py, pz] = intent.point;
+        // The grabbed point in the segment's frame: its offset from the segment's position,
+        // rotated back by the inverse of the segment's orientation -- what `beginGrab` does.
+        const dx = px - at.position.x;
+        const dy = py - at.position.y;
+        const dz = pz - at.position.z;
+        const { x, y, z, w } = at.rotation;
+        // conj(q) * v * q, expanded.
+        const ix = w * dx - y * dz + z * dy;
+        const iy = w * dy - z * dx + x * dz;
+        const iz = w * dz - x * dy + y * dx;
+        const iw = x * dx + y * dy + z * dz;
+        const local = {
+          x: ix * w + iw * x - iy * z + iz * y,
+          y: iy * w + iw * y - iz * x + ix * z,
+          z: iz * w + iw * z - ix * y + iy * x,
+        };
+        const [tx, ty, tz] = intent.target;
+        simulation.grab.grab(segment, local, { x: tx, y: ty, z: tz }, intent.strength || 1);
+        held = { hand, segment, bone: order[intent.bone] };
+        grabsSeen += 1;
+      } else if (held !== null && held.hand === hand) {
+        const [tx, ty, tz] = intent.target;
+        simulation.grab.moveTo({ x: tx, y: ty, z: tz });
+      }
+    } else if (held !== null && held.hand === hand) {
+      simulation.grab.release();
+      held = null;
+    }
+  }
+}
 let nextPublishAt = 0;
 const started = performance.now();
 let lastReport = started;
@@ -120,6 +177,7 @@ while (simulation.ticks * simulation.dt < seconds) {
   // cannot keep up, this is what lets the loop fall behind gracefully rather than spin.
   let ran = 0;
   while (simulation.ticks * simulation.dt < wall && ran < ticksPerFrame) {
+    applyGrabs();
     simulation.tick();
     ran += 1;
   }
@@ -148,7 +206,8 @@ while (simulation.ticks * simulation.dt < seconds) {
       ((simulation.ticks - ticksAtReport) * simulation.dt) / ((now - lastReport) / 1000);
     console.log(
       `  sim ${simSeconds.toFixed(2)} s  wall ${wallSeconds.toFixed(2)} s  ` +
-        `${speed.toFixed(2)}x life  ${writer.framesPublished} poses published`,
+        `${speed.toFixed(2)}x life  ${writer.framesPublished} poses published` +
+        (held ? `  holding ${held.bone}` : grabsSeen ? `  ${grabsSeen} grabs so far` : ''),
     );
     lastReport = now;
     ticksAtReport = simulation.ticks;

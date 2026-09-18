@@ -29,6 +29,10 @@ use std::ffi::CStr;
 use crate::pack::Pack;
 
 const MAX_BONES: usize = 256;
+/// Two transform slots past the last bone hold the tracked controllers, one a hand.
+pub const CONTROLLERS: usize = 2;
+/// The edge of a controller cube, in metres; a hand-sized thing, not a fingertip.
+pub const CONTROLLER_EDGE: f32 = 0.06;
 /// Position, normal, bone index.
 const VERTEX_BYTES: u32 = 3 * 4 + 3 * 4 + 4;
 
@@ -53,6 +57,8 @@ pub struct Renderer {
     vertex: Buffer,
     index: Buffer,
     index_count: u32,
+    /// `pack.bones.len()`: the controllers' slots begin here.
+    first_controller: usize,
 
     depth: Image,
     targets: Vec<Target>,
@@ -106,9 +112,9 @@ impl Renderer {
 
         // --- geometry, flattened into one pair of buffers -------------------------------------
         let (vertices, indices) = flatten(pack);
-        if pack.bones.len() > MAX_BONES {
+        if pack.bones.len() + CONTROLLERS > MAX_BONES {
             bail!(
-                "the pack has {} bones and the shader holds {MAX_BONES} transforms.",
+                "the pack has {} bones, and with {CONTROLLERS} controllers the shader holds {MAX_BONES}.",
                 pack.bones.len()
             );
         }
@@ -157,9 +163,15 @@ impl Renderer {
                 None,
             )
         }?;
+        let push = [vk::PushConstantRange::default()
+            .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+            .offset(0)
+            .size(4)];
         let pipeline_layout = unsafe {
             device.create_pipeline_layout(
-                &vk::PipelineLayoutCreateInfo::default().set_layouts(&[set_layout]),
+                &vk::PipelineLayoutCreateInfo::default()
+                    .set_layouts(&[set_layout])
+                    .push_constant_ranges(&push),
                 None,
             )
         }?;
@@ -301,6 +313,7 @@ impl Renderer {
             vertex,
             index,
             index_count,
+            first_controller: pack.bones.len(),
             depth,
             targets,
             extent,
@@ -309,8 +322,8 @@ impl Renderer {
 
     /// Record and submit one frame into the given swapchain image.
     ///
-    /// `bones` is one matrix per pack bone, or `None` to leave whatever this image's buffer last
-    /// held -- which is the placement, for a viewer that is not following anything.
+    /// `bones` is one matrix per pack bone followed by one per controller, or `None` to leave
+    /// whatever this image's buffer last held -- the placement, for a viewer showing nothing live.
     pub fn draw(
         &self,
         image: usize,
@@ -374,6 +387,13 @@ impl Renderer {
                 &[target.descriptor_set],
                 &[],
             );
+            device.cmd_push_constants(
+                target.command_buffer,
+                self.pipeline_layout,
+                vk::ShaderStageFlags::FRAGMENT,
+                0,
+                &(self.first_controller as u32).to_le_bytes(),
+            );
             device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[self.vertex.handle], &[0]);
             device.cmd_bind_index_buffer(
                 target.command_buffer,
@@ -381,7 +401,7 @@ impl Renderer {
                 0,
                 vk::IndexType::UINT32,
             );
-            // Every bone, both eyes, one call.
+            // Every bone and both controllers, both eyes, one call.
             device.cmd_draw_indexed(target.command_buffer, self.index_count, 1, 0, 0, 0);
             device.cmd_end_render_pass(target.command_buffer);
             device.end_command_buffer(target.command_buffer)?;
@@ -392,6 +412,11 @@ impl Renderer {
             )?;
         }
         Ok(())
+    }
+
+    /// The transform slot a controller's cube is drawn by; `hand` is 0 left, 1 right.
+    pub fn controller_slot(&self, hand: usize) -> usize {
+        self.first_controller + hand
     }
 
     pub fn wait_idle(&self) {
@@ -424,7 +449,8 @@ impl Drop for Renderer {
     }
 }
 
-/// Every bone's vertices and indices in one pair of buffers, indices rebased as they are copied.
+/// Every bone's vertices and indices in one pair of buffers, indices rebased as they are copied,
+/// and a cube for each controller after them in slots `bones.len()` and up.
 fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
@@ -438,7 +464,36 @@ fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
         }
         indices.extend(mesh.indices.iter().map(|i| i + base));
     }
+    for hand in 0..CONTROLLERS {
+        cube((pack.bones.len() + hand) as u32, &mut vertices, &mut indices);
+    }
     (vertices, indices)
+}
+
+/// A cube of edge `CONTROLLER_EDGE` about the origin, six flat-shaded faces, owned by one slot.
+/// The slot's matrix is the grip pose, so the cube sits in the hand wherever the hand is.
+fn cube(slot: u32, vertices: &mut Vec<f32>, indices: &mut Vec<u32>) {
+    let h = CONTROLLER_EDGE / 2.0;
+    // (normal, u, v) with u x v = normal, so the corners below wind the same way every face.
+    let faces: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
+        ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+        ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        ([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]),
+    ];
+    for (n, u, v) in faces {
+        let base = (vertices.len() / 7) as u32;
+        for (su, sv) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+            for axis in 0..3 {
+                vertices.push(h * (n[axis] + su * u[axis] + sv * v[axis]));
+            }
+            vertices.extend_from_slice(&n);
+            vertices.push(f32::from_bits(slot));
+        }
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
 }
 
 fn multiview_render_pass(device: &ash::Device, format: vk::Format) -> Result<vk::RenderPass> {
@@ -756,6 +811,12 @@ pub(crate) fn placement() -> [f32; 16] {
     translation(STANDS_AT[0], STANDS_AT[1], STANDS_AT[2], true)
 }
 
+/// The inverse of the placement, for a point: where in the simulation's own frame a point in the
+/// room is. Rotation by half a turn about Y is its own inverse, so this is subtract, then flip.
+pub(crate) fn unplace(p: [f32; 3]) -> [f32; 3] {
+    [-(p[0] - STANDS_AT[0]), p[1] - STANDS_AT[1], -(p[2] - STANDS_AT[2])]
+}
+
 /// A uniform scale, which is how a pack at one stature is drawn at another.
 pub(crate) fn scale_matrix(s: f32) -> [f32; 16] {
     [
@@ -982,6 +1043,16 @@ mod tests {
         let seen = apply(&view, [front[0], front[1], front[2], 1.0]);
         assert!(seen[0].abs() < 1e-5 && seen[1].abs() < 1e-5, "not straight ahead: {seen:?}");
         assert!((seen[2] + 1.0).abs() < 1e-5, "not one metre away: {seen:?}");
+    }
+
+    #[test]
+    fn unplace_takes_a_room_point_back_to_where_the_simulation_thinks_it_is() {
+        let sim = [0.2, 1.1, 0.3];
+        let room = apply(&placement(), [sim[0], sim[1], sim[2], 1.0]);
+        let back = unplace([room[0], room[1], room[2]]);
+        for axis in 0..3 {
+            assert!((back[axis] - sim[axis]).abs() < 1e-6, "axis {axis}: {back:?}");
+        }
     }
 
     #[test]

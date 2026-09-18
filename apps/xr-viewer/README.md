@@ -112,6 +112,36 @@ What crosses the bridge is bones: 206 of them, seven floats each, plus the rest 
 stature scale once. The muscle bellies do not yet -- that is a hundred times the bytes and the
 next thing to carry.
 
+### Grabbing it
+
+The studio's Ctrl-click, in the headset: squeeze a controller on a bone and the bone comes with
+the hand, on the same grab module and the same spring. The controllers are drawn as blue cubes at
+their grip poses, and the grip sensor is the grab on an Index controller (the trigger, on anything
+that only speaks the simple profile).
+
+This is the bridge running the other way. The viewer writes a slot per hand every frame beside
+the pose ring -- `<pose path>-grab`, laid out in the same file as the pose format -- saying
+whether the hand is squeezing, which bone it took, where it took it, and where the hand is now,
+all in the simulation's own frame. The publisher reads both slots every tick and does exactly what
+`beginGrab` does in the studio: finds the segment behind the bone, expresses the point in that
+segment's frame, and holds it toward the hand. Letting go is one inactive slot, read once.
+
+Which bone is judged in the room, not the simulation: each bone's posed centroid and half its
+bounding diagonal, with a controller's width of reach on top, and the nearest surface among the
+bones the hand is inside wins. Squeezing empty air grabs nothing and sends nothing. One grab at a
+time, because the grab module holds one -- the second hand waits for the first to let go.
+
+The status lines say what is happening on both sides:
+
+```
+hand right: tracked
+hand right: grabbed femur_r
+  142.8 Hz, worst CPU frame 0.44 ms, pose 6 ms old, holding femur_r
+hand right: let go
+```
+
+and, in the publisher, `holding femur_r` on its own line while it lasts.
+
 ## Choosing a runtime
 
 The loader reads `~/.config/openxr/1/active_runtime.json`, and on this machine that currently

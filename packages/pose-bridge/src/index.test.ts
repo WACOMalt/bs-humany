@@ -7,16 +7,21 @@
  * Rust side is going to depend on.
  */
 
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  GRAB_BYTES,
+  GRAB_MAGIC,
+  GRAB_SLOT_BYTES,
+  GrabIntentReader,
   HEADER_BYTES,
   NO_FRAME,
   PoseBridgeWriter,
   bridgeBytes,
   readBridge,
+  readGrabSlot,
   slotBytes,
   slotsOffset,
 } from './index.js';
@@ -108,5 +113,50 @@ describe('the pose bridge file', () => {
     expect(() =>
       PoseBridgeWriter.open({ ...rest, bones: [] }, { path: join(dir, 'pose') }),
     ).toThrow(/at least one bone/);
+  });
+
+  it('reads a grab intent the renderer wrote, and skips one mid-write', () => {
+    // Built by hand at the documented offsets, which is what the Rust writer's test pins from its
+    // side: if either drifts, one of the two stops matching this layout.
+    const bytes = Buffer.alloc(GRAB_BYTES);
+    bytes.writeUInt32LE(GRAB_MAGIC, 0);
+    bytes.writeUInt32LE(1, 4);
+    bytes.writeUInt32LE(2, 8);
+    bytes.writeUInt32LE(GRAB_SLOT_BYTES, 12);
+    bytes.writeBigUInt64LE(7n, 16);
+    const slot = (hand: number, seq: bigint, active: number, bone: number) => {
+      const base = HEADER_BYTES + hand * GRAB_SLOT_BYTES;
+      bytes.writeBigUInt64LE(seq, base);
+      bytes.writeUInt32LE(active, base + 8);
+      bytes.writeInt32LE(bone, base + 12);
+      bytes.writeFloatLE(0.1, base + 16);
+      bytes.writeFloatLE(1.2, base + 20);
+      bytes.writeFloatLE(-0.3, base + 24);
+      bytes.writeFloatLE(0.15, base + 28);
+      bytes.writeFloatLE(1.25, base + 32);
+      bytes.writeFloatLE(-0.35, base + 36);
+      bytes.writeFloatLE(1, base + 40);
+    };
+    slot(0, 4n, 1, 17); // complete: squeezing, holding bone 17
+    slot(1, 3n, 1, 5); // odd: caught mid-write, must not be trusted
+
+    const left = readGrabSlot(bytes, 0);
+    expect(left?.active).toBe(true);
+    expect(left?.bone).toBe(17);
+    expect(left?.point[1]).toBeCloseTo(1.2, 6);
+    expect(left?.target[2]).toBeCloseTo(-0.35, 6);
+    expect(left?.strength).toBe(1);
+    expect(readGrabSlot(bytes, 1)).toBeUndefined();
+
+    // And through the reader, from a file, which is how the simulation gets it.
+    writeFileSync(join(dir, 'grab'), bytes);
+    const reader = GrabIntentReader.open(join(dir, 'grab')) as GrabIntentReader;
+    expect(reader).toBeDefined();
+    const [l, r] = reader.read();
+    expect(l?.bone).toBe(17);
+    expect(r).toBeUndefined();
+    reader.close();
+    // No file yet is not an error: the renderer may simply not have started.
+    expect(GrabIntentReader.open(join(dir, 'absent'))).toBeUndefined();
   });
 });

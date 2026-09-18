@@ -6,17 +6,19 @@
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
-// Which bone this vertex belongs to. Every bone is at the identity while the pose is static; the
-// attribute is here so that feeding real transforms later is a buffer write rather than a rewrite.
+// Which bone this vertex belongs to. Posing is a buffer write, not a geometry rewrite. The last
+// two slots are not bones at all but the controllers, and the fragment shader colours them by it.
 layout(location = 2) in uint inBone;
 
 layout(set = 0, binding = 0) uniform Views { mat4 viewProj[2]; } views;
 layout(set = 0, binding = 1) uniform Bones { mat4 model[256]; } bones;
 
 layout(location = 0) out vec3 vNormal;
+layout(location = 1) flat out uint vBone;
 
 void main() {
     mat4 model = bones.model[inBone];
+    vBone = inBone;
     // No non-uniform scale anywhere in this model, so the upper 3x3 transforms normals correctly
     // without an inverse transpose.
     vNormal = mat3(model) * inNormal;

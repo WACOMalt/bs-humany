@@ -18,3 +18,11 @@ Two things worth knowing without opening it:
   Change the layout on one side and the other side's test says so.
 
 `pnpm publish:pose` is the headless simulation that writes one; `apps/xr-viewer` is what reads it.
+
+## And back: grabs
+
+The same file states a second, much smaller layout for the other direction -- `GrabIntentReader`
+here, `GrabIntentWriter` in the Rust side -- one slot per hand beside the pose ring, saying whether
+the hand is squeezing, which bone it holds and where the hand is. The publisher reads it every
+tick and drives the grab module with it, which is how a tracked controller pulls the skeleton
+about. Same seqlock, same never-wait rule, and a test on each side pins the same bytes by hand.

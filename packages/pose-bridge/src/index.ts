@@ -57,7 +57,7 @@
  * disturbed, which at the rates involved is never.
  */
 
-import { closeSync, ftruncateSync, openSync, writeFileSync, writeSync } from 'node:fs';
+import { closeSync, ftruncateSync, openSync, readSync, writeFileSync, writeSync } from 'node:fs';
 
 export const POSE_BRIDGE_MAGIC = 0x50485342;
 export const POSE_BRIDGE_VERSION = 1;
@@ -304,4 +304,120 @@ export function readBridge(bytes: Uint8Array): {
       };
     },
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The other direction: a grab, from a hand in the headset back to the simulation.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The layout of the grab-intent file, which the renderer writes and the simulation reads.
+ *
+ * Same idea as the pose ring, mirrored, and much smaller: one slot per hand, rewritten every
+ * frame, seqlocked the same way. The simulation reads both slots each tick and acts on what it
+ * finds. A hand that squeezes for less than a tick is a hand that did not grab, which at 144 Hz
+ * against a 500 Hz simulation cannot happen.
+ *
+ *   HEADER, 64 bytes
+ *     0   u32  magic       0x42415247, "GRAB"
+ *     4   u32  version     1
+ *     8   u32  hands       2
+ *     12  u32  slotBytes   64
+ *     16  u64  written     slot writes so far
+ *
+ *   SLOT h, at 64 + h * 64
+ *     0   u64  seq         odd while being written, even once complete, 0 never
+ *     8   u32  active      1 while the hand is squeezing
+ *     12  i32  bone        index into the pose bridge's bone order; -1 if the hand held nothing
+ *     16  f32  x3 point    world point where the grab began, in the simulation's frame
+ *     28  f32  x3 target   world point the hand is at now, in the simulation's frame
+ *     40  f32  strength    the spring the grab module scales; 1 is the studio's default
+ *
+ * The renderer converts out of its own stage space before writing, so both points arrive in the
+ * simulation's world -- the frame `segmentPose` answers in -- and the simulation never has to
+ * know where the body was placed in the room.
+ */
+export const GRAB_MAGIC = 0x42415247;
+export const GRAB_VERSION = 1;
+export const GRAB_HANDS = 2;
+export const GRAB_SLOT_BYTES = 64;
+export const GRAB_BYTES = HEADER_BYTES + GRAB_HANDS * GRAB_SLOT_BYTES;
+/** Where the intents live when nobody says otherwise: beside the pose bridge. */
+export const DEFAULT_GRAB_PATH = `${DEFAULT_PATH}-grab`;
+
+export interface GrabIntent {
+  readonly active: boolean;
+  /** Index into the pose bridge's bone order, or -1. */
+  readonly bone: number;
+  readonly point: readonly [number, number, number];
+  readonly target: readonly [number, number, number];
+  readonly strength: number;
+}
+
+/** Parse one hand's slot out of a whole-file buffer, or undefined if it is mid-write or unwritten. */
+export function readGrabSlot(bytes: Uint8Array, hand: number): GrabIntent | undefined {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.byteLength < GRAB_BYTES || view.getUint32(0, true) !== GRAB_MAGIC) return undefined;
+  const base = HEADER_BYTES + hand * GRAB_SLOT_BYTES;
+  const seq = view.getBigUint64(base, true);
+  if (seq === 0n || seq % 2n === 1n) return undefined;
+  return {
+    active: view.getUint32(base + 8, true) === 1,
+    bone: view.getInt32(base + 12, true),
+    point: [
+      view.getFloat32(base + 16, true),
+      view.getFloat32(base + 20, true),
+      view.getFloat32(base + 24, true),
+    ],
+    target: [
+      view.getFloat32(base + 28, true),
+      view.getFloat32(base + 32, true),
+      view.getFloat32(base + 36, true),
+    ],
+    strength: view.getFloat32(base + 40, true),
+  };
+}
+
+/**
+ * The reading end, held by the simulation.
+ *
+ * A seqlock needs the sequence read before and after the body. A single 192-byte read from one
+ * tmpfs page is not guaranteed atomic against a concurrent mapped write, so the whole file is
+ * read twice and a slot is trusted only when its sequence agrees between the two. Two syscalls
+ * of 192 bytes at 500 Hz is nothing.
+ */
+export class GrabIntentReader {
+  private readonly fd: number;
+  private readonly first = Buffer.alloc(GRAB_BYTES);
+  private readonly second = Buffer.alloc(GRAB_BYTES);
+
+  private constructor(fd: number) {
+    this.fd = fd;
+  }
+
+  /** Open for reading; undefined if there is no such file yet, which is not an error. */
+  static open(path: string = DEFAULT_GRAB_PATH): GrabIntentReader | undefined {
+    try {
+      return new GrabIntentReader(openSync(path, 'r'));
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Both hands, as of now. A hand that could not be read cleanly is undefined this tick. */
+  read(): [GrabIntent | undefined, GrabIntent | undefined] {
+    readSync(this.fd, this.first, 0, GRAB_BYTES, 0);
+    readSync(this.fd, this.second, 0, GRAB_BYTES, 0);
+    const hands: [GrabIntent | undefined, GrabIntent | undefined] = [undefined, undefined];
+    for (let h = 0; h < GRAB_HANDS; h++) {
+      const base = HEADER_BYTES + h * GRAB_SLOT_BYTES;
+      if (this.first.readBigUInt64LE(base) !== this.second.readBigUInt64LE(base)) continue;
+      hands[h] = readGrabSlot(this.second, h);
+    }
+    return hands;
+  }
+
+  close(): void {
+    closeSync(this.fd);
+  }
 }
