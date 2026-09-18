@@ -916,6 +916,9 @@ ui.frameForward.addEventListener('click', () => {
     for (let i = 0; i < ticks; i++) simulation.tick();
     simulation.pose.step();
     simulation.metrics.step();
+    // The belly sweep runs on a divisor while the simulation is running; a hand-stepped frame
+    // asks for it directly so what is drawn is this tick's shape rather than up to eight back.
+    simulation.sweepRenderMesh();
     goLive();
     return;
   }

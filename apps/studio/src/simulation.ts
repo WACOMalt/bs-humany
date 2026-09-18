@@ -313,10 +313,19 @@ export class Simulation {
       ]);
       this.musclePath = new MusclePathModule(this.articulation, this.muscles);
       this.muscleDynamics = new MuscleDynamicsModule(this.articulation, this.muscles);
-      // Swept every tick, on purpose: the studio is where someone steps a tick at a time to see
-      // what the simulation is doing, and a mesh refreshed on one tick in ten would show them the
-      // shape from three ticks ago. It costs 144 microseconds a tick for fourteen units.
-      this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles);
+      // Swept at `DEFAULT_UPDATE_HZ` rather than every tick, which is a reversal and the reason
+      // is arithmetic. It used to be every tick so that a stepped tick always showed its own
+      // shape, and that was cheap when it was written: 144 microseconds for fourteen units. At a
+      // hundred and forty-eight it is 1.58 ms, which is forty per cent of the whole tick -- spent
+      // on Tier V geometry that nothing reads back (M-ADR-004) and that a display showing sixty
+      // frames a second discards ninety-two per cent of.
+      //
+      // What it was protecting is kept: `sweepRenderMesh` runs the sweep on demand, and the panel
+      // calls it after a hand-stepped frame, so a stepped tick still shows its own shape. The
+      // divisor only applies while the thing is running, where nobody can see the difference.
+      this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles, {
+        simulationRateHz: rate,
+      });
       this.kernel.register(this.muscleDrive);
       this.kernel.register(this.musclePath);
       this.kernel.register(this.muscleDynamics);
@@ -719,6 +728,16 @@ export class Simulation {
   }
 
   private captureBudget: number;
+
+  /**
+   * Sweep the belly mesh now, whatever the divisor says.
+   *
+   * For a hand-stepped tick, which is the one case where the rate limit would be visible: step
+   * once and the mesh would otherwise be up to a divisor's worth of ticks behind the bones.
+   */
+  sweepRenderMesh(): void {
+    this.muscleVolume?.step({ tick: this.ticks, dt: this.dt, simTime: this.ticks * this.dt });
+  }
 
   muscleMesh():
     | {
