@@ -289,6 +289,12 @@ fn bridge_close(state: tauri::State<'_, Bridges>, remove_muscles: bool) -> Resul
     Ok(())
 }
 
+/// A line from the page's VR link, on the terminal, where the viewer's own lines are.
+#[tauri::command]
+fn studio_log(message: String) {
+    eprintln!("studio: {message}");
+}
+
 /// Where the viewer binary is: named outright, beside this executable, or in this repository's
 /// build directory when running from a checkout.
 fn find_viewer() -> Option<std::path::PathBuf> {
@@ -406,7 +412,8 @@ fn main() {
             bridge_close,
             xr_viewer_launch,
             xr_viewer_running,
-            xr_viewer_stop
+            xr_viewer_stop,
+            studio_log
         ])
         .run(tauri::generate_context!())
         .expect("bs-humany studio: the web view failed to start");

@@ -45,7 +45,7 @@ import {
   jointSweep,
 } from '@bs-humany/scenarios';
 import { buildDocument, computeWorldTransforms, modelLimitations } from '@bs-humany/skeleton';
-import { isTauri } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import {
   AmbientLight,
   BoxGeometry,
@@ -2015,7 +2015,11 @@ const vrHost = {
       }
     }
   },
-  log: (message: string) => setSimulationStatus(message),
+  log: (message: string) => {
+    setSimulationStatus(message);
+    // And on the terminal, beside the viewer's own lines, where a failure can actually be read.
+    void invoke('studio_log', { message }).catch(() => undefined);
+  },
 };
 
 if (isTauri()) {

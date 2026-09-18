@@ -192,7 +192,18 @@ export class VrLink {
     if (simulation !== this.simulation) {
       this.simulation = simulation;
       this.intents.letGo(null);
-      if (simulation) this.reopen(simulation);
+      if (simulation) {
+        try {
+          this.reopen(simulation);
+        } catch (error) {
+          // Said once, not once a frame; the bridges stay closed until the next run.
+          this.host.log(
+            `VR viewer: could not open the bridges: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          this.poses = null;
+          this.muscles = null;
+        }
+      }
     }
     if (!simulation || !this.poses) return;
     const now = performance.now();
