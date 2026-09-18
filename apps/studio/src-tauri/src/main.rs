@@ -415,6 +415,18 @@ fn main() {
             xr_viewer_stop,
             studio_log
         ])
-        .run(tauri::generate_context!())
-        .expect("bs-humany studio: the web view failed to start");
+        .build(tauri::generate_context!())
+        .expect("bs-humany studio: the web view failed to start")
+        .run(|app, event| {
+            // The viewer is this process's child and has no life of its own: when the studio
+            // goes, it goes, rather than staying up in the headset printing to a terminal that
+            // has moved on.
+            if let tauri::RunEvent::Exit = event {
+                use tauri::Manager;
+                if let Some(mut child) = app.state::<Bridges>().viewer.lock().unwrap().take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+            }
+        });
 }
