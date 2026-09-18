@@ -109,8 +109,12 @@ Measured with the publisher on L1 with the full muscle set: `1.00x life` -- it k
 which is the 35 per cent the belly-sweep divisor bought.
 
 What crosses the bridge is bones: 206 of them, seven floats each, plus the rest pose and the
-stature scale once. The muscle bellies do not yet -- that is a hundred times the bytes and the
-next thing to carry.
+stature scale once. The muscles cross beside them as rings rather than meshes -- 148 bellies of
+24 rings, eight floats a ring: centre, orientation, radius -- and the viewer sweeps its own tubes
+from them each time a new frame arrives, on the same pipeline as the bones with a second draw.
+That is 113 KB a frame against the 1.4 MB the vertices would be, and the sweep is a few
+microseconds. A publisher with muscles off writes no muscle file, and the viewer says so and
+draws bones alone.
 
 ### Grabbing it
 
@@ -125,18 +129,18 @@ whether the hand is squeezing, which bone it took, where it took it, and where t
 all in the simulation's own frame. The publisher reads both slots every tick and does exactly what
 `beginGrab` does in the studio: finds the segment behind the bone, expresses the point in that
 segment's frame, and holds it toward the hand. Letting go is one inactive slot, read once.
+Each hand is its own grab slot, so both can hold at once, and the same bone with both if you like.
 
 Which bone is judged in the room, not the simulation: each bone's posed centroid and half its
 bounding diagonal, with a controller's width of reach on top, and the nearest surface among the
-bones the hand is inside wins. Squeezing empty air grabs nothing and sends nothing. One grab at a
-time, because the grab module holds one -- the second hand waits for the first to let go.
+bones the hand is inside wins. Squeezing empty air grabs nothing and sends nothing.
 
 The status lines say what is happening on both sides:
 
 ```
 hand right: tracked
 hand right: grabbed femur_r
-  142.8 Hz, worst CPU frame 0.44 ms, pose 6 ms old, holding femur_r
+  142.8 Hz, worst CPU frame 0.44 ms, pose 6 ms old, 861 muscle frames, holding femur_r
 hand right: let go
 ```
 

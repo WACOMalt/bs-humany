@@ -68,6 +68,8 @@ export const SLOT_HEADER_BYTES = 32;
 export const NO_FRAME = 0xffffffff;
 /** Where the bridge lives when nobody says otherwise. */
 export const DEFAULT_PATH = '/dev/shm/bs-humany-pose';
+/** Slots in a ring: one being written, one being read, one spare. */
+export const DEFAULT_SLOTS = 3;
 
 export interface PoseBridgeOptions {
   /** The file to write. tmpfs is the point; anywhere else works and is merely slower. */
@@ -141,7 +143,7 @@ export class PoseBridgeWriter {
 
   static open(rest: RestPose, options: PoseBridgeOptions = {}): PoseBridgeWriter {
     const path = options.path ?? DEFAULT_PATH;
-    const slots = options.slots ?? 3;
+    const slots = options.slots ?? DEFAULT_SLOTS;
     const bones = rest.bones.length;
     if (bones === 0) throw new Error('A pose bridge needs at least one bone.');
     if (rest.position.length !== bones * 3 || rest.orientation.length !== bones * 4) {
@@ -420,4 +422,206 @@ export class GrabIntentReader {
   close(): void {
     closeSync(this.fd);
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The muscles: a ring of belly rings, alongside the ring of poses.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The layout of the muscle bridge, `<pose path>-muscles`.
+ *
+ * What crosses is not the belly meshes but their rings -- centre, orientation, radius: eight
+ * floats -- because a swept tube's vertices are a function of its rings and the renderer can
+ * sweep them itself, and because eight floats a ring is a hundred times less than the vertices.
+ * At 148 bellies of 24 rings that is 113 KB a frame; three slots of it is what the file holds.
+ *
+ *   HEADER, 64 bytes
+ *     0   u32  magic       0x4353554d, "MUSC"
+ *     4   u32  version     1
+ *     8   u32  units       bellies
+ *     12  u32  rings       rings a belly
+ *     16  u32  segments    vertices round a ring, which the renderer sweeps with
+ *     20  u32  slots
+ *     24  u32  newest      slot holding the newest complete frame, or NO_FRAME
+ *     28  u32  slotBytes
+ *     32  u64  published   frames so far
+ *
+ *   SLOT, at 64 + slot * slotBytes, slotBytes = roundUp(16 + units * rings * 32, 64)
+ *     0   u64  seq         odd while being written, even once complete, 0 never
+ *     8   u64  tick
+ *     16  f32  x8 a ring   position xyz, orientation xyzw, radius; ring r of unit u at u*rings+r
+ *
+ * Rings are in the simulation's world frame at the body's own stature, which is where the sweep
+ * put them; unlike bones there is no rest pose and no dataset scale to apply.
+ */
+export const MUSCLE_MAGIC = 0x4353554d;
+export const MUSCLE_VERSION = 1;
+export const FLOATS_PER_RING = 8;
+export const MUSCLE_SLOT_HEADER_BYTES = 16;
+
+export function muscleSlotBytes(ringsTotal: number): number {
+  return roundUp(MUSCLE_SLOT_HEADER_BYTES + ringsTotal * FLOATS_PER_RING * 4, 64);
+}
+
+export function muscleBridgeBytes(ringsTotal: number, slots: number): number {
+  return HEADER_BYTES + slots * muscleSlotBytes(ringsTotal);
+}
+
+export interface MuscleShape {
+  readonly units: number;
+  readonly rings: number;
+  readonly segments: number;
+}
+
+export class MuscleBridgeWriter {
+  readonly path: string;
+  readonly shape: MuscleShape;
+  readonly slots: number;
+  private readonly fd: number;
+  private readonly slot: Buffer;
+  private readonly header: Buffer;
+  private readonly seqs: number[];
+  private next = 0;
+  private published = 0;
+
+  private constructor(path: string, fd: number, shape: MuscleShape, slots: number) {
+    this.path = path;
+    this.fd = fd;
+    this.shape = shape;
+    this.slots = slots;
+    this.slot = Buffer.alloc(muscleSlotBytes(shape.units * shape.rings));
+    this.header = Buffer.alloc(HEADER_BYTES);
+    this.seqs = new Array(slots).fill(0);
+  }
+
+  static open(
+    shape: MuscleShape,
+    options: { path?: string; slots?: number } = {},
+  ): MuscleBridgeWriter {
+    const path = options.path ?? `${DEFAULT_PATH}-muscles`;
+    const slots = options.slots ?? DEFAULT_SLOTS;
+    if (shape.units < 1 || shape.rings < 2 || shape.segments < 3) {
+      throw new RangeError(
+        `a muscle bridge needs a unit, two rings and three segments; got ${JSON.stringify(shape)}`,
+      );
+    }
+    const fd = openSync(path, 'w+');
+    ftruncateSync(fd, muscleBridgeBytes(shape.units * shape.rings, slots));
+    const writer = new MuscleBridgeWriter(path, fd, shape, slots);
+    const h = writer.header;
+    h.writeUInt32LE(MUSCLE_MAGIC, 0);
+    h.writeUInt32LE(MUSCLE_VERSION, 4);
+    h.writeUInt32LE(shape.units, 8);
+    h.writeUInt32LE(shape.rings, 12);
+    h.writeUInt32LE(shape.segments, 16);
+    h.writeUInt32LE(slots, 20);
+    h.writeUInt32LE(NO_FRAME, 24);
+    h.writeUInt32LE(muscleSlotBytes(shape.units * shape.rings), 28);
+    h.writeBigUInt64LE(0n, 32);
+    writeSync(fd, h, 0, HEADER_BYTES, 0);
+    return writer;
+  }
+
+  get framesPublished(): number {
+    return this.published;
+  }
+
+  /** `position` is 3 a ring, `orientation` 4, `radius` 1, all `units * rings` long. */
+  publish(
+    tick: number,
+    position: ArrayLike<number>,
+    orientation: ArrayLike<number>,
+    radius: ArrayLike<number>,
+  ): void {
+    const total = this.shape.units * this.shape.rings;
+    if (
+      position.length !== total * 3 ||
+      orientation.length !== total * 4 ||
+      radius.length !== total
+    ) {
+      throw new RangeError(`the rings given are not ${total} rings' worth.`);
+    }
+    const index = this.next;
+    this.next = (this.next + 1) % this.slots;
+    const base = HEADER_BYTES + index * this.slot.length;
+    const seq = (this.seqs[index] ?? 0) + 1;
+    const s = this.slot;
+    s.writeBigUInt64LE(BigInt(seq), 0);
+    writeSync(this.fd, s, 0, 8, base);
+    s.writeBigUInt64LE(BigInt(tick), 8);
+    for (let r = 0; r < total; r++) {
+      const at = MUSCLE_SLOT_HEADER_BYTES + r * FLOATS_PER_RING * 4;
+      s.writeFloatLE(Number(position[r * 3]), at);
+      s.writeFloatLE(Number(position[r * 3 + 1]), at + 4);
+      s.writeFloatLE(Number(position[r * 3 + 2]), at + 8);
+      s.writeFloatLE(Number(orientation[r * 4]), at + 12);
+      s.writeFloatLE(Number(orientation[r * 4 + 1]), at + 16);
+      s.writeFloatLE(Number(orientation[r * 4 + 2]), at + 20);
+      s.writeFloatLE(Number(orientation[r * 4 + 3]), at + 24);
+      s.writeFloatLE(Number(radius[r]), at + 28);
+    }
+    writeSync(this.fd, s, 8, s.length - 8, base + 8);
+    this.seqs[index] = seq + 1;
+    s.writeBigUInt64LE(BigInt(seq + 1), 0);
+    writeSync(this.fd, s, 0, 8, base);
+    this.published += 1;
+    this.header.writeUInt32LE(index, 24);
+    this.header.writeBigUInt64LE(BigInt(this.published), 32);
+    writeSync(this.fd, this.header, 24, 16, 24);
+  }
+
+  close(): void {
+    closeSync(this.fd);
+  }
+}
+
+/** Read a whole muscle bridge back, for tests and tools. */
+export function readMuscleBridge(bytes: Uint8Array): {
+  readonly shape: MuscleShape;
+  readonly slots: number;
+  readonly newest: number;
+  readonly published: number;
+  frame(slot: number): {
+    readonly seq: number;
+    readonly tick: number;
+    readonly position: Float32Array;
+    readonly orientation: Float32Array;
+    readonly radius: Float32Array;
+  };
+} {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint32(0, true) !== MUSCLE_MAGIC) throw new Error('not a muscle bridge');
+  const shape = {
+    units: view.getUint32(8, true),
+    rings: view.getUint32(12, true),
+    segments: view.getUint32(16, true),
+  };
+  const total = shape.units * shape.rings;
+  const slotLength = view.getUint32(28, true);
+  return {
+    shape,
+    slots: view.getUint32(20, true),
+    newest: view.getUint32(24, true),
+    published: Number(view.getBigUint64(32, true)),
+    frame(slot) {
+      const base = HEADER_BYTES + slot * slotLength;
+      const position = new Float32Array(total * 3);
+      const orientation = new Float32Array(total * 4);
+      const radius = new Float32Array(total);
+      for (let r = 0; r < total; r++) {
+        const at = base + MUSCLE_SLOT_HEADER_BYTES + r * FLOATS_PER_RING * 4;
+        for (let i = 0; i < 3; i++) position[r * 3 + i] = view.getFloat32(at + 4 * i, true);
+        for (let i = 0; i < 4; i++) orientation[r * 4 + i] = view.getFloat32(at + 12 + 4 * i, true);
+        radius[r] = view.getFloat32(at + 28, true);
+      }
+      return {
+        seq: Number(view.getBigUint64(base, true)),
+        tick: Number(view.getBigUint64(base + 8, true)),
+        position,
+        orientation,
+        radius,
+      };
+    },
+  };
 }

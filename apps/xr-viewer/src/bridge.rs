@@ -185,6 +185,108 @@ struct Sidecar {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The muscles: rings, in a ring of their own, beside the poses.
+// ---------------------------------------------------------------------------------------------
+
+const MUSCLE_MAGIC: u32 = 0x4353_554d;
+const MUSCLE_VERSION: u32 = 1;
+const MUSCLE_SLOT_HEADER_BYTES: usize = 16;
+pub const FLOATS_PER_RING: usize = 8;
+
+pub struct MuscleFrame {
+    pub tick: u64,
+    /// `units * rings * 8`: centre xyz, orientation xyzw, radius, ring `r` of unit `u` at
+    /// `u * rings + r`.
+    pub rings: Vec<f32>,
+}
+
+/// The reading end of the muscle bridge, `<pose path>-muscles`: the same seqlocked ring as the
+/// poses, holding belly rings rather than bones. Its layout is stated beside the pose bridge's in
+/// `packages/pose-bridge/src/index.ts`.
+pub struct MuscleBridge {
+    map: Mmap,
+    pub units: usize,
+    pub rings: usize,
+    pub segments: usize,
+    pub slots: usize,
+    slot_bytes: usize,
+    scratch: Vec<f32>,
+}
+
+impl MuscleBridge {
+    pub fn open(path: &Path) -> Result<Self> {
+        let file = std::fs::File::open(path)
+            .with_context(|| format!("opening {}", path.display()))?;
+        let map = unsafe { Mmap::map(&file) }.context("mapping the muscle bridge")?;
+        if map.len() < HEADER_BYTES {
+            bail!("{} is {} bytes, which is not even a header.", path.display(), map.len());
+        }
+        let u32_at = |at: usize| u32::from_le_bytes(map[at..at + 4].try_into().unwrap());
+        if u32_at(0) != MUSCLE_MAGIC {
+            bail!("{} is not a muscle bridge.", path.display());
+        }
+        if u32_at(4) != MUSCLE_VERSION {
+            bail!("{} is muscle bridge version {}, and this reads {MUSCLE_VERSION}.", path.display(), u32_at(4));
+        }
+        let (units, rings, segments, slots, slot_bytes) = (
+            u32_at(8) as usize,
+            u32_at(12) as usize,
+            u32_at(16) as usize,
+            u32_at(20) as usize,
+            u32_at(28) as usize,
+        );
+        let expected = HEADER_BYTES + slots * slot_bytes;
+        if map.len() < expected || slot_bytes < MUSCLE_SLOT_HEADER_BYTES + units * rings * FLOATS_PER_RING * 4 {
+            bail!("{} is {} bytes but its header describes {expected}.", path.display(), map.len());
+        }
+        Ok(Self {
+            map,
+            units,
+            rings,
+            segments,
+            slots,
+            slot_bytes,
+            scratch: vec![0.0; units * rings * FLOATS_PER_RING],
+        })
+    }
+
+    pub fn published(&self) -> u64 {
+        unsafe { std::ptr::read_volatile(self.map.as_ptr().add(32) as *const u64) }
+    }
+
+    /// The newest complete frame, or `None` if there is none yet or it could not be read cleanly.
+    pub fn newest(&mut self) -> Option<MuscleFrame> {
+        let base_ptr = self.map.as_ptr();
+        let newest = unsafe { std::ptr::read_volatile(base_ptr.add(24) as *const u32) };
+        if newest == NO_FRAME || newest as usize >= self.slots {
+            return None;
+        }
+        let base = HEADER_BYTES + newest as usize * self.slot_bytes;
+        let floats = self.scratch.len();
+        for _ in 0..4 {
+            let seq = unsafe { std::ptr::read_volatile(base_ptr.add(base) as *const u64) };
+            if seq == 0 || seq % 2 == 1 {
+                continue;
+            }
+            let tick = u64::from_le_bytes(self.map[base + 8..base + 16].try_into().unwrap());
+            let body = &self.map[base + MUSCLE_SLOT_HEADER_BYTES..base + MUSCLE_SLOT_HEADER_BYTES + floats * 4];
+            for (i, c) in body.chunks_exact(4).enumerate() {
+                self.scratch[i] = f32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+            }
+            let again = unsafe { std::ptr::read_volatile(base_ptr.add(base) as *const u64) };
+            if again != seq {
+                continue;
+            }
+            return Some(MuscleFrame {
+                tick,
+                rings: self.scratch.clone(),
+            });
+        }
+        None
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // The other direction: what the hands are doing, for the simulation to act on.
 // ---------------------------------------------------------------------------------------------
 
@@ -290,6 +392,24 @@ mod tests {
         assert!((frame.pose[16] - 4.0).abs() < 1e-6, "tibia z {}", frame.pose[16]);
         assert!((frame.pose[8] - 0.8).abs() < 1e-6, "femur y {}", frame.pose[8]);
         assert_eq!(frame.pose.len(), 3 * FLOATS_PER_BONE);
+    }
+
+    #[test]
+    fn reads_the_muscle_rings_the_typescript_side_wrote() {
+        // Two bellies of three rings, four segments, five frames round three slots; the numbers
+        // the TypeScript test asserts about the same generator output.
+        let path = fixture().with_file_name("pose-bridge.bin-muscles");
+        let mut bridge = MuscleBridge::open(&path).expect("the muscle fixture opens");
+        assert_eq!((bridge.units, bridge.rings, bridge.segments, bridge.slots), (2, 3, 4, 3));
+        assert_eq!(bridge.published(), 5);
+        let frame = bridge.newest().expect("a complete frame");
+        assert_eq!(frame.tick, 40);
+        assert_eq!(frame.rings.len(), 2 * 3 * FLOATS_PER_RING);
+        // Ring 5 is unit 1, ring 2: centre y = 1 + 2/2 + 0.04, identity orientation, radius 0.054.
+        let ring = &frame.rings[5 * 8..6 * 8];
+        assert!((ring[1] - 2.04).abs() < 1e-5, "y {}", ring[1]);
+        assert!((ring[6] - 1.0).abs() < 1e-6, "w {}", ring[6]);
+        assert!((ring[7] - 0.054).abs() < 1e-5, "radius {}", ring[7]);
     }
 
     #[test]

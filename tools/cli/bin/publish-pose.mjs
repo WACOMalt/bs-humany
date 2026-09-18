@@ -55,7 +55,7 @@ const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.
 const { scenario, DEFAULT_SCENARIO } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
-const { PoseBridgeWriter, GrabIntentReader } = await jiti.import(
+const { PoseBridgeWriter, MuscleBridgeWriter, GrabIntentReader } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
 
@@ -105,7 +105,20 @@ console.log(
   `publishing ${chosen.id} on ${profileId} at ${simulation.stepsPerSecond} steps/s, ` +
     `${fps} poses/s, ${order.length} bones -> ${path}`,
 );
-console.log(`  muscles ${simulation.muscles ? 'on' : 'off'}; Ctrl-C to stop`);
+// The muscles go beside the bones as rings, when there are any: eight floats a ring, which the
+// viewer sweeps into tubes itself.
+const rings = simulation.muscleRings();
+const muscleWriter = rings
+  ? MuscleBridgeWriter.open(
+      { units: rings.units, rings: rings.rings, segments: rings.segments },
+      { path: `${path}-muscles` },
+    )
+  : undefined;
+console.log(
+  rings
+    ? `  muscles on: ${rings.units} bellies of ${rings.rings} rings -> ${path}-muscles; Ctrl-C to stop`
+    : '  muscles off; Ctrl-C to stop',
+);
 
 // Per bone, in `boneOrder()` -- what the studio skins from. Not `body.pose`, which is per rigid
 // segment in the segment order: the same numbers, differently arranged, and a skeleton that was
@@ -121,10 +134,9 @@ const ticksPerFrame = simulation.ticksPerOutputFrame;
 // Grabs, coming the other way. The renderer writes a slot per hand beside the pose bridge; this
 // reads both every tick and does what the studio's Ctrl-click does: find the segment the bone
 // belongs to, express the grabbed point in that segment's own frame, and hold it toward wherever
-// the hand is now. One grab at a time, because the grab module holds one; a second hand that
-// squeezes while the first is holding is ignored until the first lets go.
+// the hand is now. Each hand is its own grab slot, so both can hold at once.
 let grabs = GrabIntentReader.open(`${path}-grab`);
-let held = null;
+const held = [null, null];
 let grabsSeen = 0;
 function applyGrabs() {
   if (!grabs) {
@@ -137,7 +149,7 @@ function applyGrabs() {
     const intent = hands[hand];
     if (!intent) continue;
     if (intent.active) {
-      if (held === null && intent.bone >= 0 && intent.bone < order.length) {
+      if (held[hand] === null && intent.bone >= 0 && intent.bone < order.length) {
         const segment = simulation.segmentOfBone(order[intent.bone]);
         if (segment < 0) continue;
         const at = simulation.segmentPose(segment);
@@ -159,16 +171,16 @@ function applyGrabs() {
           z: iz * w + iw * z - ix * y + iy * x,
         };
         const [tx, ty, tz] = intent.target;
-        simulation.grab.grab(segment, local, { x: tx, y: ty, z: tz }, intent.strength || 1);
-        held = { hand, segment, bone: order[intent.bone] };
+        simulation.grab.grab(segment, local, { x: tx, y: ty, z: tz }, intent.strength || 1, hand);
+        held[hand] = { segment, bone: order[intent.bone] };
         grabsSeen += 1;
-      } else if (held !== null && held.hand === hand) {
+      } else if (held[hand] !== null) {
         const [tx, ty, tz] = intent.target;
-        simulation.grab.moveTo({ x: tx, y: ty, z: tz });
+        simulation.grab.moveTo({ x: tx, y: ty, z: tz }, hand);
       }
-    } else if (held !== null && held.hand === hand) {
-      simulation.grab.release();
-      held = null;
+    } else if (held[hand] !== null) {
+      simulation.grab.release(hand);
+      held[hand] = null;
     }
   }
 }
@@ -196,6 +208,9 @@ while (simulation.ticks * simulation.dt < seconds) {
       pose.position,
       pose.orientation,
     );
+    if (muscleWriter && rings.radius.length === rings.units * rings.rings) {
+      muscleWriter.publish(simulation.ticks, rings.position, rings.orientation, rings.radius);
+    }
     nextPublishAt += ticksPerFrame;
   }
   if (ran === 0) {
@@ -215,7 +230,14 @@ while (simulation.ticks * simulation.dt < seconds) {
     console.log(
       `  sim ${simSeconds.toFixed(2)} s  wall ${wallSeconds.toFixed(2)} s  ` +
         `${speed.toFixed(2)}x life  ${writer.framesPublished} poses published` +
-        (held ? `  holding ${held.bone}` : grabsSeen ? `  ${grabsSeen} grabs so far` : ''),
+        (held.some(Boolean)
+          ? `  holding ${held
+              .filter(Boolean)
+              .map((h) => h.bone)
+              .join(' and ')}`
+          : grabsSeen
+            ? `  ${grabsSeen} grabs so far`
+            : ''),
     );
     lastReport = now;
     ticksAtReport = simulation.ticks;
@@ -223,6 +245,7 @@ while (simulation.ticks * simulation.dt < seconds) {
 }
 
 writer.close();
+muscleWriter?.close();
 simulation.dispose();
 console.log(
   `done: ${writer.framesPublished} poses over ${(simulation.ticks * simulation.dt).toFixed(2)} s`,

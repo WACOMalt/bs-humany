@@ -739,6 +739,33 @@ export class Simulation {
     this.muscleVolume?.step({ tick: this.ticks, dt: this.dt, simTime: this.ticks * this.dt });
   }
 
+  /**
+   * Every belly's rings as of the last tick: centre, orientation and radius, in the order the
+   * units are in. The same eight floats a ring the capture records, which is what a renderer that
+   * sweeps its own tubes needs and a hundred times less than the vertices.
+   */
+  muscleRings():
+    | {
+        readonly position: Float32Array;
+        readonly orientation: Float32Array;
+        readonly radius: Float32Array;
+        readonly units: number;
+        readonly rings: number;
+        readonly segments: number;
+      }
+    | undefined {
+    const volume = this.muscleVolume;
+    if (!volume || !this.muscles) return undefined;
+    return {
+      position: this.ringPosition,
+      orientation: this.ringOrientation,
+      radius: this.ringRadius,
+      units: this.muscles.units.length,
+      rings: volume.rings,
+      segments: volume.segments,
+    };
+  }
+
   muscleMesh():
     | {
         readonly position: Float64Array;

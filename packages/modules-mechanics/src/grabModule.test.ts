@@ -51,6 +51,36 @@ describe('GrabModule', () => {
     kernel.dispose();
   });
 
+  it('holds two things at once in two slots, and lets go of them separately', async () => {
+    const kernel = new Kernel({ rateHz: 500, seed: 1 });
+    const physics = new PhysicsModule(new RapierBackend(), articulation, { ground: { height: 0 } });
+    const grab = new GrabModule(physics.backend, articulation);
+    kernel.register(physics);
+    kernel.register(grab);
+    await kernel.init();
+    const right = articulation.segments.findIndex((s) => s.id === 'hand_r');
+    const left = articulation.segments.findIndex((s) => s.id === 'hand_l');
+    const pose = kernel.channels.storage(BODY_POSE).fields.position as Float64Array;
+    const above = (seg: number) =>
+      vec3(pose[3 * seg] ?? 0, (pose[3 * seg + 1] ?? 0) + 0.5, pose[3 * seg + 2] ?? 0);
+    grab.grab(right, vec3(0, 0, 0), above(right), 1, 0);
+    grab.grab(left, vec3(0, 0, 0), above(left), 1, 1);
+    const channel = kernel.channels.storage(INTERACTION_GRAB).fields;
+    expect(Array.from((channel.active as Uint8Array).slice(0, 2))).toEqual([1, 1]);
+    expect((channel.segment as Int32Array)[1]).toBe(left);
+    expect(grab.holds(0) && grab.holds(1)).toBe(true);
+    for (let i = 0; i < 50; i++) kernel.step();
+    grab.release(1);
+    kernel.step();
+    expect(grab.holds(0)).toBe(true);
+    expect(grab.holds(1)).toBe(false);
+    expect((channel.active as Uint8Array)[1]).toBe(0);
+    grab.release();
+    expect(grab.holding).toBe(false);
+    expect(() => grab.grab(right, vec3(0, 0, 0), above(right), 1, 9)).toThrow(RangeError);
+    kernel.dispose();
+  });
+
   it('rejects a segment index outside the articulation', async () => {
     const physics = new PhysicsModule(new RapierBackend(), articulation, {});
     const grab = new GrabModule(physics.backend, articulation);

@@ -27,7 +27,9 @@ const OUT = join(OUT_DIR, 'pose-bridge.bin');
 const check = process.argv.includes('--check');
 
 const jiti = createJiti(import.meta.url);
-const { PoseBridgeWriter } = await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
+const { PoseBridgeWriter, MuscleBridgeWriter } = await jiti.import(
+  join(ROOT, 'packages/pose-bridge/src/index.ts'),
+);
 
 function write(path) {
   const writer = PoseBridgeWriter.open(
@@ -48,13 +50,33 @@ function write(path) {
     );
   }
   writer.close();
+  // And the muscle bridge beside it: two bellies of three rings, four segments round, five
+  // frames, ring r of unit u at y = u + r/2 rising a centimetre a frame.
+  const muscles = MuscleBridgeWriter.open(
+    { units: 2, rings: 3, segments: 4 },
+    { path: `${path}-muscles`, slots: 3 },
+  );
+  for (let t = 0; t < 5; t++) {
+    const position = [];
+    const orientation = [];
+    const radius = [];
+    for (let u = 0; u < 2; u++) {
+      for (let r = 0; r < 3; r++) {
+        position.push(0.1 * u, u + r / 2 + 0.01 * t, 0);
+        orientation.push(0, 0, 0, 1);
+        radius.push(0.05 + 0.001 * t);
+      }
+    }
+    muscles.publish(t * 10, position, orientation, radius);
+  }
+  muscles.close();
 }
 
 if (check) {
   const dir = mkdtempSync(join(tmpdir(), 'pose-bridge-fixture-'));
   try {
     write(join(dir, 'pose-bridge.bin'));
-    for (const name of ['pose-bridge.bin', 'pose-bridge.bin.json']) {
+    for (const name of ['pose-bridge.bin', 'pose-bridge.bin.json', 'pose-bridge.bin-muscles']) {
       const fresh = readFileSync(join(dir, name));
       const committed = readFileSync(join(OUT_DIR, name));
       if (!fresh.equals(committed)) {
@@ -75,7 +97,7 @@ if (check) {
   write(OUT);
   writeFileSync(
     join(OUT_DIR, 'README.md'),
-    '# Fixtures\n\n`pose-bridge.bin` and its sidecar are written by ' +
+    '# Fixtures\n\n`pose-bridge.bin`, its sidecar and `pose-bridge.bin-muscles` are written by ' +
       '`pnpm generate:pose-bridge-fixture` from the TypeScript writer, and read by the Rust ' +
       "reader's tests. Neither is edited by hand; the generator's `--check` is a CI gate.\n",
   );

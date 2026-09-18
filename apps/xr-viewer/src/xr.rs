@@ -314,7 +314,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // a headset with some other controller still gets a trigger that grabs.
     let hands = Hands::new(&xr, &session)?;
 
-    let renderer = crate::render::Renderer::new(
+    let mut renderer = crate::render::Renderer::new(
         &graphics.instance,
         graphics.physical,
         graphics.device.clone(),
@@ -353,9 +353,36 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         );
     }
     let place = crate::render::placement();
+    // Bones, the two controllers, and the world slot, which stays at the placement.
     let mut matrices: Vec<[f32; 16]> =
-        vec![place; pack.bones.len() + crate::render::CONTROLLERS];
+        vec![place; pack.bones.len() + crate::render::CONTROLLERS + 1];
     let mut last_tick: Option<u64> = None;
+
+    // The muscles, if the simulation has them: rings in their own bridge beside the poses, swept
+    // into tubes here every time a new frame arrives. A publisher with muscles off writes no such
+    // file, which is not an error.
+    let mut muscles = match follow {
+        Some(path) => {
+            let muscle_path = std::path::PathBuf::from(format!("{}-muscles", path.display()));
+            match crate::bridge::MuscleBridge::open(&muscle_path) {
+                Ok(m) => {
+                    println!(
+                        "muscles: {} bellies of {} rings, {} segments round",
+                        m.units, m.rings, m.segments
+                    );
+                    renderer.enable_muscles(m.units, m.rings, m.segments)?;
+                    Some(m)
+                }
+                Err(_) => {
+                    println!("muscles: none published");
+                    None
+                }
+            }
+        }
+        None => None,
+    };
+    let mut muscle_vertices: Vec<f32> = Vec::new();
+    let mut last_muscle_tick: Option<u64> = None;
 
     // Grabbing, when there is a simulation to grab. Intents go back beside the pose bridge; the
     // publisher looks for them there. What is held is remembered here so a hand that keeps
@@ -522,12 +549,26 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             writer.publish(hand, &intent);
         }
 
+        if let Some(m) = muscles.as_mut() {
+            if let Some(frame) = m.newest() {
+                if last_muscle_tick != Some(frame.tick) {
+                    last_muscle_tick = Some(frame.tick);
+                    crate::render::tube_vertices(
+                        &frame.rings,
+                        m.segments,
+                        renderer.world_slot() as u32,
+                        &mut muscle_vertices,
+                    );
+                }
+            }
+        }
         let image = swapchain.acquire_image()?;
         swapchain.wait_image(openxr::Duration::INFINITE)?;
         renderer.draw(
             image as usize,
             &crate::render::view_projections(&views, 0.05, 50.0),
             Some(matrices.as_slice()),
+            if muscle_vertices.is_empty() { None } else { Some(muscle_vertices.as_slice()) },
         )?;
         swapchain.release_image()?;
         let cpu_ms = cpu_started.elapsed().as_secs_f64() * 1000.0;
@@ -576,8 +617,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 .collect::<Vec<_>>()
                 .join(" and ");
             let held = if held.is_empty() { held } else { format!(", holding {held}") };
+            let bellies = muscles
+                .as_ref()
+                .map(|m| format!(", {} muscle frames", m.published()))
+                .unwrap_or_default();
             println!(
-                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms{pose_age}{held}",
+                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms{pose_age}{bellies}{held}",
                 window_frames as f64 / window
             );
             window_started = std::time::Instant::now();

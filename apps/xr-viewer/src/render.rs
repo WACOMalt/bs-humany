@@ -57,8 +57,11 @@ pub struct Renderer {
     vertex: Buffer,
     index: Buffer,
     index_count: u32,
-    /// `pack.bones.len()`: the controllers' slots begin here.
+    /// `pack.bones.len()`: the controllers' slots begin here, and the world slot is after them.
     first_controller: usize,
+    memory_properties: vk::PhysicalDeviceMemoryProperties,
+    /// The muscle tubes, once a bridge has said how many rings there are.
+    muscles: Option<Muscles>,
 
     depth: Image,
     targets: Vec<Target>,
@@ -79,6 +82,18 @@ struct Target {
     views_ubo: Buffer,
     bones_ubo: Buffer,
     descriptor_set: vk::DescriptorSet,
+}
+
+/// The swept muscle tubes: a fixed index buffer, and a vertex buffer per swapchain image that is
+/// rewritten from the newest rings each frame, for the same reason the uniform buffers are per
+/// image.
+struct Muscles {
+    index: Buffer,
+    index_count: u32,
+    vertex_floats: usize,
+    per_target: Vec<Buffer>,
+    /// Whether each image's buffer has ever been filled; an unfilled one is not drawn.
+    filled: Vec<std::cell::Cell<bool>>,
 }
 
 struct Buffer {
@@ -112,9 +127,9 @@ impl Renderer {
 
         // --- geometry, flattened into one pair of buffers -------------------------------------
         let (vertices, indices) = flatten(pack);
-        if pack.bones.len() + CONTROLLERS > MAX_BONES {
+        if pack.bones.len() + CONTROLLERS + 1 > MAX_BONES {
             bail!(
-                "the pack has {} bones, and with {CONTROLLERS} controllers the shader holds {MAX_BONES}.",
+                "the pack has {} bones, and with {CONTROLLERS} controllers and the world slot the shader holds {MAX_BONES}.",
                 pack.bones.len()
             );
         }
@@ -166,7 +181,7 @@ impl Renderer {
         let push = [vk::PushConstantRange::default()
             .stage_flags(vk::ShaderStageFlags::FRAGMENT)
             .offset(0)
-            .size(4)];
+            .size(8)];
         let pipeline_layout = unsafe {
             device.create_pipeline_layout(
                 &vk::PipelineLayoutCreateInfo::default()
@@ -314,6 +329,8 @@ impl Renderer {
             index,
             index_count,
             first_controller: pack.bones.len(),
+            memory_properties,
+            muscles: None,
             depth,
             targets,
             extent,
@@ -324,11 +341,15 @@ impl Renderer {
     ///
     /// `bones` is one matrix per pack bone followed by one per controller, or `None` to leave
     /// whatever this image's buffer last held -- the placement, for a viewer showing nothing live.
+    ///
+    /// `muscles` is the swept tube vertices from `tube_vertices`, or `None` to draw what this
+    /// image's buffer last held; nothing is drawn until it has held something.
     pub fn draw(
         &self,
         image: usize,
         view_projections: &[f32; 32],
         bones: Option<&[[f32; 16]]>,
+        muscles: Option<&[f32]>,
     ) -> Result<()> {
         let target = &self.targets[image];
         let device = &self.device;
@@ -342,6 +363,12 @@ impl Renderer {
             if let Some(bones) = bones {
                 let count = bones.len().min(MAX_BONES);
                 target.bones_ubo.write(bytes_of(&bones[..count]));
+            }
+            if let (Some(tubes), Some(vertices)) = (&self.muscles, muscles) {
+                if vertices.len() == tubes.vertex_floats {
+                    tubes.per_target[image].write(bytes_of(vertices));
+                    tubes.filled[image].set(true);
+                }
             }
             device.reset_command_buffer(
                 target.command_buffer,
@@ -392,7 +419,7 @@ impl Renderer {
                 self.pipeline_layout,
                 vk::ShaderStageFlags::FRAGMENT,
                 0,
-                &(self.first_controller as u32).to_le_bytes(),
+                bytes_of(&[self.first_controller as u32, self.world_slot() as u32]),
             );
             device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[self.vertex.handle], &[0]);
             device.cmd_bind_index_buffer(
@@ -403,6 +430,25 @@ impl Renderer {
             );
             // Every bone and both controllers, both eyes, one call.
             device.cmd_draw_indexed(target.command_buffer, self.index_count, 1, 0, 0, 0);
+            // And the muscles, a second call on the same pipeline: their vertices carry the world
+            // slot, whose matrix is the placement alone.
+            if let Some(tubes) = &self.muscles {
+                if tubes.filled[image].get() {
+                    device.cmd_bind_vertex_buffers(
+                        target.command_buffer,
+                        0,
+                        &[tubes.per_target[image].handle],
+                        &[0],
+                    );
+                    device.cmd_bind_index_buffer(
+                        target.command_buffer,
+                        tubes.index.handle,
+                        0,
+                        vk::IndexType::UINT32,
+                    );
+                    device.cmd_draw_indexed(target.command_buffer, tubes.index_count, 1, 0, 0, 0);
+                }
+            }
             device.cmd_end_render_pass(target.command_buffer);
             device.end_command_buffer(target.command_buffer)?;
             device.queue_submit(
@@ -417,6 +463,44 @@ impl Renderer {
     /// The transform slot a controller's cube is drawn by; `hand` is 0 left, 1 right.
     pub fn controller_slot(&self, hand: usize) -> usize {
         self.first_controller + hand
+    }
+
+    /// The slot whose matrix is the placement alone: what vertices already in the simulation's
+    /// world frame are drawn by.
+    pub fn world_slot(&self) -> usize {
+        self.first_controller + CONTROLLERS
+    }
+
+    /// Make room for the muscle tubes: `units` bellies of `rings` rings, `segments` round each.
+    /// The connectivity is fixed from these three numbers and built once here; the vertices come
+    /// every frame through `draw`.
+    pub fn enable_muscles(&mut self, units: usize, rings: usize, segments: usize) -> Result<()> {
+        let indices = tube_indices(units, rings, segments);
+        let index = Buffer::new(
+            &self.device,
+            &self.memory_properties,
+            std::mem::size_of_val(&indices[..]),
+            vk::BufferUsageFlags::INDEX_BUFFER,
+        )?;
+        index.write(bytes_of(&indices));
+        let vertex_floats = units * rings * segments * 7;
+        let mut per_target = Vec::with_capacity(self.targets.len());
+        for _ in &self.targets {
+            per_target.push(Buffer::new(
+                &self.device,
+                &self.memory_properties,
+                vertex_floats * 4,
+                vk::BufferUsageFlags::VERTEX_BUFFER,
+            )?);
+        }
+        self.muscles = Some(Muscles {
+            index,
+            index_count: indices.len() as u32,
+            vertex_floats,
+            per_target,
+            filled: (0..self.targets.len()).map(|_| std::cell::Cell::new(false)).collect(),
+        });
+        Ok(())
     }
 
     pub fn wait_idle(&self) {
@@ -445,6 +529,12 @@ impl Drop for Renderer {
             for buffer in [&self.vertex, &self.index] {
                 buffer.destroy(&self.device);
             }
+            if let Some(tubes) = &self.muscles {
+                tubes.index.destroy(&self.device);
+                for buffer in &tubes.per_target {
+                    buffer.destroy(&self.device);
+                }
+            }
         }
     }
 }
@@ -468,6 +558,56 @@ fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
         cube((pack.bones.len() + hand) as u32, &mut vertices, &mut indices);
     }
     (vertices, indices)
+}
+
+/// The triangles of every belly's tube, which depend only on the counts: ring `r` and ring `r+1`
+/// of a unit are joined by a strip of `segments` quads, and units are not joined to each other.
+pub fn tube_indices(units: usize, rings: usize, segments: usize) -> Vec<u32> {
+    let mut indices = Vec::with_capacity(units * (rings - 1) * segments * 6);
+    for unit in 0..units {
+        for ring in 0..rings - 1 {
+            let a = ((unit * rings + ring) * segments) as u32;
+            let b = a + segments as u32;
+            for k in 0..segments as u32 {
+                let next = (k + 1) % segments as u32;
+                indices.extend_from_slice(&[a + k, b + k, b + next, a + k, b + next, a + next]);
+            }
+        }
+    }
+    indices
+}
+
+/// Sweep every ring into `segments` vertices, seven floats each in the pack's vertex layout, all
+/// owned by `slot`. `rings` is eight floats a ring -- centre, orientation, radius -- as the muscle
+/// bridge carries them. Vertex `k` of a ring sits at angle `2 pi k / segments` in the ring's own
+/// XY plane, and its normal is that same direction: the ring is a circle, so radial is normal.
+pub fn tube_vertices(rings: &[f32], segments: usize, slot: u32, out: &mut Vec<f32>) {
+    out.clear();
+    out.reserve(rings.len() / 8 * segments * 7);
+    for ring in rings.chunks_exact(8) {
+        let centre = [ring[0], ring[1], ring[2]];
+        let r = rotation([ring[3], ring[4], ring[5], ring[6]]);
+        let radius = ring[7];
+        for k in 0..segments {
+            let angle = std::f32::consts::TAU * k as f32 / segments as f32;
+            let (sin, cos) = angle.sin_cos();
+            // The ring's X and Y columns, mixed by the angle: column-major, so X is r[0..3].
+            let n = [
+                r[0] * cos + r[3] * sin,
+                r[1] * cos + r[4] * sin,
+                r[2] * cos + r[5] * sin,
+            ];
+            out.extend_from_slice(&[
+                centre[0] + radius * n[0],
+                centre[1] + radius * n[1],
+                centre[2] + radius * n[2],
+                n[0],
+                n[1],
+                n[2],
+                f32::from_bits(slot),
+            ]);
+        }
+    }
 }
 
 /// A cube of edge `CONTROLLER_EDGE` about the origin, six flat-shaded faces, owned by one slot.
@@ -1043,6 +1183,30 @@ mod tests {
         let seen = apply(&view, [front[0], front[1], front[2], 1.0]);
         assert!(seen[0].abs() < 1e-5 && seen[1].abs() < 1e-5, "not straight ahead: {seen:?}");
         assert!((seen[2] + 1.0).abs() < 1e-5, "not one metre away: {seen:?}");
+    }
+
+    #[test]
+    fn a_ring_sweeps_into_a_circle_of_its_radius_with_radial_normals() {
+        // One ring at the identity, centred at y = 1, radius 0.05, four segments: the vertices
+        // are the four compass points of a circle in the XY plane, and each normal points out.
+        let ring = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.05];
+        let mut out = Vec::new();
+        tube_vertices(&ring, 4, 7, &mut out);
+        assert_eq!(out.len(), 4 * 7);
+        let v = |k: usize| &out[k * 7..k * 7 + 7];
+        assert!((v(0)[0] - 0.05).abs() < 1e-6 && (v(0)[1] - 1.0).abs() < 1e-6);
+        assert!((v(1)[1] - 1.05).abs() < 1e-6, "quarter turn is +Y: {:?}", v(1));
+        assert!((v(2)[0] + 0.05).abs() < 1e-6);
+        assert!((v(3)[1] - 0.95).abs() < 1e-6);
+        assert!((v(1)[4] - 1.0).abs() < 1e-6, "normal of the +Y vertex is +Y");
+        assert_eq!(v(0)[6].to_bits(), 7);
+        // Two rings of four make one strip of four quads: 24 indices, none past the 8 vertices.
+        let idx = tube_indices(1, 2, 4);
+        assert_eq!(idx.len(), 24);
+        assert!(idx.iter().all(|&i| i < 8));
+        // Units are not stitched: the last index of unit 0 never reaches unit 1's vertices.
+        let two = tube_indices(2, 2, 4);
+        assert!(two[..24].iter().all(|&i| i < 8) && two[24..].iter().all(|&i| i >= 8));
     }
 
     #[test]

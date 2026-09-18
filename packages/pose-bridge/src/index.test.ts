@@ -17,11 +17,13 @@ import {
   GRAB_SLOT_BYTES,
   GrabIntentReader,
   HEADER_BYTES,
+  MuscleBridgeWriter,
   NO_FRAME,
   PoseBridgeWriter,
   bridgeBytes,
   readBridge,
   readGrabSlot,
+  readMuscleBridge,
   slotBytes,
   slotsOffset,
 } from './index.js';
@@ -159,4 +161,41 @@ describe('the pose bridge file', () => {
     // No file yet is not an error: the renderer may simply not have started.
     expect(GrabIntentReader.open(join(dir, 'absent'))).toBeUndefined();
   });
+
+  it('carries muscle rings round their own ring, the same shape the fixture pins', () => {
+    // Two bellies of three rings, four segments round; five frames into three slots -- and these
+    // are the numbers `generate-pose-bridge-fixture` writes for the Rust reader to check.
+    const shape = { units: 2, rings: 3, segments: 4 };
+    const writer = MuscleBridgeWriter.open(shape, { path: join(dir, 'muscles'), slots: 3 });
+    for (let t = 0; t < 5; t++) writer.publish(t * 10, ...muscleFrame(t));
+    writer.close();
+    const read = readMuscleBridge(readFileSync(join(dir, 'muscles')));
+    expect(read.shape).toEqual(shape);
+    expect(read.slots).toBe(3);
+    expect(read.published).toBe(5);
+    expect(read.newest).toBe(1);
+    const f4 = read.frame(1);
+    expect(f4.tick).toBe(40);
+    expect(f4.seq).toBe(4);
+    // Unit 1, ring 2 is ring 5: its centre y is 1 + 2/2 + 0.04, its radius 0.05 + 0.004.
+    expect(f4.position[5 * 3 + 1]).toBeCloseTo(2.04, 5);
+    expect(f4.radius[5]).toBeCloseTo(0.054, 5);
+    expect(f4.orientation[5 * 4 + 3]).toBe(1);
+    expect(() => writer.publish(0, [], [], [])).toThrow(/rings/);
+  });
 });
+
+/** The frames the muscle fixture holds: ring r of unit u at y = u + r/2, growing a little a frame. */
+function muscleFrame(t: number): [number[], number[], number[]] {
+  const position: number[] = [];
+  const orientation: number[] = [];
+  const radius: number[] = [];
+  for (let u = 0; u < 2; u++) {
+    for (let r = 0; r < 3; r++) {
+      position.push(0.1 * u, u + r / 2 + 0.01 * t, 0);
+      orientation.push(0, 0, 0, 1);
+      radius.push(0.05 + 0.001 * t);
+    }
+  }
+  return [position, orientation, radius];
+}

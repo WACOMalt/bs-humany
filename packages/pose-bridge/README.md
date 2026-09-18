@@ -19,6 +19,13 @@ Two things worth knowing without opening it:
 
 `pnpm publish:pose` is the headless simulation that writes one; `apps/xr-viewer` is what reads it.
 
+## And the muscles
+
+`MuscleBridgeWriter` writes a second ring beside the first, `<pose path>-muscles`, holding every
+belly's rings -- centre, orientation, radius, eight floats -- rather than its vertices, because a
+swept tube is a function of its rings and the reader can sweep it itself for a hundredth of the
+bytes. Same seqlock, same ring, and the same fixture generator writes its fixture.
+
 ## And back: grabs
 
 The same file states a second, much smaller layout for the other direction -- `GrabIntentReader`
