@@ -107,7 +107,15 @@ console.log(
 );
 console.log(`  muscles ${simulation.muscles ? 'on' : 'off'}; Ctrl-C to stop`);
 
-const pose = simulation.channel('body.pose').fields;
+// Per bone, in `boneOrder()` -- what the studio skins from. Not `body.pose`, which is per rigid
+// segment in the segment order: the same numbers, differently arranged, and a skeleton that was
+// fed them came out as a scatter of vertebrae.
+const pose = simulation.boneTransforms();
+if (pose.position.length !== order.length * 3 || pose.orientation.length !== order.length * 4) {
+  throw new Error(
+    `bone transforms hold ${pose.position.length / 3} bones and the order names ${order.length}`,
+  );
+}
 const ticksPerFrame = simulation.ticksPerOutputFrame;
 
 // Grabs, coming the other way. The renderer writes a slot per hand beside the pose bridge; this
