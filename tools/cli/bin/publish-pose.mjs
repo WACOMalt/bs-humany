@@ -535,6 +535,9 @@ async function command(line) {
     case 'scrub': {
       const seconds = Number(parsed.seconds);
       if (!Number.isFinite(seconds)) break;
+      // A scrub to where the run already is would restore a snapshot and drop every grab for
+      // nothing; the panel's timeline lands here whenever it is merely looked at.
+      if (Math.abs(seconds - live.simulation.ticks * live.simulation.dt) < 0.01) break;
       letGo();
       live.simulation.scrubTo(Math.max(0, seconds));
       realign();

@@ -186,19 +186,28 @@ impl Default for Panel {
     }
 }
 
+/// Which slider is being dragged and what it reads, and whether a pointer is on the panel at
+/// all -- without which no slider is trusted, because egui reports a slider changed whenever
+/// the value it is handed moves under it, and a live readout moves every status tick.
+pub struct Editing {
+    current: Option<(&'static str, f32)>,
+    on_panel: bool,
+}
+
 /// A slider whose value comes from the status except while it is being dragged; `Some` on the
-/// frame it should be sent.
+/// frame it should be sent, which is only ever the end of a drag or a click by a pointer that is
+/// on the panel.
 fn slider(
     ui: &mut egui::Ui,
-    editing: &mut Option<(&'static str, f32)>,
+    editing: &mut Editing,
     key: &'static str,
     label: &str,
     from_status: f32,
     range: std::ops::RangeInclusive<f32>,
     decimals: usize,
 ) -> Option<f32> {
-    let mut value = match editing {
-        Some((k, v)) if *k == key => *v,
+    let mut value = match editing.current {
+        Some((k, v)) if k == key => v,
         _ => from_status,
     };
     let response = ui.add(
@@ -206,12 +215,17 @@ fn slider(
             .text(label)
             .fixed_decimals(decimals),
     );
-    if response.changed() {
-        *editing = Some((key, value));
+    if !editing.on_panel {
+        if editing.current.map(|(k, _)| k == key).unwrap_or(false) {
+            editing.current = None;
+        }
+        return None;
     }
-    let done = response.drag_stopped() || (response.changed() && !response.dragged());
-    if done {
-        *editing = None;
+    if response.dragged() {
+        editing.current = Some((key, value));
+    }
+    if response.drag_stopped() || response.clicked() {
+        editing.current = None;
         return Some(value);
     }
     None
@@ -289,7 +303,10 @@ impl Panel {
 
         let mut commands = Vec::new();
         let mut tab = self.tab;
-        let mut editing = self.editing;
+        let mut editing = Editing {
+            current: self.editing,
+            on_panel: pointer.at.is_some(),
+        };
         let output = self.ctx.run(input, |ctx| {
             egui::CentralPanel::default()
                 .frame(
@@ -332,7 +349,7 @@ impl Panel {
                 });
         });
         self.tab = tab;
-        self.editing = editing;
+        self.editing = editing.current;
 
         let meshes = self
             .ctx
@@ -353,7 +370,6 @@ impl Panel {
     }
 }
 
-type Editing = Option<(&'static str, f32)>;
 
 fn run_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     ui.label(egui::RichText::new(&s.scenario.title).strong());
@@ -392,7 +408,8 @@ fn run_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut 
         }
     });
     ui.add_space(4.0);
-    let end = (s.sim_seconds as f32).max(0.01);
+    // The range grows in whole seconds, so the handle never sits on an end that moves under it.
+    let end = (s.sim_seconds as f32).ceil().max(1.0);
     if let Some(seconds) = slider(ui, editing, "timeline", "s", s.sim_seconds as f32, 0.0..=end, 2) {
         commands.push(Command::Scrub(seconds as f64));
     }
