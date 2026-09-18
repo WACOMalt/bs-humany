@@ -300,12 +300,17 @@ export class VrLink {
         const second = new Uint8Array(await invoke<ArrayBuffer>('bridge_read', { name: '-grab' }));
         if (this.host.simulation() === simulation) {
           const status = this.host.status(simulation);
+          const before = this.intents.holding().join(' and ');
           this.intents.apply(
             simulation,
             this.order,
             readGrabIntents(first, second),
             status.grabStrength,
           );
+          const after = this.intents.holding().join(' and ');
+          if (after !== before) {
+            this.host.log(after ? `VR grab: holding ${after}` : 'VR grab: let go');
+          }
         }
       } catch (error) {
         // No grab file yet -- the viewer has not opened its end -- is not an error. Anything
