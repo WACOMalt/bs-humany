@@ -10,7 +10,7 @@ cargo run --release -- check-pack     # needs no hardware at all
 cargo run --release -- probe          # needs a runtime, not a headset
 cargo run --release -- session 10     # needs a headset
 cargo run --release -- view 30       # needs a headset, and draws
-cargo run --release -- view 60 --follow   # ...posed live by a running simulation
+cargo run --release -- view --follow      # ...posed live by a running simulation, until Ctrl-C
 ```
 
 **`check-pack`** loads `manifest.json` and `skeleton.bin` and says what came out. It is the half
@@ -91,8 +91,11 @@ pnpm publish:pose quiet-standing --profile l3_anatomical --fps 90
 And the viewer, reading them:
 
 ```bash
-cargo run --release -- view 120 --follow
+cargo run --release -- view --follow
 ```
+
+It runs until Ctrl-C, or until the runtime ends the session; a number of seconds after `view`
+stops it sooner.
 
 The two never wait for each other, which is ADR-012 and is what `packages/pose-bridge` exists to
 make true: the simulation writes the newest pose into a small ring on tmpfs and the viewer reads
@@ -115,6 +118,14 @@ from them each time a new frame arrives, on the same pipeline as the bones with 
 That is 113 KB a frame against the 1.4 MB the vertices would be, and the sweep is a few
 microseconds. A publisher with muscles off writes no muscle file, and the viewer says so and
 draws bones alone.
+
+### Moving about
+
+The left thumbstick walks you through the world at up to two metres a second, in the direction
+you are looking, flattened to the floor. What actually happens is the other way round: the
+world -- body, muscles, grid, scenery and panel -- is shifted under a stage that never moves, and
+the hands, which belong to the stage, are not. A grab or a press carries the shift back over, so
+nothing else knows you moved.
 
 ### Grabbing it
 

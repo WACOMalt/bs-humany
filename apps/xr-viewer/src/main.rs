@@ -9,7 +9,7 @@
 //!   bs-humany-xr-viewer check-pack [dir]   load the mesh pack, report what is in it. No XR.
 //!   bs-humany-xr-viewer probe              which runtime, which headset, which views. No session.
 //!   bs-humany-xr-viewer session [seconds]  begin a session and run the frame loop. No drawing.
-//!   bs-humany-xr-viewer view [seconds]     draw the skeleton, both eyes in one pass.
+//!   bs-humany-xr-viewer view [seconds]     draw the skeleton, both eyes in one pass, until Ctrl-C.
 //!   bs-humany-xr-viewer view 60 --follow   ...and pose it from a running `pnpm publish:pose`.
 //!
 //! The first needs no hardware at all. The second needs a runtime but no headset. Only the third
@@ -34,7 +34,8 @@ fn main() -> Result<()> {
             xr::run_session(seconds)
         }
         Some("view") => {
-            let seconds = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(30.0);
+            // Until Ctrl-C, or the runtime says stop, unless a number of seconds is given.
+            let seconds = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(f32::INFINITY);
             // `--follow` alone means the bridge's default path; `--follow <path>` names one.
             let follow = args.iter().position(|a| a == "--follow").map(|at| {
                 args.get(at + 1)

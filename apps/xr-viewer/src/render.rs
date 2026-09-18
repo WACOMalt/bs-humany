@@ -1768,6 +1768,11 @@ fn rotation(q: [f32; 4]) -> [f32; 9] {
     ]
 }
 
+/// A plain translation, column-major.
+pub(crate) fn translation_matrix(t: [f32; 3]) -> [f32; 16] {
+    translation(t[0], t[1], t[2], false)
+}
+
 /// A translation, optionally turned half a circle about Y so the body faces the viewer.
 fn translation(x: f32, y: f32, z: f32, facing_viewer: bool) -> [f32; 16] {
     let s = if facing_viewer { -1.0 } else { 1.0 };

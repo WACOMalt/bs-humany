@@ -374,6 +374,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // the panel then was clicking whatever it crossed.
     let mut trigger_armed = [true; crate::bridge::HANDS];
     let mut scene_generation: Option<u64> = None;
+    // Moving about: the left thumbstick carries the viewer through the world, which is to say
+    // the world is shifted the other way under a stage that does not move. `offset` is where the
+    // stage origin sits in the world; everything of the world is drawn through `shift`, and the
+    // hands, which are of the stage, are not.
+    let mut offset = [0.0f32; 3];
+    let mut last_frame = std::time::Instant::now();
+    const WALK_SPEED: f32 = 2.0; // m/s at full deflection
+    const DEAD_ZONE: f32 = 0.15;
     let controller_scale = crate::render::scale_matrix(1.0);
     let mut muscle_vertices: Vec<f32> = Vec::new();
     let mut last_tick: Option<u64> = None;
@@ -383,7 +391,6 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // where they stand. Whichever hand is pointing at it is the pointer; a hand that pressed on
     // it keeps being the pointer until it lets go, so a drag does not change hands mid-way.
     let placement = crate::panel::Placement::facing([0.85, 1.25, -1.0], [0.0, 1.25, 0.0]);
-    let panel_model = placement.model();
     let mut panel = crate::panel::Panel::new();
     let mut pointer_hand: Option<usize> = None;
 
@@ -533,10 +540,41 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
         }
 
+        hands.sync(&session)?;
+
+        // Walking: the left stick, in the frame of where the head is looking, flattened.
+        let now = std::time::Instant::now();
+        let dt = (now - last_frame).as_secs_f32().min(0.1);
+        last_frame = now;
+        let stick = hands.thumbstick(&session, 0)?;
+        let deflection = (stick[0] * stick[0] + stick[1] * stick[1]).sqrt();
+        if deflection > DEAD_ZONE {
+            let q = views[0].pose.orientation;
+            let mut forward = crate::render::rotate([0.0, 0.0, -1.0], [q.x, q.y, q.z, q.w]);
+            forward[1] = 0.0;
+            let length = (forward[0] * forward[0] + forward[2] * forward[2]).sqrt().max(1e-6);
+            forward = [forward[0] / length, 0.0, forward[2] / length];
+            let right = [-forward[2], 0.0, forward[0]];
+            let scale = WALK_SPEED * dt * ((deflection - DEAD_ZONE) / (1.0 - DEAD_ZONE)) / deflection;
+            for axis in 0..3 {
+                offset[axis] += (right[axis] * stick[0] + forward[axis] * stick[1]) * scale;
+            }
+        }
+        let shift = crate::render::translation_matrix([-offset[0], -offset[1], -offset[2]]);
+        // What is drawn: the world's slots through the shift, the hands' slots as they are.
+        let mut drawn = matrices.clone();
+        for (slot, m) in drawn.iter_mut().enumerate() {
+            let of_the_hands = (renderer.controller_slot(0)..=renderer.controller_slot(1)).contains(&slot)
+                || (renderer.marker_slot(0)..=renderer.marker_slot(1)).contains(&slot);
+            if !of_the_hands {
+                *m = crate::render::multiply(&shift, &matrices[slot]);
+            }
+        }
+        let panel_model = crate::render::multiply(&shift, &placement.model());
+
         // The hands: located in the stage like the eyes, drawn as cubes at their grips, and asked
         // whether they are squeezing. A hand the runtime cannot place this frame keeps its last
         // cube and cannot begin a grab, but a grab already begun continues at the last target.
-        hands.sync(&session)?;
         let mut pointer = crate::panel::Pointer::default();
         let mut pointer_candidate: Option<(usize, egui::Pos2, bool)> = None;
         for hand in 0..crate::bridge::HANDS {
@@ -547,7 +585,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     hand_seen[hand] = true;
                     println!("hand {}: tracked", ["left", "right"][hand]);
                 }
-                matrices[slot] = crate::render::multiply(
+                drawn[slot] = crate::render::multiply(
                     &crate::render::pose_matrix(position, orientation),
                     &controller_scale,
                 );
@@ -555,7 +593,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             // Where the aim ray meets the panel, if it does: a mark there, and a candidate for
             // being the pointer.
             let marker = renderer.marker_slot(hand);
-            matrices[marker] = crate::render::scale_matrix(0.0);
+            drawn[marker] = crate::render::scale_matrix(0.0);
             let pressed = hands.trigger(&session, hand)?;
             if !pressed {
                 trigger_armed[hand] = true;
@@ -563,13 +601,16 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             let aimed = hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?;
             let on_panel = aimed.and_then(|(position, orientation)| {
                 let forward = crate::render::rotate([0.0, 0.0, -1.0], orientation);
-                placement.hit(position, forward)
+                // The panel is of the world; the ray is of the stage. Carry the ray over.
+                let from = [position[0] + offset[0], position[1] + offset[1], position[2] + offset[2]];
+                placement.hit(from, forward)
             });
             match on_panel {
                 // A hand that is holding a bone is busy; its ray is not a pointer.
                 Some(at) if holding[hand].is_none() => {
                     let world = placement.to_world(at);
-                    matrices[marker] = crate::render::pose_matrix(world, [0.0, 0.0, 0.0, 1.0]);
+                    let in_stage = [world[0] - offset[0], world[1] - offset[1], world[2] - offset[2]];
+                    drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
                     let pressing = pressed && trigger_armed[hand];
                     let keep = pointer_hand == Some(hand);
                     if keep || pointer_candidate.is_none() {
@@ -589,14 +630,18 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     // A grab begins: the nearest point on the nearest bone's surface, if any is
                     // within reach. Nothing in reach is a squeeze in empty air, which sends
                     // nothing and holds nothing. From here the point rides with the hand.
-                    match nearest_surface(pack, &matrices, &f.pose_index, f.bridge.dataset_scale as f32, hand_at) {
+                    match nearest_surface(pack, &drawn, &f.pose_index, f.bridge.dataset_scale as f32, hand_at) {
                         Some((pack_bone, pose_bone, surface)) => {
                             println!(
                                 "hand {}: grabbed {}",
                                 ["left", "right"][hand],
                                 pack.bones[pack_bone].id
                             );
-                            let point = crate::render::unplace(surface, ground);
+                            // The surface is in the stage; the simulation wants the world.
+                            let point = crate::render::unplace(
+                                [surface[0] + offset[0], surface[1] + offset[1], surface[2] + offset[2]],
+                                ground,
+                            );
                             holding[hand] = Some(Hold {
                                 pose_bone,
                                 point,
@@ -632,9 +677,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                             (
                                 crate::render::unplace(
                                     [
-                                        hand_at[0] + carried[0],
-                                        hand_at[1] + carried[1],
-                                        hand_at[2] + carried[2],
+                                        hand_at[0] + carried[0] + offset[0],
+                                        hand_at[1] + carried[1] + offset[1],
+                                        hand_at[2] + carried[2] + offset[2],
                                     ],
                                     ground,
                                 ),
@@ -700,7 +745,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         renderer.draw(
             image as usize,
             &crate::render::view_projections(&views, 0.05, 50.0),
-            Some(matrices.as_slice()),
+            Some(drawn.as_slice()),
             if muscle_vertices.is_empty() { None } else { Some(muscle_vertices.as_slice()) },
             Some(&crate::render::PanelDraw {
                 model: panel_model,
@@ -924,6 +969,7 @@ struct Hands {
     aim: openxr::Action<openxr::Posef>,
     squeeze: openxr::Action<bool>,
     trigger: openxr::Action<bool>,
+    thumbstick: openxr::Action<openxr::Vector2f>,
     paths: [openxr::Path; crate::bridge::HANDS],
     grip_spaces: Vec<openxr::Space>,
     aim_spaces: Vec<openxr::Space>,
@@ -940,12 +986,19 @@ impl Hands {
         let aim = set.create_action::<openxr::Posef>("aim", "Aim pose", &paths)?;
         let squeeze = set.create_action::<bool>("grab", "Grab", &paths)?;
         let trigger = set.create_action::<bool>("point", "Press", &paths)?;
+        let thumbstick = set.create_action::<openxr::Vector2f>("move", "Move", &paths)?;
         // Suggested per profile; the runtime picks the profile for the controller in hand. The
         // Index binds the squeeze to the grip sensor and the press to the trigger; the simple
         // profile has only a select, which is both.
-        let suggest = |profile: &str, squeeze_input: &str, trigger_input: &str| -> Result<()> {
+        let suggest = |profile: &str, squeeze_input: &str, trigger_input: &str, stick: bool| -> Result<()> {
             let mut bindings = Vec::new();
             for side in ["left", "right"] {
+                if stick {
+                    bindings.push(openxr::Binding::new(
+                        &thumbstick,
+                        xr.string_to_path(&format!("/user/hand/{side}/input/thumbstick"))?,
+                    ));
+                }
                 bindings.push(openxr::Binding::new(
                     &grip,
                     xr.string_to_path(&format!("/user/hand/{side}/input/grip/pose"))?,
@@ -966,8 +1019,8 @@ impl Hands {
             xr.suggest_interaction_profile_bindings(xr.string_to_path(profile)?, &bindings)?;
             Ok(())
         };
-        suggest("/interaction_profiles/valve/index_controller", "squeeze/value", "trigger/click")?;
-        if let Err(e) = suggest("/interaction_profiles/khr/simple_controller", "select/click", "select/click") {
+        suggest("/interaction_profiles/valve/index_controller", "squeeze/value", "trigger/click", true)?;
+        if let Err(e) = suggest("/interaction_profiles/khr/simple_controller", "select/click", "select/click", false) {
             println!("hands: the simple controller profile was refused ({e}); Index only");
         }
         session.attach_action_sets(&[&set])?;
@@ -985,6 +1038,7 @@ impl Hands {
             aim,
             squeeze,
             trigger,
+            thumbstick,
             paths,
             grip_spaces,
             aim_spaces,
@@ -1017,6 +1071,16 @@ impl Hands {
     fn squeezing(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<bool> {
         let state = self.squeeze.state(session, self.paths[hand])?;
         Ok(state.is_active && state.current_state)
+    }
+
+    /// The thumbstick, x right and y forward, each -1..1; zero when the controller has none.
+    fn thumbstick(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<[f32; 2]> {
+        let state = self.thumbstick.state(session, self.paths[hand])?;
+        Ok(if state.is_active {
+            [state.current_state.x, state.current_state.y]
+        } else {
+            [0.0, 0.0]
+        })
     }
 
     fn trigger(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<bool> {
