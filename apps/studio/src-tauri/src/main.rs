@@ -192,6 +192,7 @@ fn bridge_create(state: tauri::State<'_, Bridges>, name: String, bytes: u64) -> 
         .open(&path)
         .map_err(|e| format!("{}: {e}", path.display()))?;
     file.set_len(bytes).map_err(|e| e.to_string())?;
+    eprintln!("studio: bridge {} open, {bytes} bytes", path.display());
     state.files.lock().unwrap().insert(name, file);
     Ok(())
 }
@@ -335,12 +336,23 @@ fn xr_viewer_launch(app: tauri::AppHandle, state: tauri::State<'_, Bridges>) -> 
             return Ok("already running".into());
         }
     }
+    // Said on the terminal too, because the page's status line is easy to miss and this is the
+    // step that depends on the machine: which binary, which pack.
     let viewer = find_viewer().ok_or_else(|| {
-        "no bs-humany-xr-viewer found: set BS_HUMANY_XR_VIEWER, or build apps/xr-viewer".to_string()
+        let why = "no bs-humany-xr-viewer found: set BS_HUMANY_XR_VIEWER, or build apps/xr-viewer";
+        eprintln!("studio: {why}");
+        why.to_string()
     })?;
     let pack = find_pack(&app).ok_or_else(|| {
-        "no mesh pack found: set BS_HUMANY_PACK_DIR to packages/assets-anatomical/data".to_string()
+        let why = "no mesh pack found: set BS_HUMANY_PACK_DIR to packages/assets-anatomical/data";
+        eprintln!("studio: {why}");
+        why.to_string()
     })?;
+    eprintln!(
+        "studio: launching {} view --follow {BRIDGE_BASE} --pack {}",
+        viewer.display(),
+        pack.display()
+    );
     let child = std::process::Command::new(&viewer)
         .arg("view")
         .arg("--follow")
@@ -348,7 +360,10 @@ fn xr_viewer_launch(app: tauri::AppHandle, state: tauri::State<'_, Bridges>) -> 
         .arg("--pack")
         .arg(&pack)
         .spawn()
-        .map_err(|e| format!("{}: {e}", viewer.display()))?;
+        .map_err(|e| {
+            eprintln!("studio: could not launch the viewer: {e}");
+            format!("{}: {e}", viewer.display())
+        })?;
     *slot = Some(child);
     Ok(viewer.display().to_string())
 }
