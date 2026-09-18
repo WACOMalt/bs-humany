@@ -10,7 +10,8 @@
 //!   bs-humany-xr-viewer probe              which runtime, which headset, which views. No session.
 //!   bs-humany-xr-viewer session [seconds]  begin a session and run the frame loop. No drawing.
 //!   bs-humany-xr-viewer view [seconds]     draw the skeleton, both eyes in one pass, until Ctrl-C.
-//!   bs-humany-xr-viewer view 60 --follow   ...and pose it from a running `pnpm publish:pose`.
+//!   bs-humany-xr-viewer view --follow      ...and pose it from a running `pnpm publish:pose`.
+//!   ...view --follow --pack DIR            ...with the mesh pack from DIR (or BS_HUMANY_PACK_DIR).
 //!
 //! The first needs no hardware at all. The second needs a runtime but no headset. Only the third
 //! needs a headset, which is the order in which things stop being checkable from a terminal.
@@ -43,7 +44,17 @@ fn main() -> Result<()> {
                     .cloned()
                     .unwrap_or_else(|| "/dev/shm/bs-humany-pose".to_owned())
             });
-            let pack = pack::load(&default_pack_dir()).context("loading the mesh pack")?;
+            // `--pack DIR` or BS_HUMANY_PACK_DIR, for a viewer launched from somewhere other than
+            // this repository -- the studio's bundle, say.
+            let pack_dir = args
+                .iter()
+                .position(|a| a == "--pack")
+                .and_then(|i| args.get(i + 1))
+                .map(PathBuf::from)
+                .or_else(|| std::env::var_os("BS_HUMANY_PACK_DIR").map(PathBuf::from))
+                .unwrap_or_else(default_pack_dir);
+            let pack = pack::load(&pack_dir)
+                .with_context(|| format!("loading the mesh pack from {}", pack_dir.display()))?;
             xr::view(&pack, seconds, follow.as_deref().map(std::path::Path::new))
         }
         other => {
@@ -52,7 +63,7 @@ fn main() -> Result<()> {
             }
             eprintln!(
                 "usage: bs-humany-xr-viewer <check-pack [dir] | probe | session [seconds] \
-                 | view [seconds] [--follow [path]]>"
+                 | view [seconds] [--follow [path]] [--pack dir]>"
             );
             std::process::exit(2);
         }

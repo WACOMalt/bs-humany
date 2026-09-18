@@ -65,6 +65,9 @@ importers:
       '@bs-humany/muscle-data':
         specifier: workspace:*
         version: link:../../packages/muscle-data
+      '@bs-humany/pose-bridge':
+        specifier: workspace:*
+        version: link:../../packages/pose-bridge
       '@bs-humany/render-three':
         specifier: workspace:*
         version: link:../../packages/render-three

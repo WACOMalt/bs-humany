@@ -24,6 +24,7 @@
     "@bs-humany/modules-mechanics": "workspace:*",
     "@bs-humany/modules-muscle": "workspace:*",
     "@bs-humany/muscle-data": "workspace:*",
+    "@bs-humany/pose-bridge": "workspace:*",
     "@bs-humany/render-three": "workspace:*",
     "@bs-humany/scenarios": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",

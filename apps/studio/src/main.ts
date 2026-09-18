@@ -44,7 +44,8 @@ import {
   inertiaAudit,
   jointSweep,
 } from '@bs-humany/scenarios';
-import { buildDocument, modelLimitations } from '@bs-humany/skeleton';
+import { buildDocument, computeWorldTransforms, modelLimitations } from '@bs-humany/skeleton';
+import { isTauri } from '@tauri-apps/api/core';
 import {
   AmbientLight,
   BoxGeometry,
@@ -80,6 +81,7 @@ import {
 } from './session.js';
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
+import { type VrCommand, VrLink, type VrStatus } from './vrLink.js';
 
 // The document is built once. Only the morphology context changes as the sliders move, which is
 // exactly the separation ADR-005 is for: anatomy is fixed, geometry is parametric.
@@ -1699,6 +1701,7 @@ function animate(): void {
     const replay = following ? undefined : replayFrame(simulation);
     const transforms = replay ?? simulation.boneTransforms();
     skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
+    vrLink?.frame(transforms.position, transforms.orientation);
     if (overlays) {
       const pose = simulation.channel('body.pose').fields;
       const limits = simulation.channel('diagnostics.limits').fields;
@@ -1828,4 +1831,215 @@ function escapeHtml(value: string): string {
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The VR viewer, on this run.
+//
+// Tauri only: the viewer is a native process and the bridges live on tmpfs, neither of which a
+// browser tab can reach. The link publishes what the screen shows and routes the headset's panel
+// into the same controls the mouse uses, so the two never disagree about what the run is doing.
+// ---------------------------------------------------------------------------------------------
+
+let vrLink: VrLink | null = null;
+const connectVr = must<HTMLButtonElement>('#connect-vr');
+
+/** The studio's diagnostics strip, as numbers, for the panel. */
+function diagnosticsOf(sim: Simulation): Record<string, number> {
+  const energy = sim.channel('diagnostics.energy').fields;
+  const limits = sim.channel('diagnostics.limits').fields;
+  const contacts = sim.channel('contact.manifolds');
+  let worst = 0;
+  let violations = 0;
+  const proximity = limits.proximity as Float64Array;
+  const violation = limits.violation as Uint8Array;
+  for (let i = 0; i < proximity.length; i++) {
+    worst = Math.max(worst, proximity[i] ?? 0);
+    violations += violation[i] ?? 0;
+  }
+  return {
+    kinetic: (energy.kinetic as Float64Array)[0] ?? 0,
+    potential: (energy.potential as Float64Array)[0] ?? 0,
+    driftMm: ((energy.drift as Float64Array)[0] ?? 0) * 1000,
+    limitsWorst: worst,
+    violations,
+    contacts: contacts.count,
+    costMs: sim.lastStepMs,
+  };
+}
+
+/** A slider or checkbox set from the headset, told about it the way the mouse would tell it. */
+function setFromPanel(input: HTMLInputElement | HTMLSelectElement, value: unknown): void {
+  if (input instanceof HTMLInputElement && input.type === 'checkbox') {
+    input.checked = Boolean(value);
+  } else {
+    input.value = String(value);
+  }
+  input.dispatchEvent(new Event('input'));
+  input.dispatchEvent(new Event('change'));
+}
+
+const vrHost = {
+  simulation: () => simulation,
+  restPose(sim: Simulation) {
+    const order = sim.boneOrder();
+    const rests = computeWorldTransforms(document_, sim.resolved.context);
+    const position = new Float64Array(order.length * 3);
+    const orientation = new Float64Array(order.length * 4);
+    order.forEach((id, i) => {
+      const t = rests.get(id);
+      position.set(t ? [t.translation.x, t.translation.y, t.translation.z] : [0, 0, 0], i * 3);
+      orientation.set(
+        t ? [t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w] : [0, 0, 0, 1],
+        i * 4,
+      );
+    });
+    return {
+      bones: order,
+      position,
+      orientation,
+      datasetScale: Number(ui.stature.value) / (assets?.manifest.subjectStature ?? 1),
+    };
+  },
+  status(sim: Simulation): VrStatus {
+    const option = (select: HTMLSelectElement) =>
+      Array.from(select.options).map((o) => ({
+        id: o.value,
+        title: o.textContent?.trim() ?? o.value,
+      }));
+    const chosen = ui.scenario.selectedOptions[0];
+    return {
+      scenario: { id: ui.scenario.value, title: chosen?.textContent?.trim() ?? ui.scenario.value },
+      scenarios: option(ui.scenario),
+      profiles: Array.from(ui.profile.options).map((o) => o.value),
+      profile: ui.profile.value,
+      settings: {
+        muscles: sim.muscles !== undefined,
+        sex: Number(ui.sex.value),
+        stature: Number(ui.stature.value),
+        mass: Number(ui.mass.value),
+        crural: Number(ui.crural.value),
+        brachial: Number(ui.brachial.value),
+        legLength: Number(ui.legLength.value),
+        dropHeight: Number(ui.dropHeight.value),
+        passive: ui.passive.checked,
+        redistribute: ui.redistribute.checked,
+        gravity: ui.gravity.checked,
+        floor: ui.floor.checked,
+        fps: Number(ui.outputFramerate.value),
+        stepsPerSecond: sim.stepsPerSecond,
+      },
+      driveGroups: DRIVEN.map((group) => ({
+        title:
+          window.document
+            .querySelector(`label[for="${group.slider}"]`)
+            ?.firstChild?.textContent?.trim() ?? group.slider,
+        level: Number(ui[group.slider].value),
+      })),
+      groundHeight: sim.groundHeight,
+      staticBoxes: sim.staticBoxes.map((b) => ({
+        halfExtents: [b.halfExtents.x, b.halfExtents.y, b.halfExtents.z],
+        position: [b.position.x, b.position.y, b.position.z],
+        rotation: b.rotation
+          ? [b.rotation.x, b.rotation.y, b.rotation.z, b.rotation.w]
+          : [0, 0, 0, 1],
+      })),
+      grabStrength: Number(ui.grabStrength.value),
+      diagnostics: diagnosticsOf(sim),
+      paused: sim.paused || !following,
+    };
+  },
+  command(command: VrCommand): void {
+    switch (command.kind) {
+      case 'pause':
+        ui.simPause.click();
+        break;
+      case 'resume':
+        ui.simStart.click();
+        break;
+      case 'reset':
+        ui.reset.click();
+        break;
+      case 'step':
+        (command.frames > 0 ? ui.frameForward : ui.frameBack).click();
+        break;
+      case 'scrub':
+        if (simulation) scrubTo(Math.round(command.seconds * simulation.outputFramerate));
+        break;
+      case 'drive': {
+        const group = DRIVEN[command.group];
+        if (group) setFromPanel(ui[group.slider], Math.max(0, Math.min(100, command.value)));
+        break;
+      }
+      case 'set': {
+        const { key, value } = command;
+        const restart = () => void startSimulation();
+        switch (key) {
+          case 'scenario':
+            setFromPanel(ui.scenario, value);
+            restart();
+            break;
+          case 'profile':
+            setFromPanel(ui.profile, value);
+            restart();
+            break;
+          case 'muscles':
+            setFromPanel(ui.muscles, value);
+            restart();
+            break;
+          case 'sex':
+          case 'stature':
+          case 'mass':
+          case 'crural':
+          case 'brachial':
+          case 'legLength':
+          case 'dropHeight':
+          case 'passive':
+          case 'redistribute':
+          case 'stepsPerSecond':
+            setFromPanel(ui[key], value);
+            restart();
+            break;
+          case 'fps':
+            setFromPanel(ui.outputFramerate, value);
+            break;
+          case 'gravity':
+          case 'floor':
+          case 'grabStrength':
+            setFromPanel(ui[key], value);
+            break;
+          default:
+            console.warn('VR panel: no setting', key);
+        }
+        break;
+      }
+    }
+  },
+  log: (message: string) => setSimulationStatus(message),
+};
+
+if (isTauri()) {
+  connectVr.hidden = false;
+  connectVr.addEventListener('click', () => {
+    void (async () => {
+      if (vrLink) {
+        await vrLink.disconnect();
+        vrLink = null;
+        connectVr.textContent = 'Connect VR viewer';
+        setSimulationStatus('VR viewer disconnected.');
+        return;
+      }
+      connectVr.disabled = true;
+      try {
+        const link = new VrLink(vrHost);
+        await link.connect();
+        vrLink = link;
+        connectVr.textContent = 'Disconnect VR viewer';
+      } catch (error) {
+        setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+      } finally {
+        connectVr.disabled = false;
+      }
+    })();
+  });
 }

@@ -27,12 +27,12 @@ const OUT = join(OUT_DIR, 'pose-bridge.bin');
 const check = process.argv.includes('--check');
 
 const jiti = createJiti(import.meta.url);
-const { PoseBridgeWriter, MuscleBridgeWriter } = await jiti.import(
+const { openPoseBridge, openMuscleBridge } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
 
 function write(path) {
-  const writer = PoseBridgeWriter.open(
+  const writer = openPoseBridge(
     {
       bones: ['pelvis', 'femur_r', 'tibia_r'],
       position: [0, 0.9, 0, 0.1, 0.8, 0, 0.1, 0.4, 0],
@@ -52,7 +52,7 @@ function write(path) {
   writer.close();
   // And the muscle bridge beside it: two bellies of three rings, four segments round, five
   // frames, ring r of unit u at y = u + r/2 rising a centimetre a frame.
-  const muscles = MuscleBridgeWriter.open(
+  const muscles = openMuscleBridge(
     { units: 2, rings: 3, segments: 4 },
     { path: `${path}-muscles`, slots: 3 },
   );

@@ -119,6 +119,20 @@ That is 113 KB a frame against the 1.4 MB the vertices would be, and the sweep i
 microseconds. A publisher with muscles off writes no muscle file, and the viewer says so and
 draws bones alone.
 
+### From the studio
+
+The desktop studio has a **Connect VR viewer** button beside the export buttons. It launches this
+viewer on the studio's own run: the headset shows the body on screen, the controllers grab it,
+and the panel drives the studio's controls -- the same sliders and buttons the mouse uses, so the
+two never disagree about what the run is doing. Disconnect stops the viewer.
+
+The studio is the publisher then, not `pnpm publish:pose`. Its page builds the bridge bytes with
+the same codec and hands them to the Tauri side in one batch a frame, which writes them in place
+on tmpfs; the grab channel and the panel's command log come back the same way. The viewer is
+found beside the studio's executable, or named by `BS_HUMANY_XR_VIEWER`, or in this crate's
+`target/release` when running from a checkout; the mesh pack by `BS_HUMANY_PACK_DIR`, the
+studio's bundled resources, or the checkout.
+
 ### Moving about
 
 The left thumbstick walks you through the world at up to two metres a second, in the direction

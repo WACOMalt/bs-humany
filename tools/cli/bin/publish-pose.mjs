@@ -72,7 +72,7 @@ const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.
 const { scenario, SCENARIOS, DEFAULT_SCENARIO, MUSCLE_GROUPS } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
-const { PoseBridgeWriter, MuscleBridgeWriter, GrabIntentReader } = await jiti.import(
+const { openPoseBridge, openMuscleBridge, GrabIntentReader } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
 
@@ -181,7 +181,7 @@ async function build() {
     );
   });
   const stature = evaluate(param('stature'), simulation.resolved.context);
-  const writer = PoseBridgeWriter.open(
+  const writer = openPoseBridge(
     {
       bones: order,
       position: restPosition,
@@ -194,7 +194,7 @@ async function build() {
   // viewer sweeps into tubes itself.
   const rings = simulation.muscleRings();
   const muscleWriter = rings
-    ? MuscleBridgeWriter.open(
+    ? openMuscleBridge(
         { units: rings.units, rings: rings.rings, segments: rings.segments },
         { path: `${path}-muscles` },
       )
@@ -246,14 +246,11 @@ let live = await build();
 console.log('  Ctrl-C to stop');
 
 // ---------------------------------------------------------------------------------------------
-// Grabs, coming the other way. The renderer writes a slot per hand beside the pose bridge; this
-// reads both every tick and does what the studio's Ctrl-click does: find the segment the bone
-// belongs to, express the grabbed point in that segment's own frame, and hold it toward wherever
-// the hand is now. Each hand is its own grab slot, so both can hold at once.
+// Grabs, coming the other way: read every tick, applied by the same code the studio uses.
 // ---------------------------------------------------------------------------------------------
+const { GrabIntents } = await jiti.import(join(ROOT, 'apps/studio/src/grabIntents.ts'));
 let grabs = GrabIntentReader.open(`${path}-grab`);
-const held = [null, null];
-let grabsSeen = 0;
+const intents = new GrabIntents();
 let grabStrength = 1;
 
 function applyGrabs() {
@@ -262,72 +259,11 @@ function applyGrabs() {
     if (!grabs) return;
     console.log('  hands: a renderer is writing grab intents');
   }
-  const { simulation, order } = live;
-  const hands = grabs.read();
-  for (let hand = 0; hand < hands.length; hand++) {
-    const intent = hands[hand];
-    if (!intent) continue;
-    if (intent.active) {
-      if (held[hand] === null && intent.bone >= 0 && intent.bone < order.length) {
-        const segment = simulation.segmentOfBone(order[intent.bone]);
-        if (segment < 0) continue;
-        const at = simulation.segmentPose(segment);
-        const [px, py, pz] = intent.point;
-        // The grabbed point in the segment's frame: its offset from the segment's position,
-        // rotated back by the inverse of the segment's orientation -- what `beginGrab` does.
-        const dx = px - at.position.x;
-        const dy = py - at.position.y;
-        const dz = pz - at.position.z;
-        const { x, y, z, w } = at.rotation;
-        // conj(q) * v * q, expanded.
-        const ix = w * dx - y * dz + z * dy;
-        const iy = w * dy - z * dx + x * dz;
-        const iz = w * dz - x * dy + y * dx;
-        const iw = x * dx + y * dy + z * dz;
-        const local = {
-          x: ix * w + iw * x - iy * z + iz * y,
-          y: iy * w + iw * y - iz * x + ix * z,
-          z: iz * w + iw * z - ix * y + iy * x,
-        };
-        const [tx, ty, tz] = intent.target;
-        simulation.grab.grab(segment, local, { x: tx, y: ty, z: tz }, grabStrength, hand);
-        // The hand's orientation at the moment of the grab, and the segment's: from here on the
-        // segment is turned by however much the hand has turned since.
-        const [hx, hy, hz, hw] = intent.rotation;
-        held[hand] = {
-          segment,
-          bone: order[intent.bone],
-          handAtGrab: { x: hx, y: hy, z: hz, w: hw },
-          segmentAtGrab: { ...at.rotation },
-        };
-        grabsSeen += 1;
-      } else if (held[hand] !== null) {
-        const [tx, ty, tz] = intent.target;
-        const h = held[hand];
-        const [hx, hy, hz, hw] = intent.rotation;
-        // target = hand_now * conj(hand_at_grab) * segment_at_grab
-        const delta = qmul({ x: hx, y: hy, z: hz, w: hw }, qconj(h.handAtGrab));
-        simulation.grab.moveTo({ x: tx, y: ty, z: tz }, hand, qmul(delta, h.segmentAtGrab));
-      }
-    } else if (held[hand] !== null) {
-      simulation.grab.release(hand);
-      held[hand] = null;
-    }
-  }
+  intents.apply(live.simulation, live.order, grabs.read(), grabStrength);
 }
 
-const qmul = (a, b) => ({
-  x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
-  y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
-  z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
-  w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
-});
-const qconj = (q) => ({ x: -q.x, y: -q.y, z: -q.z, w: q.w });
-
 function letGo() {
-  live.simulation.grab.release();
-  held[0] = null;
-  held[1] = null;
+  intents.letGo(live.simulation);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -350,7 +286,7 @@ function writeStatus() {
     speed: lastSpeed,
     paused,
     muscles: Boolean(live.rings),
-    holding: held.filter(Boolean).map((h) => h.bone),
+    holding: intents.holding(),
     grabStrength,
     stepsPerSecond: simulation.stepsPerSecond,
     fps: settings.fps,
@@ -651,13 +587,10 @@ while (live.simulation.ticks * live.simulation.dt < seconds) {
       `  sim ${simSeconds.toFixed(2)} s  wall ${wallSeconds.toFixed(2)} s  ` +
         `${lastSpeed.toFixed(2)}x life  ${writer.framesPublished} poses published` +
         (paused ? '  paused' : '') +
-        (held.some(Boolean)
-          ? `  holding ${held
-              .filter(Boolean)
-              .map((h) => h.bone)
-              .join(' and ')}`
-          : grabsSeen
-            ? `  ${grabsSeen} grabs so far`
+        (intents.holding().length > 0
+          ? `  holding ${intents.holding().join(' and ')}`
+          : intents.grabsSeen
+            ? `  ${intents.grabsSeen} grabs so far`
             : ''),
     );
     lastReport = now;

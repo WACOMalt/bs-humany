@@ -17,10 +17,10 @@ import {
   GRAB_SLOT_BYTES,
   GrabIntentReader,
   HEADER_BYTES,
-  MuscleBridgeWriter,
   NO_FRAME,
-  PoseBridgeWriter,
   bridgeBytes,
+  openMuscleBridge,
+  openPoseBridge,
   readBridge,
   readGrabSlot,
   readMuscleBridge,
@@ -45,7 +45,7 @@ const rest = {
 
 describe('the pose bridge file', () => {
   it('is laid out where the header says, and starts with no frame', () => {
-    const writer = PoseBridgeWriter.open(rest, { path: join(dir, 'pose'), slots: 3 });
+    const writer = openPoseBridge(rest, { path: join(dir, 'pose'), slots: 3 });
     writer.close();
     const bytes = readFileSync(join(dir, 'pose'));
     expect(bytes.length).toBe(bridgeBytes(3, 3));
@@ -73,7 +73,7 @@ describe('the pose bridge file', () => {
   });
 
   it('publishes into the ring, even when complete, newest pointing at the last one', () => {
-    const writer = PoseBridgeWriter.open(rest, { path: join(dir, 'pose'), slots: 3 });
+    const writer = openPoseBridge(rest, { path: join(dir, 'pose'), slots: 3 });
     const frame = (t: number) => ({
       position: [0, 0.9 - t * 0.01, 0, 0.1, 0.8, 0, 0.1, 0.4, t],
       orientation: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
@@ -110,11 +110,11 @@ describe('the pose bridge file', () => {
 
   it('refuses a rest pose whose arrays do not match its bones', () => {
     expect(() =>
-      PoseBridgeWriter.open({ ...rest, position: [0, 0, 0] }, { path: join(dir, 'pose') }),
+      openPoseBridge({ ...rest, position: [0, 0, 0] }, { path: join(dir, 'pose') }),
     ).toThrow(/positions/);
-    expect(() =>
-      PoseBridgeWriter.open({ ...rest, bones: [] }, { path: join(dir, 'pose') }),
-    ).toThrow(/at least one bone/);
+    expect(() => openPoseBridge({ ...rest, bones: [] }, { path: join(dir, 'pose') })).toThrow(
+      /at least one bone/,
+    );
   });
 
   it('reads a grab intent the renderer wrote, and skips one mid-write', () => {
@@ -172,7 +172,7 @@ describe('the pose bridge file', () => {
     // Two bellies of three rings, four segments round; five frames into three slots -- and these
     // are the numbers `generate-pose-bridge-fixture` writes for the Rust reader to check.
     const shape = { units: 2, rings: 3, segments: 4 };
-    const writer = MuscleBridgeWriter.open(shape, { path: join(dir, 'muscles'), slots: 3 });
+    const writer = openMuscleBridge(shape, { path: join(dir, 'muscles'), slots: 3 });
     for (let t = 0; t < 5; t++) writer.publish(t * 10, ...muscleFrame(t));
     writer.close();
     const read = readMuscleBridge(readFileSync(join(dir, 'muscles')));

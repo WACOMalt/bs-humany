@@ -7,6 +7,10 @@ The layout, the seqlock and the reasons are in the header comment of `src/index.
 the single statement of the format, and the Rust side's comment points back here rather than
 restating it.
 
+The format is in `src/codec.ts`, which touches no file system so a browser can build the same
+bytes: the studio does, and hands them to its Tauri side to write. `src/node.ts` is the Node end
+-- a sink over `fs`, the `open` conveniences, a grab reader over a descriptor.
+
 Two things worth knowing without opening it:
 
 - It is **latest-wins and non-blocking both ways** (ADR-012). The simulation never waits for a

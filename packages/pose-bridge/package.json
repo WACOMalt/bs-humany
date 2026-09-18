@@ -9,6 +9,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./codec": {
+      "types": "./src/codec.ts",
+      "default": "./src/codec.ts"
     }
   },
   "main": "./src/index.ts",

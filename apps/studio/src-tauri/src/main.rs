@@ -153,6 +153,223 @@ async fn open_text_file(app: tauri::AppHandle) -> Result<Option<String>, String>
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+// ---------------------------------------------------------------------------------------------
+// The VR viewer: the studio as the publisher.
+//
+// The page cannot touch tmpfs, so it builds the bridge bytes -- the same codec `pnpm publish:pose`
+// uses -- and hands them here in batches to be written in place, one call a frame. The reverse
+// channels come back the same way: the grab file's bytes on request, and whatever the panel
+// appended to the command log since last asked. And the viewer itself is launched from here,
+// pointed at the mesh pack, and stopped on disconnect.
+// ---------------------------------------------------------------------------------------------
+
+const BRIDGE_BASE: &str = "/dev/shm/bs-humany-pose";
+const BRIDGE_NAMES: [&str; 3] = ["", "-muscles", "-grab"];
+
+#[derive(Default)]
+struct Bridges {
+    files: std::sync::Mutex<std::collections::HashMap<String, std::fs::File>>,
+    commands_read: std::sync::Mutex<u64>,
+    viewer: std::sync::Mutex<Option<std::process::Child>>,
+}
+
+fn bridge_path(name: &str) -> Result<std::path::PathBuf, String> {
+    if !BRIDGE_NAMES.contains(&name) {
+        return Err(format!("no bridge file is called '{name}'"));
+    }
+    Ok(std::path::PathBuf::from(format!("{BRIDGE_BASE}{name}")))
+}
+
+/// Create or truncate a bridge file at this many bytes and keep it open.
+#[tauri::command]
+fn bridge_create(state: tauri::State<'_, Bridges>, name: String, bytes: u64) -> Result<(), String> {
+    let path = bridge_path(&name)?;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&path)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    file.set_len(bytes).map_err(|e| e.to_string())?;
+    state.files.lock().unwrap().insert(name, file);
+    Ok(())
+}
+
+/// Write a batch into a bridge file: the body is `[u32 offset][u32 length][bytes]...`, little
+/// endian, written in order -- which is the seqlock's order.
+#[tauri::command]
+fn bridge_write(state: tauri::State<'_, Bridges>, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    use std::os::unix::fs::FileExt;
+    let name = request
+        .headers()
+        .get("x-bridge")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_owned();
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("bridge_write wants the batch as the request body.".into());
+    };
+    let files = state.files.lock().unwrap();
+    let file = files.get(&name).ok_or_else(|| format!("bridge '{name}' is not open"))?;
+    let mut at = 0usize;
+    while at + 8 <= bytes.len() {
+        let offset = u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap()) as u64;
+        let length = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
+        at += 8;
+        if at + length > bytes.len() {
+            return Err("a write runs past the end of the batch".into());
+        }
+        file.write_all_at(&bytes[at..at + length], offset).map_err(|e| e.to_string())?;
+        at += length;
+    }
+    Ok(())
+}
+
+/// A text file beside a bridge: the pose sidecar, the status. Written whole and renamed into
+/// place, so a reader never sees half of one.
+#[tauri::command]
+fn bridge_text(suffix: String, text: String) -> Result<(), String> {
+    if !matches!(suffix.as_str(), ".json" | "-status.json") {
+        return Err(format!("no bridge text file is called '{suffix}'"));
+    }
+    let path = format!("{BRIDGE_BASE}{suffix}");
+    let tmp = format!("{path}.tmp");
+    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+}
+
+/// The whole of a small bridge file -- the grab channel -- as bytes.
+#[tauri::command]
+fn bridge_read(name: String) -> Result<tauri::ipc::Response, String> {
+    let path = bridge_path(&name)?;
+    let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// Whatever the viewer's panel appended to the command log since this was last asked.
+#[tauri::command]
+fn bridge_commands(state: tauri::State<'_, Bridges>) -> Result<Vec<String>, String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let path = format!("{BRIDGE_BASE}-commands.jsonl");
+    let Ok(mut file) = std::fs::File::open(&path) else {
+        return Ok(Vec::new());
+    };
+    let mut read = state.commands_read.lock().unwrap();
+    let size = file.metadata().map_err(|e| e.to_string())?.len();
+    if size < *read {
+        // A viewer that restarted truncated the file; start over from its beginning.
+        *read = 0;
+    }
+    file.seek(SeekFrom::Start(*read)).map_err(|e| e.to_string())?;
+    let mut text = String::new();
+    file.read_to_string(&mut text).map_err(|e| e.to_string())?;
+    // Only whole lines; a partial last line waits for its newline.
+    let whole = text.rfind('\n').map(|i| i + 1).unwrap_or(0);
+    *read += whole as u64;
+    Ok(text[..whole]
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect())
+}
+
+/// Close every bridge file and forget the command log's position. The files stay on tmpfs for a
+/// viewer still looking at them, except the muscle ring, which a run without muscles must not
+/// leave behind.
+#[tauri::command]
+fn bridge_close(state: tauri::State<'_, Bridges>, remove_muscles: bool) -> Result<(), String> {
+    state.files.lock().unwrap().clear();
+    *state.commands_read.lock().unwrap() = 0;
+    if remove_muscles {
+        let _ = std::fs::remove_file(format!("{BRIDGE_BASE}-muscles"));
+    }
+    Ok(())
+}
+
+/// Where the viewer binary is: named outright, beside this executable, or in this repository's
+/// build directory when running from a checkout.
+fn find_viewer() -> Option<std::path::PathBuf> {
+    if let Some(named) = std::env::var_os("BS_HUMANY_XR_VIEWER") {
+        return Some(std::path::PathBuf::from(named));
+    }
+    let name = "bs-humany-xr-viewer";
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let beside = dir.join(name);
+            if beside.exists() {
+                return Some(beside);
+            }
+        }
+    }
+    let checkout = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../xr-viewer/target/release")
+        .join(name);
+    checkout.exists().then_some(checkout)
+}
+
+/// Where the mesh pack is: named outright, bundled with the app, or in the checkout.
+fn find_pack(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    use tauri::Manager;
+    if let Some(named) = std::env::var_os("BS_HUMANY_PACK_DIR") {
+        return Some(std::path::PathBuf::from(named));
+    }
+    if let Ok(resources) = app.path().resource_dir() {
+        let bundled = resources.join("assets-anatomical/data");
+        if bundled.join("manifest.json").exists() {
+            return Some(bundled);
+        }
+    }
+    let checkout = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../packages/assets-anatomical/data");
+    checkout.join("manifest.json").exists().then_some(checkout)
+}
+
+/// Launch the viewer, following the bridge. Returns what was launched, for the status line.
+#[tauri::command]
+fn xr_viewer_launch(app: tauri::AppHandle, state: tauri::State<'_, Bridges>) -> Result<String, String> {
+    let mut slot = state.viewer.lock().unwrap();
+    if let Some(child) = slot.as_mut() {
+        if child.try_wait().map_err(|e| e.to_string())?.is_none() {
+            return Ok("already running".into());
+        }
+    }
+    let viewer = find_viewer().ok_or_else(|| {
+        "no bs-humany-xr-viewer found: set BS_HUMANY_XR_VIEWER, or build apps/xr-viewer".to_string()
+    })?;
+    let pack = find_pack(&app).ok_or_else(|| {
+        "no mesh pack found: set BS_HUMANY_PACK_DIR to packages/assets-anatomical/data".to_string()
+    })?;
+    let child = std::process::Command::new(&viewer)
+        .arg("view")
+        .arg("--follow")
+        .arg(BRIDGE_BASE)
+        .arg("--pack")
+        .arg(&pack)
+        .spawn()
+        .map_err(|e| format!("{}: {e}", viewer.display()))?;
+    *slot = Some(child);
+    Ok(viewer.display().to_string())
+}
+
+#[tauri::command]
+fn xr_viewer_running(state: tauri::State<'_, Bridges>) -> bool {
+    let mut slot = state.viewer.lock().unwrap();
+    match slot.as_mut() {
+        Some(child) => matches!(child.try_wait(), Ok(None)),
+        None => false,
+    }
+}
+
+#[tauri::command]
+fn xr_viewer_stop(state: tauri::State<'_, Bridges>) {
+    if let Some(mut child) = state.viewer.lock().unwrap().take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
 fn main() {
     #[cfg(target_os = "linux")]
     prefer_a_window_that_opens();
@@ -161,7 +378,21 @@ fn main() {
         // The dialog plugin is here for its Rust side only: the two commands above call it, and
         // the page cannot. Nothing of it is exposed to JavaScript.
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![save_file, save_file_set, open_text_file])
+        .manage(Bridges::default())
+        .invoke_handler(tauri::generate_handler![
+            save_file,
+            save_file_set,
+            open_text_file,
+            bridge_create,
+            bridge_write,
+            bridge_text,
+            bridge_read,
+            bridge_commands,
+            bridge_close,
+            xr_viewer_launch,
+            xr_viewer_running,
+            xr_viewer_stop
+        ])
         .run(tauri::generate_context!())
         .expect("bs-humany studio: the web view failed to start");
 }
