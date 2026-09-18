@@ -52,11 +52,19 @@ to that, so the renderer is not where the difficulty is.
 The eye poses came back 65.6 mm apart, which is an interpupillary distance rather than a number
 somebody made up, so tracking and the stage space are both real.
 
-**The consequence is for the simulation, not the renderer.** A 144 Hz headset wants a fresh pose
-every 7 ms. At L1 the simulation runs at 1.28 times real time and can feed that comfortably. At L3
-it runs at 0.39, so a live L3 body in the headset would be in slow motion -- correct, and slow.
-Whether that matters depends on what the headset is for: watching a recording does not care, and
-neither does inspecting a pose.
+**The consequence is for the simulation, not the renderer -- and it is smaller than it first
+looks.** A 144 Hz headset wants a fresh *view* every 7 ms. It does not want a fresh *body* every
+7 ms, and conflating those two is how a slow simulation would wrongly be made to look like a
+broken headset.
+
+The view is the projection from the tracked head pose, and it is drawn every frame regardless. The
+body is whatever the simulation last published. So L1, which computes at 1.28 times real time,
+gives a body moving at life speed; L3, which computes at 0.39, gives a body moving at two fifths
+speed inside a view that is still perfectly tracked and perfectly comfortable. That is a slow
+simulation, which is what it is, rather than an unusable one.
+
+ADR-012 is where this is written down, along with what it means for the transport: latest-wins,
+non-blocking in both directions, no queue.
 
 ## Choosing a runtime
 
