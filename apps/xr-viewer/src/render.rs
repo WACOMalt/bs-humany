@@ -35,6 +35,10 @@ pub const CONTROLLERS: usize = 2;
 pub const MARKERS: usize = 2;
 /// The edge of a pointer mark, which is a small cube where the aim ray meets the panel.
 pub const MARKER_EDGE: f32 = 0.012;
+/// The floor grid: lines this far apart, out to this far, this wide, all in metres.
+const GRID_SPACING: f32 = 0.5;
+const GRID_REACH: f32 = 5.0;
+const GRID_WIDTH: f32 = 0.006;
 /// How many egui vertices and indices a frame of the panel may have; more is cut off.
 const PANEL_VERTICES: usize = 32768;
 const PANEL_INDICES: usize = 98304;
@@ -163,7 +167,7 @@ impl Renderer {
 
         // --- geometry, flattened into one pair of buffers -------------------------------------
         let (vertices, indices) = flatten(pack);
-        if pack.bones.len() + CONTROLLERS + 1 + MARKERS > MAX_BONES {
+        if pack.bones.len() + CONTROLLERS + 1 + MARKERS + 1 > MAX_BONES {
             bail!(
                 "the pack has {} bones, and with the controllers, markers and world slot the shader holds {MAX_BONES}.",
                 pack.bones.len()
@@ -217,7 +221,7 @@ impl Renderer {
         let push = [vk::PushConstantRange::default()
             .stage_flags(vk::ShaderStageFlags::FRAGMENT)
             .offset(0)
-            .size(8)];
+            .size(12)];
         let pipeline_layout = unsafe {
             device.create_pipeline_layout(
                 &vk::PipelineLayoutCreateInfo::default()
@@ -480,7 +484,11 @@ impl Renderer {
                 self.pipeline_layout,
                 vk::ShaderStageFlags::FRAGMENT,
                 0,
-                bytes_of(&[self.first_controller as u32, self.world_slot() as u32]),
+                bytes_of(&[
+                    self.first_controller as u32,
+                    self.world_slot() as u32,
+                    self.stage_slot() as u32,
+                ]),
             );
             device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[self.vertex.handle], &[0]);
             device.cmd_bind_index_buffer(
@@ -582,6 +590,11 @@ impl Renderer {
     /// world frame are drawn by.
     pub fn world_slot(&self) -> usize {
         self.first_controller + CONTROLLERS
+    }
+
+    /// The slot the floor grid is drawn by: its matrix is the identity, the stage itself.
+    pub fn stage_slot(&self) -> usize {
+        self.world_slot() + 1 + MARKERS
     }
 
     /// The slot a hand's pointer mark is drawn by.
@@ -827,7 +840,7 @@ fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
     for hand in 0..CONTROLLERS {
         cube((pack.bones.len() + hand) as u32, CONTROLLER_EDGE, &mut vertices, &mut indices);
     }
-    // Past the world slot, a mark for each hand's pointer.
+    // Past the world slot, a mark for each hand's pointer, and after those the floor grid.
     for hand in 0..MARKERS {
         cube(
             (pack.bones.len() + CONTROLLERS + 1 + hand) as u32,
@@ -836,7 +849,39 @@ fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
             &mut indices,
         );
     }
+    grid((pack.bones.len() + CONTROLLERS + 1 + MARKERS) as u32, &mut vertices, &mut indices);
     (vertices, indices)
+}
+
+/// The floor: lines every half metre out to five, as flat strips a hair above y = 0 so nothing
+/// fights them, the two through the origin twice as wide. Normals up, so the key light lights it.
+fn grid(slot: u32, vertices: &mut Vec<f32>, indices: &mut Vec<u32>) {
+    let count = (GRID_REACH / GRID_SPACING) as i32;
+    let y = 0.001;
+    let mut strip = |a: [f32; 3], b: [f32; 3], c: [f32; 3], d: [f32; 3]| {
+        let base = (vertices.len() / 7) as u32;
+        for p in [a, b, c, d] {
+            vertices.extend_from_slice(&[p[0], p[1], p[2], 0.0, 1.0, 0.0, f32::from_bits(slot)]);
+        }
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    };
+    for i in -count..=count {
+        let at = i as f32 * GRID_SPACING;
+        let w = if i == 0 { GRID_WIDTH * 2.0 } else { GRID_WIDTH } / 2.0;
+        // Along Z at x = at, and along X at z = at.
+        strip(
+            [at - w, y, -GRID_REACH],
+            [at + w, y, -GRID_REACH],
+            [at + w, y, GRID_REACH],
+            [at - w, y, GRID_REACH],
+        );
+        strip(
+            [-GRID_REACH, y, at - w],
+            [GRID_REACH, y, at - w],
+            [GRID_REACH, y, at + w],
+            [-GRID_REACH, y, at + w],
+        );
+    }
 }
 
 /// egui's texture ids as one number, for the texture map.
@@ -1084,9 +1129,12 @@ fn build_panel_pipeline(
         .line_width(1.0);
     let multisample = vk::PipelineMultisampleStateCreateInfo::default()
         .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+    // Tested against the body so it sits in the room, but never written: every layer of the
+    // panel lies in one plane, and layers that wrote depth would fight each other. Drawn last,
+    // in egui's order, later layers simply blend over earlier ones.
     let depth_stencil = vk::PipelineDepthStencilStateCreateInfo::default()
         .depth_test_enable(true)
-        .depth_write_enable(true)
+        .depth_write_enable(false)
         .depth_compare_op(vk::CompareOp::LESS);
     let blend_attachments = [vk::PipelineColorBlendAttachmentState::default()
         .blend_enable(true)

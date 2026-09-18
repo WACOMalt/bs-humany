@@ -150,9 +150,22 @@ and, in the publisher, `holding femur_r` on its own line while it lasts.
 
 The studio's controls, in the room: a dark panel half a metre wide, to your right of the body at
 chest height, turned to face where you stand. Point a controller at it and a small blue mark
-shows where the aim ray lands; the trigger presses. It shows which scenario is running, how far
-along and how fast, what is held, and offers Pause and Resume, Reset, a grab-strength slider and
-a button per scenario.
+shows where the aim ray lands; the trigger presses. Five tabs:
+
+- **Run** -- scenario, sim time and speed, what is held; Pause and Resume, Reset, a frame back
+  and forward, a timeline to scrub; the diagnostics strip.
+- **Scenario** -- a button per scenario and per fidelity profile; muscles, passive joints,
+  redistribution, gravity and floor; drop height.
+- **Body** -- sex, stature, mass, crural and brachial index, relative leg length.
+- **Muscles** -- a drive slider per muscle group, the studio's squared mapping.
+- **Rates** -- output frames a second, simulation steps a second, grab strength.
+
+What changes the articulation -- scenario, profile, muscles, the body, the rates -- rebuilds the
+simulation on the publisher's side and the bridges reopen; the rest applies to the run as it
+goes. Export, save and load stay in the studio, since they open file dialogs.
+
+A grid on the floor, half-metre squares out to five metres, is the stage's own frame: where the
+headset thinks the floor is, which is where the body stands.
 
 It is drawn with egui -- immediate mode, laid out afresh each frame from what the publisher last
 said -- on its own pipeline over the same render pass as the bones, so the body occludes it and

@@ -496,6 +496,73 @@ pub struct Status {
     pub muscles: bool,
     pub holding: Vec<String>,
     pub grab_strength: f64,
+    #[serde(default)]
+    pub profiles: Vec<String>,
+    #[serde(default)]
+    pub settings: Settings,
+    #[serde(default)]
+    pub drive_groups: Vec<DriveGroup>,
+    #[serde(default)]
+    pub diagnostics: Diagnostics,
+}
+
+/// Everything the panel can set, as the publisher currently has it.
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    #[serde(default)]
+    pub muscles: bool,
+    #[serde(default)]
+    pub sex: f64,
+    #[serde(default)]
+    pub stature: f64,
+    #[serde(default)]
+    pub mass: f64,
+    #[serde(default)]
+    pub crural: f64,
+    #[serde(default)]
+    pub brachial: f64,
+    #[serde(default)]
+    pub leg_length: f64,
+    #[serde(default)]
+    pub drop_height: f64,
+    #[serde(default)]
+    pub passive: bool,
+    #[serde(default)]
+    pub redistribute: bool,
+    #[serde(default)]
+    pub fps: f64,
+    #[serde(default)]
+    pub steps_per_second: f64,
+    #[serde(default)]
+    pub gravity: bool,
+    #[serde(default)]
+    pub floor: bool,
+}
+
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+pub struct DriveGroup {
+    pub title: String,
+    pub level: f64,
+}
+
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnostics {
+    #[serde(default)]
+    pub kinetic: f64,
+    #[serde(default)]
+    pub potential: f64,
+    #[serde(default)]
+    pub drift_mm: f64,
+    #[serde(default)]
+    pub limits_worst: f64,
+    #[serde(default)]
+    pub violations: f64,
+    #[serde(default)]
+    pub contacts: f64,
+    #[serde(default)]
+    pub cost_ms: f64,
 }
 
 /// The status as it stands, or `None` if there is none or it could not be parsed -- a file

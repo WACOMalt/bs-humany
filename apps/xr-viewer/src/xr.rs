@@ -335,11 +335,13 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // Bones, the two controllers, the world slot at the placement, and a pointer mark a hand.
     let mut matrices: Vec<[f32; 16]> = vec![
         place;
-        pack.bones.len() + crate::render::CONTROLLERS + 1 + crate::render::MARKERS
+        pack.bones.len() + crate::render::CONTROLLERS + 1 + crate::render::MARKERS + 1
     ];
     for hand in 0..crate::render::MARKERS {
         matrices[renderer.marker_slot(hand)] = crate::render::scale_matrix(0.0);
     }
+    // The grid is the stage itself: the identity.
+    matrices[renderer.stage_slot()] = crate::render::scale_matrix(1.0);
 
     // What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
     // together, and reopened together whenever the publisher's generation changes, which is how

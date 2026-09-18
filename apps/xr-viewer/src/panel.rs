@@ -17,7 +17,7 @@ use crate::bridge::Status;
 /// Metres a point.
 pub const POINT_METRES: f32 = 0.001;
 /// The panel's size, in points.
-pub const SIZE: [f32; 2] = [520.0, 460.0];
+pub const SIZE: [f32; 2] = [560.0, 700.0];
 
 /// Where the panel stands: an origin at its top-left corner and the directions its points run,
 /// all in the stage.
@@ -118,8 +118,14 @@ pub enum Command {
     Pause,
     Resume,
     Reset,
-    Scenario(String),
-    Strength(f32),
+    /// One output frame forward (1) or back (-1), pausing if it was not.
+    Step(i32),
+    /// Go to this many simulated seconds.
+    Scrub(f64),
+    /// A muscle group's slider, 0..100.
+    Drive(usize, f32),
+    /// A setting by name; the publisher decides whether it rebuilds.
+    Set(&'static str, serde_json::Value),
 }
 
 impl Command {
@@ -129,14 +135,14 @@ impl Command {
             Command::Pause => r#"{"kind":"pause"}"#.to_string(),
             Command::Resume => r#"{"kind":"resume"}"#.to_string(),
             Command::Reset => r#"{"kind":"reset"}"#.to_string(),
-            Command::Scenario(id) => format!(r#"{{"kind":"scenario","id":{}}}"#, json_string(id)),
-            Command::Strength(v) => format!(r#"{{"kind":"strength","value":{v}}}"#),
+            Command::Step(frames) => format!(r#"{{"kind":"step","frames":{frames}}}"#),
+            Command::Scrub(seconds) => format!(r#"{{"kind":"scrub","seconds":{seconds}}}"#),
+            Command::Drive(group, value) => {
+                format!(r#"{{"kind":"drive","group":{group},"value":{value}}}"#)
+            }
+            Command::Set(key, value) => format!(r#"{{"kind":"set","key":"{key}","value":{value}}}"#),
         }
     }
-}
-
-fn json_string(s: &str) -> String {
-    serde_json::to_string(s).unwrap_or_else(|_| "\"\"".to_string())
 }
 
 /// One frame of the panel: its meshes to draw, its texture changes to apply first, and what the
@@ -154,20 +160,61 @@ pub struct Pointer {
     pub pressed: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tab {
+    Run,
+    Scenario,
+    Body,
+    Muscles,
+    Rates,
+}
+
 pub struct Panel {
     ctx: egui::Context,
     started: std::time::Instant,
     was_pressed: bool,
     was_on: bool,
-    /// The slider's value, which is the panel's until the publisher confirms it.
-    strength: f32,
-    strength_from_status: bool,
+    tab: Tab,
+    /// The slider being dragged, and its value, which is the panel's until it is let go and the
+    /// publisher confirms it. Every other slider shows what the publisher last said.
+    editing: Option<(&'static str, f32)>,
 }
 
 impl Default for Panel {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// A slider whose value comes from the status except while it is being dragged; `Some` on the
+/// frame it should be sent.
+fn slider(
+    ui: &mut egui::Ui,
+    editing: &mut Option<(&'static str, f32)>,
+    key: &'static str,
+    label: &str,
+    from_status: f32,
+    range: std::ops::RangeInclusive<f32>,
+    decimals: usize,
+) -> Option<f32> {
+    let mut value = match editing {
+        Some((k, v)) if *k == key => *v,
+        _ => from_status,
+    };
+    let response = ui.add(
+        egui::Slider::new(&mut value, range)
+            .text(label)
+            .fixed_decimals(decimals),
+    );
+    if response.changed() {
+        *editing = Some((key, value));
+    }
+    let done = response.drag_stopped() || (response.changed() && !response.dragged());
+    if done {
+        *editing = None;
+        return Some(value);
+    }
+    None
 }
 
 impl Panel {
@@ -177,19 +224,20 @@ impl Panel {
         ctx.set_visuals(egui::Visuals::dark());
         ctx.style_mut(|style| {
             for (_, font) in style.text_styles.iter_mut() {
-                font.size *= 1.35;
+                font.size *= 1.3;
             }
             style.spacing.button_padding = egui::vec2(12.0, 8.0);
-            style.spacing.item_spacing = egui::vec2(10.0, 10.0);
-            style.spacing.slider_width = 300.0;
+            style.spacing.item_spacing = egui::vec2(10.0, 9.0);
+            style.spacing.slider_width = 260.0;
+            style.spacing.interact_size.y = 28.0;
         });
         Self {
             ctx,
             started: std::time::Instant::now(),
             was_pressed: false,
             was_on: false,
-            strength: 1.0,
-            strength_from_status: false,
+            tab: Tab::Run,
+            editing: None,
         }
     }
 
@@ -227,13 +275,6 @@ impl Panel {
         }
         self.was_pressed = pointer.pressed && pointer.at.is_some();
 
-        if let Some(s) = status {
-            if !self.strength_from_status {
-                self.strength = s.grab_strength as f32;
-                self.strength_from_status = true;
-            }
-        }
-
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
@@ -247,7 +288,8 @@ impl Panel {
         };
 
         let mut commands = Vec::new();
-        let mut strength = self.strength;
+        let mut tab = self.tab;
+        let mut editing = self.editing;
         let output = self.ctx.run(input, |ctx| {
             egui::CentralPanel::default()
                 .frame(
@@ -256,71 +298,41 @@ impl Panel {
                         .inner_margin(egui::Margin::same(18.0)),
                 )
                 .show(ctx, |ui| {
-                    ui.heading("bs-humany");
-                    match status {
-                        None => {
-                            ui.label("Waiting for the publisher: run `pnpm publish:pose`.");
-                            ui.label(feeds);
-                        }
-                        Some(s) => {
-                            ui.label(egui::RichText::new(&s.scenario.title).strong());
-                            let speed = if s.paused {
-                                "paused".to_string()
-                            } else {
-                                format!("{:.2}x life", s.speed)
-                            };
-                            ui.label(format!(
-                                "sim {:.1} s, {speed}, {} on {}",
-                                s.sim_seconds,
-                                if s.muscles { "muscles" } else { "bones only" },
-                                s.profile
-                            ));
-                            ui.label(if s.holding.is_empty() {
-                                "Squeeze a controller on a bone to grab it.".to_string()
-                            } else {
-                                format!("Holding {}", s.holding.join(" and "))
-                            });
-                            ui.horizontal(|ui| {
-                                if s.paused {
-                                    if ui.button("Resume").clicked() {
-                                        commands.push(Command::Resume);
-                                    }
-                                } else if ui.button("Pause").clicked() {
-                                    commands.push(Command::Pause);
-                                }
-                                if ui.button("Reset").clicked() {
-                                    commands.push(Command::Reset);
-                                }
-                            });
-                            ui.add_space(4.0);
-                            ui.label("Grab strength");
-                            let slider = ui.add(
-                                egui::Slider::new(&mut strength, 0.2..=5.0)
-                                    .logarithmic(true)
-                                    .fixed_decimals(2),
-                            );
-                            if slider.drag_stopped() || slider.lost_focus() {
-                                commands.push(Command::Strength(strength));
+                    ui.horizontal(|ui| {
+                        ui.heading("bs-humany");
+                        ui.add_space(12.0);
+                        for (t, name) in [
+                            (Tab::Run, "Run"),
+                            (Tab::Scenario, "Scenario"),
+                            (Tab::Body, "Body"),
+                            (Tab::Muscles, "Muscles"),
+                            (Tab::Rates, "Rates"),
+                        ] {
+                            if ui.selectable_label(tab == t, name).clicked() {
+                                tab = t;
                             }
-                            ui.add_space(4.0);
-                            ui.label("Scenario");
-                            ui.horizontal_wrapped(|ui| {
-                                for candidate in &s.scenarios {
-                                    let current = candidate.id == s.scenario.id;
-                                    if ui.selectable_label(current, &candidate.title).clicked()
-                                        && !current
-                                    {
-                                        commands.push(Command::Scenario(candidate.id.clone()));
-                                    }
-                                }
-                            });
-                            ui.add_space(4.0);
-                            ui.label(egui::RichText::new(feeds).weak());
                         }
+                    });
+                    ui.separator();
+                    let Some(s) = status else {
+                        ui.label("Waiting for the publisher: run `pnpm publish:pose`.");
+                        ui.label(feeds);
+                        return;
+                    };
+                    match tab {
+                        Tab::Run => run_tab(ui, s, &mut editing, &mut commands),
+                        Tab::Scenario => scenario_tab(ui, s, &mut editing, &mut commands),
+                        Tab::Body => body_tab(ui, s, &mut editing, &mut commands),
+                        Tab::Muscles => muscles_tab(ui, s, &mut editing, &mut commands),
+                        Tab::Rates => rates_tab(ui, s, &mut editing, &mut commands),
                     }
+                    ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                        ui.label(egui::RichText::new(feeds).weak());
+                    });
                 });
         });
-        self.strength = strength;
+        self.tab = tab;
+        self.editing = editing;
 
         let meshes = self
             .ctx
@@ -338,6 +350,171 @@ impl Panel {
             textures: output.textures_delta,
             commands,
         }
+    }
+}
+
+type Editing = Option<(&'static str, f32)>;
+
+fn run_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
+    ui.label(egui::RichText::new(&s.scenario.title).strong());
+    let speed = if s.paused {
+        "paused".to_string()
+    } else {
+        format!("{:.2}x life", s.speed)
+    };
+    ui.label(format!(
+        "sim {:.2} s, {speed}, {} on {}",
+        s.sim_seconds,
+        if s.muscles { "muscles" } else { "bones only" },
+        s.profile
+    ));
+    ui.label(if s.holding.is_empty() {
+        "Squeeze a controller on a bone to grab it.".to_string()
+    } else {
+        format!("Holding {}", s.holding.join(" and "))
+    });
+    ui.horizontal(|ui| {
+        if s.paused {
+            if ui.button("Resume").clicked() {
+                commands.push(Command::Resume);
+            }
+        } else if ui.button("Pause").clicked() {
+            commands.push(Command::Pause);
+        }
+        if ui.button("Reset").clicked() {
+            commands.push(Command::Reset);
+        }
+        if ui.button("< Frame").clicked() {
+            commands.push(Command::Step(-1));
+        }
+        if ui.button("Frame >").clicked() {
+            commands.push(Command::Step(1));
+        }
+    });
+    ui.add_space(4.0);
+    let end = (s.sim_seconds as f32).max(0.01);
+    if let Some(seconds) = slider(ui, editing, "timeline", "s", s.sim_seconds as f32, 0.0..=end, 2) {
+        commands.push(Command::Scrub(seconds as f64));
+    }
+    ui.add_space(6.0);
+    let d = &s.diagnostics;
+    ui.label(egui::RichText::new("Diagnostics").strong());
+    ui.label(format!(
+        "kinetic {:.1} J, potential {:.1} J, drift {:.1} mm",
+        d.kinetic, d.potential, d.drift_mm
+    ));
+    ui.label(format!(
+        "limits {}, contacts {}, step {:.3} ms",
+        if d.violations > 0.0 {
+            format!("{} past a stop", d.violations as i64)
+        } else {
+            format!("{}% of range", (d.limits_worst * 100.0).round() as i64)
+        },
+        d.contacts as i64,
+        d.cost_ms
+    ));
+}
+
+fn scenario_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
+    ui.label(egui::RichText::new("Scenario").strong());
+    ui.horizontal_wrapped(|ui| {
+        for candidate in &s.scenarios {
+            let current = candidate.id == s.scenario.id;
+            if ui.selectable_label(current, &candidate.title).clicked() && !current {
+                commands.push(Command::Set("scenario", candidate.id.clone().into()));
+            }
+        }
+    });
+    ui.add_space(6.0);
+    ui.label(egui::RichText::new("Profile").strong());
+    ui.horizontal_wrapped(|ui| {
+        for profile in &s.profiles {
+            let current = *profile == s.profile;
+            if ui.selectable_label(current, profile).clicked() && !current {
+                commands.push(Command::Set("profile", profile.clone().into()));
+            }
+        }
+    });
+    ui.add_space(6.0);
+    let st = &s.settings;
+    ui.horizontal_wrapped(|ui| {
+        let mut muscles = st.muscles;
+        if ui.checkbox(&mut muscles, "Muscles").changed() {
+            commands.push(Command::Set("muscles", muscles.into()));
+        }
+        let mut passive = st.passive;
+        if ui.checkbox(&mut passive, "Passive joints").changed() {
+            commands.push(Command::Set("passive", passive.into()));
+        }
+        let mut redistribute = st.redistribute;
+        if ui.checkbox(&mut redistribute, "Redistribute").changed() {
+            commands.push(Command::Set("redistribute", redistribute.into()));
+        }
+        let mut gravity = st.gravity;
+        if ui.checkbox(&mut gravity, "Gravity").changed() {
+            commands.push(Command::Set("gravity", gravity.into()));
+        }
+        let mut floor = st.floor;
+        if ui.checkbox(&mut floor, "Floor").changed() {
+            commands.push(Command::Set("floor", floor.into()));
+        }
+    });
+    if let Some(v) = slider(ui, editing, "dropHeight", "drop height m", st.drop_height as f32, 0.0..=1.5, 2) {
+        commands.push(Command::Set("dropHeight", (v as f64).into()));
+    }
+    ui.label(egui::RichText::new("Rebuilds the body; the bridges reopen.").weak());
+}
+
+fn body_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
+    let st = &s.settings;
+    ui.label(egui::RichText::new("Morphology").strong());
+    let rows: [(&'static str, &str, f32, std::ops::RangeInclusive<f32>, usize); 6] = [
+        ("sex", "sex 0 F .. 1 M", st.sex as f32, 0.0..=1.0, 2),
+        ("stature", "stature m", st.stature as f32, 1.4..=2.05, 3),
+        ("mass", "mass kg", st.mass as f32, 35.0..=150.0, 1),
+        ("crural", "crural index", st.crural as f32, 0.85..=1.15, 3),
+        ("brachial", "brachial index", st.brachial as f32, 0.68..=0.9, 3),
+        ("legLength", "relative leg length", st.leg_length as f32, 0.9..=1.1, 3),
+    ];
+    for (key, label, value, range, decimals) in rows {
+        if let Some(v) = slider(ui, editing, key, label, value, range, decimals) {
+            commands.push(Command::Set(key, (v as f64).into()));
+        }
+    }
+    ui.label(egui::RichText::new("Each change rebuilds the body.").weak());
+}
+
+fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
+    if !s.muscles {
+        ui.label("Muscles are off for this run. Turn them on under Scenario.");
+        return;
+    }
+    ui.label(egui::RichText::new("Drive, per group").strong());
+    // Each group's slider keeps its own key, so dragging one never moves another.
+    const KEYS: [&str; 24] = [
+        "drive0", "drive1", "drive2", "drive3", "drive4", "drive5", "drive6", "drive7", "drive8",
+        "drive9", "drive10", "drive11", "drive12", "drive13", "drive14", "drive15", "drive16",
+        "drive17", "drive18", "drive19", "drive20", "drive21", "drive22", "drive23",
+    ];
+    for (i, group) in s.drive_groups.iter().enumerate().take(KEYS.len()) {
+        if let Some(v) = slider(ui, editing, KEYS[i], &group.title, group.level as f32, 0.0..=100.0, 0) {
+            commands.push(Command::Drive(i, v));
+        }
+    }
+}
+
+fn rates_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
+    let st = &s.settings;
+    if let Some(v) = slider(ui, editing, "fps", "output frames / s", st.fps as f32, 1.0..=240.0, 0) {
+        commands.push(Command::Set("fps", (v.round() as f64).into()));
+    }
+    if let Some(v) = slider(ui, editing, "stepsPerSecond", "simulation steps / s", st.steps_per_second as f32, 60.0..=2000.0, 0) {
+        commands.push(Command::Set("stepsPerSecond", (((v / 20.0).round() * 20.0) as f64).into()));
+    }
+    ui.label(egui::RichText::new("Both rebuild the run.").weak());
+    ui.add_space(6.0);
+    if let Some(v) = slider(ui, editing, "grabStrength", "grab strength", s.grab_strength as f32, 0.2..=5.0, 2) {
+        commands.push(Command::Set("grabStrength", (v as f64).into()));
     }
 }
 
@@ -377,9 +554,14 @@ mod tests {
     fn commands_are_the_lines_the_publisher_reads() {
         assert_eq!(Command::Pause.to_json(), r#"{"kind":"pause"}"#);
         assert_eq!(
-            Command::Scenario("drop-supine".into()).to_json(),
-            r#"{"kind":"scenario","id":"drop-supine"}"#
+            Command::Set("scenario", "drop-supine".into()).to_json(),
+            r#"{"kind":"set","key":"scenario","value":"drop-supine"}"#
         );
-        assert_eq!(Command::Strength(2.5).to_json(), r#"{"kind":"strength","value":2.5}"#);
+        assert_eq!(
+            Command::Set("grabStrength", 2.5.into()).to_json(),
+            r#"{"kind":"set","key":"grabStrength","value":2.5}"#
+        );
+        assert_eq!(Command::Drive(3, 40.0).to_json(), r#"{"kind":"drive","group":3,"value":40}"#);
+        assert_eq!(Command::Step(-1).to_json(), r#"{"kind":"step","frames":-1}"#);
     }
 }
