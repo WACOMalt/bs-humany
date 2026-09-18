@@ -36,6 +36,28 @@ Vulkan rather than an unknown.
 
 Drawing is deliberately not here yet. Two hundred rigid meshes is not the risky part.
 
+## What it answered, on the machine it was written for
+
+    runtime   SteamVR/OpenXR 2.17.10, lighthouse tracking
+    gpu       NVIDIA GeForce RTX 3090, queue family 0
+    views     2016 x 2240 per eye, 1 sample, OPAQUE
+    vulkan    1.0 to 1.2 -- the ceiling, so nothing 1.3-only
+    session   IDLE -> READY -> SYNCHRONIZED -> VISIBLE -> FOCUSED
+    rate      1428 frames over 10.00 s of predicted display time -- 142.7 Hz
+
+Which is to say: every step of the native path works, and the budget is **7 ms a frame** for
+9.03 megapixels of stereo. On a 3090, half a million triangles in one multiview pass is not close
+to that, so the renderer is not where the difficulty is.
+
+The eye poses came back 65.6 mm apart, which is an interpupillary distance rather than a number
+somebody made up, so tracking and the stage space are both real.
+
+**The consequence is for the simulation, not the renderer.** A 144 Hz headset wants a fresh pose
+every 7 ms. At L1 the simulation runs at 1.28 times real time and can feed that comfortably. At L3
+it runs at 0.39, so a live L3 body in the headset would be in slow motion -- correct, and slow.
+Whether that matters depends on what the headset is for: watching a recording does not care, and
+neither does inspecting a pose.
+
 ## Choosing a runtime
 
 The loader reads `~/.config/openxr/1/active_runtime.json`, and on this machine that currently
