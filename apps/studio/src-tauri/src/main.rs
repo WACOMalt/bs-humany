@@ -240,11 +240,20 @@ fn bridge_text(suffix: String, text: String) -> Result<(), String> {
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-/// The whole of a small bridge file -- the grab channel -- as bytes.
+/// The whole of a small bridge file -- the grab channel -- read twice, back to back, the two
+/// copies one after the other in the response. A seqlock needs the sequence read before and
+/// after the body, and two reads taken through the page's event loop land a frame apart, which
+/// against a writer that rewrites the slot every seven milliseconds is nearly always a mismatch.
+/// Taken here they are microseconds apart.
 #[tauri::command]
-fn bridge_read(name: String) -> Result<tauri::ipc::Response, String> {
+fn bridge_read_pair(name: String) -> Result<tauri::ipc::Response, String> {
     let path = bridge_path(&name)?;
-    let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let again = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if again.len() != bytes.len() {
+        return Err("the file changed size between reads".into());
+    }
+    bytes.extend_from_slice(&again);
     Ok(tauri::ipc::Response::new(bytes))
 }
 
@@ -407,7 +416,7 @@ fn main() {
             bridge_create,
             bridge_write,
             bridge_text,
-            bridge_read,
+            bridge_read_pair,
             bridge_commands,
             bridge_close,
             xr_viewer_launch,

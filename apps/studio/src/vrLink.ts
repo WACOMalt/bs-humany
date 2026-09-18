@@ -296,8 +296,14 @@ export class VrLink {
     this.grabsInFlight = true;
     void (async () => {
       try {
-        const first = new Uint8Array(await invoke<ArrayBuffer>('bridge_read', { name: '-grab' }));
-        const second = new Uint8Array(await invoke<ArrayBuffer>('bridge_read', { name: '-grab' }));
+        // Both reads taken on the Rust side, back to back: two round trips through the page's
+        // event loop are a frame apart, and the viewer rewrites the slots faster than that.
+        const both = new Uint8Array(
+          await invoke<ArrayBuffer>('bridge_read_pair', { name: '-grab' }),
+        );
+        const half = both.byteLength / 2;
+        const first = both.subarray(0, half);
+        const second = both.subarray(half);
         if (this.host.simulation() === simulation) {
           const status = this.host.status(simulation);
           const before = this.intents.holding().join(' and ');
