@@ -28,9 +28,10 @@ export class NodeSink implements BridgeSink {
 
   constructor(readonly path: string) {}
 
-  create(bytes: number): void {
+  create(bytes: number, initial: readonly BridgeWrite[]): void {
     this.fd = openSync(this.path, 'w+');
     ftruncateSync(this.fd, bytes);
+    this.write(initial);
   }
 
   write(writes: readonly BridgeWrite[]): void {

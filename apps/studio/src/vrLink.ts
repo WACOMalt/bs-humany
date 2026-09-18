@@ -63,6 +63,22 @@ export interface VrHost {
   log(message: string): void;
 }
 
+/** Writes as the Tauri side takes them: `[u32 offset][u32 length][bytes]...`, little endian. */
+function pack(writes: readonly BridgeWrite[]): Uint8Array {
+  let size = 0;
+  for (const w of writes) size += 8 + w.bytes.byteLength;
+  const packed = new Uint8Array(size);
+  const view = new DataView(packed.buffer);
+  let at = 0;
+  for (const w of writes) {
+    view.setUint32(at, w.offset, true);
+    view.setUint32(at + 4, w.bytes.byteLength, true);
+    packed.set(w.bytes, at + 8);
+    at += 8 + w.bytes.byteLength;
+  }
+  return packed;
+}
+
 /** A bridge file on the Tauri side, written in batches, latest batch winning when it falls behind. */
 class TauriSink implements BridgeSink {
   private chain: Promise<void> = Promise.resolve();
@@ -74,24 +90,19 @@ class TauriSink implements BridgeSink {
     private readonly log: (message: string) => void,
   ) {}
 
-  create(bytes: number): void {
-    this.enqueue(() => invoke('bridge_create', { name: this.name, bytes }));
+  create(bytes: number, initial: readonly BridgeWrite[]): void {
+    // The header and rest table go in the ordered chain, never coalesced: a frame may be dropped
+    // for a newer frame, but without these the file is not a bridge at all.
+    const packed = pack(initial);
+    this.enqueue(async () => {
+      await invoke('bridge_create', { name: this.name, bytes });
+      await invoke('bridge_write', packed, { headers: { 'x-bridge': this.name } });
+    });
   }
 
   write(writes: readonly BridgeWrite[]): void {
     // Packed now, because the codec reuses its buffers before this is sent.
-    let size = 0;
-    for (const w of writes) size += 8 + w.bytes.byteLength;
-    const packed = new Uint8Array(size);
-    const view = new DataView(packed.buffer);
-    let at = 0;
-    for (const w of writes) {
-      view.setUint32(at, w.offset, true);
-      view.setUint32(at + 4, w.bytes.byteLength, true);
-      packed.set(w.bytes, at + 8);
-      at += 8 + w.bytes.byteLength;
-    }
-    this.latest = packed;
+    this.latest = pack(writes);
     if (this.queued) return;
     this.queued = true;
     this.enqueue(async () => {

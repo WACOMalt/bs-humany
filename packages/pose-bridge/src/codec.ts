@@ -74,8 +74,14 @@ export interface BridgeWrite {
  * is the order: odd, body, even, header.
  */
 export interface BridgeSink {
-  /** Create or truncate the file at this many bytes, all zero. */
-  create(bytes: number): void;
+  /**
+   * Create or truncate the file at this many bytes, all zero, and lay down what a fresh file
+   * carries once -- the header, the rest table. Part of creation rather than a first `write`,
+   * because a sink that falls behind may drop a frame's writes for a newer frame's, and the
+   * header is not a frame: without it the file is not a bridge at all.
+   */
+  create(bytes: number, initial: readonly BridgeWrite[]): void;
+  /** Publish a frame. A sink may let a newer frame's writes overtake and replace these. */
   write(writes: readonly BridgeWrite[]): void;
   /** A text file beside the bridge: `<path><suffix>`. */
   sidecar(suffix: string, text: string): void;
@@ -267,8 +273,7 @@ export class PoseBridgeWriter {
     readonly codec: PoseBridgeCodec,
     private readonly sink: BridgeSink,
   ) {
-    sink.create(codec.bytes);
-    sink.write(codec.initial());
+    sink.create(codec.bytes, codec.initial());
     sink.sidecar('.json', codec.sidecar);
   }
 
@@ -605,8 +610,7 @@ export class MuscleBridgeWriter {
     readonly codec: MuscleBridgeCodec,
     private readonly sink: BridgeSink,
   ) {
-    sink.create(codec.bytes);
-    sink.write(codec.initial());
+    sink.create(codec.bytes, codec.initial());
   }
 
   get shape(): MuscleShape {
