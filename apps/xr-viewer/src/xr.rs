@@ -332,6 +332,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
     let mut frames = 0u32;
     let mut worst_cpu = 0f64;
     let started = std::time::Instant::now();
+    // Reported as it goes rather than only at the end, because the natural way to stop watching
+    // something in a headset is to take it off and press Ctrl-C, and a summary that only prints
+    // on a clean exit is a summary nobody ever sees.
+    let mut window_started = started;
+    let mut window_frames = 0u32;
+    let mut window_worst = 0f64;
 
     while started.elapsed().as_secs_f32() < seconds {
         while let Some(event) = xr.poll_event(&mut event_storage)? {
@@ -381,7 +387,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
         swapchain.wait_image(openxr::Duration::INFINITE)?;
         renderer.draw(image as usize, &crate::render::view_projections(&views, 0.05, 50.0))?;
         swapchain.release_image()?;
-        worst_cpu = worst_cpu.max(cpu_started.elapsed().as_secs_f64() * 1000.0);
+        let cpu_ms = cpu_started.elapsed().as_secs_f64() * 1000.0;
+        worst_cpu = worst_cpu.max(cpu_ms);
+        window_worst = window_worst.max(cpu_ms);
 
         let rect = openxr::Rect2Di {
             offset: openxr::Offset2Di { x: 0, y: 0 },
@@ -411,6 +419,17 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32) -> Result<()> {
                 .views(&eyes)],
         )?;
         frames += 1;
+        window_frames += 1;
+        let window = window_started.elapsed().as_secs_f64();
+        if window >= 2.0 {
+            println!(
+                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms",
+                window_frames as f64 / window
+            );
+            window_started = std::time::Instant::now();
+            window_frames = 0;
+            window_worst = 0.0;
+        }
     }
 
     renderer.wait_idle();

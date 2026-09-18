@@ -819,3 +819,129 @@ fn multiply(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The fov and pose the Index actually reported, so these are this headset's numbers rather
+    /// than plausible ones.
+    fn left_eye() -> openxr::Fovf {
+        openxr::Fovf {
+            angle_left: -1.00,
+            angle_right: 0.81,
+            angle_up: 0.96,
+            angle_down: -0.95,
+        }
+    }
+
+    fn apply(m: &[f32; 16], v: [f32; 4]) -> [f32; 4] {
+        let mut out = [0f32; 4];
+        for row in 0..4 {
+            for k in 0..4 {
+                out[row] += m[k * 4 + row] * v[k];
+            }
+        }
+        out
+    }
+
+    fn ndc(m: &[f32; 16], point: [f32; 3]) -> [f32; 3] {
+        let clip = apply(m, [point[0], point[1], point[2], 1.0]);
+        [clip[0] / clip[3], clip[1] / clip[3], clip[2] / clip[3]]
+    }
+
+    #[test]
+    fn depth_maps_near_to_zero_and_far_to_one() {
+        // Vulkan's convention, and the one the pipeline's LESS compare assumes. Getting this
+        // backwards is a depth test that keeps the furthest surface, which looks like a skeleton
+        // turned inside out rather than like a depth bug.
+        let p = projection_from_fov(left_eye(), 0.05, 50.0);
+        let near = ndc(&p, [0.0, 0.0, -0.05]);
+        let far = ndc(&p, [0.0, 0.0, -50.0]);
+        assert!((near[2] - 0.0).abs() < 1e-4, "near mapped to {}", near[2]);
+        assert!((far[2] - 1.0).abs() < 1e-4, "far mapped to {}", far[2]);
+    }
+
+    #[test]
+    fn the_fov_edges_land_on_the_edges_of_the_screen() {
+        // The check that an asymmetric frustum is being built from the four half-angles rather
+        // than from a symmetric field of view: each edge of the reported fov has to arrive at
+        // exactly the corresponding edge of clip space, and they are not symmetric.
+        let fov = left_eye();
+        let p = projection_from_fov(fov, 0.05, 50.0);
+        let at = -1.0f32;
+        let left = ndc(&p, [fov.angle_left.tan() * -at, 0.0, at]);
+        let right = ndc(&p, [fov.angle_right.tan() * -at, 0.0, at]);
+        let up = ndc(&p, [0.0, fov.angle_up.tan() * -at, at]);
+        let down = ndc(&p, [0.0, fov.angle_down.tan() * -at, at]);
+        assert!((left[0] + 1.0).abs() < 1e-4, "left edge at x={}", left[0]);
+        assert!((right[0] - 1.0).abs() < 1e-4, "right edge at x={}", right[0]);
+        // Vulkan's Y runs down the framebuffer, so "up" in the world is -1 in clip space. An
+        // unflipped Y is a scene rendered upside down, which in a headset is unmistakable and
+        // deeply unpleasant.
+        assert!((up[1] + 1.0).abs() < 1e-4, "up edge at y={}", up[1]);
+        assert!((down[1] - 1.0).abs() < 1e-4, "down edge at y={}", down[1]);
+    }
+
+    #[test]
+    fn straight_ahead_is_off_centre_because_the_lens_is() {
+        // Not a symmetry check but the opposite: this headset's left eye sees 1.00 rad to its
+        // left and 0.81 to its right, so the view axis is genuinely right of the image centre.
+        // A projection that put it at zero would be one built from a single field of view.
+        let p = projection_from_fov(left_eye(), 0.05, 50.0);
+        let ahead = ndc(&p, [0.0, 0.0, -1.0]);
+        assert!(ahead[0] > 0.10 && ahead[0] < 0.30, "ahead at x={}", ahead[0]);
+    }
+
+    #[test]
+    fn the_view_matrix_undoes_the_eye_pose() {
+        // A rigid inverse, checked the only way worth checking it: the eye's own position has to
+        // land at the origin of view space, and a point a metre in front of a turned head has to
+        // arrive a metre down -Z however the head is turned.
+        let angle = 0.7f32;
+        let pose = openxr::Posef {
+            orientation: openxr::Quaternionf {
+                x: 0.0,
+                y: (angle / 2.0).sin(),
+                z: 0.0,
+                w: (angle / 2.0).cos(),
+            },
+            position: openxr::Vector3f {
+                x: 0.3,
+                y: 1.6,
+                z: -0.2,
+            },
+        };
+        let view = inverse_rigid(pose);
+        let eye = apply(&view, [0.3, 1.6, -0.2, 1.0]);
+        for k in 0..3 {
+            assert!(eye[k].abs() < 1e-5, "the eye did not land at the origin: {eye:?}");
+        }
+        // One metre along the direction the head is facing, which for a +Y rotation of `angle`
+        // from -Z is (-sin, 0, -cos).
+        let front = [
+            0.3 - angle.sin(),
+            1.6,
+            -0.2 - angle.cos(),
+        ];
+        let seen = apply(&view, [front[0], front[1], front[2], 1.0]);
+        assert!(seen[0].abs() < 1e-5 && seen[1].abs() < 1e-5, "not straight ahead: {seen:?}");
+        assert!((seen[2] + 1.0).abs() < 1e-5, "not one metre away: {seen:?}");
+    }
+
+    #[test]
+    fn the_body_is_turned_to_face_the_viewer_without_being_mirrored() {
+        // Half a turn about Y, which has determinant +1. A mirror would also put the front
+        // towards the viewer and would swap the body's left and right, which on an anatomical
+        // model is the kind of wrong that gets published before anybody notices.
+        let m = translation(0.0, 0.0, -1.5, true);
+        let determinant = m[0] * m[5] * m[10];
+        assert!((determinant - 1.0).abs() < 1e-6, "determinant {determinant}");
+        // Anterior is -Z in the pack, and after the turn it points back towards the viewer.
+        let anterior = apply(&m, [0.0, 0.0, -1.0, 0.0]);
+        assert!(anterior[2] > 0.99, "the body faces away: {anterior:?}");
+        // And it stands a metre and a half out, feet still on the floor.
+        let feet = apply(&m, [0.0, 0.0, 0.0, 1.0]);
+        assert_eq!([feet[0], feet[1], feet[2]], [0.0, 0.0, -1.5]);
+    }
+}

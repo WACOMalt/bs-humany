@@ -39,6 +39,10 @@ Vulkan rather than an unknown.
 multiview pass, for as many seconds as you ask. It reports the frame rate it held and the worst
 CPU frame at the end.
 
+It reports the rate it is holding every couple of seconds rather than only at the end, because
+the natural way to stop watching something in a headset is to take it off and press Ctrl-C, and a
+summary that only prints on a clean exit is a summary nobody sees.
+
 Its loop already has the shape ADR-012 requires -- it takes the head pose the runtime predicts for
 this frame and draws from the pose buffer as it stands, never waiting for anything upstream. With
 a rest pose that is invisible; it is the shape the loop has to have before a simulation is
@@ -90,6 +94,24 @@ mkdir -p ~/.config/openxr/1 && ln -sf ~/.local/share/Steam/steamapps/common/Stea
 ```
 
 `probe` will tell you which one answered.
+
+## What the drawing was checked against
+
+Run on the machine above it put the skeleton in the headset at a good rate, which is the answer
+that mattered. But "it looked right" is not a regression test, so the matrix maths is also checked
+against this headset's own reported numbers -- `cargo test`, five of them:
+
+- near maps to 0 and far to 1, Vulkan's way, which is what the pipeline's LESS compare assumes;
+- each edge of the reported fov lands on exactly the corresponding edge of clip space, which is
+  what distinguishes a frustum built from four half-angles from one built from a single field of
+  view;
+- straight ahead is *not* at the centre, because this lens sees 1.00 rad to its left and 0.81 to
+  its right and the view axis genuinely is off-centre;
+- the view matrix puts the eye's own position at the origin and a point in front of a turned head
+  a metre down -Z;
+- and the half-turn that faces the body at the viewer has determinant +1 rather than -1 -- a
+  mirror would also point the front the right way, and would swap an anatomical model's left and
+  right, which is the kind of wrong that gets published before anybody notices.
 
 ## The shaders
 
