@@ -469,3 +469,63 @@ mod tests {
         assert!(bridge.stale_for() >= Duration::from_millis(20));
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The panel's two files: status from the publisher, commands to it.
+// ---------------------------------------------------------------------------------------------
+
+#[derive(serde::Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct Named {
+    pub id: String,
+    pub title: String,
+}
+
+/// What the publisher says about itself, four times a second, in `<pose path>-status.json`.
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Status {
+    /// Bumped every time the publisher rebuilds its bridge files; a reader that sees it change
+    /// reopens them.
+    pub generation: u64,
+    pub scenario: Named,
+    pub scenarios: Vec<Named>,
+    pub profile: String,
+    pub sim_seconds: f64,
+    pub speed: f64,
+    pub paused: bool,
+    pub muscles: bool,
+    pub holding: Vec<String>,
+    pub grab_strength: f64,
+}
+
+/// The status as it stands, or `None` if there is none or it could not be parsed -- a file
+/// renamed into place is whole or absent, so a parse failure means an older publisher.
+pub fn read_status(path: &Path) -> Option<Status> {
+    let text = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// Commands to the publisher: one JSON object a line, appended to `<pose path>-commands.jsonl`.
+/// The file is truncated when this opens, so the publisher starts reading it from the top.
+pub struct CommandWriter {
+    file: std::fs::File,
+}
+
+impl CommandWriter {
+    pub fn create(path: &Path) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(path)
+            .with_context(|| format!("creating {}", path.display()))?;
+        file.set_len(0)?;
+        Ok(Self { file })
+    }
+
+    pub fn send(&mut self, line: &str) -> Result<()> {
+        use std::io::Write;
+        // One write for the line and its newline, so the publisher never reads half a command.
+        self.file.write_all(format!("{line}\n").as_bytes())?;
+        Ok(())
+    }
+}

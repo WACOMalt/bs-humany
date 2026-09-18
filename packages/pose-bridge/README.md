@@ -26,6 +26,13 @@ belly's rings -- centre, orientation, radius, eight floats -- rather than its ve
 swept tube is a function of its rings and the reader can sweep it itself for a hundredth of the
 bytes. Same seqlock, same ring, and the same fixture generator writes its fixture.
 
+## And the panel
+
+Two more files beside the ring, neither of them binary: `<path>-status.json`, which the publisher
+renames into place four times a second, and `<path>-commands.jsonl`, which the viewer appends to
+one JSON object a line. `tools/cli/bin/publish-pose.mjs` documents both; they are what the
+headset's panel reads and writes.
+
 ## And back: grabs
 
 The same file states a second, much smaller layout for the other direction -- `GrabIntentReader`

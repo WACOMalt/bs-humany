@@ -22,6 +22,8 @@ fn main() {
     for (name, kind) in [
         ("skeleton.vert", shaderc::ShaderKind::Vertex),
         ("skeleton.frag", shaderc::ShaderKind::Fragment),
+        ("panel.vert", shaderc::ShaderKind::Vertex),
+        ("panel.frag", shaderc::ShaderKind::Fragment),
     ] {
         let source = std::fs::read_to_string(dir.join(name)).expect("reading the shader");
         let built = compiler

@@ -309,9 +309,10 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         .map(|i| ash::vk::Image::from_raw(i))
         .collect();
 
-    // The hands. One action set: where each grip is, and whether it is squeezing. Bound for the
-    // Index controller this was built against and for the simple profile every runtime knows, so
-    // a headset with some other controller still gets a trigger that grabs.
+    // The hands. One action set: where each grip and aim is, whether it is squeezing, whether it
+    // is pulling the trigger. Bound for the Index controller this was built against and for the
+    // simple profile every runtime knows, so a headset with some other controller still gets a
+    // button that grabs and one that points.
     let hands = Hands::new(&xr, &session)?;
 
     let mut renderer = crate::render::Renderer::new(
@@ -330,72 +331,45 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         pack.triangle_count()
     );
 
-    // Following a simulation: the bridge, and which pack bone each of its bones is. Matched by
-    // name once, because the pack and the pose are in different orders and the pose may carry
-    // bones the pack has no mesh for.
-    let mut bridge = match follow {
-        Some(path) => Some(crate::bridge::PoseBridge::open(path)?),
-        None => None,
-    };
-    let pose_index: Vec<Option<usize>> = pack
-        .bones
-        .iter()
-        .map(|bone| bridge.as_ref().and_then(|b| b.names.iter().position(|n| *n == bone.id)))
-        .collect();
-    if let Some(b) = &bridge {
-        let matched = pose_index.iter().filter(|m| m.is_some()).count();
-        println!(
-            "following {}: {} of {} pack bones have a pose, dataset scale {:.4}",
-            follow.map(|p| p.display().to_string()).unwrap_or_default(),
-            matched,
-            pack.bones.len(),
-            b.dataset_scale
-        );
-    }
     let place = crate::render::placement();
-    // Bones, the two controllers, and the world slot, which stays at the placement.
-    let mut matrices: Vec<[f32; 16]> =
-        vec![place; pack.bones.len() + crate::render::CONTROLLERS + 1];
-    let mut last_tick: Option<u64> = None;
+    // Bones, the two controllers, the world slot at the placement, and a pointer mark a hand.
+    let mut matrices: Vec<[f32; 16]> = vec![
+        place;
+        pack.bones.len() + crate::render::CONTROLLERS + 1 + crate::render::MARKERS
+    ];
+    for hand in 0..crate::render::MARKERS {
+        matrices[renderer.marker_slot(hand)] = crate::render::scale_matrix(0.0);
+    }
 
-    // The muscles, if the simulation has them: rings in their own bridge beside the poses, swept
-    // into tubes here every time a new frame arrives. A publisher with muscles off writes no such
-    // file, which is not an error.
-    let mut muscles = match follow {
-        Some(path) => {
-            let muscle_path = std::path::PathBuf::from(format!("{}-muscles", path.display()));
-            match crate::bridge::MuscleBridge::open(&muscle_path) {
-                Ok(m) => {
-                    println!(
-                        "muscles: {} bellies of {} rings, {} segments round",
-                        m.units, m.rings, m.segments
-                    );
-                    renderer.enable_muscles(m.units, m.rings, m.segments)?;
-                    Some(m)
-                }
-                Err(_) => {
-                    println!("muscles: none published");
-                    None
-                }
-            }
-        }
+    // What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
+    // together, and reopened together whenever the publisher's generation changes, which is how
+    // a scenario switch reaches this side.
+    let mut feeds = match follow {
+        Some(path) => Some(Feeds::open(path, pack, &mut renderer)?),
         None => None,
     };
-    let mut muscle_vertices: Vec<f32> = Vec::new();
-    let mut last_muscle_tick: Option<u64> = None;
-
-    // Grabbing, when there is a simulation to grab. Intents go back beside the pose bridge; the
-    // publisher looks for them there. What is held is remembered here so a hand that keeps
-    // squeezing keeps the same bone, and a hand that opens sends one last inactive intent.
-    let mut grabs = match follow {
-        Some(path) => Some(crate::bridge::GrabIntentWriter::create(&std::path::PathBuf::from(
-            format!("{}-grab", path.display()),
+    let status_path = follow.map(|p| std::path::PathBuf::from(format!("{}-status.json", p.display())));
+    let mut status: Option<crate::bridge::Status> = None;
+    let mut commands = match follow {
+        Some(path) => Some(crate::bridge::CommandWriter::create(&std::path::PathBuf::from(
+            format!("{}-commands.jsonl", path.display()),
         ))?),
         None => None,
     };
     let mut holding: [Option<Hold>; crate::bridge::HANDS] = [None, None];
     let mut hand_seen = [false; crate::bridge::HANDS];
     let controller_scale = crate::render::scale_matrix(1.0);
+    let mut muscle_vertices: Vec<f32> = Vec::new();
+    let mut last_tick: Option<u64> = None;
+    let mut last_muscle_tick: Option<u64> = None;
+
+    // The panel: to the viewer's right of the body, a little below eye height, turned to face
+    // where they stand. Whichever hand is pointing at it is the pointer; a hand that pressed on
+    // it keeps being the pointer until it lets go, so a drag does not change hands mid-way.
+    let placement = crate::panel::Placement::facing([0.85, 1.25, -1.0], [0.0, 1.25, 0.0]);
+    let panel_model = placement.model();
+    let mut panel = crate::panel::Panel::new();
+    let mut pointer_hand: Option<usize> = None;
 
     let stage =
         session.create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)?;
@@ -455,14 +429,43 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             state.predicted_display_time,
             &stage,
         )?;
+
+        // The publisher's status, ten times a second, and the feeds reopened if its generation
+        // moved. A publisher that has not written one yet, or that is between generations, is
+        // simply not there this poll.
+        if frames % 15 == 0 {
+            if let Some(path) = &status_path {
+                if let Some(fresh) = crate::bridge::read_status(path) {
+                    let generation = fresh.generation;
+                    status = Some(fresh);
+                    if let (Some(f), Some(follow_path)) = (feeds.as_ref(), follow) {
+                        if f.generation != generation {
+                            println!("publisher: generation {generation}, reopening the bridges");
+                            match Feeds::open(follow_path, pack, &mut renderer) {
+                                Ok(reopened) => {
+                                    feeds = Some(reopened);
+                                    holding = [None, None];
+                                    last_tick = None;
+                                    last_muscle_tick = None;
+                                    muscle_vertices.clear();
+                                }
+                                Err(e) => println!("publisher: could not reopen yet: {e}"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // The newest pose, if there is one and it is newer than the one already applied. Per
         // ADR-012 this never waits: no frame yet, or one mid-write, means the matrices stand.
-        if let Some(b) = bridge.as_mut() {
-            if let Some(frame) = b.newest() {
+        if let Some(f) = feeds.as_mut() {
+            if let Some(frame) = f.bridge.newest() {
                 if last_tick != Some(frame.tick) {
                     last_tick = Some(frame.tick);
+                    let b = &f.bridge;
                     let scale = crate::render::scale_matrix(b.dataset_scale as f32);
-                    for (i, found) in pose_index.iter().enumerate() {
+                    for (i, found) in f.pose_index.iter().enumerate() {
                         matrices[i] = match found {
                             Some(j) => {
                                 let p = &frame.pose[j * 7..j * 7 + 7];
@@ -486,14 +489,30 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     }
                 }
             }
+            if let Some(m) = f.muscles.as_mut() {
+                if let Some(frame) = m.newest() {
+                    if last_muscle_tick != Some(frame.tick) {
+                        last_muscle_tick = Some(frame.tick);
+                        crate::render::tube_vertices(
+                            &frame.rings,
+                            m.segments,
+                            renderer.world_slot() as u32,
+                            &mut muscle_vertices,
+                        );
+                    }
+                }
+            }
         }
+
         // The hands: located in the stage like the eyes, drawn as cubes at their grips, and asked
         // whether they are squeezing. A hand the runtime cannot place this frame keeps its last
         // cube and cannot begin a grab, but a grab already begun continues at the last target.
         hands.sync(&session)?;
+        let mut pointer = crate::panel::Pointer::default();
+        let mut pointer_candidate: Option<(usize, egui::Pos2, bool)> = None;
         for hand in 0..crate::bridge::HANDS {
             let slot = renderer.controller_slot(hand);
-            let located = hands.locate(hand, &stage, state.predicted_display_time)?;
+            let located = hands.locate(&hands.grip_spaces[hand], &stage, state.predicted_display_time)?;
             if let Some((position, orientation)) = located {
                 if !hand_seen[hand] {
                     hand_seen[hand] = true;
@@ -504,7 +523,25 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     &controller_scale,
                 );
             }
-            let Some(writer) = grabs.as_mut() else { continue };
+            // Where the aim ray meets the panel, if it does: a mark there, and a candidate for
+            // being the pointer.
+            let marker = renderer.marker_slot(hand);
+            matrices[marker] = crate::render::scale_matrix(0.0);
+            if let Some((position, orientation)) =
+                hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?
+            {
+                let forward = crate::render::rotate([0.0, 0.0, -1.0], orientation);
+                if let Some(at) = placement.hit(position, forward) {
+                    let world = placement.to_world(at);
+                    matrices[marker] = crate::render::pose_matrix(world, [0.0, 0.0, 0.0, 1.0]);
+                    let pressed = hands.trigger(&session, hand)?;
+                    let keep = pointer_hand == Some(hand);
+                    if keep || pointer_candidate.is_none() {
+                        pointer_candidate = Some((hand, at, pressed));
+                    }
+                }
+            }
+            let Some(f) = feeds.as_mut() else { continue };
             let squeezing = hands.squeezing(&session, hand)?;
             let in_sim = located.map(|(p, _)| crate::render::unplace(p));
             let intent = match (&holding[hand], squeezing, in_sim) {
@@ -512,8 +549,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     // A grab begins: the bone whose posed extent the hand is nearest to, if any
                     // is within reach. Nothing in reach is a squeeze in empty air, which sends
                     // nothing and holds nothing.
-                    let b = bridge.as_ref().expect("grabs exist only when following");
-                    match nearest_bone(pack, &matrices, &pose_index, b.dataset_scale as f32, located.unwrap().0) {
+                    match nearest_bone(pack, &matrices, &f.pose_index, f.bridge.dataset_scale as f32, located.unwrap().0) {
                         Some((pack_bone, pose_bone)) => {
                             println!(
                                 "hand {}: grabbed {}",
@@ -546,22 +582,42 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 }
                 _ => crate::bridge::GrabIntent::default(),
             };
-            writer.publish(hand, &intent);
+            f.grabs.publish(hand, &intent);
+        }
+        match pointer_candidate {
+            Some((hand, at, pressed)) => {
+                pointer_hand = if pressed { Some(hand) } else { None };
+                pointer = crate::panel::Pointer {
+                    at: Some(at),
+                    pressed,
+                };
+            }
+            None => pointer_hand = None,
         }
 
-        if let Some(m) = muscles.as_mut() {
-            if let Some(frame) = m.newest() {
-                if last_muscle_tick != Some(frame.tick) {
-                    last_muscle_tick = Some(frame.tick);
-                    crate::render::tube_vertices(
-                        &frame.rings,
-                        m.segments,
-                        renderer.world_slot() as u32,
-                        &mut muscle_vertices,
-                    );
-                }
+        // The panel, laid out afresh; its textures applied before the draw that samples them,
+        // and what was pressed sent on.
+        let feeds_line = match (&feeds, follow) {
+            (Some(f), _) => format!(
+                "{} of {} bones posed, {}",
+                f.pose_index.iter().filter(|m| m.is_some()).count(),
+                pack.bones.len(),
+                if f.muscles.is_some() { "muscles on" } else { "no muscles" }
+            ),
+            (None, _) => "Not following a simulation: run with --follow.".to_string(),
+        };
+        let panel_frame = panel.run(status.as_ref(), pointer, &feeds_line);
+        if !panel_frame.textures.is_empty() {
+            renderer.update_panel_textures(&panel_frame.textures)?;
+        }
+        let panel_meshes = panel_frame.meshes;
+        if let Some(writer) = commands.as_mut() {
+            for command in &panel_frame.commands {
+                println!("panel: {command:?}");
+                writer.send(&command.to_json())?;
             }
         }
+
         let image = swapchain.acquire_image()?;
         swapchain.wait_image(openxr::Duration::INFINITE)?;
         renderer.draw(
@@ -569,6 +625,10 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             &crate::render::view_projections(&views, 0.05, 50.0),
             Some(matrices.as_slice()),
             if muscle_vertices.is_empty() { None } else { Some(muscle_vertices.as_slice()) },
+            Some(&crate::render::PanelDraw {
+                model: panel_model,
+                meshes: &panel_meshes,
+            }),
         )?;
         swapchain.release_image()?;
         let cpu_ms = cpu_started.elapsed().as_secs_f64() * 1000.0;
@@ -606,19 +666,20 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         window_frames += 1;
         let window = window_started.elapsed().as_secs_f64();
         if window >= 2.0 {
-            let pose_age = bridge
+            let pose_age = feeds
                 .as_ref()
-                .map(|b| format!(", pose {:.0} ms old", b.stale_for().as_secs_f64() * 1000.0))
+                .map(|f| format!(", pose {:.0} ms old", f.bridge.stale_for().as_secs_f64() * 1000.0))
                 .unwrap_or_default();
             let held = holding
                 .iter()
                 .flatten()
-                .map(|h| bridge.as_ref().map(|b| b.names[h.pose_bone].clone()).unwrap_or_default())
+                .map(|h| feeds.as_ref().map(|f| f.bridge.names[h.pose_bone].clone()).unwrap_or_default())
                 .collect::<Vec<_>>()
                 .join(" and ");
             let held = if held.is_empty() { held } else { format!(", holding {held}") };
-            let bellies = muscles
+            let bellies = feeds
                 .as_ref()
+                .and_then(|f| f.muscles.as_ref())
                 .map(|m| format!(", {} muscle frames", m.published()))
                 .unwrap_or_default();
             println!(
@@ -638,6 +699,75 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         frames as f32 / started.elapsed().as_secs_f32()
     );
     Ok(())
+}
+
+/// Everything read from or written to one generation of the publisher's files.
+struct Feeds {
+    generation: u64,
+    bridge: crate::bridge::PoseBridge,
+    muscles: Option<crate::bridge::MuscleBridge>,
+    grabs: crate::bridge::GrabIntentWriter,
+    /// For each pack bone, its index in the bridge's bone order, matched by name once.
+    pose_index: Vec<Option<usize>>,
+}
+
+impl Feeds {
+    fn open(
+        path: &std::path::Path,
+        pack: &crate::pack::Pack,
+        renderer: &mut crate::render::Renderer,
+    ) -> Result<Self> {
+        let bridge = crate::bridge::PoseBridge::open(path)?;
+        // Matched by name once, because the pack and the pose are in different orders and the
+        // pose may carry bones the pack has no mesh for.
+        let pose_index: Vec<Option<usize>> = pack
+            .bones
+            .iter()
+            .map(|bone| bridge.names.iter().position(|n| *n == bone.id))
+            .collect();
+        println!(
+            "following {}: {} of {} pack bones have a pose, dataset scale {:.4}",
+            path.display(),
+            pose_index.iter().filter(|m| m.is_some()).count(),
+            pack.bones.len(),
+            bridge.dataset_scale
+        );
+        // The muscles, if the simulation has them: rings in their own bridge beside the poses,
+        // swept into tubes every time a new frame arrives. A publisher with muscles off writes
+        // no such file, which is not an error.
+        let muscle_path = std::path::PathBuf::from(format!("{}-muscles", path.display()));
+        let muscles = match crate::bridge::MuscleBridge::open(&muscle_path) {
+            Ok(m) => {
+                println!(
+                    "muscles: {} bellies of {} rings, {} segments round",
+                    m.units, m.rings, m.segments
+                );
+                renderer.enable_muscles(m.units, m.rings, m.segments)?;
+                Some(m)
+            }
+            Err(_) => {
+                println!("muscles: none published");
+                None
+            }
+        };
+        let grabs = crate::bridge::GrabIntentWriter::create(&std::path::PathBuf::from(format!(
+            "{}-grab",
+            path.display()
+        )))?;
+        let generation = crate::bridge::read_status(&std::path::PathBuf::from(format!(
+            "{}-status.json",
+            path.display()
+        )))
+        .map(|s| s.generation)
+        .unwrap_or(0);
+        Ok(Self {
+            generation,
+            bridge,
+            muscles,
+            grabs,
+            pose_index,
+        })
+    }
 }
 
 /// What a hand is holding: which pose bone, and where in the simulation's frame it took hold.
@@ -690,14 +820,20 @@ fn nearest_bone(
     best.map(|(_, i, j)| (i, j))
 }
 
-/// The tracked controllers as OpenXR actions: a grip pose and a squeeze, per hand.
+/// The tracked controllers as OpenXR actions: a grip pose, an aim pose, a squeeze and a trigger,
+/// per hand. The grip is where the cube is drawn and the squeeze grabs; the aim is the ray that
+/// points at the panel and the trigger presses what it points at.
 struct Hands {
     set: openxr::ActionSet,
     #[allow(dead_code)]
     grip: openxr::Action<openxr::Posef>,
+    #[allow(dead_code)]
+    aim: openxr::Action<openxr::Posef>,
     squeeze: openxr::Action<bool>,
+    trigger: openxr::Action<bool>,
     paths: [openxr::Path; crate::bridge::HANDS],
-    spaces: Vec<openxr::Space>,
+    grip_spaces: Vec<openxr::Space>,
+    aim_spaces: Vec<openxr::Space>,
 }
 
 impl Hands {
@@ -708,11 +844,13 @@ impl Hands {
         ];
         let set = xr.create_action_set("hands", "Hands", 0)?;
         let grip = set.create_action::<openxr::Posef>("grip", "Grip pose", &paths)?;
+        let aim = set.create_action::<openxr::Posef>("aim", "Aim pose", &paths)?;
         let squeeze = set.create_action::<bool>("grab", "Grab", &paths)?;
+        let trigger = set.create_action::<bool>("point", "Press", &paths)?;
         // Suggested per profile; the runtime picks the profile for the controller in hand. The
-        // Index binds the squeeze to the grip sensor, which is what grabbing feels like; the
-        // simple profile has only a select, so that is the grab there.
-        let suggest = |profile: &str, squeeze_input: &str| -> Result<()> {
+        // Index binds the squeeze to the grip sensor and the press to the trigger; the simple
+        // profile has only a select, which is both.
+        let suggest = |profile: &str, squeeze_input: &str, trigger_input: &str| -> Result<()> {
             let mut bindings = Vec::new();
             for side in ["left", "right"] {
                 bindings.push(openxr::Binding::new(
@@ -720,28 +858,43 @@ impl Hands {
                     xr.string_to_path(&format!("/user/hand/{side}/input/grip/pose"))?,
                 ));
                 bindings.push(openxr::Binding::new(
+                    &aim,
+                    xr.string_to_path(&format!("/user/hand/{side}/input/aim/pose"))?,
+                ));
+                bindings.push(openxr::Binding::new(
                     &squeeze,
                     xr.string_to_path(&format!("/user/hand/{side}/input/{squeeze_input}"))?,
+                ));
+                bindings.push(openxr::Binding::new(
+                    &trigger,
+                    xr.string_to_path(&format!("/user/hand/{side}/input/{trigger_input}"))?,
                 ));
             }
             xr.suggest_interaction_profile_bindings(xr.string_to_path(profile)?, &bindings)?;
             Ok(())
         };
-        suggest("/interaction_profiles/valve/index_controller", "squeeze/value")?;
-        if let Err(e) = suggest("/interaction_profiles/khr/simple_controller", "select/click") {
+        suggest("/interaction_profiles/valve/index_controller", "squeeze/value", "trigger/click")?;
+        if let Err(e) = suggest("/interaction_profiles/khr/simple_controller", "select/click", "select/click") {
             println!("hands: the simple controller profile was refused ({e}); Index only");
         }
         session.attach_action_sets(&[&set])?;
-        let spaces = paths
+        let grip_spaces = paths
             .iter()
             .map(|&path| grip.create_space(session, path, openxr::Posef::IDENTITY))
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let aim_spaces = paths
+            .iter()
+            .map(|&path| aim.create_space(session, path, openxr::Posef::IDENTITY))
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(Self {
             set,
             grip,
+            aim,
             squeeze,
+            trigger,
             paths,
-            spaces,
+            grip_spaces,
+            aim_spaces,
         })
     }
 
@@ -750,14 +903,14 @@ impl Hands {
         Ok(())
     }
 
-    /// Where a hand's grip is in `base` at `time`, if the runtime can say.
+    /// Where one of a hand's spaces is in `base` at `time`, if the runtime can say.
     fn locate(
         &self,
-        hand: usize,
+        space: &openxr::Space,
         base: &openxr::Space,
         time: openxr::Time,
     ) -> Result<Option<([f32; 3], [f32; 4])>> {
-        let located = self.spaces[hand].locate(base, time)?;
+        let located = space.locate(base, time)?;
         let wanted = openxr::SpaceLocationFlags::POSITION_VALID
             | openxr::SpaceLocationFlags::ORIENTATION_VALID;
         if !located.location_flags.contains(wanted) {
@@ -770,6 +923,11 @@ impl Hands {
 
     fn squeezing(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<bool> {
         let state = self.squeeze.state(session, self.paths[hand])?;
+        Ok(state.is_active && state.current_state)
+    }
+
+    fn trigger(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<bool> {
+        let state = self.trigger.state(session, self.paths[hand])?;
         Ok(state.is_active && state.current_state)
     }
 }

@@ -24,6 +24,7 @@ serde_json = "1"
 # The pose bridge is a file on tmpfs that the simulation writes; mapping it is how a frame is read
 # with no copy and no syscall.
 memmap2 = "0.9"
+egui = "0.29.1"
 
 [profile.release]
 opt-level = 3

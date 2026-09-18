@@ -146,6 +146,27 @@ hand right: let go
 
 and, in the publisher, `holding femur_r` on its own line while it lasts.
 
+### The panel
+
+The studio's controls, in the room: a dark panel half a metre wide, to your right of the body at
+chest height, turned to face where you stand. Point a controller at it and a small blue mark
+shows where the aim ray lands; the trigger presses. It shows which scenario is running, how far
+along and how fast, what is held, and offers Pause and Resume, Reset, a grab-strength slider and
+a button per scenario.
+
+It is drawn with egui -- immediate mode, laid out afresh each frame from what the publisher last
+said -- on its own pipeline over the same render pass as the bones, so the body occludes it and
+it occludes the body like anything else in the room. The web UI itself cannot come along: there
+is no way to get a WebKit view onto a Vulkan image at headset rate, and the controls that matter
+from inside a headset are few enough to draw again.
+
+Two files beside the pose ring carry it. The publisher rewrites `<path>-status.json` four times a
+second -- a temporary file renamed into place, so it is never half-written -- and the viewer
+appends commands to `<path>-commands.jsonl`, one JSON object a line, which the publisher reads
+from wherever it last stopped. Switching scenario rebuilds the simulation and every bridge file
+on the publisher's side and bumps a generation in the status; the viewer sees it change and
+reopens everything, which is a stall of a frame or two.
+
 ## Choosing a runtime
 
 The loader reads `~/.config/openxr/1/active_runtime.json`, and on this machine that currently

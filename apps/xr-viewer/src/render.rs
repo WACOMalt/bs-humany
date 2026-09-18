@@ -31,6 +31,13 @@ use crate::pack::Pack;
 const MAX_BONES: usize = 256;
 /// Two transform slots past the last bone hold the tracked controllers, one a hand.
 pub const CONTROLLERS: usize = 2;
+/// After the controllers and the world slot, one slot a hand for the pointer's mark on the panel.
+pub const MARKERS: usize = 2;
+/// The edge of a pointer mark, which is a small cube where the aim ray meets the panel.
+pub const MARKER_EDGE: f32 = 0.012;
+/// How many egui vertices and indices a frame of the panel may have; more is cut off.
+const PANEL_VERTICES: usize = 32768;
+const PANEL_INDICES: usize = 98304;
 /// The edge of a controller cube, in metres; a hand-sized thing, not a fingertip.
 pub const CONTROLLER_EDGE: f32 = 0.06;
 /// Position, normal, bone index.
@@ -62,6 +69,7 @@ pub struct Renderer {
     memory_properties: vk::PhysicalDeviceMemoryProperties,
     /// The muscle tubes, once a bridge has said how many rings there are.
     muscles: Option<Muscles>,
+    panel: PanelGpu,
 
     depth: Image,
     targets: Vec<Target>,
@@ -96,6 +104,34 @@ struct Muscles {
     filled: Vec<std::cell::Cell<bool>>,
 }
 
+/// What draws the panel: its own pipeline over the same render pass, a sampler and a set layout
+/// for egui's textures, a texture per egui texture id, and per-image vertex and index buffers.
+struct PanelGpu {
+    pipeline: vk::Pipeline,
+    layout: vk::PipelineLayout,
+    set_layout: vk::DescriptorSetLayout,
+    pool: vk::DescriptorPool,
+    sampler: vk::Sampler,
+    textures: std::collections::HashMap<u64, Texture>,
+    per_target: Vec<(Buffer, Buffer)>,
+}
+
+/// One egui texture on the GPU, with the CPU copy that partial updates are patched into.
+struct Texture {
+    image: vk::Image,
+    memory: vk::DeviceMemory,
+    view: vk::ImageView,
+    set: vk::DescriptorSet,
+    size: [usize; 2],
+    pixels: Vec<u8>,
+}
+
+/// The panel as `draw` wants it: the matrix that stands it up, and egui's meshes.
+pub struct PanelDraw<'a> {
+    pub model: [f32; 16],
+    pub meshes: &'a [(egui::TextureId, Vec<egui::epaint::Vertex>, Vec<u32>)],
+}
+
 struct Buffer {
     handle: vk::Buffer,
     memory: vk::DeviceMemory,
@@ -127,9 +163,9 @@ impl Renderer {
 
         // --- geometry, flattened into one pair of buffers -------------------------------------
         let (vertices, indices) = flatten(pack);
-        if pack.bones.len() + CONTROLLERS + 1 > MAX_BONES {
+        if pack.bones.len() + CONTROLLERS + 1 + MARKERS > MAX_BONES {
             bail!(
-                "the pack has {} bones, and with {CONTROLLERS} controllers and the world slot the shader holds {MAX_BONES}.",
+                "the pack has {} bones, and with the controllers, markers and world slot the shader holds {MAX_BONES}.",
                 pack.bones.len()
             );
         }
@@ -191,6 +227,7 @@ impl Renderer {
             )
         }?;
         let pipeline = build_pipeline(&device, render_pass, pipeline_layout, extent)?;
+        let panel = PanelGpu::new(&device, &memory_properties, render_pass, set_layout, extent, swapchain_images.len())?;
 
         let images = swapchain_images.len() as u32;
         let descriptor_pool = unsafe {
@@ -331,6 +368,7 @@ impl Renderer {
             first_controller: pack.bones.len(),
             memory_properties,
             muscles: None,
+            panel,
             depth,
             targets,
             extent,
@@ -350,6 +388,7 @@ impl Renderer {
         view_projections: &[f32; 32],
         bones: Option<&[[f32; 16]]>,
         muscles: Option<&[f32]>,
+        panel: Option<&PanelDraw>,
     ) -> Result<()> {
         let target = &self.targets[image];
         let device = &self.device;
@@ -368,6 +407,28 @@ impl Renderer {
                 if vertices.len() == tubes.vertex_floats {
                     tubes.per_target[image].write(bytes_of(vertices));
                     tubes.filled[image].set(true);
+                }
+            }
+            // The panel's meshes, packed end to end into this image's buffers, remembering where
+            // each begins so it can be drawn with its own texture.
+            let mut panel_draws: Vec<(u64, u32, u32, i32)> = Vec::new();
+            if let Some(panel) = panel {
+                let (vertex_buffer, index_buffer) = &self.panel.per_target[image];
+                let mut vertex_at = 0usize;
+                let mut index_at = 0usize;
+                for (texture, vertices, indices) in panel.meshes {
+                    let key = texture_key(*texture);
+                    if !self.panel.textures.contains_key(&key)
+                        || vertex_at + vertices.len() > PANEL_VERTICES
+                        || index_at + indices.len() > PANEL_INDICES
+                    {
+                        continue;
+                    }
+                    vertex_buffer.write_at(vertex_at * 20, bytes_of(vertices));
+                    index_buffer.write_at(index_at * 4, bytes_of(indices));
+                    panel_draws.push((key, index_at as u32, indices.len() as u32, vertex_at as i32));
+                    vertex_at += vertices.len();
+                    index_at += indices.len();
                 }
             }
             device.reset_command_buffer(
@@ -449,6 +510,58 @@ impl Renderer {
                     device.cmd_draw_indexed(target.command_buffer, tubes.index_count, 1, 0, 0, 0);
                 }
             }
+            // And the panel, on its own pipeline: blended, textured, one draw a mesh.
+            if let Some(panel) = panel {
+                if !panel_draws.is_empty() {
+                    let (vertex_buffer, index_buffer) = &self.panel.per_target[image];
+                    device.cmd_bind_pipeline(
+                        target.command_buffer,
+                        vk::PipelineBindPoint::GRAPHICS,
+                        self.panel.pipeline,
+                    );
+                    device.cmd_bind_descriptor_sets(
+                        target.command_buffer,
+                        vk::PipelineBindPoint::GRAPHICS,
+                        self.panel.layout,
+                        0,
+                        &[target.descriptor_set],
+                        &[],
+                    );
+                    device.cmd_push_constants(
+                        target.command_buffer,
+                        self.panel.layout,
+                        vk::ShaderStageFlags::VERTEX,
+                        0,
+                        bytes_of(&panel.model),
+                    );
+                    device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[vertex_buffer.handle], &[0]);
+                    device.cmd_bind_index_buffer(
+                        target.command_buffer,
+                        index_buffer.handle,
+                        0,
+                        vk::IndexType::UINT32,
+                    );
+                    for (key, first_index, count, vertex_offset) in &panel_draws {
+                        let texture = &self.panel.textures[key];
+                        device.cmd_bind_descriptor_sets(
+                            target.command_buffer,
+                            vk::PipelineBindPoint::GRAPHICS,
+                            self.panel.layout,
+                            1,
+                            &[texture.set],
+                            &[],
+                        );
+                        device.cmd_draw_indexed(
+                            target.command_buffer,
+                            *count,
+                            1,
+                            *first_index,
+                            *vertex_offset,
+                            0,
+                        );
+                    }
+                }
+            }
             device.cmd_end_render_pass(target.command_buffer);
             device.end_command_buffer(target.command_buffer)?;
             device.queue_submit(
@@ -471,10 +584,166 @@ impl Renderer {
         self.first_controller + CONTROLLERS
     }
 
+    /// The slot a hand's pointer mark is drawn by.
+    pub fn marker_slot(&self, hand: usize) -> usize {
+        self.world_slot() + 1 + hand
+    }
+
+    /// Apply egui's texture changes: new textures, patches to existing ones, and frees. Called
+    /// before the frame that uses them; it waits for the queue, which is fine for something that
+    /// happens a handful of times in a session.
+    pub fn update_panel_textures(&mut self, delta: &egui::TexturesDelta) -> Result<()> {
+        for (id, image_delta) in &delta.set {
+            let key = texture_key(*id);
+            let (size, pixels): ([usize; 2], Vec<u8>) = match &image_delta.image {
+                egui::epaint::ImageData::Color(image) => (
+                    image.size,
+                    image.pixels.iter().flat_map(|c| c.to_array()).collect(),
+                ),
+                egui::epaint::ImageData::Font(image) => (
+                    image.size,
+                    image.srgba_pixels(None).flat_map(|c| c.to_array()).collect(),
+                ),
+            };
+            match (image_delta.pos, self.panel.textures.get_mut(&key)) {
+                (Some([x, y]), Some(existing)) => {
+                    // A patch: into the CPU copy, then the whole thing back up. Font atlases
+                    // grow a few times early on and then never; simplicity wins here.
+                    for row in 0..size[1] {
+                        let dst = ((y + row) * existing.size[0] + x) * 4;
+                        let src = row * size[0] * 4;
+                        existing.pixels[dst..dst + size[0] * 4]
+                            .copy_from_slice(&pixels[src..src + size[0] * 4]);
+                    }
+                    let (image, full_size, full_pixels) =
+                        (existing.image, existing.size, existing.pixels.clone());
+                    self.upload_texture(image, full_size, &full_pixels)?;
+                }
+                _ => {
+                    if let Some(old) = self.panel.textures.remove(&key) {
+                        unsafe {
+                            let _ = self.device.queue_wait_idle(self.queue);
+                            old.destroy(&self.device);
+                        }
+                    }
+                    let texture = self.panel.create_texture(&self.device, &self.memory_properties, size, pixels)?;
+                    self.upload_texture(texture.image, texture.size, &texture.pixels)?;
+                    self.panel.textures.insert(key, texture);
+                }
+            }
+        }
+        for id in &delta.free {
+            if let Some(old) = self.panel.textures.remove(&texture_key(*id)) {
+                unsafe {
+                    let _ = self.device.queue_wait_idle(self.queue);
+                    old.destroy(&self.device);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Copy pixels into an image through a staging buffer, with the layout transitions round it.
+    fn upload_texture(&self, image: vk::Image, size: [usize; 2], pixels: &[u8]) -> Result<()> {
+        let device = &self.device;
+        let staging = Buffer::new(
+            device,
+            &self.memory_properties,
+            pixels.len(),
+            vk::BufferUsageFlags::TRANSFER_SRC,
+        )?;
+        staging.write(pixels);
+        let command = unsafe {
+            device.allocate_command_buffers(
+                &vk::CommandBufferAllocateInfo::default()
+                    .command_pool(self.command_pool)
+                    .level(vk::CommandBufferLevel::PRIMARY)
+                    .command_buffer_count(1),
+            )
+        }?[0];
+        let range = vk::ImageSubresourceRange::default()
+            .aspect_mask(vk::ImageAspectFlags::COLOR)
+            .level_count(1)
+            .layer_count(1);
+        unsafe {
+            device.begin_command_buffer(
+                command,
+                &vk::CommandBufferBeginInfo::default()
+                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
+            )?;
+            device.cmd_pipeline_barrier(
+                command,
+                vk::PipelineStageFlags::TOP_OF_PIPE | vk::PipelineStageFlags::FRAGMENT_SHADER,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[vk::ImageMemoryBarrier::default()
+                    .image(image)
+                    .old_layout(vk::ImageLayout::UNDEFINED)
+                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                    .src_access_mask(vk::AccessFlags::SHADER_READ)
+                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .subresource_range(range)],
+            );
+            device.cmd_copy_buffer_to_image(
+                command,
+                staging.handle,
+                image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &[vk::BufferImageCopy::default()
+                    .image_subresource(
+                        vk::ImageSubresourceLayers::default()
+                            .aspect_mask(vk::ImageAspectFlags::COLOR)
+                            .layer_count(1),
+                    )
+                    .image_extent(vk::Extent3D {
+                        width: size[0] as u32,
+                        height: size[1] as u32,
+                        depth: 1,
+                    })],
+            );
+            device.cmd_pipeline_barrier(
+                command,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::FRAGMENT_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[vk::ImageMemoryBarrier::default()
+                    .image(image)
+                    .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                    .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                    .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .dst_access_mask(vk::AccessFlags::SHADER_READ)
+                    .subresource_range(range)],
+            );
+            device.end_command_buffer(command)?;
+            device.queue_submit(
+                self.queue,
+                &[vk::SubmitInfo::default().command_buffers(&[command])],
+                vk::Fence::null(),
+            )?;
+            device.queue_wait_idle(self.queue)?;
+            device.free_command_buffers(self.command_pool, &[command]);
+            staging.destroy(device);
+        }
+        Ok(())
+    }
+
     /// Make room for the muscle tubes: `units` bellies of `rings` rings, `segments` round each.
     /// The connectivity is fixed from these three numbers and built once here; the vertices come
     /// every frame through `draw`.
     pub fn enable_muscles(&mut self, units: usize, rings: usize, segments: usize) -> Result<()> {
+        if let Some(old) = self.muscles.take() {
+            unsafe {
+                let _ = self.device.device_wait_idle();
+                old.index.destroy(&self.device);
+                for buffer in &old.per_target {
+                    buffer.destroy(&self.device);
+                }
+            }
+        }
         let indices = tube_indices(units, rings, segments);
         let index = Buffer::new(
             &self.device,
@@ -535,6 +804,7 @@ impl Drop for Renderer {
                     buffer.destroy(&self.device);
                 }
             }
+            self.panel.destroy(&self.device);
         }
     }
 }
@@ -555,9 +825,300 @@ fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
         indices.extend(mesh.indices.iter().map(|i| i + base));
     }
     for hand in 0..CONTROLLERS {
-        cube((pack.bones.len() + hand) as u32, &mut vertices, &mut indices);
+        cube((pack.bones.len() + hand) as u32, CONTROLLER_EDGE, &mut vertices, &mut indices);
+    }
+    // Past the world slot, a mark for each hand's pointer.
+    for hand in 0..MARKERS {
+        cube(
+            (pack.bones.len() + CONTROLLERS + 1 + hand) as u32,
+            MARKER_EDGE,
+            &mut vertices,
+            &mut indices,
+        );
     }
     (vertices, indices)
+}
+
+/// egui's texture ids as one number, for the texture map.
+fn texture_key(id: egui::TextureId) -> u64 {
+    match id {
+        egui::TextureId::Managed(n) => n,
+        egui::TextureId::User(n) => n | (1 << 63),
+    }
+}
+
+impl PanelGpu {
+    fn new(
+        device: &ash::Device,
+        memory_properties: &vk::PhysicalDeviceMemoryProperties,
+        render_pass: vk::RenderPass,
+        views_layout: vk::DescriptorSetLayout,
+        extent: vk::Extent2D,
+        images: usize,
+    ) -> Result<Self> {
+        let sampler = unsafe {
+            device.create_sampler(
+                &vk::SamplerCreateInfo::default()
+                    .mag_filter(vk::Filter::LINEAR)
+                    .min_filter(vk::Filter::LINEAR)
+                    .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                    .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                    .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE),
+                None,
+            )
+        }?;
+        let set_layout = unsafe {
+            device.create_descriptor_set_layout(
+                &vk::DescriptorSetLayoutCreateInfo::default().bindings(&[
+                    vk::DescriptorSetLayoutBinding::default()
+                        .binding(0)
+                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                        .descriptor_count(1)
+                        .stage_flags(vk::ShaderStageFlags::FRAGMENT),
+                ]),
+                None,
+            )
+        }?;
+        let pool = unsafe {
+            device.create_descriptor_pool(
+                &vk::DescriptorPoolCreateInfo::default()
+                    .flags(vk::DescriptorPoolCreateFlags::FREE_DESCRIPTOR_SET)
+                    .max_sets(16)
+                    .pool_sizes(&[vk::DescriptorPoolSize::default()
+                        .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                        .descriptor_count(16)]),
+                None,
+            )
+        }?;
+        let push = [vk::PushConstantRange::default()
+            .stage_flags(vk::ShaderStageFlags::VERTEX)
+            .offset(0)
+            .size(64)];
+        let layout = unsafe {
+            device.create_pipeline_layout(
+                &vk::PipelineLayoutCreateInfo::default()
+                    .set_layouts(&[views_layout, set_layout])
+                    .push_constant_ranges(&push),
+                None,
+            )
+        }?;
+        let pipeline = build_panel_pipeline(device, render_pass, layout, extent)?;
+        let mut per_target = Vec::with_capacity(images);
+        for _ in 0..images {
+            per_target.push((
+                Buffer::new(device, memory_properties, PANEL_VERTICES * 20, vk::BufferUsageFlags::VERTEX_BUFFER)?,
+                Buffer::new(device, memory_properties, PANEL_INDICES * 4, vk::BufferUsageFlags::INDEX_BUFFER)?,
+            ));
+        }
+        Ok(Self {
+            pipeline,
+            layout,
+            set_layout,
+            pool,
+            sampler,
+            textures: std::collections::HashMap::new(),
+            per_target,
+        })
+    }
+
+    /// An empty sRGB texture of `size`, with its descriptor set; `upload_texture` fills it.
+    fn create_texture(
+        &self,
+        device: &ash::Device,
+        memory_properties: &vk::PhysicalDeviceMemoryProperties,
+        size: [usize; 2],
+        pixels: Vec<u8>,
+    ) -> Result<Texture> {
+        let image = unsafe {
+            device.create_image(
+                &vk::ImageCreateInfo::default()
+                    .image_type(vk::ImageType::TYPE_2D)
+                    .format(vk::Format::R8G8B8A8_SRGB)
+                    .extent(vk::Extent3D {
+                        width: size[0] as u32,
+                        height: size[1] as u32,
+                        depth: 1,
+                    })
+                    .mip_levels(1)
+                    .array_layers(1)
+                    .samples(vk::SampleCountFlags::TYPE_1)
+                    .tiling(vk::ImageTiling::OPTIMAL)
+                    .usage(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST)
+                    .initial_layout(vk::ImageLayout::UNDEFINED),
+                None,
+            )
+        }?;
+        let needs = unsafe { device.get_image_memory_requirements(image) };
+        let memory = allocate(device, memory_properties, needs, vk::MemoryPropertyFlags::DEVICE_LOCAL)?;
+        unsafe { device.bind_image_memory(image, memory, 0) }?;
+        let view = unsafe {
+            device.create_image_view(
+                &vk::ImageViewCreateInfo::default()
+                    .image(image)
+                    .view_type(vk::ImageViewType::TYPE_2D)
+                    .format(vk::Format::R8G8B8A8_SRGB)
+                    .subresource_range(
+                        vk::ImageSubresourceRange::default()
+                            .aspect_mask(vk::ImageAspectFlags::COLOR)
+                            .level_count(1)
+                            .layer_count(1),
+                    ),
+                None,
+            )
+        }?;
+        let set = unsafe {
+            device.allocate_descriptor_sets(
+                &vk::DescriptorSetAllocateInfo::default()
+                    .descriptor_pool(self.pool)
+                    .set_layouts(&[self.set_layout]),
+            )
+        }?[0];
+        let info = [vk::DescriptorImageInfo::default()
+            .sampler(self.sampler)
+            .image_view(view)
+            .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)];
+        unsafe {
+            device.update_descriptor_sets(
+                &[vk::WriteDescriptorSet::default()
+                    .dst_set(set)
+                    .dst_binding(0)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(&info)],
+                &[],
+            );
+        }
+        Ok(Texture {
+            image,
+            memory,
+            view,
+            set,
+            size,
+            pixels,
+        })
+    }
+
+    unsafe fn destroy(&self, device: &ash::Device) {
+        unsafe {
+            for texture in self.textures.values() {
+                texture.destroy(device);
+            }
+            for (vertex, index) in &self.per_target {
+                vertex.destroy(device);
+                index.destroy(device);
+            }
+            device.destroy_pipeline(self.pipeline, None);
+            device.destroy_pipeline_layout(self.layout, None);
+            device.destroy_descriptor_pool(self.pool, None);
+            device.destroy_descriptor_set_layout(self.set_layout, None);
+            device.destroy_sampler(self.sampler, None);
+        }
+    }
+}
+
+impl Texture {
+    unsafe fn destroy(&self, device: &ash::Device) {
+        unsafe {
+            device.destroy_image_view(self.view, None);
+            device.destroy_image(self.image, None);
+            device.free_memory(self.memory, None);
+        }
+    }
+}
+
+/// The panel's pipeline: egui's vertex layout, premultiplied blending, depth tested against the
+/// body so it sits in the room rather than over it.
+fn build_panel_pipeline(
+    device: &ash::Device,
+    render_pass: vk::RenderPass,
+    layout: vk::PipelineLayout,
+    extent: vk::Extent2D,
+) -> Result<vk::Pipeline> {
+    let vertex_module = shader_module(device, include_bytes!("../shaders/panel.vert.spv"))?;
+    let fragment_module = shader_module(device, include_bytes!("../shaders/panel.frag.spv"))?;
+    let entry = CStr::from_bytes_with_nul(b"main\0")?;
+    let stages = [
+        vk::PipelineShaderStageCreateInfo::default()
+            .stage(vk::ShaderStageFlags::VERTEX)
+            .module(vertex_module)
+            .name(entry),
+        vk::PipelineShaderStageCreateInfo::default()
+            .stage(vk::ShaderStageFlags::FRAGMENT)
+            .module(fragment_module)
+            .name(entry),
+    ];
+    let bindings = [vk::VertexInputBindingDescription::default()
+        .binding(0)
+        .stride(20)
+        .input_rate(vk::VertexInputRate::VERTEX)];
+    let attributes = [
+        vk::VertexInputAttributeDescription::default()
+            .location(0)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(0),
+        vk::VertexInputAttributeDescription::default()
+            .location(1)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(8),
+        vk::VertexInputAttributeDescription::default()
+            .location(2)
+            .format(vk::Format::R8G8B8A8_UNORM)
+            .offset(16),
+    ];
+    let vertex_input = vk::PipelineVertexInputStateCreateInfo::default()
+        .vertex_binding_descriptions(&bindings)
+        .vertex_attribute_descriptions(&attributes);
+    let assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
+        .topology(vk::PrimitiveTopology::TRIANGLE_LIST);
+    let viewports = [vk::Viewport::default()
+        .width(extent.width as f32)
+        .height(extent.height as f32)
+        .max_depth(1.0)];
+    let scissors = [vk::Rect2D::default().extent(extent)];
+    let viewport = vk::PipelineViewportStateCreateInfo::default()
+        .viewports(&viewports)
+        .scissors(&scissors);
+    let raster = vk::PipelineRasterizationStateCreateInfo::default()
+        .polygon_mode(vk::PolygonMode::FILL)
+        .cull_mode(vk::CullModeFlags::NONE)
+        .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+        .line_width(1.0);
+    let multisample = vk::PipelineMultisampleStateCreateInfo::default()
+        .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+    let depth_stencil = vk::PipelineDepthStencilStateCreateInfo::default()
+        .depth_test_enable(true)
+        .depth_write_enable(true)
+        .depth_compare_op(vk::CompareOp::LESS);
+    let blend_attachments = [vk::PipelineColorBlendAttachmentState::default()
+        .blend_enable(true)
+        .src_color_blend_factor(vk::BlendFactor::ONE)
+        .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+        .color_blend_op(vk::BlendOp::ADD)
+        .src_alpha_blend_factor(vk::BlendFactor::ONE)
+        .dst_alpha_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+        .alpha_blend_op(vk::BlendOp::ADD)
+        .color_write_mask(vk::ColorComponentFlags::RGBA)];
+    let blend = vk::PipelineColorBlendStateCreateInfo::default().attachments(&blend_attachments);
+    let create = vk::GraphicsPipelineCreateInfo::default()
+        .stages(&stages)
+        .vertex_input_state(&vertex_input)
+        .input_assembly_state(&assembly)
+        .viewport_state(&viewport)
+        .rasterization_state(&raster)
+        .multisample_state(&multisample)
+        .depth_stencil_state(&depth_stencil)
+        .color_blend_state(&blend)
+        .layout(layout)
+        .render_pass(render_pass)
+        .subpass(0);
+    let pipeline = unsafe {
+        device.create_graphics_pipelines(vk::PipelineCache::null(), &[create], None)
+    }
+    .map_err(|(_, e)| e)?[0];
+    unsafe {
+        device.destroy_shader_module(vertex_module, None);
+        device.destroy_shader_module(fragment_module, None);
+    }
+    Ok(pipeline)
 }
 
 /// The triangles of every belly's tube, which depend only on the counts: ring `r` and ring `r+1`
@@ -610,10 +1171,10 @@ pub fn tube_vertices(rings: &[f32], segments: usize, slot: u32, out: &mut Vec<f3
     }
 }
 
-/// A cube of edge `CONTROLLER_EDGE` about the origin, six flat-shaded faces, owned by one slot.
+/// A cube of edge `edge` about the origin, six flat-shaded faces, owned by one slot.
 /// The slot's matrix is the grip pose, so the cube sits in the hand wherever the hand is.
-fn cube(slot: u32, vertices: &mut Vec<f32>, indices: &mut Vec<u32>) {
-    let h = CONTROLLER_EDGE / 2.0;
+fn cube(slot: u32, edge: f32, vertices: &mut Vec<f32>, indices: &mut Vec<u32>) {
+    let h = edge / 2.0;
     // (normal, u, v) with u x v = normal, so the corners below wind the same way every face.
     let faces: [([f32; 3], [f32; 3], [f32; 3]); 6] = [
         ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
@@ -833,6 +1394,16 @@ impl Buffer {
         }
     }
 
+    fn write_at(&self, offset: usize, bytes: &[u8]) {
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                (self.mapped as *mut u8).add(offset),
+                bytes.len(),
+            );
+        }
+    }
+
     unsafe fn destroy(&self, device: &ash::Device) {
         unsafe {
             device.unmap_memory(self.memory);
@@ -991,6 +1562,16 @@ pub(crate) fn inverse_pose(p: [f32; 3], q: [f32; 4]) -> [f32; 16] {
         r[1], r[4], r[7], 0.0, //
         r[2], r[5], r[8], 0.0, //
         t[0], t[1], t[2], 1.0,
+    ]
+}
+
+/// A vector turned by a quaternion.
+pub(crate) fn rotate(v: [f32; 3], q: [f32; 4]) -> [f32; 3] {
+    let r = rotation(q);
+    [
+        r[0] * v[0] + r[3] * v[1] + r[6] * v[2],
+        r[1] * v[0] + r[4] * v[1] + r[7] * v[2],
+        r[2] * v[0] + r[5] * v[1] + r[8] * v[2],
     ]
 }
 

@@ -17,6 +17,7 @@
 
 mod bridge;
 mod pack;
+mod panel;
 mod render;
 mod xr;
 

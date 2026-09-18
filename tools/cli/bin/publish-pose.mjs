@@ -21,8 +21,22 @@
  *
  * The status line says which of those is happening: simulated seconds against wall seconds, and
  * their ratio, which is 1.00 when it is keeping up.
+ *
+ * ## The files beside the poses
+ *
+ * `<path>` is the pose ring; `<path>-muscles` the belly rings; `<path>-grab` what the hands are
+ * holding, written by the renderer. Two more make the renderer's panel possible:
+ *
+ * - `<path>-status.json`, rewritten here four times a second by writing a temporary file and
+ *   renaming it, so a reader never sees half of one: which scenario, how far along, how fast,
+ *   paused or not, what is held, and which scenarios there are to choose from.
+ * - `<path>-commands.jsonl`, appended to by the renderer one JSON object a line, read from here
+ *   from wherever the last read stopped: `pause`, `resume`, `reset`, `scenario` with an `id`,
+ *   `strength` with a `value`. Switching scenario rebuilds the simulation and every bridge file,
+ *   and bumps `generation` in the status so the renderer knows to reopen them.
  */
 
+import { fstatSync, openSync, readSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
@@ -35,7 +49,7 @@ const flag = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at >= 0 && args[at + 1] !== undefined ? args[at + 1] : fallback;
 };
-const scenarioId = args.find(
+const scenarioArg = args.find(
   (a) => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'),
 );
 const fps = Number(flag('fps', 144));
@@ -52,7 +66,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.ts'));
-const { scenario, DEFAULT_SCENARIO } = await jiti.import(
+const { scenario, SCENARIOS, DEFAULT_SCENARIO } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
 const { PoseBridgeWriter, MuscleBridgeWriter, GrabIntentReader } = await jiti.import(
@@ -61,89 +75,108 @@ const { PoseBridgeWriter, MuscleBridgeWriter, GrabIntentReader } = await jiti.im
 
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
-const chosen = scenario(scenarioId ?? DEFAULT_SCENARIO);
-const morphology = resolveMorphology(chosen.morphology);
 
-const simulation = new Simulation(document, morphology, {
-  profileId,
-  backend: 'mujoco',
-  passiveJoints: chosen.passiveJoints,
-  redistribute: true,
-  scenario: chosen,
-  dropHeight: chosen.clearance,
-  groundHeight: chosen.ground.height,
-  muscles: chosen.muscles === true,
-  outputFramerate: fps,
-});
-await simulation.start();
+/** Build a simulation for a scenario and open the bridge files it publishes into. */
+async function build(scenarioId) {
+  const chosen = scenario(scenarioId);
+  const morphology = resolveMorphology(chosen.morphology);
+  const simulation = new Simulation(document, morphology, {
+    profileId,
+    backend: 'mujoco',
+    passiveJoints: chosen.passiveJoints,
+    redistribute: true,
+    scenario: chosen,
+    dropHeight: chosen.clearance,
+    groundHeight: chosen.ground.height,
+    muscles: chosen.muscles === true,
+    outputFramerate: fps,
+  });
+  await simulation.start();
 
-// The rest pose the pack's vertices are relative to, in the order the pose channel uses.
-const order = simulation.boneOrder();
-const rests = computeWorldTransforms(document, simulation.resolved.context);
-const restPosition = new Float64Array(order.length * 3);
-const restOrientation = new Float64Array(order.length * 4);
-order.forEach((id, i) => {
-  const t = rests.get(id);
-  restPosition.set(t ? [t.translation.x, t.translation.y, t.translation.z] : [0, 0, 0], i * 3);
-  restOrientation.set(
-    t ? [t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w] : [0, 0, 0, 1],
-    i * 4,
+  // The rest pose the pack's vertices are relative to, in the order the pose channel uses.
+  const order = simulation.boneOrder();
+  const rests = computeWorldTransforms(document, simulation.resolved.context);
+  const restPosition = new Float64Array(order.length * 3);
+  const restOrientation = new Float64Array(order.length * 4);
+  order.forEach((id, i) => {
+    const t = rests.get(id);
+    restPosition.set(t ? [t.translation.x, t.translation.y, t.translation.z] : [0, 0, 0], i * 3);
+    restOrientation.set(
+      t ? [t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w] : [0, 0, 0, 1],
+      i * 4,
+    );
+  });
+  const stature = evaluate(param('stature'), simulation.resolved.context);
+  const writer = PoseBridgeWriter.open(
+    {
+      bones: order,
+      position: restPosition,
+      orientation: restOrientation,
+      datasetScale: stature / assets.manifest.subjectStature,
+    },
+    { path },
   );
-});
-const stature = evaluate(param('stature'), simulation.resolved.context);
-const writer = PoseBridgeWriter.open(
-  {
-    bones: order,
-    position: restPosition,
-    orientation: restOrientation,
-    datasetScale: stature / assets.manifest.subjectStature,
-  },
-  { path },
-);
-
-console.log(
-  `publishing ${chosen.id} on ${profileId} at ${simulation.stepsPerSecond} steps/s, ` +
-    `${fps} poses/s, ${order.length} bones -> ${path}`,
-);
-// The muscles go beside the bones as rings, when there are any: eight floats a ring, which the
-// viewer sweeps into tubes itself.
-const rings = simulation.muscleRings();
-const muscleWriter = rings
-  ? MuscleBridgeWriter.open(
-      { units: rings.units, rings: rings.rings, segments: rings.segments },
-      { path: `${path}-muscles` },
-    )
-  : undefined;
-console.log(
-  rings
-    ? `  muscles on: ${rings.units} bellies of ${rings.rings} rings -> ${path}-muscles; Ctrl-C to stop`
-    : '  muscles off; Ctrl-C to stop',
-);
-
-// Per bone, in `boneOrder()` -- what the studio skins from. Not `body.pose`, which is per rigid
-// segment in the segment order: the same numbers, differently arranged, and a skeleton that was
-// fed them came out as a scatter of vertebrae.
-const pose = simulation.boneTransforms();
-if (pose.position.length !== order.length * 3 || pose.orientation.length !== order.length * 4) {
-  throw new Error(
-    `bone transforms hold ${pose.position.length / 3} bones and the order names ${order.length}`,
+  // The muscles go beside the bones as rings, when there are any: eight floats a ring, which the
+  // viewer sweeps into tubes itself.
+  const rings = simulation.muscleRings();
+  const muscleWriter = rings
+    ? MuscleBridgeWriter.open(
+        { units: rings.units, rings: rings.rings, segments: rings.segments },
+        { path: `${path}-muscles` },
+      )
+    : undefined;
+  // Per bone, in `boneOrder()` -- what the studio skins from. Not `body.pose`, which is per rigid
+  // segment in the segment order: the same numbers, differently arranged, and a skeleton that was
+  // fed them came out as a scatter of vertebrae.
+  const pose = simulation.boneTransforms();
+  if (pose.position.length !== order.length * 3 || pose.orientation.length !== order.length * 4) {
+    throw new Error(
+      `bone transforms hold ${pose.position.length / 3} bones and the order names ${order.length}`,
+    );
+  }
+  console.log(
+    `publishing ${chosen.id} on ${profileId} at ${simulation.stepsPerSecond} steps/s, ` +
+      `${fps} poses/s, ${order.length} bones -> ${path}`,
   );
+  console.log(
+    rings
+      ? `  muscles on: ${rings.units} bellies of ${rings.rings} rings -> ${path}-muscles`
+      : '  muscles off',
+  );
+  return {
+    chosen,
+    simulation,
+    order,
+    writer,
+    muscleWriter,
+    rings,
+    pose,
+    ticksPerFrame: simulation.ticksPerOutputFrame,
+  };
 }
-const ticksPerFrame = simulation.ticksPerOutputFrame;
 
+let generation = 1;
+let live = await build(scenarioArg ?? DEFAULT_SCENARIO);
+console.log('  Ctrl-C to stop');
+
+// ---------------------------------------------------------------------------------------------
 // Grabs, coming the other way. The renderer writes a slot per hand beside the pose bridge; this
 // reads both every tick and does what the studio's Ctrl-click does: find the segment the bone
 // belongs to, express the grabbed point in that segment's own frame, and hold it toward wherever
 // the hand is now. Each hand is its own grab slot, so both can hold at once.
+// ---------------------------------------------------------------------------------------------
 let grabs = GrabIntentReader.open(`${path}-grab`);
 const held = [null, null];
 let grabsSeen = 0;
+let grabStrength = 1;
+
 function applyGrabs() {
   if (!grabs) {
     grabs = GrabIntentReader.open(`${path}-grab`);
     if (!grabs) return;
     console.log('  hands: a renderer is writing grab intents');
   }
+  const { simulation, order } = live;
   const hands = grabs.read();
   for (let hand = 0; hand < hands.length; hand++) {
     const intent = hands[hand];
@@ -171,7 +204,7 @@ function applyGrabs() {
           z: iz * w + iw * z - ix * y + iy * x,
         };
         const [tx, ty, tz] = intent.target;
-        simulation.grab.grab(segment, local, { x: tx, y: ty, z: tz }, intent.strength || 1, hand);
+        simulation.grab.grab(segment, local, { x: tx, y: ty, z: tz }, grabStrength, hand);
         held[hand] = { segment, bone: order[intent.bone] };
         grabsSeen += 1;
       } else if (held[hand] !== null) {
@@ -184,19 +217,155 @@ function applyGrabs() {
     }
   }
 }
+
+function letGo() {
+  live.simulation.grab.release();
+  held[0] = null;
+  held[1] = null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The panel's two files: status out, commands in.
+// ---------------------------------------------------------------------------------------------
+let paused = false;
+let started = performance.now();
 let nextPublishAt = 0;
-const started = performance.now();
+
+function writeStatus() {
+  const { simulation, chosen } = live;
+  const simSeconds = simulation.ticks * simulation.dt;
+  const status = {
+    generation,
+    scenario: { id: chosen.id, title: chosen.title },
+    scenarios: SCENARIOS.map((s) => ({ id: s.id, title: s.title })),
+    profile: profileId,
+    simSeconds,
+    wallSeconds: (performance.now() - started) / 1000,
+    speed: lastSpeed,
+    paused,
+    muscles: Boolean(live.rings),
+    holding: held.filter(Boolean).map((h) => h.bone),
+    grabStrength,
+    stepsPerSecond: simulation.stepsPerSecond,
+    fps,
+  };
+  const tmp = `${path}-status.json.tmp`;
+  writeFileSync(tmp, JSON.stringify(status));
+  renameSync(tmp, `${path}-status.json`);
+}
+
+let commandsFd;
+let commandsOffset = 0;
+let commandsTail = '';
+const commandsBuffer = Buffer.alloc(4096);
+
+async function readCommands() {
+  if (commandsFd === undefined) {
+    try {
+      commandsFd = openSync(`${path}-commands.jsonl`, 'r');
+      console.log('  panel: a renderer is sending commands');
+    } catch {
+      return;
+    }
+  }
+  // A renderer that restarted truncated the file; start over from its beginning.
+  if (fstatSync(commandsFd).size < commandsOffset) {
+    commandsOffset = 0;
+    commandsTail = '';
+  }
+  for (;;) {
+    const got = readSync(commandsFd, commandsBuffer, 0, commandsBuffer.length, commandsOffset);
+    if (got <= 0) break;
+    commandsOffset += got;
+    commandsTail += commandsBuffer.toString('utf8', 0, got);
+    let newline = commandsTail.indexOf('\n');
+    while (newline >= 0) {
+      const line = commandsTail.slice(0, newline).trim();
+      commandsTail = commandsTail.slice(newline + 1);
+      if (line) await command(line);
+      newline = commandsTail.indexOf('\n');
+    }
+  }
+}
+
+async function command(line) {
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    console.log(`  panel: not a command: ${line}`);
+    return;
+  }
+  switch (parsed.kind) {
+    case 'pause':
+      if (!paused) {
+        paused = true;
+        pausedAt = performance.now();
+        console.log('  panel: paused');
+      }
+      break;
+    case 'resume':
+      if (paused) {
+        paused = false;
+        // The clock the pacing runs against skips the pause, so resuming does not race to
+        // catch up on time that was never meant to pass.
+        started += performance.now() - pausedAt;
+        console.log('  panel: resumed');
+      }
+      break;
+    case 'reset':
+      letGo();
+      live.simulation.reset();
+      started = performance.now();
+      if (paused) pausedAt = started;
+      nextPublishAt = 0;
+      console.log('  panel: reset to the start');
+      break;
+    case 'scenario': {
+      const id = String(parsed.id ?? '');
+      if (!SCENARIOS.some((s) => s.id === id)) {
+        console.log(`  panel: no scenario ${id}`);
+        break;
+      }
+      letGo();
+      live.writer.close();
+      live.muscleWriter?.close();
+      live.simulation.dispose();
+      console.log(`  panel: switching to ${id}`);
+      live = await build(id);
+      generation += 1;
+      started = performance.now();
+      if (paused) pausedAt = started;
+      nextPublishAt = 0;
+      break;
+    }
+    case 'strength': {
+      const value = Number(parsed.value);
+      if (Number.isFinite(value) && value > 0) grabStrength = value;
+      break;
+    }
+    default:
+      console.log(`  panel: unknown command ${parsed.kind}`);
+  }
+  writeStatus();
+}
+
+let pausedAt = started;
 let lastReport = started;
+let lastStatus = started;
 let ticksAtReport = 0;
+let lastSpeed = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-while (simulation.ticks * simulation.dt < seconds) {
+while (live.simulation.ticks * live.simulation.dt < seconds) {
+  await readCommands();
+  const { simulation, writer, muscleWriter, rings, pose, ticksPerFrame } = live;
   const wall = (performance.now() - started) / 1000;
   // Catch up with the clock, but by no more than one output frame per turn: if the machine
   // cannot keep up, this is what lets the loop fall behind gracefully rather than spin.
   let ran = 0;
-  while (simulation.ticks * simulation.dt < wall && ran < ticksPerFrame) {
+  while (!paused && simulation.ticks * simulation.dt < wall && ran < ticksPerFrame) {
     applyGrabs();
     simulation.tick();
     ran += 1;
@@ -214,22 +383,28 @@ while (simulation.ticks * simulation.dt < seconds) {
     nextPublishAt += ticksPerFrame;
   }
   if (ran === 0) {
-    // Ahead of the clock. A millisecond is the finest a timer reliably gives, and it is well
-    // under a frame at any output rate anybody would choose.
+    // Ahead of the clock, or paused. A millisecond is the finest a timer reliably gives, and it
+    // is well under a frame at any output rate anybody would choose.
     await sleep(1);
   } else {
     await new Promise(setImmediate);
   }
 
   const now = performance.now();
+  if (now - lastStatus >= 250) {
+    writeStatus();
+    lastStatus = now;
+  }
   if (now - lastReport >= 1000) {
     const simSeconds = simulation.ticks * simulation.dt;
     const wallSeconds = (now - started) / 1000;
-    const speed =
-      ((simulation.ticks - ticksAtReport) * simulation.dt) / ((now - lastReport) / 1000);
+    lastSpeed = paused
+      ? 0
+      : ((simulation.ticks - ticksAtReport) * simulation.dt) / ((now - lastReport) / 1000);
     console.log(
       `  sim ${simSeconds.toFixed(2)} s  wall ${wallSeconds.toFixed(2)} s  ` +
-        `${speed.toFixed(2)}x life  ${writer.framesPublished} poses published` +
+        `${lastSpeed.toFixed(2)}x life  ${writer.framesPublished} poses published` +
+        (paused ? '  paused' : '') +
         (held.some(Boolean)
           ? `  holding ${held
               .filter(Boolean)
@@ -244,9 +419,9 @@ while (simulation.ticks * simulation.dt < seconds) {
   }
 }
 
-writer.close();
-muscleWriter?.close();
-simulation.dispose();
+live.writer.close();
+live.muscleWriter?.close();
+live.simulation.dispose();
 console.log(
-  `done: ${writer.framesPublished} poses over ${(simulation.ticks * simulation.dt).toFixed(2)} s`,
+  `done: ${live.writer.framesPublished} poses over ${(live.simulation.ticks * live.simulation.dt).toFixed(2)} s`,
 );
