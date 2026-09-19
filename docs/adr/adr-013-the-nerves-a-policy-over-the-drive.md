@@ -27,8 +27,8 @@ over its units. The hundred and forty-eight units are the wrong dimension to con
 in; the groups are the dimension a person reasons in and the sliders already use.
 
 **A small network, run inside the tick.** A two-hidden-layer perceptron of a few tens of
-thousands of weights, evaluated every fifth tick -- a hundred hertz against forty-millisecond
-deactivation is plenty -- and its command held between evaluations but added every tick,
+thousands of weights, evaluated at a hundred hertz whatever the profile's solver rate -- against
+forty-millisecond deactivation that is plenty -- and its command held between evaluations but added every tick,
 because the accumulator is zeroed every tick. It runs in a web view and in a headset's publisher
 without noticing.
 
@@ -36,9 +36,14 @@ without noticing.
 mirrored sampling, rank-shaped fitness and Adam. No gradient is needed through the simulation --
 there is none to be had through a WebAssembly solver -- and every episode is independent, so a
 generation is a set of episodes spread over as many cores as the machine has. The fitness is
-standing: a point a hundredth of a second the head is up, a little for a level and still pelvis,
-a little off for effort, and a random twitch each episode so what is learned is standing through
-a nudge. The trained weights are a JSON file the scenario imports.
+standing, on the feet: a point a hundredth of a second the head is within a band of its resting
+height with a foot on the ground, a little for a level pelvis that stays where it was, a little
+off for sway and effort and more off for moving up or down, and a random twitch each episode so
+what is learned is standing through a nudge. The episode ends when the head leaves its band --
+a fall, a crouch or a jump alike -- or when the feet have all been off the ground for more than
+a moment, and nothing is scored while they are: the first policies learned to jump, because a
+head-height floor alone was longest satisfied by leaving the ground. The trained weights are a
+JSON file the scenario imports.
 
 **Trained at L3, fitted to any profile by name.** The reference anatomy is the body the nerves
 are for, so training runs on `l3_anatomical` unless `--profile` says otherwise, and any profile
