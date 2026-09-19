@@ -382,6 +382,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // is let go: squeezing to grab a bone tends to pull the trigger too, and the ray sweeping
     // the panel then was clicking whatever it crossed.
     let mut trigger_armed = [true; crate::bridge::HANDS];
+    // Pressed past six tenths, released under a quarter: a trigger held anywhere between stays
+    // what it was, so a hand resting on the trigger does not click.
+    let mut trigger_down = [false; crate::bridge::HANDS];
     let mut scene_generation: Option<u64> = None;
     // Moving about: the left thumbstick carries the viewer through the world, which is to say
     // the world is shifted the other way under a stage that does not move. `offset` is where the
@@ -611,7 +614,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             // being the pointer.
             let marker = renderer.marker_slot(hand);
             drawn[marker] = crate::render::scale_matrix(0.0);
-            let pressed = hands.trigger(&session, hand)?;
+            let pull = hands.trigger(&session, hand)?;
+            trigger_down[hand] = if trigger_down[hand] { pull > 0.25 } else { pull > 0.6 };
+            let pressed = trigger_down[hand];
             if !pressed {
                 trigger_armed[hand] = true;
             }
@@ -989,7 +994,9 @@ struct Hands {
     #[allow(dead_code)]
     aim: openxr::Action<openxr::Posef>,
     squeeze: openxr::Action<bool>,
-    trigger: openxr::Action<bool>,
+    /// Analogue, not a click: the click a runtime derives from a half-pulled trigger flickers
+    /// across its threshold, and every flicker was a release and a press to the panel.
+    trigger: openxr::Action<f32>,
     thumbstick: openxr::Action<openxr::Vector2f>,
     paths: [openxr::Path; crate::bridge::HANDS],
     grip_spaces: Vec<openxr::Space>,
@@ -1006,7 +1013,7 @@ impl Hands {
         let grip = set.create_action::<openxr::Posef>("grip", "Grip pose", &paths)?;
         let aim = set.create_action::<openxr::Posef>("aim", "Aim pose", &paths)?;
         let squeeze = set.create_action::<bool>("grab", "Grab", &paths)?;
-        let trigger = set.create_action::<bool>("point", "Press", &paths)?;
+        let trigger = set.create_action::<f32>("point", "Press", &paths)?;
         let thumbstick = set.create_action::<openxr::Vector2f>("move", "Move", &paths)?;
         // Suggested per profile; the runtime picks the profile for the controller in hand. The
         // Index binds the squeeze to the grip sensor and the press to the trigger; the simple
@@ -1040,7 +1047,7 @@ impl Hands {
             xr.suggest_interaction_profile_bindings(xr.string_to_path(profile)?, &bindings)?;
             Ok(())
         };
-        suggest("/interaction_profiles/valve/index_controller", "squeeze/value", "trigger/click", true)?;
+        suggest("/interaction_profiles/valve/index_controller", "squeeze/value", "trigger/value", true)?;
         if let Err(e) = suggest("/interaction_profiles/khr/simple_controller", "select/click", "select/click", false) {
             println!("hands: the simple controller profile was refused ({e}); Index only");
         }
@@ -1104,9 +1111,10 @@ impl Hands {
         })
     }
 
-    fn trigger(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<bool> {
+    /// How far the trigger is pulled, 0..1; a boolean binding reads as 0 or 1.
+    fn trigger(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<f32> {
         let state = self.trigger.state(session, self.paths[hand])?;
-        Ok(state.is_active && state.current_state)
+        Ok(if state.is_active { state.current_state } else { 0.0 })
     }
 }
 
