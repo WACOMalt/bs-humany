@@ -180,6 +180,9 @@ let skinned: SkinnedSkeleton | null = null;
 let selectedObject: Mesh | null = null;
 let selectedBoneId: string | null = null;
 let simulation: Simulation | null = null;
+// Declared up here with the run state, because the render loop reads it from its first frame
+// on, and that frame runs before the page script reaches the VR section at the bottom.
+let vrLink: VrLink | null = null;
 let overlays: Overlays | null = null;
 let furniture: Group | null = null;
 let groundY = 0;
@@ -1842,7 +1845,6 @@ function escapeHtml(value: string): string {
 // into the same controls the mouse uses, so the two never disagree about what the run is doing.
 // ---------------------------------------------------------------------------------------------
 
-let vrLink: VrLink | null = null;
 const connectVr = must<HTMLButtonElement>('#connect-vr');
 
 /** The studio's diagnostics strip, as numbers, for the panel. */
