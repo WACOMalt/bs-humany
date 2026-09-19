@@ -387,6 +387,14 @@ export class Kernel {
       }
     }
     this.clock.restore({ tick: snapshot.tick, dt: snapshot.dt });
+    // Every module that keeps state of its own outside the channels -- fibre lengths, a filter,
+    // a counter -- is told the world has moved under it, so it rebinds and forgets. Without this
+    // the muscles' fibres belonged to the pose the last run ended in, and the first tick after a
+    // restore pulled the body off the ground with them.
+    for (const { module } of this.#schedule) {
+      const random = this.#random.get(module.manifest.id);
+      if (module.reset && random) module.reset(this.#initContext(module, random));
+    }
   }
 
   /** Order-sensitive hash of every channel, for the determinism harness and golden trajectories. */
