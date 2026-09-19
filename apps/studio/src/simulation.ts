@@ -44,6 +44,7 @@ import {
   MuscleVolumeModule,
   RENDER_MUSCLE_MESH,
   compileMuscleSet,
+  extractMuscleRings,
 } from '@bs-humany/modules-muscle';
 import { MlpPolicy, NervesModule } from '@bs-humany/modules-nerves';
 import {
@@ -639,62 +640,17 @@ export class Simulation {
     const mesh = this.muscleMesh();
     const volume = this.muscleVolume;
     if (!mesh || !volume) return;
-    const rings = volume.rings;
-    const segments = volume.segments;
-    const total = mesh.units * rings;
+    const total = mesh.units * volume.rings;
     if (this.ringRadius.length !== total) {
       this.ringPosition = new Float32Array(total * 3);
       this.ringOrientation = new Float32Array(total * 4);
       this.ringRadius = new Float32Array(total);
     }
-    for (let unit = 0; unit < mesh.units; unit++) {
-      for (let ring = 0; ring < rings; ring++) {
-        const base = 3 * (unit * mesh.verticesPerUnit + ring * segments);
-        let cx = 0;
-        let cy = 0;
-        let cz = 0;
-        for (let v = 0; v < segments; v++) {
-          cx += mesh.position[base + 3 * v] ?? 0;
-          cy += mesh.position[base + 3 * v + 1] ?? 0;
-          cz += mesh.position[base + 3 * v + 2] ?? 0;
-        }
-        cx /= segments;
-        cy /= segments;
-        cz /= segments;
-        // X toward the first vertex, Z along the ring's normal, Y completing a right-handed set.
-        let ax = (mesh.position[base] ?? 0) - cx;
-        let ay = (mesh.position[base + 1] ?? 0) - cy;
-        let az = (mesh.position[base + 2] ?? 0) - cz;
-        const radius = Math.hypot(ax, ay, az);
-        const quarter = 3 * Math.floor(segments / 4);
-        let bx = (mesh.position[base + quarter] ?? 0) - cx;
-        let by = (mesh.position[base + quarter + 1] ?? 0) - cy;
-        let bz = (mesh.position[base + quarter + 2] ?? 0) - cz;
-        if (radius > 1e-9) {
-          ax /= radius;
-          ay /= radius;
-          az /= radius;
-        }
-        const bl = Math.hypot(bx, by, bz) || 1;
-        bx /= bl;
-        by /= bl;
-        bz /= bl;
-        // Z = X cross Y, then Y squared back up so the three are orthonormal whatever the mesh's
-        // rounding did.
-        const zx = ay * bz - az * by;
-        const zy = az * bx - ax * bz;
-        const zz = ax * by - ay * bx;
-        const yx = zy * az - zz * ay;
-        const yy = zz * ax - zx * az;
-        const yz = zx * ay - zy * ax;
-        const at = unit * rings + ring;
-        this.ringPosition[3 * at] = cx;
-        this.ringPosition[3 * at + 1] = cy;
-        this.ringPosition[3 * at + 2] = cz;
-        this.ringRadius[at] = radius;
-        writeQuaternion(this.ringOrientation, 4 * at, ax, ay, az, yx, yy, yz, zx, zy, zz);
-      }
-    }
+    extractMuscleRings(mesh, volume.rings, volume.segments, {
+      position: this.ringPosition,
+      orientation: this.ringOrientation,
+      radius: this.ringRadius,
+    });
     this.muscleCapture.append(this.ticks, this.ringPosition, this.ringOrientation, this.ringRadius);
   }
 
@@ -880,51 +836,3 @@ function restClearance(model: CompiledArticulation, groundHeight: number): numbe
  * by the same angle the other way -- which is exactly what it did first, and what moved the
  * exported vertices 27 mm from where the sweep had put them.
  */
-function writeQuaternion(
-  out: Float32Array,
-  at: number,
-  xx: number,
-  xy: number,
-  xz: number,
-  yx: number,
-  yy: number,
-  yz: number,
-  zx: number,
-  zy: number,
-  zz: number,
-): void {
-  const trace = xx + yy + zz;
-  let w: number;
-  let x: number;
-  let y: number;
-  let z: number;
-  if (trace > 0) {
-    const s = Math.sqrt(trace + 1) * 2;
-    w = s / 4;
-    x = (yz - zy) / s;
-    y = (zx - xz) / s;
-    z = (xy - yx) / s;
-  } else if (xx > yy && xx > zz) {
-    const s = Math.sqrt(1 + xx - yy - zz) * 2;
-    w = (yz - zy) / s;
-    x = s / 4;
-    y = (xy + yx) / s;
-    z = (xz + zx) / s;
-  } else if (yy > zz) {
-    const s = Math.sqrt(1 + yy - xx - zz) * 2;
-    w = (zx - xz) / s;
-    x = (xy + yx) / s;
-    y = s / 4;
-    z = (yz + zy) / s;
-  } else {
-    const s = Math.sqrt(1 + zz - xx - yy) * 2;
-    w = (xy - yx) / s;
-    x = (xz + zx) / s;
-    y = (yz + zy) / s;
-    z = s / 4;
-  }
-  out[at] = x;
-  out[at + 1] = y;
-  out[at + 2] = z;
-  out[at + 3] = w;
-}

@@ -66,9 +66,11 @@ import {
   WebGLRenderer,
 } from 'three';
 import { buildBlenderExport } from './blenderExport.js';
+import { BridgeFollower } from './follow.js';
 import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
 import { Playback } from './playback.js';
+import { RingTubes } from './ringTubes.js';
 import {
   type SessionFile,
   type SessionSettings,
@@ -184,6 +186,8 @@ let simulation: Simulation | null = null;
 // Declared up here with the run state, because the render loop reads it from its first frame
 // on, and that frame runs before the page script reaches the VR section at the bottom.
 let vrLink: VrLink | null = null;
+// Likewise the bridge follower, read by the loop from its first frame on.
+const bridgeFollower = new BridgeFollower();
 let overlays: Overlays | null = null;
 let furniture: Group | null = null;
 let groundY = 0;
@@ -658,6 +662,7 @@ async function startSimulation(
   carry?: { state: ReturnType<Simulation['jointState']>; ticks: number; paused: boolean },
 ): Promise<void> {
   if (!skeletonMesh || !skinned) return;
+  if (bridgeFollower.active) stopFollowing();
   stopSimulation();
   setSimulationStatus('Compiling…');
   try {
@@ -1553,6 +1558,7 @@ function animate(): void {
   controls.update();
 
   if (!simulation) vrLink?.idle();
+  if (bridgeFollower.active && skinned) followFrame(skinned);
   if (simulation && skinned) {
     const frameSeconds = Math.min(elapsed, 250) / 1000;
     if (following) {
@@ -1965,3 +1971,76 @@ function drawNerves(sim: Simulation): void {
       : '') +
     (nerves.unreadableSoFar ? `; ${nerves.unreadableSoFar} unreadable inputs` : '');
 }
+
+// ---------------------------------------------------------------------------------------------
+// Following the bridge: the body on screen is whoever is publishing, not a run of our own.
+// ---------------------------------------------------------------------------------------------
+
+const followButton = must<HTMLButtonElement>('#follow-bridge');
+let followTubes: RingTubes | null = null;
+let followLastTick = -1;
+let followLastMuscleTick = -1;
+
+function followFrame(skin: SkinnedSkeleton): void {
+  const pose = bridgeFollower.pose;
+  if (pose && pose.tick !== followLastTick) {
+    followLastTick = pose.tick;
+    skin.update(pose.bones, pose.position, pose.orientation);
+  }
+  const muscles = bridgeFollower.muscles;
+  if (muscles && muscles.tick !== followLastMuscleTick) {
+    followLastMuscleTick = muscles.tick;
+    if (
+      !followTubes ||
+      followTubes.mesh.geometry.getAttribute('position').count !==
+        muscles.units * muscles.rings * muscles.segments
+    ) {
+      if (followTubes) {
+        scene.remove(followTubes.mesh);
+        followTubes.dispose();
+      }
+      followTubes = new RingTubes(muscles.units, muscles.rings, muscles.segments);
+      scene.add(followTubes.mesh);
+    }
+    followTubes.update(muscles.position, muscles.orientation, muscles.radius);
+  }
+  const status = bridgeFollower.status as {
+    scenario?: { title?: string };
+    training?: { generation?: number; episode?: number };
+  } | null;
+  const title = status?.scenario?.title ?? 'a publisher';
+  const training = status?.training;
+  setSimulationStatus(
+    bridgeFollower.problem
+      ? `Following the bridge: ${bridgeFollower.problem}`
+      : `Following ${title}${training ? `, episode ${training.episode}` : ''}` +
+          (pose ? ` · ${(pose.tick / 500).toFixed(1)} s` : ''),
+  );
+}
+
+function stopFollowing(): void {
+  bridgeFollower.stop();
+  if (followTubes) {
+    scene.remove(followTubes.mesh);
+    followTubes.dispose();
+    followTubes = null;
+  }
+  followLastTick = -1;
+  followLastMuscleTick = -1;
+  skinned?.rest();
+  followButton.textContent = 'Follow the bridge';
+  setSimulationStatus('At rest.');
+}
+
+followButton.addEventListener('click', () => {
+  if (bridgeFollower.active) {
+    stopFollowing();
+    return;
+  }
+  // A run of our own and a followed one cannot share the skeleton.
+  stopSimulation();
+  setRunControls(false);
+  bridgeFollower.start();
+  followButton.textContent = 'Stop following';
+  setSimulationStatus('Following the bridge…');
+});

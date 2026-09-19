@@ -7,6 +7,8 @@
       "coverage",
       "target",
       "apps/studio/src-tauri/gen/**",
+      "tools/train/runs/**",
+      "packages/modules-nerves/policies/**",
       "**/*.tsbuildinfo",
       "packages/assets-anatomical/data/**",
       "apps/xr-viewer/target",

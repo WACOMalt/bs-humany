@@ -31,7 +31,12 @@ import {
   MuscleDynamicsModule,
   MusclePathModule,
   MuscleTestDriveModule,
+  MuscleVolumeModule,
+  RENDER_MUSCLE_MESH,
+  type RingBuffers,
   compileMuscleSet,
+  extractMuscleRings,
+  ringBuffers,
 } from '@bs-humany/modules-muscle';
 import { MlpPolicy, NervesModule } from '@bs-humany/modules-nerves';
 import {
@@ -91,6 +96,8 @@ export class StandRig {
   /** The bone order and transforms, when `poseBones` was asked for. */
   readonly boneOrder: readonly string[];
   readonly restContext: unknown;
+  private readonly volume: MuscleVolumeModule | undefined;
+  private rings: RingBuffers | undefined;
   private readonly parents: readonly number[];
   private readonly segmentIds: readonly string[];
   private live = 0;
@@ -113,7 +120,9 @@ export class StandRig {
     restContext: unknown,
     parents: readonly number[],
     segmentIds: readonly string[],
+    volume: MuscleVolumeModule | undefined,
   ) {
+    this.volume = volume;
     this.boneOrder = boneOrder;
     this.restContext = restContext;
     this.parents = parents;
@@ -184,6 +193,12 @@ export class StandRig {
     kernel.register(drive);
     kernel.register(new MusclePathModule(articulation, muscles));
     kernel.register(new MuscleDynamicsModule(articulation, muscles));
+    let volume: MuscleVolumeModule | undefined;
+    if (options.poseBones) {
+      // The bellies too, for a rig that publishes; a training rig pays no sweep.
+      volume = new MuscleVolumeModule(articulation, muscles, { simulationRateHz: rate });
+      kernel.register(volume);
+    }
 
     const outputs = driveOutputs();
     const goal = new Float64Array(GOAL_SIZE);
@@ -217,6 +232,7 @@ export class StandRig {
       morphology.context,
       articulation.segments.map((seg) => seg.parent),
       articulation.segments.map((seg) => seg.id),
+      volume,
     );
   }
 
@@ -231,6 +247,24 @@ export class StandRig {
       position: fields.position as Float64Array,
       orientation: fields.orientation as Float64Array,
     };
+  }
+
+  /** The bellies' rings as of now, or undefined without `poseBones`. */
+  muscleRings():
+    | { units: number; rings: number; segments: number; buffers: RingBuffers }
+    | undefined {
+    const volume = this.volume;
+    if (!volume) return undefined;
+    const units = volume.muscles.units.length;
+    if (!this.rings) this.rings = ringBuffers(units, volume.rings);
+    const fields = this.kernel.channels.storage(RENDER_MUSCLE_MESH).fields;
+    extractMuscleRings(
+      { position: fields.position as Float64Array, verticesPerUnit: volume.verticesPerUnit, units },
+      volume.rings,
+      volume.segments,
+      this.rings,
+    );
+    return { units, rings: volume.rings, segments: volume.segments, buffers: this.rings };
   }
 
   /** Every segment's world position, and each segment's parent, for a stick figure. */

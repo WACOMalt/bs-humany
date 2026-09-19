@@ -15,3 +15,4 @@ export * from './muscleMomentModule.js';
 export * from './musclePathModule.js';
 export * from './muscleTestDriveModule.js';
 export * from './muscleVolumeModule.js';
+export { type RingBuffers, type SweptMeshView, extractMuscleRings, ringBuffers } from './rings.js';

@@ -117,7 +117,10 @@ if (resume && existsSync(out)) {
 }
 if (!initial) {
   let s = 12345;
-  const random = () => (s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+  const random = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 2 ** 32;
+  };
   initial = MlpPolicy.random(shape.sizes, random).weights;
 }
 

@@ -95,7 +95,9 @@ it, what is in the image, and the two headers it has to serve.
 across every core, saving the best to `packages/modules-nerves/policies/stand.json` as it goes;
 `pnpm train:dashboard` serves a page at `http://localhost:5280/` with the fitness curves, the
 live body and the network's activity; `pnpm train:showcase` keeps the current best running in a
-body published to the pose bridge, so the headset viewer shows the learner. ADR-013 is why it is
+body published to the pose bridge, so the headset viewer shows the learner -- and so does the
+studio: its **Follow the bridge** button shows whatever is publishing, live, muscles and all,
+through the dashboard's server. ADR-013 is why it is
 shaped this way.
 
 ## Naming

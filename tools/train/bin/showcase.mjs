@@ -40,7 +40,9 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
   join(ROOT, 'packages/assets-anatomical/src/index.ts'),
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
-const { openPoseBridge } = await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
+const { openPoseBridge, openMuscleBridge } = await jiti.import(
+  join(ROOT, 'packages/pose-bridge/src/index.ts'),
+);
 
 const rig = await StandRig.build({
   profileId: 'l1_standard',
@@ -77,6 +79,13 @@ const writer = openPoseBridge(
   },
   { path },
 );
+const shape = rig.muscleRings();
+const muscleWriter = shape
+  ? openMuscleBridge(
+      { units: shape.units, rings: shape.rings, segments: shape.segments },
+      { path: `${path}-muscles` },
+    )
+  : undefined;
 
 let loadedAt = 0;
 let weights = null;
@@ -116,7 +125,7 @@ function writeStatus(episode, upFor) {
     wallSeconds: (performance.now() - started) / 1000,
     speed: 1,
     paused: false,
-    muscles: false,
+    muscles: true,
     holding: [],
     grabStrength: 1,
     settings: {},
@@ -198,6 +207,15 @@ for (;;) {
     if (ran > 0 && ticks % ticksPerFrame < ran) {
       const bones = rig.boneTransforms();
       writer.publish(ticks, ticks * dt, bones.position, bones.orientation);
+      const rings = muscleWriter ? rig.muscleRings() : undefined;
+      if (rings && muscleWriter) {
+        muscleWriter.publish(
+          ticks,
+          rings.buffers.position,
+          rings.buffers.orientation,
+          rings.buffers.radius,
+        );
+      }
     }
     const now = performance.now();
     if (now - lastStatus > 250) {
