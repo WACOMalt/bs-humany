@@ -48,7 +48,6 @@ const rig = await StandRig.build({
   profileId: flag('profile', 'l3_anatomical'),
   hidden: [32, 32],
   seconds: 30,
-  controlDivisor: 5,
   authority: Number(flag('authority', 0.3)),
   clip: task === 'walk' ? 'walk-normal' : 'quiet-standing',
   poseBones: true,

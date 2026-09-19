@@ -82,7 +82,6 @@ const options = {
   profileId,
   hidden,
   seconds,
-  controlDivisor: 5,
   authority,
   clip: task === 'stand' ? 'quiet-standing' : task === 'walk' ? 'walk-normal' : 'quiet-standing',
 };

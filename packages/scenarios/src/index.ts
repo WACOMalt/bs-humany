@@ -856,7 +856,7 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
         policy: standPolicy as unknown as PolicyFile,
         authority: v.authority as number,
         goal: 0,
-        controlDivisor: 5,
+        controlDivisor: 10,
       },
       script: playClip(clipCalled('quiet-standing'), v.gain as number, 1),
     }),

@@ -539,9 +539,11 @@ export class MujocoBackend implements IPhysicsBackend {
     const mjData = this.mjData;
     const config = this.config;
     if (!mjData || !config) return 0;
-    const v = this.live();
     const n = mjData.ncon;
     const contacts = mjData.contact;
+    // The constraint forces live in an arena MuJoCo lays out afresh every step, so a view held
+    // from init goes stale; this one is over the arena as it stands now.
+    const efcForce = mjData.efc_force as Float64Array;
     for (let i = 0; i < n; i++) {
       if (i >= out.capacity) break;
       // allocation-ok: the bindings hand out a handle per contact; there is no indexed view.
@@ -570,7 +572,7 @@ export class MujocoBackend implements IPhysicsBackend {
       out.normal[3 * i + 1] = (frame[1] as number) * sign;
       out.normal[3 * i + 2] = (frame[2] as number) * sign;
       // The first constraint row of a contact is its normal force.
-      const force = c.efc_address >= 0 ? (v.efc_force[c.efc_address] as number) : 0;
+      const force = c.efc_address >= 0 ? ((efcForce[c.efc_address] as number) ?? 0) : 0;
       out.impulse[i] = force * this.substepTimestep;
       out.depth[i] = -c.dist;
       (c as { delete?: () => void }).delete?.();

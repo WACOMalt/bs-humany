@@ -193,6 +193,11 @@ export class NervesModule implements SimModule {
     }
   }
 
+  /** Ticks between evaluations, as settled. */
+  get divisor(): number {
+    return this.controlDivisor;
+  }
+
   /** The policy in use; not until `init`, when the body has said how much it observes. */
   get policy(): MlpPolicy {
     if (!this.policyInUse) throw new Error('NervesModule.policy before init.');

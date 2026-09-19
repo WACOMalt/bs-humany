@@ -7,10 +7,14 @@
  * into the drive's script layer as the feedforward. The kernel is snapshotted once after init
  * and restored at the start of every episode, so an episode costs its ticks and nothing else.
  *
- * The reward is standing: a point for every hundredth of a second the head is up, a little for
- * the pelvis staying level and still, a little off for effort, and the episode ends when the
- * head drops. A seed changes the episode only through a twitch: a random group given a burst of
- * excitation at a random moment, so a policy that stands is one that stands through a nudge.
+ * The reward is standing, on the feet: a point for every hundredth of a second the head is near
+ * its resting height with a foot on the ground, a little for the pelvis staying level and where
+ * it was, a little off for moving and for effort, and more off for moving up or down. The
+ * episode ends when the head leaves its band -- a fall, a crouch, or a jump -- or when the feet
+ * have been off the ground for more than a moment, and nothing is scored while they are, so
+ * leaving the ground can never be the way to stay up. A seed changes the episode only through
+ * a twitch: a random group given a burst of excitation at a random moment, so a policy that
+ * stands is one that stands through a nudge.
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
@@ -21,6 +25,7 @@ import {
   BODY_BONE_TRANSFORMS,
   BODY_POSE,
   BODY_VELOCITY,
+  CONTACT_MANIFOLDS,
   CouplingModule,
   PassiveJointModule,
   PhysicsModule,
@@ -38,7 +43,7 @@ import {
   extractMuscleRings,
   ringBuffers,
 } from '@bs-humany/modules-muscle';
-import { MlpPolicy, NervesModule } from '@bs-humany/modules-nerves';
+import { MlpPolicy, NervesModule, feetOf } from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -64,13 +69,20 @@ export interface RigOptions {
   /** Hidden layer widths; the input and output are the body's. */
   readonly hidden: readonly number[];
   readonly seconds: number;
-  readonly controlDivisor: number;
+  /** Ticks between policy evaluations; a hundred hertz at the profile's rate when not given. */
+  readonly controlDivisor?: number;
   readonly authority: number;
   /** The clip played as feedforward; `quiet-standing` to learn to stand. */
   readonly clip: string;
   /** Also pose the skeleton's bones each tick, for a rig that publishes what it does. */
   readonly poseBones?: boolean;
 }
+
+/** How far below and above its resting height the head may be and still count as standing. */
+const HEAD_BELOW = 0.1;
+const HEAD_ABOVE = 0.05;
+/** How long the feet may all be off the ground before the episode ends, in seconds. */
+const AIRBORNE_GRACE = 0.05;
 
 export interface EpisodeResult {
   readonly fitness: number;
@@ -104,6 +116,13 @@ export class StandRig {
   private live = 0;
   private startX = 0;
   private startZ = 0;
+  /** Seconds in a row with no foot on the ground. */
+  private airborne = 0;
+  /** The head's height at rest, the middle of the band it must stay in. */
+  private readonly restHead: number;
+  private readonly leftFeet: Int32Array;
+  private readonly rightFeet: Int32Array;
+  private readonly contacts: { count: number; pair: Int32Array; impulse: Float64Array };
   private position: Float64Array;
   private orientation: Float64Array;
   private linear: Float64Array;
@@ -125,7 +144,10 @@ export class StandRig {
     segmentIds: readonly string[],
     volume: MuscleVolumeModule | undefined,
     maxForce: Float64Array,
+    feet: { left: Int32Array; right: Int32Array },
   ) {
+    this.leftFeet = feet.left;
+    this.rightFeet = feet.right;
     this.volume = volume;
     this.maxForce = maxForce;
     this.boneOrder = boneOrder;
@@ -149,6 +171,15 @@ export class StandRig {
     this.orientation = kernel.channels.storage(BODY_POSE).fields.orientation as Float64Array;
     this.linear = kernel.channels.storage(BODY_VELOCITY).fields.linear as Float64Array;
     this.activation = kernel.channels.storage(MUSCLE_STATE).fields.activation as Float64Array;
+    const contacts = kernel.channels.storage(CONTACT_MANIFOLDS);
+    this.contacts = {
+      get count() {
+        return contacts.count;
+      },
+      pair: contacts.fields.pair as Int32Array,
+      impulse: contacts.fields.impulse as Float64Array,
+    };
+    this.restHead = this.position[3 * this.head + 1] as number;
     this.snapshot = kernel.snapshot();
   }
 
@@ -213,7 +244,7 @@ export class StandRig {
       outputs,
       goalSize: GOAL_SIZE,
       goal: () => goal,
-      controlDivisor: options.controlDivisor,
+      controlDivisor: options.controlDivisor ?? Math.max(1, Math.round(rate / 100)),
       authority: options.authority,
     });
     kernel.register(nerves);
@@ -222,6 +253,11 @@ export class StandRig {
     const clip = loadActivationClips(unitsNamedByClips()).get(options.clip);
     if (!clip) throw new Error(`No activation clip '${options.clip}'.`);
     const index = new Map(articulation.segments.map((s) => [s.id, s.index]));
+    const soles = feetOf(articulation);
+    const feet = {
+      left: Int32Array.from(soles.left, (id) => index.get(id) ?? -1).filter((i) => i >= 0),
+      right: Int32Array.from(soles.right, (id) => index.get(id) ?? -1).filter((i) => i >= 0),
+    };
     return new StandRig(
       options,
       kernel,
@@ -238,7 +274,37 @@ export class StandRig {
       articulation.segments.map((seg) => seg.id),
       volume,
       Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce),
+      feet,
     );
+  }
+
+  /**
+   * Whether the body is standing as of now: the head within its band of the resting height,
+   * and a foot on the ground -- or the feet only just off it.
+   */
+  private standing(sinceLast: number): {
+    headHeight: number;
+    inBand: boolean;
+    grounded: boolean;
+    up: boolean;
+  } {
+    const headHeight = this.position[3 * this.head + 1] as number;
+    const inBand =
+      headHeight >= this.restHead - HEAD_BELOW && headHeight <= this.restHead + HEAD_ABOVE;
+    const c = this.contacts;
+    const n = Math.min(c.count, c.impulse.length, c.pair.length >> 1);
+    let grounded = false;
+    for (let i = 0; i < n && !grounded; i++) {
+      const a = c.pair[2 * i] as number;
+      const b = c.pair[2 * i + 1] as number;
+      // A foot against something that is not a segment: the ground.
+      const foot =
+        (b === -1 && (this.leftFeet.includes(a) || this.rightFeet.includes(a))) ||
+        (a === -1 && (this.leftFeet.includes(b) || this.rightFeet.includes(b)));
+      grounded = foot && (c.impulse[i] as number) > 0;
+    }
+    this.airborne = grounded ? 0 : this.airborne + sinceLast;
+    return { headHeight, inBand, grounded, up: inBand && this.airborne <= AIRBORNE_GRACE };
   }
 
   /** The fidelity profile this body was built from. */
@@ -313,6 +379,7 @@ export class StandRig {
     this.nerves.forget();
     for (const unit of this.units) this.drive.setOverride(unit, null, 'script');
     this.live = 0;
+    this.airborne = 0;
   }
 
   tick(): { time: number; up: boolean; headHeight: number } {
@@ -323,8 +390,8 @@ export class StandRig {
     }
     this.kernel.step();
     this.live += 1;
-    const headHeight = this.position[3 * this.head + 1] as number;
-    return { time, up: headHeight >= 1.15, headHeight };
+    const { headHeight, up } = this.standing(this.dt);
+    return { time, up, headHeight };
   }
 
   /** Run one episode with these weights, from the start, and score it. */
@@ -345,7 +412,9 @@ export class StandRig {
     const ticks = Math.round(this.options.seconds / this.dt);
     this.startX = this.position[3 * this.pelvis] as number;
     this.startZ = this.position[3 * this.pelvis + 2] as number;
-    const every = this.options.controlDivisor;
+    this.airborne = 0;
+    const every = this.nerves.divisor;
+    const stepSeconds = every * this.dt;
     let fitness = 0;
     let alive = 0;
     for (let tick = 0; tick < ticks; tick++) {
@@ -361,8 +430,10 @@ export class StandRig {
       }
       this.kernel.step();
       if (tick % every === 0) {
-        const head = this.position[3 * this.head + 1] as number;
-        if (head < 1.15) break;
+        const { inBand, grounded, up } = this.standing(stepSeconds);
+        if (!up) break;
+        // Off the ground, within the grace: still up, but there is nothing to score.
+        if (!grounded || !inBand) continue;
         alive = time;
         const p = this.pelvis;
         // Level: the pelvis's up axis against the world's, from its quaternion.
@@ -372,11 +443,13 @@ export class StandRig {
         const vx = this.linear[3 * p] as number;
         const vy = this.linear[3 * p + 1] as number;
         const vz = this.linear[3 * p + 2] as number;
-        const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        // Along the floor, capped: a sway. Up or down, uncapped: a jump or a drop, which is
+        // never standing however long the head stays in its band.
+        const speed = Math.sqrt(vx * vx + vz * vz);
+        const vertical = Math.abs(vy);
         let effort = 0;
         for (let u = 0; u < this.activation.length; u++) effort += this.activation[u] as number;
         effort /= this.activation.length;
-        const stepSeconds = every * this.dt;
         // Where the pelvis has gone from where it started, along the floor: standing still is
         // standing here, and drifting off is the start of a fall the head has not shown yet.
         const px = this.position[3 * p] as number;
@@ -388,6 +461,7 @@ export class StandRig {
             0.5 * Math.max(0, upY) +
             0.5 * (1 - Math.min(1, drift / 0.25)) -
             0.5 * Math.min(1, speed) -
+            vertical -
             0.5 * effort);
       }
     }
