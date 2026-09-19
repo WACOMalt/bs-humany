@@ -57,7 +57,14 @@ pnpm dev
 
 ## Running the studio
 
-Three ways, and none of them needs the others.
+Three ways, and none of them needs the others. The studio is laid out as a studio: a top bar
+with the body's fidelity profile and the transport, a viewport with its own view and overlay
+controls, a properties editor on the right with a tab a concern -- Body, World, Simulation,
+Scenario, Muscles, Brain, Export, Health -- a timeline under the viewport, and a status bar.
+Space starts and pauses, the arrows step a frame, Home goes live, 1, 3 and 7 pick a view. The
+Brain tab lists the saved checkpoints, hands one control of the running body, and starts or
+stops a training run on this machine; both need `pnpm train:dashboard` serving.
+`docs/plans/studio-ui-redesign.md` is the plan it follows.
 
 **A desktop application.** The releases page carries two builds per version:
 
@@ -98,9 +105,10 @@ of its senses, so `--resume` carries a search from a coarser body onto a finer o
 `pnpm train:dashboard` serves a page at `http://localhost:5280/` with the fitness curves, the
 live body and the network's activity; `pnpm train:showcase` keeps the current best running in a
 body published to the pose bridge, so the headset viewer shows the learner -- and so does the
-studio: its **Follow the bridge** button shows whatever is publishing, live, muscles and all,
-through the dashboard's server. ADR-013 is why it is
-shaped this way.
+studio: its **Follow bridge** button, on the Brain tab, shows whatever is publishing, live,
+muscles and all, through the dashboard's server, and its **Start training** button starts the
+trainer and the showcase through the same server and follows them. ADR-013 is why it is shaped
+this way.
 
 ## Naming
 

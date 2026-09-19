@@ -206,22 +206,22 @@ layout memory's keys? no -- layout is the page's, not the run's).
 ## 6. Steps
 
 1. **Plan** -- this document. ☑
-2. **Skeleton of the layout.** New `index.html` with the five regions and the tab strip;
+2. ☑ **Skeleton of the layout.** New `index.html` with the five regions and the tab strip;
    every existing control moved under its concept, ids intact; new `style.css` on a grid; the
    viewport header and the Overlays popover; the status bar carrying `#sim-status` and the hint;
    the timeline region. `main.ts` still finds every id. Verify: the page loads, a run starts,
    every control still acts, the narrow layout still works.
-3. **Tabs and memory.** `tabs.ts`, `memory.ts`; the active tab, the overlays, grid, turntable,
+3. ☑ **Tabs and memory.** `tabs.ts`, `memory.ts`; the active tab, the overlays, grid, turntable,
    notes and collapsed sections survive a reload.
-4. **Brain: hand over.** `nerves` as a `SimulationOptions` field; the brain panel's checkpoint
+4. ☑ **Brain: hand over.** `nerves` as a `SimulationOptions` field; the brain panel's checkpoint
    list from `GET /policies`; hand over and release with state carried; the authority slider;
    activity bitmap and note in the panel; the fit report ("476 of 500 senses carried").
-5. **Brain: training.** The dashboard server's `/train/*` routes; start, stop, status; the
+5. ☑ **Brain: training.** The dashboard server's `/train/*` routes; start, stop, status; the
    studio follows the bridge on start and shows the run's curve.
-6. **Polish.** Keyboard: Space play/pause, Left/Right frame step, Home live, 1/3/7 views as in
+6. ☑ **Polish.** Keyboard: Space play/pause, Left/Right frame step, Home live, 1/3/7 views as in
    Blender's numpad. Tooltips on every tab. The `showTissue` listener. Explanatory text as a
    toggle in the status bar.
-7. **Verify and document.** Browser pass on every tab at L3, desktop build, README's studio
+7. ☑ **Verify and document.** Browser pass on every tab at L3, desktop build, README's studio
    section, this plan's checkboxes ticked.
 
 ## 7. What does not change

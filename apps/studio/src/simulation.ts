@@ -110,6 +110,8 @@ export interface SimulationOptions {
   readonly stepsPerSecond?: number | undefined;
   /** Frames a second of simulated time is divided into, for playback and for the export. */
   readonly outputFramerate?: number | undefined;
+  /** A policy in the loop, chosen from the brain panel; takes precedence over the scenario's. */
+  readonly nerves?: NervesSetup | undefined;
 }
 
 export interface BoneTransformsView {
@@ -349,7 +351,7 @@ export class Simulation {
       this.kernel.register(this.musclePath);
       this.kernel.register(this.muscleDynamics);
       this.kernel.register(this.muscleVolume);
-      const setup = options.scenario?.nerves;
+      const setup = options.nerves ?? options.scenario?.nerves;
       this.scenarioNerves = setup;
       if (setup) {
         const goal = new Float64Array(GOAL_SIZE);

@@ -1,9 +1,10 @@
 /*
- * Clean, legible, slightly technical -- the Phase 1 visual target from spec section 11.
+ * The studio as a studio: editors on a grid, in the manner of the tools people already know.
  *
- * Dark ground so bone reads light against it, a single accent for selection, and a panel that
- * stays out of the way. Nothing decorative: this is an instrument panel, and every number on it
- * should be readable at a glance.
+ * A top bar for the scene and the transport, a viewport with its own header, a properties
+ * editor on the right with a strip of tabs, a timeline under the viewport, and a status bar
+ * across the bottom. Dark ground so bone reads light against it, one accent for what is
+ * selected or live, nothing decorative: an instrument panel, every number readable at a glance.
  */
 
 :root {
@@ -11,6 +12,7 @@
 
   --bg: #14161a;
   --panel: #1b1e24;
+  --panel-raised: #20242b;
   --panel-border: #2a2f38;
   --ink: #e6e8ec;
   --ink-dim: #98a0ae;
@@ -18,14 +20,24 @@
   --accent: #6aa9ff;
   --accent-dim: #2f5a99;
   --warn: #e0a44a;
+  --live: #3ddc84;
 
   --radius: 6px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --topbar: 44px;
+  --properties: 360px;
+  --tabs: 58px;
+  --statusbar: 26px;
 }
 
 * {
   box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -40,67 +52,278 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-#viewport {
-  position: fixed;
-  inset: 0;
+/* --- The grid --------------------------------------------------------------------------------- */
+
+#app {
+  display: grid;
+  height: 100%;
+  grid-template-columns: minmax(0, 1fr) var(--properties);
+  grid-template-rows: var(--topbar) minmax(0, 1fr) auto var(--statusbar);
+  grid-template-areas:
+    "topbar topbar"
+    "viewport properties"
+    "timeline properties"
+    "status status";
 }
 
-#viewport canvas {
-  display: block;
+#topbar {
+  grid-area: topbar;
+}
+#viewport-region {
+  grid-area: viewport;
+}
+#properties {
+  grid-area: properties;
+}
+#timeline-region {
+  grid-area: timeline;
+}
+#statusbar {
+  grid-area: status;
 }
 
-#panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 310px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 18px 18px 40px;
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  backdrop-filter: blur(12px);
-  border-left: 1px solid var(--panel-border);
+/* --- Top bar ---------------------------------------------------------------------------------- */
+
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
 }
 
-#panel header {
-  margin-bottom: 22px;
+#topbar .brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
-#panel h1 {
+#topbar h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .subtitle {
-  margin: 3px 0 0;
   color: var(--ink-faint);
   font-size: 11px;
 }
 
-#panel section {
-  margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--panel-border);
+#topbar .scene {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-#panel section:last-child {
-  border-bottom: none;
+#topbar .scene select {
+  width: auto;
 }
 
-#panel h2 {
-  margin: 0 0 12px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+#topbar .transport {
+  margin-left: auto;
+}
+
+#topbar .mode {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
   color: var(--ink-dim);
+  white-space: nowrap;
 }
+
+#topbar .mode .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+#topbar .mode.running .dot {
+  background: var(--live);
+}
+
+#topbar .mode.following .dot {
+  background: var(--accent);
+}
+
+#topbar .files {
+  margin-left: auto;
+}
+
+/* --- Viewport --------------------------------------------------------------------------------- */
+
+#viewport-region {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+#viewport-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 11.5px;
+}
+
+#viewport-header .group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#viewport-header select {
+  width: auto;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+#viewport-header .views button {
+  padding: 3px 10px;
+  flex: none;
+}
+
+#viewport {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#viewport canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* The popover: a small panel that drops from its button and closes when the pointer leaves. */
+.popover-host {
+  position: relative;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  padding: 10px 12px 4px;
+  background: var(--panel-raised);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+}
+
+/* --- Properties editor ------------------------------------------------------------------------ */
+
+#properties {
+  display: grid;
+  grid-template-columns: var(--tabs) minmax(0, 1fr);
+  min-height: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--panel-border);
+}
+
+#tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 4px;
+  border-right: 1px solid var(--panel-border);
+  background: var(--bg);
+}
+
+#tabs button {
+  padding: 9px 2px;
+  background: none;
+  color: var(--ink-dim);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+#tabs button:hover {
+  color: var(--ink);
+}
+
+#tabs button.active {
+  background: var(--panel);
+  color: var(--accent);
+  border-color: var(--panel-border);
+}
+
+#panels {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 14px 40px;
+}
+
+#panels section[hidden] {
+  display: none;
+}
+
+/* A panel: a collapsible section with a header, as the reference draws them. */
+details.panel {
+  margin: 0 0 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+}
+
+details.panel > summary {
+  margin: 0;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+details.panel > summary::before {
+  content: "\25B8";
+  display: inline-block;
+  width: 12px;
+  color: var(--ink-faint);
+  transition: transform 0.12s;
+}
+
+details.panel[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.panel > summary:hover {
+  color: var(--ink);
+}
+
+details.panel > :not(summary) {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+details.panel > :last-child:not(summary) {
+  margin-bottom: 10px;
+}
+
+/* --- Controls --------------------------------------------------------------------------------- */
 
 .control {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .control label {
@@ -112,11 +335,23 @@ body {
   color: var(--ink);
 }
 
-.control output {
+label.inline {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.control output,
+#timeline-region output {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+}
+
+.control.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
 }
 
 input[type="range"] {
@@ -161,12 +396,8 @@ input[type="range"]:focus-visible {
 }
 
 /*
- * Explanatory text, off unless asked for.
- *
- * The panel earned its way to fourteen sliders and thirteen paragraphs, and the paragraphs are
- * worth keeping -- they say why a control does what it does -- but not all at once and not by
- * default. `.live` is the exception: those carry a value that changes, so they are not explanation
- * and hiding them would hide the answer.
+ * Explanatory text, off unless asked for. `.live` is the exception: those carry a value that
+ * changes, so they are not explanation and hiding them would hide the answer.
  */
 body:not(.notes) .note:not(.live) {
   display: none;
@@ -195,9 +426,13 @@ select {
   gap: 6px;
 }
 
+#panels .buttons {
+  flex-wrap: wrap;
+}
+
 .buttons button {
   flex: 1;
-  padding: 6px 0;
+  padding: 6px 8px;
   background: var(--bg);
   color: var(--ink);
   border: 1px solid var(--panel-border);
@@ -205,11 +440,21 @@ select {
   font-family: inherit;
   font-size: 11.5px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.buttons button:hover {
+.buttons button:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.buttons button:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}
+
+#topbar .buttons button {
+  flex: none;
 }
 
 .checkbox {
@@ -221,29 +466,27 @@ select {
   user-select: none;
 }
 
-details {
-  margin-top: 14px;
+.checkbox.inline {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  white-space: nowrap;
 }
 
-/* A group of controls inside a panel sits closer than a section does. */
-.control details {
-  margin-top: 8px;
+/* The drive sliders' own sections, inside the Muscles panel. */
+#muscle-drives details {
+  margin: 4px 0 8px;
 }
 
-.control details > summary {
-  margin-bottom: 6px;
-  color: var(--ink);
-}
-
-summary {
+#muscle-drives summary {
   cursor: pointer;
   color: var(--ink-dim);
   font-size: 11px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   user-select: none;
 }
 
-summary:hover {
+#muscle-drives summary:hover {
   color: var(--ink);
 }
 
@@ -267,7 +510,7 @@ summary:hover {
 }
 
 .inspector {
-  min-height: 60px;
+  min-height: 40px;
   font-size: 11.5px;
   line-height: 1.65;
 }
@@ -316,20 +559,106 @@ summary:hover {
   margin-bottom: 8px;
 }
 
-#hint {
-  position: fixed;
-  left: 16px;
-  bottom: 14px;
-  font-size: 10.5px;
+#nerves-activity,
+#train-chart {
+  width: 100%;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+#train-chart {
+  image-rendering: auto;
+  margin-top: 8px;
+}
+
+/* --- Timeline --------------------------------------------------------------------------------- */
+
+#timeline-region {
+  background: var(--panel);
+  border-top: 1px solid var(--panel-border);
+  padding: 6px 10px;
+}
+
+#timeline-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#timeline-control .transport button {
+  flex: none;
+  padding: 4px 10px;
+}
+
+#timeline-control input[type="range"] {
+  flex: 1;
+  margin: 0;
+}
+
+#timeline-control output {
+  min-width: 120px;
+  text-align: right;
+}
+
+#timeline-control #playback-note {
+  margin: 0;
+  white-space: nowrap;
+}
+
+#timeline-region .timeline-note {
+  margin: 6px 0 0;
+}
+
+/* --- Status bar ------------------------------------------------------------------------------- */
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--panel-border);
+  font-size: 11px;
+}
+
+#statusbar #sim-status {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#statusbar #sim-status.error {
+  color: var(--warn);
+}
+
+#statusbar #hint {
+  margin-left: auto;
   color: var(--ink-faint);
-  pointer-events: none;
+  font-size: 10.5px;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#statusbar #attribution {
+  color: var(--ink-faint);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34vw;
 }
 
 #loading {
-  position: fixed;
+  position: absolute;
   left: 50%;
   top: 50%;
+  z-index: 5;
   transform: translate(-50%, -50%);
   padding: 10px 16px;
   border: 1px solid var(--panel-border);
@@ -345,35 +674,47 @@ summary:hover {
   border-color: var(--warn);
 }
 
-#attribution {
-  position: fixed;
-  right: 326px;
-  bottom: 14px;
-  max-width: 46vw;
-  font-size: 10.5px;
-  color: var(--ink-faint);
-  pointer-events: none;
-  text-align: right;
-}
+/* --- Narrow screens: the properties editor becomes a sheet under the viewport. --------------- */
 
 @media (max-width: 760px) {
-  #panel {
-    top: auto;
-    left: 0;
-    width: auto;
-    max-height: 54vh;
+  :root {
+    --properties: 100%;
+  }
+  #app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 46vh) var(--statusbar);
+    grid-template-areas:
+      "topbar"
+      "viewport"
+      "timeline"
+      "properties"
+      "status";
+  }
+  #topbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+  #topbar .transport,
+  #topbar .files {
+    margin-left: 0;
+  }
+  #properties {
     border-left: none;
     border-top: 1px solid var(--panel-border);
   }
-  #hint {
+  #statusbar #hint {
     display: none;
   }
 }
 
+/* --- Tables ----------------------------------------------------------------------------------- */
+
 .table-wrap {
   max-height: 16rem;
   overflow: auto;
-  border: 1px solid #2a2f38;
+  border: 1px solid var(--panel-border);
   border-radius: 4px;
 }
 .table-wrap table {
@@ -395,7 +736,7 @@ summary:hover {
 .table-wrap thead th {
   position: sticky;
   top: 0;
-  background: #1b1f26;
+  background: var(--panel);
 }
 .sparkline {
   vertical-align: middle;

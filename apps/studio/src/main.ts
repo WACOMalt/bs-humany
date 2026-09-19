@@ -66,6 +66,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { buildBlenderExport } from './blenderExport.js';
+import { createBrainPanel } from './brain.js';
 import { BridgeFollower } from './follow.js';
 import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
@@ -84,6 +85,8 @@ import {
 } from './session.js';
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
+import { createMemory } from './ui/memory.js';
+import { createTabs } from './ui/tabs.js';
 import { type VrCommand, VrLink, type VrStatus } from './vrLink.js';
 
 // The document is built once. Only the morphology context changes as the sliders move, which is
@@ -126,13 +129,22 @@ const viewport = must<HTMLDivElement>('#viewport');
 
 const renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(
+  viewport.clientWidth || window.innerWidth,
+  viewport.clientHeight || window.innerHeight,
+  false,
+);
 viewport.appendChild(renderer.domElement);
 
 const scene = new Scene();
 scene.background = new Color(0x14161a);
 
-const camera = new PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.05, 60);
+const camera = new PerspectiveCamera(
+  38,
+  (viewport.clientWidth || window.innerWidth) / (viewport.clientHeight || window.innerHeight),
+  0.05,
+  60,
+);
 
 /**
  * The camera starts at negative Z.
@@ -548,8 +560,24 @@ function stopSimulation(): void {
  * before -- Run, Pause, Step, Reset and a timeline that re-simulated what you scrubbed over --
  * and the reason that was confusing is that it was two things wearing one set of labels.
  */
+/** The top bar's mode: at rest, a run of our own, or following the bridge. */
+function setMode(mode: 'rest' | 'running' | 'paused' | 'following'): void {
+  const indicator = must<HTMLElement>('#mode-indicator');
+  indicator.classList.toggle('running', mode === 'running');
+  indicator.classList.toggle('following', mode === 'following');
+  must<HTMLElement>('#mode-label').textContent =
+    mode === 'following'
+      ? 'Following the bridge'
+      : mode === 'running'
+        ? 'Own run'
+        : mode === 'paused'
+          ? 'Own run, paused'
+          : 'At rest';
+}
+
 function setRunControls(running: boolean): void {
   // Start always begins a run with the current settings; a run in progress is replaced.
+  setMode(!running ? 'rest' : simulation?.paused ? 'paused' : 'running');
   ui.simStart.disabled = false;
   ui.simStart.textContent = !running ? 'Start sim' : simulation?.paused ? 'Resume sim' : 'Restart';
   ui.simPause.disabled = !running || simulation?.paused === true;
@@ -684,6 +712,7 @@ async function startSimulation(
       // tuned for, which is the number that ought to win by default.
       ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
       outputFramerate: Number(ui.outputFramerate.value),
+      nerves: brain?.setup,
     });
     await sim.start();
     // A fresh backend always starts with gravity and a solid floor; both toggles are session
@@ -863,6 +892,7 @@ for (const input of [
   ui.showContacts,
   ui.showMuscles,
   ui.showMuscleVolumes,
+  ui.showTissue,
 ]) {
   input.addEventListener('change', applyOverlayVisibility);
 }
@@ -1148,6 +1178,91 @@ ui.muscles.addEventListener('change', () => {
 });
 // Explanatory text is off by default: the panel has thirteen paragraphs and a reader wants at
 // most one of them at a time. The notes that carry a live value are marked `live` and stay.
+// The brain panel is made once the follow code below exists; runs read its setup when they start.
+let brain: ReturnType<typeof createBrainPanel> | undefined;
+
+// --- The editors' chrome: tabs, what the page remembers, the overlays popover ------------------
+const memory = createMemory();
+const tabs = createTabs(must<HTMLElement>('#tabs'), must<HTMLElement>('#panels'), memory, 'body');
+for (const [input, key] of [
+  [ui.showNotes, 'notes'],
+  [ui.showGrid, 'grid'],
+  [ui.spin, 'turntable'],
+  [ui.showProxies, 'overlay.proxies'],
+  [ui.showAxes, 'overlay.axes'],
+  [ui.showCom, 'overlay.com'],
+  [ui.showContacts, 'overlay.contacts'],
+  [ui.showTissue, 'overlay.tissue'],
+  [ui.showMuscles, 'overlay.muscles'],
+  [ui.showMuscleVolumes, 'overlay.muscleVolumes'],
+] as const) {
+  memory.checkbox(input, key);
+}
+for (const panel of window.document.querySelectorAll<HTMLDetailsElement>('details.panel')) {
+  const key = panel
+    .querySelector('summary')
+    ?.textContent?.trim()
+    .toLowerCase()
+    .replace(/\W+/g, '-');
+  if (key) memory.details(panel, `panel.${key}`);
+}
+{
+  const button = must<HTMLButtonElement>('#overlays-button');
+  const popover = must<HTMLElement>('#overlays-popover');
+  const open = (on: boolean) => {
+    popover.hidden = !on;
+    button.setAttribute('aria-expanded', String(on));
+  };
+  button.addEventListener('click', () => open(popover.hidden));
+  window.document.addEventListener('pointerdown', (event) => {
+    if (popover.hidden) return;
+    const target = event.target as Node;
+    if (!popover.contains(target) && !button.contains(target)) open(false);
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') open(false);
+  });
+}
+
+// Keyboard, as the reference has it: Space for the transport, arrows for a frame, Home for live,
+// and the numbers for the views. Never while typing into a control.
+window.addEventListener('keydown', (event) => {
+  const target = event.target as HTMLElement | null;
+  const typing =
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLSelectElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLButtonElement;
+  if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+  switch (event.key) {
+    case ' ':
+      event.preventDefault();
+      if (simulation && !simulation.paused && !bridgeFollower.active) ui.simPause.click();
+      else ui.simStart.click();
+      break;
+    case 'ArrowLeft':
+      if (!ui.frameBack.disabled) ui.frameBack.click();
+      break;
+    case 'ArrowRight':
+      if (!ui.frameForward.disabled) ui.frameForward.click();
+      break;
+    case 'Home':
+      if (!ui.goLive.disabled) ui.goLive.click();
+      break;
+    case '1':
+      window.document.querySelector<HTMLButtonElement>('[data-view="front"]')?.click();
+      break;
+    case '3':
+      window.document.querySelector<HTMLButtonElement>('[data-view="left"]')?.click();
+      break;
+    case '7':
+      window.document.querySelector<HTMLButtonElement>('[data-view="three-quarter"]')?.click();
+      break;
+    default:
+      return;
+  }
+});
+
 ui.showNotes.addEventListener('change', () => {
   document.body.classList.toggle('notes', ui.showNotes.checked);
 });
@@ -1459,8 +1574,9 @@ let grabState: { pointerId: number; depth: number } | null = null;
 function pickBone(clientX: number, clientY: number): { boneId: string; point: Vector3 } | null {
   if (!skinned) return null;
   const at = (x: number, y: number) => {
-    pointer.x = (x / window.innerWidth) * 2 - 1;
-    pointer.y = -(y / window.innerHeight) * 2 + 1;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((x - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((y - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
     return skinned?.pick(raycaster.ray.origin, raycaster.ray.direction) ?? null;
   };
@@ -1525,8 +1641,9 @@ function beginGrab(event: PointerEvent): boolean {
 renderer.domElement.addEventListener('pointermove', (event) => {
   if (!grabState || !simulation || event.pointerId !== grabState.pointerId) return;
   // Keep the target at the depth the grab started at, on the ray under the pointer.
-  pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
-  pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
   const target = raycaster.ray.at(grabState.depth, new Vector3());
   simulation.grab.moveTo({ x: target.x, y: target.y, z: target.z });
@@ -1640,11 +1757,16 @@ function animate(): void {
   must<HTMLElement>('#stat-draws').textContent = String(renderer.info.render.calls);
 }
 
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+// The canvas is the viewport region's, not the window's: the editors around it take their share.
+const fitViewport = () => {
+  const width = viewport.clientWidth || window.innerWidth;
+  const height = viewport.clientHeight || window.innerHeight;
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  renderer.setSize(width, height, false);
+};
+window.addEventListener('resize', fitViewport);
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitViewport).observe(viewport);
 
 // ---------------------------------------------------------------------------------------------
 // Start
@@ -2031,7 +2153,7 @@ function stopFollowing(): void {
   followLastTick = -1;
   followLastMuscleTick = -1;
   skinned?.rest();
-  followButton.textContent = 'Follow the bridge';
+  followButton.textContent = 'Follow bridge';
   setSimulationStatus('At rest.');
 }
 
@@ -2045,5 +2167,46 @@ followButton.addEventListener('click', () => {
   setRunControls(false);
   bridgeFollower.start();
   followButton.textContent = 'Stop following';
+  setMode('following');
   setSimulationStatus('Following the bridge…');
 });
+
+// ---------------------------------------------------------------------------------------------
+// The brain panel: a policy in charge, and training from here.
+// ---------------------------------------------------------------------------------------------
+
+brain = createBrainPanel({
+  handOver() {
+    // A restart with the state carried, as a morphology change does; a run that is not going
+    // just takes the policy with it when it starts.
+    if (!simulation) return;
+    const carry = {
+      state: simulation.jointState(),
+      ticks: simulation.ticks,
+      paused: simulation.paused,
+    };
+    void startSimulation(undefined, carry);
+  },
+  follow() {
+    if (!bridgeFollower.active) followButton.click();
+  },
+  fit() {
+    const nerves = simulation?.nerves;
+    if (!nerves) return undefined;
+    const inputs = nerves.observation.size;
+    const outputs = nerves.outputs.length;
+    return { carried: nerves.carried ?? { inputs, outputs }, inputs, outputs };
+  },
+  controlDivisor() {
+    const profile = document_.segmentation.find((p) => p.id === ui.profile.value);
+    const rate = fidelityTouched ? Number(ui.stepsPerSecond.value) : (profile?.solver?.rate ?? 500);
+    return Math.max(1, Math.round(rate / 100));
+  },
+  following() {
+    return bridgeFollower.active;
+  },
+});
+void brain.poll();
+window.setInterval(() => {
+  if (tabs.active === 'brain' || bridgeFollower.active) void brain?.poll();
+}, 3000);

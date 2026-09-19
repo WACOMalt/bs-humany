@@ -7,312 +7,424 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div id="viewport"></div>
-
-    <aside id="panel" aria-label="Model controls">
-      <header>
-        <h1>bs-humany</h1>
-        <p class="subtitle">Phase 1 — anatomical skeleton</p>
-      </header>
-
-      <section>
-        <h2>Morphology</h2>
-
-        <div class="control">
-          <label for="sex">
-            Skeletal proportions
-            <output id="sex-value">0.50</output>
-          </label>
-          <input type="range" id="sex" min="0" max="1" step="0.01" value="0.5" />
-          <div class="endpoints"><span>female-typical</span><span>male-typical</span></div>
-          <p class="note" id="sex-note"></p>
+    <div id="app">
+      <!-- The top bar: what the scene is, and the transport. ------------------------------------- -->
+      <header id="topbar">
+        <div class="brand">
+          <h1>bs-humany</h1>
+          <span class="subtitle">studio</span>
         </div>
-
-        <div class="control">
-          <label for="stature">Stature <output id="stature-value">1.70 m</output></label>
-          <input type="range" id="stature" min="1.40" max="2.05" step="0.005" value="1.70" />
-        </div>
-
-        <div class="control">
-          <label for="mass">Body mass <output id="mass-value">70.0 kg</output></label>
-          <input type="range" id="mass" min="35" max="150" step="0.5" value="70" />
-        </div>
-
-        <div class="control">
-          <label for="percentile">
-            ANSUR II percentile
-            <output id="percentile-value">50th</output>
-          </label>
-          <input type="range" id="percentile" min="0.01" max="0.99" step="0.01" value="0.5" />
-          <p class="note">Sets stature and mass together from the distribution for the current blend.</p>
-        </div>
-
-        <details>
-          <summary>Proportions</summary>
-          <div class="control">
-            <label for="crural">Crural index <output id="crural-value">1.00</output></label>
-            <input type="range" id="crural" min="0.85" max="1.15" step="0.005" value="1.004" />
-            <p class="note">Shank length relative to thigh.</p>
-          </div>
-          <div class="control">
-            <label for="brachial">Brachial index <output id="brachial-value">0.78</output></label>
-            <input type="range" id="brachial" min="0.68" max="0.9" step="0.005" value="0.785" />
-            <p class="note">Forearm length relative to upper arm.</p>
-          </div>
-          <div class="control">
-            <label for="legLength">Relative leg length <output id="legLength-value">1.00</output></label>
-            <input type="range" id="legLength" min="0.9" max="1.1" step="0.005" value="1" />
-          </div>
-        </details>
-      </section>
-
-      <section>
-        <h2>Display</h2>
-        <div class="control">
-          <label for="quality">Tessellation</label>
-          <select id="quality">
-            <option value="low">Low — mobile budget</option>
-            <option value="medium">Medium</option>
-            <option value="high" selected>High</option>
-          </select>
-        </div>
-        <div class="control">
-          <label>View</label>
-          <div class="buttons">
-            <button type="button" data-view="front">Front</button>
-            <button type="button" data-view="left">Left</button>
-            <button type="button" data-view="back">Back</button>
-            <button type="button" data-view="three-quarter">¾</button>
-          </div>
-        </div>
-        <label class="checkbox"><input type="checkbox" id="showGrid" checked /> Ground grid</label>
-        <label class="checkbox"><input type="checkbox" id="spin" /> Turntable</label>
-        <label class="checkbox"><input type="checkbox" id="showNotes" /> Explanatory text</label>
-      </section>
-
-      <section>
-        <h2>Simulation</h2>
-        <div class="control">
-          <label for="profile">Fidelity profile</label>
-          <select id="profile">
+        <div class="scene">
+          <label for="profile" class="inline">Body</label>
+          <select id="profile" title="Fidelity profile: how finely the body is articulated. Takes effect on the next run.">
             <option value="l0_ragdoll">L0 — Ragdoll (15 bodies, 240 Hz)</option>
             <option value="l1_standard">L1 — Standard (23 bodies, 500 Hz)</option>
             <option value="l2_biomechanical">L2 — Biomechanical (49 bodies, 500 Hz)</option>
             <option value="l3_anatomical" selected>L3 — Anatomical (~110 bodies, 1000 Hz)</option>
           </select>
-        </div>
-        <div class="control">
-          <label for="backend">Backend</label>
-          <select id="backend">
+          <select id="backend" title="Physics backend">
             <option value="mujoco" selected>MuJoCo</option>
           </select>
         </div>
-        <div class="control">
-          <label for="scenario">Scenario</label>
-          <select id="scenario">
-            <option value="">Free drop from the rest pose</option>
-          </select>
-          <p class="note live" id="scenario-note"></p>
-          <div id="scenario-parameters"></div>
+        <div class="transport buttons">
+          <button type="button" id="simStart" title="Start a run, or carry one on from where it was left (Space)">&#9654; Start sim</button>
+          <button type="button" id="simPause" disabled title="Stop computing; everything computed stays (Space)">&#10074;&#10074; Pause sim</button>
+          <button type="button" id="reset" disabled title="Back to the starting pose; the recording is thrown away">&#8634; Reset</button>
         </div>
-        <div class="control" id="dropHeight-control">
-          <label for="dropHeight">Drop height <output id="dropHeight-value">0.30 m</output></label>
-          <input type="range" id="dropHeight" min="0" max="1.5" step="0.05" value="0.3" />
+        <div class="mode" id="mode-indicator" title="Whether the viewport shows a run of your own, or follows a run published to the bridge">
+          <span class="dot"></span><span id="mode-label">Own run</span>
         </div>
-        <div class="control">
-          <label for="grabStrength">Grab strength <output id="grabStrength-value">1.0&times;</output></label>
-          <input type="range" id="grabStrength" min="0.1" max="5" step="0.1" value="1" />
-          <p class="note">Hold <kbd>Ctrl</kbd> and drag a bone to pull the body about; the camera
-          holds still while you do. At 1&times; a hold carries a good fraction of the body's
-          weight.</p>
-        </div>
-        <label class="checkbox"><input type="checkbox" id="gravity" checked /> Gravity</label>
-        <label class="checkbox"><input type="checkbox" id="floor" checked /> Floor collision</label>
-        <label class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
-        <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
-        <div class="control">
-          <label for="outputFramerate">Output frame rate <output id="outputFramerate-value">60 fps</output></label>
-          <input type="range" id="outputFramerate" min="1" max="240" step="1" value="60" />
-          <label for="stepsPerSecond">Simulation steps per second <output id="stepsPerSecond-value">500</output></label>
-          <input type="range" id="stepsPerSecond" min="60" max="2000" step="20" value="500" />
-          <p class="note live" id="rate-note"></p>
-          <p class="note">A second of simulated time is a second of the exported timeline, always.
-          The step rate says how finely that second is computed and there is one keyframe for every
-          step; the output rate says how finely the Blender timeline is divided. Nothing is
-          resampled between them &mdash; a thousand steps into a 60 fps scene puts about seventeen
-          keyframes inside each frame and they are all real, so raising the scene's rate later
-          gives you frames rather than interpolation.</p>
-          <p class="note">One rendered frame advances the simulation by exactly one output frame,
-          whatever the machine was doing: every step is taken and every step is captured. A slow
-          machine takes longer in wall-clock seconds and produces the identical run. Playback moves
-          one output frame per display refresh, so 60 fps output on a 60 Hz display is life speed
-          and 24 is two and a half times life; neither changes the export. Changing the step rate
-          starts a new run, because the timestep is fixed for the life of one.</p>
-        </div>
-        <label class="checkbox"><input type="checkbox" id="muscles" checked /> Muscles</label>
-        <div class="control" id="muscle-control">
-          <!-- One slider a drive group, generated from the same table the headset's panel uses. -->
-          <div id="muscle-drives"></div>
-          <p class="note">A hundred and forty-eight units a body: seven at each elbow, nine at each
-          shoulder, six at each shoulder girdle, eight at each forearm, twenty-one at each hip,
-          ten at each knee, nine at each ankle and four either side of the trunk. Peak force comes
-          from the MyoSuite arm, leg and torso models; attachments are Gray's, located on this
-          subject's own markers; and both lengths are derived against this skeleton — the tendon
-          fitted to the path it has here, the fibre scaled by how far the muscle travels here
-          against how far it travels there. Each slider drives its muscles on both sides at once,
-          and is squared, so the readout shows the excitation given rather than where the handle
-          sits.</p>
-          <div id="nerves-control" hidden>
-            <p class="note">The nerves: a trained policy reading the joints, the pelvis, the feet and every
-            muscle a hundred times a second and correcting the drive of each group on each side. One
-            row a layer, senses at the top, drives at the bottom; blue is negative, red positive.</p>
-            <canvas id="nerves-activity" width="320" height="64" style="width:100%;image-rendering:pixelated;border-radius:4px"></canvas>
-            <p class="note" id="nerves-note"></p>
-          </div>
-          <dl class="readout" id="muscle-readout">
-            <dt title="Summed over the elbow flexors and extensors, which is what the two elbow sliders drive">Elbow, flex / ext</dt><dd id="muscle-flexion">&mdash;</dd>
-            <dt title="Summed over the knee flexors and extensors, which is what the two knee sliders drive">Knee, flex / ext</dt><dd id="muscle-extension">&mdash;</dd>
-            <dt>Loaded</dt><dd id="muscle-loaded">&mdash;</dd>
-            <dt>Wrapping</dt><dd id="muscle-wrapping">&mdash;</dd>
-            <dt title="Units whose equilibrium did not solve cleanly this tick: their path is longer or shorter than their parameters expect, and the force shown for them is the model's fallback">Out of range</dt><dd id="muscle-strained">&mdash;</dd>
-          </dl>
-        </div>
-        <div class="control">
-          <div class="buttons">
-            <button type="button" id="simStart">Start sim</button>
-            <button type="button" id="simPause" disabled>Pause sim</button>
-            <button type="button" id="reset" disabled>Reset</button>
-            <button type="button" id="follow-bridge" title="Show whatever is publishing to the pose bridge -- the training showcase, or pnpm publish:pose -- instead of a run of your own. Needs pnpm train:dashboard serving it.">Follow the bridge</button>
-          </div>
-          <p class="note">Computing the run and watching it are two different things and these are
-          the first. Start begins a run, or carries one on from wherever it was left; Pause stops
-          computing and leaves everything that has been computed where it is. Reset takes the body
-          back to the pose it started in and throws the recording away.</p>
-        </div>
-        <div class="control" id="timeline-control" hidden>
-          <label for="timeline">Playhead <output id="timeline-value">&mdash;</output></label>
-          <input type="range" id="timeline" min="0" max="0" step="1" value="0" />
-          <div class="buttons">
-            <button type="button" id="playToggle">Play</button>
-            <button type="button" id="frameBack" title="One output frame back">&#9664; Frame</button>
-            <button type="button" id="frameForward" title="One output frame on; at the end of the recording, computes one">Frame &#9654;</button>
-            <button type="button" id="goLive">Live</button>
-          </div>
-          <p class="note live" id="playback-note"></p>
-          <p class="note">Everything the run has computed is here to be scrubbed, at the output
-          frame rate set above: Play runs it back at that rate in real time, so a second of
-          simulated time takes a second to watch. Nothing is recomputed and nothing is lost &mdash;
-          the recording is the same one the Blender export writes.</p>
-          <p class="note">Scrubbing pauses the simulation, because the playhead is somewhere it
-          has already been. Live jumps back to the newest frame, and so does Start sim. At the end
-          of the recording, Frame &#9654; computes one more rather than stopping.</p>
-          <p class="note">Bones and muscle bellies replay exactly. What was never recorded cannot:
-          the muscle paths, the tension colour, the contacts and the centre of mass are live
-          readings a tick wide, so those overlays hide while the playhead is off the newest
-          frame rather than showing a stale one.</p>
-        </div>
-        <p class="note live" id="sim-status">At rest.</p>
-        <dl class="readout" id="diagnostics" hidden>
-          <dt>Kinetic</dt><dd id="diag-kinetic">—</dd>
-          <dt>Potential</dt><dd id="diag-potential">—</dd>
-          <dt>Joint drift</dt><dd id="diag-drift">—</dd>
-          <dt>Nearest stop</dt><dd id="diag-limits">—</dd>
-          <dt>Contacts</dt><dd id="diag-contacts">—</dd>
-          <dt>Tick rate</dt><dd id="diag-rate">—</dd>
-          <dt>Cost / tick</dt><dd id="diag-cost">—</dd>
-        </dl>
-        <div class="control">
-          <label>Overlays</label>
-          <label class="checkbox"><input type="checkbox" id="showProxies" /> Collision proxies</label>
-          <label class="checkbox"><input type="checkbox" id="showAxes" /> Joint axes, end-range heat</label>
-          <label class="checkbox"><input type="checkbox" id="showCom" /> Centres of mass</label>
-          <label class="checkbox"><input type="checkbox" id="showContacts" /> Contacts</label>
-          <label class="checkbox" title="Discs at every spinal level, beads at the costovertebral joints, the costal cartilage as bars between rib and sternum, and the couplings as threads between the joints they tie: everything simulated that is neither bone nor muscle."><input type="checkbox" id="showTissue" checked /> Connective tissue</label>
-        <label class="checkbox"><input type="checkbox" id="showMuscles" checked /> Muscle paths</label>
-        <label class="checkbox"><input type="checkbox" id="showMuscleVolumes" checked /> Muscle volumes</label>
-        </div>
-        <details>
-          <summary>Compile report <span id="sim-report-summary"></span></summary>
-          <dl class="readout" id="capabilities"></dl>
-          <ul id="sim-report" class="limitations"></ul>
-        </details>
-        <div class="control">
-          <div class="buttons">
-            <button type="button" id="export" disabled>Export recording</button>
-            <button type="button" id="save">Save session</button>
-            <button type="button" id="load">Load session</button>
-          </div>
-          <div class="buttons">
-            <button type="button" id="export-blender" disabled title="Three files: the glTF, the muscle vertex cache, and the script that imports them">Export for Blender</button>
-            <button type="button" id="connect-vr" hidden title="Launch the OpenXR viewer on this run: the headset shows this body, the controllers grab it, and its panel drives these controls">Connect VR viewer</button>
-          </div>
-          <p class="note">Export for Blender writes three files that belong together: the glTF with
-          the bones and the belly mesh, a <code>.pc2</code> vertex cache the muscles stream from,
-          and the Python script that imports the pair. Keep them in one folder. The muscles are a
-          streamed cache rather than an armature because as armatures they cost 4.3 GB of Blender
-          for six tenths of a second of simulation; as a cache the same import is under 600 MB and
-          a longer run costs disk instead of memory.</p>
-          <p class="note live" id="capture-status"></p>
-          <label for="captureBudget">Export capture budget <output id="captureBudget-value">&mdash;</output></label>
-          <input type="range" id="captureBudget" min="32" max="4096" step="32" value="256" />
-          <p class="note">How much the Blender export may hold, per capture &mdash; one for the
-          bones and one for the muscle cross-sections, and whichever fills first stops both. Pause
-          before raising it and the capture carries on from where it stopped; raise it while the
-          run is going and capture starts again from that moment, because the ticks in between
-          were never taken and the export promises a keyframe for every one.</p>
-          <p class="note">The ceiling is this tab's own JavaScript heap rather than the machine's
-          memory: a page is not given the host, and a capture that runs past the heap does not stop
-          politely &mdash; the tab dies and takes the run with it. It opens at a fifth of that
-          ceiling because writing the file needs about five copies of the capture live at once, so
-          a bigger budget captures happily and then dies on the Export button. Above the default is
-          yours to judge. A muscle frame is about twenty times a bone frame: a run with the full
-          set costs roughly a hundred and ten kilobytes a tick, so a gigabyte is about nineteen
-          seconds at 500 Hz.</p>
+        <div class="files buttons">
+          <button type="button" id="save" title="Save the settings and, when running, the whole state of the run">Save session</button>
+          <button type="button" id="load" title="Load a session file">Load session</button>
+          <button type="button" id="connect-vr" hidden title="Launch the OpenXR viewer on this run: the headset shows this body, the controllers grab it, and its panel drives these controls">Connect VR viewer</button>
           <input type="file" id="load-file" accept="application/json" hidden />
         </div>
-      </section>
+      </header>
 
-      <section>
-        <h2>Validation</h2>
-        <details>
-          <summary>Inertia audit</summary>
-          <p class="note">Compiled segment masses against the body mass, and the whole-body centre of mass at rest.</p>
-          <div class="table-wrap"><table id="inertia-audit"></table></div>
-        </details>
-        <details>
-          <summary>Joint sweep</summary>
-          <p class="note">Passive moment at each stop, per degree of freedom, from the curve the passive module applies.</p>
-          <div class="table-wrap"><table id="joint-sweep"></table></div>
-        </details>
-      </section>
-
-      <section>
-        <h2>Measured cost</h2>
-        <dl class="readout">
-          <dt>Bones</dt><dd id="stat-bones">—</dd>
-          <dt>Triangles</dt><dd id="stat-tris">—</dd>
-          <dt>Rebuild</dt><dd id="stat-build">—</dd>
-          <dt>Frame</dt><dd id="stat-frame">—</dd>
-          <dt>Draw calls</dt><dd id="stat-draws">—</dd>
-        </dl>
-      </section>
-
-      <section>
-        <h2>Inspector</h2>
-        <div id="inspector" class="inspector">
-          <p class="note">Click a bone.</p>
+      <!-- The viewport, with the view's own controls in its header. ------------------------------ -->
+      <div id="viewport-region">
+        <div id="viewport-header">
+          <div class="buttons views">
+            <button type="button" data-view="front" title="Front (1)">Front</button>
+            <button type="button" data-view="left" title="Left (3)">Left</button>
+            <button type="button" data-view="back" title="Back">Back</button>
+            <button type="button" data-view="three-quarter" title="Three-quarter (7)">¾</button>
+          </div>
+          <div class="group">
+            <label for="quality" class="inline">Tessellation</label>
+            <select id="quality" title="How finely the bones are meshed">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high" selected>High</option>
+            </select>
+          </div>
+          <div class="group popover-host">
+            <button type="button" id="overlays-button" class="popover-button" aria-expanded="false" aria-controls="overlays-popover">Overlays &#9662;</button>
+            <div id="overlays-popover" class="popover" hidden>
+              <label class="checkbox"><input type="checkbox" id="showMuscles" checked /> Muscle paths</label>
+              <label class="checkbox"><input type="checkbox" id="showMuscleVolumes" checked /> Muscle volumes</label>
+              <label class="checkbox" title="Discs at every spinal level, beads at the costovertebral joints, the costal cartilage as bars between rib and sternum, and the couplings as threads between the joints they tie: everything simulated that is neither bone nor muscle."><input type="checkbox" id="showTissue" checked /> Connective tissue</label>
+              <label class="checkbox"><input type="checkbox" id="showProxies" /> Collision proxies</label>
+              <label class="checkbox"><input type="checkbox" id="showAxes" /> Joint axes, end-range heat</label>
+              <label class="checkbox"><input type="checkbox" id="showCom" /> Centres of mass</label>
+              <label class="checkbox"><input type="checkbox" id="showContacts" /> Contacts</label>
+            </div>
+          </div>
+          <label class="checkbox inline"><input type="checkbox" id="showGrid" checked /> Grid</label>
+          <label class="checkbox inline"><input type="checkbox" id="spin" /> Turntable</label>
         </div>
-      </section>
+        <div id="viewport"></div>
+        <div id="loading">Loading the measured skeleton…</div>
+      </div>
 
-      <section>
-        <h2>Known limitations</h2>
-        <ul id="limitations" class="limitations"></ul>
-      </section>
-    </aside>
+      <!-- The properties editor: one concern at a time. ------------------------------------------- -->
+      <aside id="properties" aria-label="Properties">
+        <nav id="tabs" aria-label="Property tabs">
+          <button type="button" data-tab="body" class="active" title="Body: who is being simulated, and how finely">Body</button>
+          <button type="button" data-tab="world" title="World: what the body is in">World</button>
+          <button type="button" data-tab="simulation" title="Simulation: how it is computed and recorded">Sim</button>
+          <button type="button" data-tab="scenario" title="Scenario: what happens">Scene</button>
+          <button type="button" data-tab="muscles" title="Muscles: drive the body by hand">Muscles</button>
+          <button type="button" data-tab="brain" title="Brain: a trained policy in charge, and training">Brain</button>
+          <button type="button" data-tab="export" title="Export: recordings, Blender, sessions">Export</button>
+          <button type="button" data-tab="health" title="Health: whether the numbers are right">Health</button>
+        </nav>
 
-    <div id="hint" class="note">drag to orbit · scroll to zoom · click a bone · while simulating, drag a bone to pull it</div>
-    <div id="loading">Loading the measured skeleton…</div>
-    <div id="attribution" hidden></div>
+        <div id="panels">
+          <!-- Body -->
+          <section data-panel="body">
+            <details class="panel" open>
+              <summary>Who</summary>
+              <div class="control">
+                <label for="sex">
+                  Skeletal proportions
+                  <output id="sex-value">0.50</output>
+                </label>
+                <input type="range" id="sex" min="0" max="1" step="0.01" value="0.5" />
+                <div class="endpoints"><span>female-typical</span><span>male-typical</span></div>
+                <p class="note" id="sex-note"></p>
+              </div>
+              <div class="control">
+                <label for="stature">Stature <output id="stature-value">1.70 m</output></label>
+                <input type="range" id="stature" min="1.40" max="2.05" step="0.005" value="1.70" />
+              </div>
+              <div class="control">
+                <label for="mass">Body mass <output id="mass-value">70.0 kg</output></label>
+                <input type="range" id="mass" min="35" max="150" step="0.5" value="70" />
+              </div>
+              <div class="control">
+                <label for="percentile">
+                  ANSUR II percentile
+                  <output id="percentile-value">50th</output>
+                </label>
+                <input type="range" id="percentile" min="0.01" max="0.99" step="0.01" value="0.5" />
+                <p class="note">Sets stature and mass together from the distribution for the current blend.</p>
+              </div>
+            </details>
+            <details class="panel">
+              <summary>Proportions</summary>
+              <div class="control">
+                <label for="crural">Crural index <output id="crural-value">1.00</output></label>
+                <input type="range" id="crural" min="0.85" max="1.15" step="0.005" value="1.004" />
+                <p class="note">Shank length relative to thigh.</p>
+              </div>
+              <div class="control">
+                <label for="brachial">Brachial index <output id="brachial-value">0.78</output></label>
+                <input type="range" id="brachial" min="0.68" max="0.9" step="0.005" value="0.785" />
+                <p class="note">Forearm length relative to upper arm.</p>
+              </div>
+              <div class="control">
+                <label for="legLength">Relative leg length <output id="legLength-value">1.00</output></label>
+                <input type="range" id="legLength" min="0.9" max="1.1" step="0.005" value="1" />
+              </div>
+            </details>
+            <details class="panel" open>
+              <summary>Inspector</summary>
+              <div id="inspector" class="inspector">
+                <p class="note">Click a bone.</p>
+              </div>
+            </details>
+          </section>
+
+          <!-- World -->
+          <section data-panel="world" hidden>
+            <details class="panel" open>
+              <summary>Forces</summary>
+              <label class="checkbox"><input type="checkbox" id="gravity" checked /> Gravity</label>
+              <label class="checkbox"><input type="checkbox" id="floor" checked /> Floor collision</label>
+            </details>
+            <details class="panel" open>
+              <summary>Tissues</summary>
+              <label class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
+              <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
+              <p class="note">The discs at every spinal level and the costal cartilage are part of the skeleton and have no switch; the Connective tissue overlay shows them. These two take effect on the next run.</p>
+            </details>
+            <details class="panel" open>
+              <summary>Start pose</summary>
+              <div class="control" id="dropHeight-control">
+                <label for="dropHeight">Drop height <output id="dropHeight-value">0.30 m</output></label>
+                <input type="range" id="dropHeight" min="0" max="1.5" step="0.05" value="0.3" />
+                <p class="note">For a free drop only; a scenario places the body itself.</p>
+              </div>
+            </details>
+            <details class="panel" open>
+              <summary>The hand</summary>
+              <div class="control">
+                <label for="grabStrength">Grab strength <output id="grabStrength-value">1.0&times;</output></label>
+                <input type="range" id="grabStrength" min="0.1" max="5" step="0.1" value="1" />
+                <p class="note">Hold <kbd>Ctrl</kbd> and drag a bone to pull the body about; the camera
+                holds still while you do. At 1&times; a hold carries a good fraction of the body's
+                weight.</p>
+              </div>
+            </details>
+          </section>
+
+          <!-- Simulation -->
+          <section data-panel="simulation" hidden>
+            <details class="panel" open>
+              <summary>Time</summary>
+              <div class="control">
+                <label for="stepsPerSecond">Simulation steps per second <output id="stepsPerSecond-value">500</output></label>
+                <input type="range" id="stepsPerSecond" min="60" max="2000" step="20" value="500" />
+                <label for="outputFramerate">Output frame rate <output id="outputFramerate-value">60 fps</output></label>
+                <input type="range" id="outputFramerate" min="1" max="240" step="1" value="60" />
+                <p class="note live" id="rate-note"></p>
+                <p class="note">A second of simulated time is a second of the exported timeline, always.
+                The step rate says how finely that second is computed and there is one keyframe for every
+                step; the output rate says how finely the Blender timeline is divided. Nothing is
+                resampled between them &mdash; a thousand steps into a 60 fps scene puts about seventeen
+                keyframes inside each frame and they are all real, so raising the scene's rate later
+                gives you frames rather than interpolation.</p>
+                <p class="note">One rendered frame advances the simulation by exactly one output frame,
+                whatever the machine was doing: every step is taken and every step is captured. A slow
+                machine takes longer in wall-clock seconds and produces the identical run. Playback moves
+                one output frame per display refresh, so 60 fps output on a 60 Hz display is life speed
+                and 24 is two and a half times life; neither changes the export. Changing the step rate
+                starts a new run, because the timestep is fixed for the life of one.</p>
+              </div>
+            </details>
+            <details class="panel" open>
+              <summary>Recording</summary>
+              <div class="control">
+                <label for="captureBudget">Capture budget <output id="captureBudget-value">&mdash;</output></label>
+                <input type="range" id="captureBudget" min="32" max="4096" step="32" value="256" />
+                <p class="note live" id="capture-status"></p>
+                <p class="note">How much the Blender export may hold, per capture &mdash; one for the
+                bones and one for the muscle cross-sections, and whichever fills first stops both. Pause
+                before raising it and the capture carries on from where it stopped; raise it while the
+                run is going and capture starts again from that moment, because the ticks in between
+                were never taken and the export promises a keyframe for every one.</p>
+                <p class="note">The ceiling is this tab's own JavaScript heap rather than the machine's
+                memory: a page is not given the host, and a capture that runs past the heap does not stop
+                politely &mdash; the tab dies and takes the run with it. It opens at a fifth of that
+                ceiling because writing the file needs about five copies of the capture live at once, so
+                a bigger budget captures happily and then dies on the Export button. Above the default is
+                yours to judge. A muscle frame is about twenty times a bone frame: a run with the full
+                set costs roughly a hundred and ten kilobytes a tick, so a gigabyte is about nineteen
+                seconds at 500 Hz.</p>
+              </div>
+            </details>
+            <details class="panel" open>
+              <summary>Run</summary>
+              <p class="note">Start begins a run, or carries one on from wherever it was left; Pause stops
+              computing and leaves everything that has been computed where it is. Reset takes the body
+              back to the pose it started in and throws the recording away. They live in the top bar.</p>
+              <dl class="readout" id="diagnostics" hidden>
+                <dt>Kinetic</dt><dd id="diag-kinetic">—</dd>
+                <dt>Potential</dt><dd id="diag-potential">—</dd>
+                <dt>Joint drift</dt><dd id="diag-drift">—</dd>
+                <dt>Nearest stop</dt><dd id="diag-limits">—</dd>
+                <dt>Contacts</dt><dd id="diag-contacts">—</dd>
+                <dt>Tick rate</dt><dd id="diag-rate">—</dd>
+                <dt>Cost / tick</dt><dd id="diag-cost">—</dd>
+              </dl>
+            </details>
+          </section>
+
+          <!-- Scenario -->
+          <section data-panel="scenario" hidden>
+            <details class="panel" open>
+              <summary>Scenario</summary>
+              <div class="control">
+                <select id="scenario">
+                  <option value="">Free drop from the rest pose</option>
+                </select>
+                <p class="note live" id="scenario-note"></p>
+                <div id="scenario-parameters"></div>
+              </div>
+              <label class="checkbox"><input type="checkbox" id="muscles" checked /> Muscles</label>
+              <p class="note">A scenario that needs muscles turns them on itself. Muscles start with the next run.</p>
+            </details>
+          </section>
+
+          <!-- Muscles -->
+          <section data-panel="muscles" hidden>
+            <div id="muscle-control">
+              <details class="panel" open>
+                <summary>Drive</summary>
+                <!-- One slider a drive group, generated from the same table the headset's panel uses. -->
+                <div id="muscle-drives"></div>
+                <p class="note">Two hundred and thirty-four units a body. Peak force comes from the MyoSuite
+                arm, leg and torso models where they have the muscle, and from cited tables and measured
+                volumes where they do not; attachments are Gray's, located on this subject's own bones;
+                and both lengths are derived against this skeleton. Each slider drives its muscles on
+                both sides at once, and is squared, so the readout shows the excitation given rather
+                than where the handle sits.</p>
+              </details>
+              <details class="panel" open>
+                <summary>Readout</summary>
+                <dl class="readout" id="muscle-readout">
+                  <dt title="Summed over the elbow flexors and extensors, which is what the two elbow sliders drive">Elbow, flex / ext</dt><dd id="muscle-flexion">&mdash;</dd>
+                  <dt title="Summed over the knee flexors and extensors, which is what the two knee sliders drive">Knee, flex / ext</dt><dd id="muscle-extension">&mdash;</dd>
+                  <dt>Loaded</dt><dd id="muscle-loaded">&mdash;</dd>
+                  <dt>Wrapping</dt><dd id="muscle-wrapping">&mdash;</dd>
+                  <dt title="Units whose equilibrium did not solve cleanly this tick: their path is longer or shorter than their parameters expect, and the force shown for them is the model's fallback">Out of range</dt><dd id="muscle-strained">&mdash;</dd>
+                </dl>
+              </details>
+            </div>
+          </section>
+
+          <!-- Brain -->
+          <section data-panel="brain" hidden>
+            <details class="panel" open>
+              <summary>Policy in the loop</summary>
+              <div class="control">
+                <label for="brain-policy">Checkpoint</label>
+                <select id="brain-policy">
+                  <option value="">None</option>
+                </select>
+                <p class="note live" id="brain-policy-note">No dashboard server: run <code>pnpm train:dashboard</code> to list checkpoints.</p>
+              </div>
+              <div class="control">
+                <label for="brain-authority">Authority <output id="brain-authority-value">0.30</output></label>
+                <input type="range" id="brain-authority" min="0" max="1" step="0.05" value="0.3" />
+                <p class="note">The most one output may add to or take from a group's excitation.</p>
+              </div>
+              <div class="buttons">
+                <button type="button" id="brain-handover" disabled title="Put the chosen policy in charge of the running body; the run carries on with its state">Hand over control</button>
+                <button type="button" id="brain-release" disabled title="Take the policy out of the loop; the run carries on">Release</button>
+              </div>
+              <p class="note live" id="brain-fit-note"></p>
+            </details>
+            <details class="panel" open>
+              <summary>Activity</summary>
+              <div id="nerves-control" hidden>
+                <canvas id="nerves-activity" width="320" height="64"></canvas>
+                <p class="note live" id="nerves-note"></p>
+                <p class="note">One row a layer, senses at the top, drives at the bottom; blue is negative, red positive.</p>
+              </div>
+              <p class="note live" id="brain-idle-note">No policy in the loop.</p>
+            </details>
+            <details class="panel" open>
+              <summary>Training</summary>
+              <div class="control grid2">
+                <label for="train-generations">Generations <output id="train-generations-value">600</output></label>
+                <input type="range" id="train-generations" min="10" max="2000" step="10" value="600" />
+                <label for="train-population">Population <output id="train-population-value">64</output></label>
+                <input type="range" id="train-population" min="8" max="256" step="8" value="64" />
+                <label for="train-seconds">Episode seconds <output id="train-seconds-value">6</output></label>
+                <input type="range" id="train-seconds" min="2" max="20" step="1" value="6" />
+                <label for="train-workers">Workers <output id="train-workers-value">16</output></label>
+                <input type="range" id="train-workers" min="1" max="64" step="1" value="16" />
+              </div>
+              <label class="checkbox"><input type="checkbox" id="train-resume" checked /> Resume the search where it stopped</label>
+              <div class="buttons">
+                <button type="button" id="train-start" disabled title="Start a training run on this machine and follow it here">Start training</button>
+                <button type="button" id="train-stop" disabled>Stop training</button>
+                <button type="button" id="follow-bridge" title="Show whatever is publishing to the pose bridge -- the training showcase, or pnpm publish:pose -- instead of a run of your own. Needs pnpm train:dashboard serving it.">Follow bridge</button>
+              </div>
+              <p class="note live" id="train-status"></p>
+              <canvas id="train-chart" width="320" height="90" hidden></canvas>
+            </details>
+          </section>
+
+          <!-- Export -->
+          <section data-panel="export" hidden>
+            <details class="panel" open>
+              <summary>Recording</summary>
+              <div class="buttons">
+                <button type="button" id="export" disabled>Export recording</button>
+                <button type="button" id="export-blender" disabled title="Three files: the glTF, the muscle vertex cache, and the script that imports them">Export for Blender</button>
+              </div>
+              <p class="note">Export for Blender writes three files that belong together: the glTF with
+              the bones and the belly mesh, a <code>.pc2</code> vertex cache the muscles stream from,
+              and the Python script that imports the pair. Keep them in one folder. The muscles are a
+              streamed cache rather than an armature because as armatures they cost 4.3 GB of Blender
+              for six tenths of a second of simulation; as a cache the same import is under 600 MB and
+              a longer run costs disk instead of memory.</p>
+            </details>
+            <details class="panel" open>
+              <summary>Session</summary>
+              <p class="note">Save and Load live in the top bar. A session holds every setting and,
+              when a run is going, the whole state of the run.</p>
+            </details>
+          </section>
+
+          <!-- Health -->
+          <section data-panel="health" hidden>
+            <details class="panel" open>
+              <summary>Compile report <span id="sim-report-summary"></span></summary>
+              <dl class="readout" id="capabilities"></dl>
+              <ul id="sim-report" class="limitations"></ul>
+            </details>
+            <details class="panel">
+              <summary>Inertia audit</summary>
+              <p class="note">Compiled segment masses against the body mass, and the whole-body centre of mass at rest.</p>
+              <div class="table-wrap"><table id="inertia-audit"></table></div>
+            </details>
+            <details class="panel">
+              <summary>Joint sweep</summary>
+              <p class="note">Passive moment at each stop, per degree of freedom, from the curve the passive module applies.</p>
+              <div class="table-wrap"><table id="joint-sweep"></table></div>
+            </details>
+            <details class="panel" open>
+              <summary>Cost</summary>
+              <dl class="readout">
+                <dt>Bones</dt><dd id="stat-bones">—</dd>
+                <dt>Triangles</dt><dd id="stat-tris">—</dd>
+                <dt>Rebuild</dt><dd id="stat-build">—</dd>
+                <dt>Frame</dt><dd id="stat-frame">—</dd>
+                <dt>Draw calls</dt><dd id="stat-draws">—</dd>
+              </dl>
+            </details>
+            <details class="panel">
+              <summary>Known limitations</summary>
+              <ul id="limitations" class="limitations"></ul>
+            </details>
+          </section>
+        </div>
+      </aside>
+
+      <!-- The timeline: where in the run we are looking. ----------------------------------------- -->
+      <div id="timeline-region">
+        <div id="timeline-control" hidden>
+          <div class="buttons transport">
+            <button type="button" id="playToggle" title="Replay the recording at the output rate (Space)">Play</button>
+            <button type="button" id="frameBack" title="One output frame back (Left)">&#9664;</button>
+            <button type="button" id="frameForward" title="One output frame on; at the end of the recording, computes one (Right)">&#9654;</button>
+            <button type="button" id="goLive" title="Back to the newest frame (Home)">Live</button>
+          </div>
+          <input type="range" id="timeline" min="0" max="0" step="1" value="0" aria-label="Playhead" />
+          <output id="timeline-value">&mdash;</output>
+          <span class="note live" id="playback-note"></span>
+        </div>
+        <p class="note timeline-note">Everything the run has computed is here to be scrubbed, at the output
+        frame rate: Play runs it back at that rate in real time. Scrubbing pauses the simulation, because
+        the playhead is somewhere it has already been; Live jumps back to the newest frame, and so does
+        Start sim. At the end of the recording, &#9654; computes one more rather than stopping. Bones and
+        muscle bellies replay exactly; the paths, the tension colour, the contacts and the centre of mass
+        are live readings a tick wide, so those overlays hide while the playhead is off the newest frame.</p>
+      </div>
+
+      <!-- The status bar. ------------------------------------------------------------------------- -->
+      <footer id="statusbar">
+        <p class="note live" id="sim-status">At rest.</p>
+        <div id="hint">drag to orbit · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space play/pause</div>
+        <label class="checkbox inline" title="Show the paragraphs that say why a control does what it does"><input type="checkbox" id="showNotes" /> Explain</label>
+        <div id="attribution" hidden></div>
+      </footer>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
