@@ -64,11 +64,18 @@ Three ways, and none of them needs the others.
 | | |
 | --- | --- |
 | `bs-humany-studio_<version>_amd64.AppImage` | runs anywhere; carries its own web view |
-| `bs-humany-studio-<version>-linux-x86_64.tar.gz` | the bare binary, a third of the size, wanting a current `libwebkit2gtk-4.1` |
+| `bs-humany-studio-<version>-linux-x86_64.tar.gz` | the bare binaries, wanting a current `libwebkit2gtk-4.1` |
 
-`chmod +x` the AppImage and run it. The tarball holds the binary and its attribution; unpack it
-anywhere and run `./bs-humany-studio`. Build either yourself with `pnpm desktop:appimage` or
-`pnpm desktop:build` — see `apps/studio/src-tauri/README.md` for what they need.
+`chmod +x` the AppImage and run it. The tarball holds the studio, the VR viewer, the mesh pack
+the viewer needs and the attribution; unpack it anywhere and run `./bs-humany-studio`. Build
+either yourself with `pnpm desktop:appimage` or `pnpm desktop:build` — see
+`apps/studio/src-tauri/README.md` for what they need.
+
+**In a headset.** Both desktop builds carry a native OpenXR viewer. With SteamVR (or another
+OpenXR runtime) running, start a run in the studio and click **Connect VR viewer**: the body on
+screen is in the room, the controllers grab it, and a panel beside it drives the studio's
+controls. `apps/xr-viewer/README.md` has the whole of it, including running the viewer on a
+headless simulation with `pnpm publish:pose`.
 
 **A container**, which is the right answer for serving it to more than one person. The image is
 not published anywhere: build it from the repository, which takes one command and no account.

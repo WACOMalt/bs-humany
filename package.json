@@ -1,6 +1,6 @@
 {
   "name": "bs-humany",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Modular simulation framework for the human body. Phase 1: parametric articulated skeleton.",
   "license": "Apache-2.0",
@@ -19,8 +19,8 @@
     "dev": "pnpm --filter @bs-humany/studio dev",
     "build:studio": "pnpm --filter @bs-humany/studio build",
     "desktop:dev": "pnpm --filter @bs-humany/studio tauri dev",
-    "desktop:build": "pnpm --filter @bs-humany/studio tauri build --no-bundle",
-    "desktop:appimage": "NO_STRIP=true pnpm --filter @bs-humany/studio tauri build --bundles appimage",
+    "desktop:build": "pnpm desktop:sidecar && pnpm --filter @bs-humany/studio tauri build --no-bundle",
+    "desktop:appimage": "pnpm desktop:sidecar && NO_STRIP=true pnpm --filter @bs-humany/studio tauri build --bundles appimage",
     "module:lint": "node tools/cli/bin/module-lint.mjs",
     "bench": "node tools/cli/bin/bench.mjs",
     "validate:external": "node tools/cli/bin/external-validate.mjs",
@@ -38,7 +38,8 @@
     "measure:muscle-ranges": "node tools/cli/bin/measure-muscle-ranges.mjs",
     "measure:source-travel": "node tools/cli/bin/measure-source-travel.mjs",
     "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs",
-    "publish:pose": "node tools/cli/bin/publish-pose.mjs"
+    "publish:pose": "node tools/cli/bin/publish-pose.mjs",
+    "desktop:sidecar": "cargo build --release --manifest-path apps/xr-viewer/Cargo.toml && mkdir -p apps/studio/src-tauri/binaries && cp apps/xr-viewer/target/release/bs-humany-xr-viewer apps/studio/src-tauri/binaries/bs-humany-xr-viewer-x86_64-unknown-linux-gnu"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

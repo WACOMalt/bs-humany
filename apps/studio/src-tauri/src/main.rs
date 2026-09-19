@@ -356,6 +356,15 @@ fn find_pack(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     if let Some(named) = std::env::var_os("BS_HUMANY_PACK_DIR") {
         return Some(std::path::PathBuf::from(named));
     }
+    // The tarball: beside the executable. The AppImage: among the resources.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let beside = dir.join("assets-anatomical/data");
+            if beside.join("manifest.json").exists() {
+                return Some(beside);
+            }
+        }
+    }
     if let Ok(resources) = app.path().resource_dir() {
         let bundled = resources.join("assets-anatomical/data");
         if bundled.join("manifest.json").exists() {

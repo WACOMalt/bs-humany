@@ -9,3 +9,5 @@ apps/*/dist/
 tools/*/dist/
 .venv/
 dist-release/
+# The VR viewer copied in as a Tauri sidecar by `pnpm desktop:sidecar`.
+apps/studio/src-tauri/binaries/
