@@ -51,9 +51,12 @@ import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
   FOREARM_MUSCLES,
+  GIRDLE_MUSCLES,
   HIP_MUSCLES,
   KNEE_MUSCLES,
+  NECK_MUSCLES,
   SHOULDER_MUSCLES,
+  THORAX_MUSCLES,
   TORSO_MUSCLES,
   TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
@@ -87,7 +90,8 @@ export interface SimulationOptions {
    * Off unless asked for, because every unit costs a solve per tick and plenty of what the studio
    * is used for has nothing to do with muscles -- though the studio now asks for them by default,
    * because a muscle module should open showing muscles. What is wired up is the whole set: the
-   * elbow, shoulder, forearm, hip, knee, ankle, trunk and torso, a hundred and forty-eight units.
+   * elbow, shoulder, forearm, hip, knee, ankle, trunk, torso, neck, shoulder girdle and thorax,
+   * two hundred and thirty-four units.
    * The hand has none yet.
    */
   readonly muscles?: boolean | undefined;
@@ -312,6 +316,9 @@ export class Simulation {
           ...TRUNK_MUSCLES,
           ...FOREARM_MUSCLES,
           ...TORSO_MUSCLES,
+          ...NECK_MUSCLES,
+          ...GIRDLE_MUSCLES,
+          ...THORAX_MUSCLES,
         ],
         document.attachmentSites,
         this.articulation,

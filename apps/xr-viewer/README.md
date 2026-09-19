@@ -112,7 +112,7 @@ Measured with the publisher on L1 with the full muscle set: `1.00x life` -- it k
 which is the 35 per cent the belly-sweep divisor bought.
 
 What crosses the bridge is bones: 206 of them, seven floats each, plus the rest pose and the
-stature scale once. The muscles cross beside them as rings rather than meshes -- 148 bellies of
+stature scale once. The muscles cross beside them as rings rather than meshes -- 234 bellies of
 24 rings, eight floats a ring: centre, orientation, radius -- and the viewer sweeps its own tubes
 from them each time a new frame arrives, on the same pipeline as the bones with a second draw.
 That is 113 KB a frame against the 1.4 MB the vertices would be, and the sweep is a few
@@ -195,7 +195,7 @@ shows where the aim ray lands; the trigger presses. Five tabs:
 - **Scenario** -- a button per scenario and per fidelity profile; muscles, passive joints,
   redistribution, gravity and floor; drop height.
 - **Body** -- sex, stature, mass, crural and brachial index, relative leg length.
-- **Muscles** -- a drive slider per muscle group: the same twenty-three groups the studio's
+- **Muscles** -- a drive slider per muscle group: the same twenty-nine groups the studio's
   sliders are generated from, one table in `packages/scenarios`, covering every unit.
 - **Rates** -- output frames a second, simulation steps a second, grab strength.
 

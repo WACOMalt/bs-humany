@@ -22,7 +22,7 @@ feet. That is how a spinal cord and a pattern generator divide the work, and it 
 makes the module safe to add to a scenario that already runs: with a zero policy it changes
 nothing.
 
-**Groups, not units.** Forty-six outputs, twenty-three drive groups a side, each spread evenly
+**Groups, not units.** Fifty-eight outputs, twenty-nine drive groups a side, each spread evenly
 over its units. The hundred and forty-eight units are the wrong dimension to control or to train
 in; the groups are the dimension a person reasons in and the sliders already use.
 
@@ -50,7 +50,7 @@ are for, so training runs on `l3_anatomical` unless `--profile` says otherwise, 
 trains. Every sense has a name -- a joint sense is `angle:<joint>:<axis>`, not a slot -- and a
 policy file carries its senses' and drives' names, so a policy is fitted to a body by name:
 senses the body has and the file knows keep their weights, senses the body adds start from zero,
-and the drives are the same forty-six on every profile. Joint ids mostly survive from one
+and the drives are the same fifty-eight on every profile. Joint ids mostly survive from one
 profile to the next, so a search begun on a coarser body carries on at a finer one with what it
 learned; `--resume` does exactly that when the profile has changed. The feet are found by name
 too, so a foot that is one segment at L1 and talus, midfoot, forefoot and toes at L3 reads as a

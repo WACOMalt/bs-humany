@@ -110,7 +110,7 @@ interface MuscleSpec {
   readonly id: string;
   readonly muscle: string;
   readonly section: string;
-  /** `[bone, marker]` pairs; a `$` in the bone name takes the side. */
+  /** `[bone, marker]` pairs; a `$` in the bone name, or in the marker's, takes the side. */
   readonly origins: ReadonlyArray<readonly [string, string]>;
   readonly insertions: ReadonlyArray<readonly [string, string]>;
   /** Ligament attachments, where the muscle reaches bone through one. */
@@ -414,6 +414,192 @@ const MUSCLES: readonly MuscleSpec[] = [
       ['occipital', 'Superior_nuchal_line'],
     ],
   },
+  // --- The neck: what holds the head up and turns it. Gray's cervical muscles, on the points
+  // measured for them (derived.ts): a transverse process tip is its vertebra's most lateral
+  // point, a spinous tip its most posterior, and the front of a body its most anterior.
+  {
+    id: 'splenius_capitis',
+    muscle: 'Splenius capitis',
+    section: 'The Splenius capitis',
+    bilateral: true,
+    origins: [['vertebra_t3', 'Spinous_process_tip']],
+    insertions: [['temporal_$', 'Mastoid_process']],
+  },
+  {
+    id: 'splenius_cervicis',
+    muscle: 'Splenius cervicis',
+    section: 'The Splenius cervicis',
+    bilateral: true,
+    origins: [['vertebra_t5', 'Spinous_process_tip']],
+    insertions: [['vertebra_c2', 'Transverse_process_tip_$']],
+  },
+  {
+    id: 'semispinalis_capitis',
+    muscle: 'Semispinalis capitis',
+    section: 'The Semispinalis capitis',
+    bilateral: true,
+    origins: [['vertebra_t4', 'Transverse_process_tip_$']],
+    insertions: [['occipital', 'Inferior_nuchal_line_$']],
+  },
+  {
+    id: 'longissimus_capitis',
+    muscle: 'Longissimus capitis',
+    section: 'The Longissimus capitis',
+    bilateral: true,
+    origins: [['vertebra_t3', 'Transverse_process_tip_$']],
+    insertions: [['temporal_$', 'Mastoid_process']],
+  },
+  {
+    id: 'longissimus_cervicis',
+    muscle: 'Longissimus cervicis',
+    section: 'The Longissimus cervicis',
+    bilateral: true,
+    origins: [['vertebra_t4', 'Transverse_process_tip_$']],
+    insertions: [['vertebra_c4', 'Transverse_process_tip_$']],
+  },
+  {
+    id: 'scalenus_anterior',
+    muscle: 'Scalenus anterior',
+    section: 'The Scalenus anterior',
+    bilateral: true,
+    origins: [['vertebra_c4', 'Transverse_process_tip_$']],
+    insertions: [['rib_1_$', 'Upper_border_at_50']],
+  },
+  {
+    id: 'scalenus_medius',
+    muscle: 'Scalenus medius',
+    section: 'The Scalenus medius',
+    bilateral: true,
+    origins: [['vertebra_c5', 'Transverse_process_tip_$']],
+    insertions: [['rib_1_$', 'Upper_border_at_60']],
+  },
+  {
+    id: 'scalenus_posterior',
+    muscle: 'Scalenus posterior',
+    section: 'The Scalenus posterior',
+    bilateral: true,
+    origins: [['vertebra_c6', 'Transverse_process_tip_$']],
+    insertions: [['rib_2_$', 'Upper_border_at_50']],
+  },
+  {
+    id: 'longus_colli',
+    muscle: 'Longus colli',
+    section: 'The Longus colli',
+    bilateral: true,
+    origins: [['vertebra_t2', 'Anterior_surface_of_body']],
+    insertions: [['vertebra_c1', 'Anterior_tubercle_of_atlas']],
+  },
+  {
+    id: 'longus_capitis',
+    muscle: 'Longus capitis',
+    section: 'The Longus capitis',
+    bilateral: true,
+    origins: [['vertebra_c4', 'Transverse_process_tip_$']],
+    insertions: [['occipital', 'Basilar_part_of_occipital_bone']],
+  },
+  // --- The shoulder girdle: what hangs the scapula from the skull and spine and pins it to the
+  // ribs. Trapezius in three parts, as Seth 2019 carries it.
+  {
+    id: 'trapezius_upper',
+    muscle: 'Trapezius, descending part',
+    section: 'The Trapezius',
+    bilateral: true,
+    origins: [['occipital', 'External_occipital_protuberance']],
+    insertions: [['clavicle_$', 'Acromial_end']],
+  },
+  {
+    id: 'trapezius_middle',
+    muscle: 'Trapezius, transverse part',
+    section: 'The Trapezius',
+    bilateral: true,
+    origins: [['vertebra_c7', 'Spinous_process_tip']],
+    insertions: [['scapula_$', 'Acromion']],
+  },
+  {
+    id: 'trapezius_lower',
+    muscle: 'Trapezius, ascending part',
+    section: 'The Trapezius',
+    bilateral: true,
+    origins: [['vertebra_t8', 'Spinous_process_tip']],
+    insertions: [['scapula_$', 'Spine_of_scapula']],
+  },
+  {
+    id: 'levator_scapulae',
+    muscle: 'Levator scapulae',
+    section: 'The Levator scapulae',
+    bilateral: true,
+    origins: [['vertebra_c2', 'Transverse_process_tip_$']],
+    insertions: [['scapula_$', 'Superior_angle_of_scapula']],
+  },
+  {
+    id: 'rhomboid_minor',
+    muscle: 'Rhomboideus minor',
+    section: 'The Rhomboideus minor',
+    bilateral: true,
+    origins: [['vertebra_c7', 'Spinous_process_tip']],
+    insertions: [['scapula_$', 'Medial_border_of_scapula']],
+  },
+  {
+    id: 'rhomboid_major',
+    muscle: 'Rhomboideus major',
+    section: 'The Rhomboideus major',
+    bilateral: true,
+    origins: [['vertebra_t3', 'Spinous_process_tip']],
+    insertions: [['scapula_$', 'Medial_border_of_scapula']],
+  },
+  {
+    id: 'serratus_anterior_superior',
+    muscle: 'Serratus anterior, superior part',
+    section: 'The Serratus anterior',
+    bilateral: true,
+    origins: [['rib_2_$', 'Outer_surface_at_70']],
+    insertions: [['scapula_$', 'Superior_angle_of_scapula']],
+  },
+  {
+    id: 'serratus_anterior_middle',
+    muscle: 'Serratus anterior, middle part',
+    section: 'The Serratus anterior',
+    bilateral: true,
+    origins: [['rib_5_$', 'Outer_surface_at_70']],
+    insertions: [['scapula_$', 'Medial_border_of_scapula']],
+  },
+  {
+    id: 'serratus_anterior_inferior',
+    muscle: 'Serratus anterior, inferior part',
+    section: 'The Serratus anterior',
+    bilateral: true,
+    origins: [['rib_8_$', 'Outer_surface_at_70']],
+    insertions: [['scapula_$', 'Inferior_angle_of_scapula']],
+  },
+  {
+    id: 'pectoralis_minor',
+    muscle: 'Pectoralis minor',
+    section: 'The Pectoralis minor',
+    bilateral: true,
+    origins: [['rib_4_$', 'Outer_surface_at_90']],
+    insertions: [['scapula_$', 'Coracoid_process']],
+  },
+  // --- The intercostals: one external and one internal sheet in each of the eleven spaces,
+  // from a rib's lower border to the upper border of the rib below, the external running
+  // forward and down and the internal back and down, so that between them they hold the cage.
+  ...([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const).flatMap((n): MuscleSpec[] => [
+    {
+      id: `external_intercostal_${n}`,
+      muscle: `External intercostal, space ${n}`,
+      section: 'The Intercostales externi',
+      bilateral: true,
+      origins: [[`rib_${n}_$`, 'Lower_border_at_50']],
+      insertions: [[`rib_${n + 1}_$`, 'Upper_border_at_60']],
+    },
+    {
+      id: `internal_intercostal_${n}`,
+      muscle: `Internal intercostal, space ${n}`,
+      section: 'The Intercostales interni',
+      bilateral: true,
+      origins: [[`rib_${n}_$`, 'Lower_border_at_70']],
+      insertions: [[`rib_${n + 1}_$`, 'Upper_border_at_60']],
+    },
+  ]),
   {
     id: 'erector_spinae',
     muscle: 'Sacrospinalis (erector spinae)',
@@ -892,7 +1078,7 @@ export function attachmentGaps(): string[] {
       const id = side(bone, 'r');
       // `located` is the question, not the raw table: a point measured along a ridge is located,
       // and the dataset's own marker for that ridge is not where the muscle starts.
-      if (!located(id, feature)) gaps.push(`${m.id}: ${id}/${feature}`);
+      if (!located(id, side(feature, 'r'))) gaps.push(`${m.id}: ${id}/${feature}`);
     }
   }
   return gaps;
@@ -960,8 +1146,10 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
         kind: AttachmentSiteDef['kind'],
         role: string,
       ) => {
-        for (const [boneTemplate, feature] of pairs) {
+        for (const [boneTemplate, featureTemplate] of pairs) {
           const bone = side(boneTemplate, s);
+          // A midline bone's paired features carry the side in the feature instead.
+          const feature = side(featureTemplate, s);
           const site = located(bone, feature);
           const centroid = centroids.get(bone);
           if (!site || !centroid) continue;

@@ -1,0 +1,100 @@
+{
+ "ribs": {
+  "rib_1_r": {
+   "arcLength": 0.12566,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_1_l": {
+   "arcLength": 0.12566,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_2_r": {
+   "arcLength": 0.18674,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_2_l": {
+   "arcLength": 0.18674,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_3_r": {
+   "arcLength": 0.23285,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_3_l": {
+   "arcLength": 0.23285,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_4_r": {
+   "arcLength": 0.26844,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_4_l": {
+   "arcLength": 0.26844,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_5_r": {
+   "arcLength": 0.28529,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_5_l": {
+   "arcLength": 0.28529,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_6_r": {
+   "arcLength": 0.29482,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_6_l": {
+   "arcLength": 0.29482,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_7_r": {
+   "arcLength": 0.27331,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_7_l": {
+   "arcLength": 0.27331,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_8_r": {
+   "arcLength": 0.25538,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_8_l": {
+   "arcLength": 0.25538,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_9_r": {
+   "arcLength": 0.23627,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_9_l": {
+   "arcLength": 0.23627,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_10_r": {
+   "arcLength": 0.21409,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_10_l": {
+   "arcLength": 0.21409,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_11_r": {
+   "arcLength": 0.18675,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_11_l": {
+   "arcLength": 0.18675,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_12_r": {
+   "arcLength": 0.13121,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  },
+  "rib_12_l": {
+   "arcLength": 0.13121,
+   "rule": "the rib's vertices ordered by distance from its head (the vertex nearest its vertebra's centroid) in 24 bins of equal distance to the furthest vertex; length summed along the bin centroids from the end of the third bin (the tubercle) to the last"
+  }
+ }
+}

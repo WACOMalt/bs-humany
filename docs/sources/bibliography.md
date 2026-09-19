@@ -165,6 +165,63 @@ Caggiano, V., et al. (2024). MyoSkeleton: A Universal Human Skeletal Model. MyoL
 
 ---
 
+### `seth2019` — T1
+Seth, A., Dong, M., Matias, R., & Delp, S. (2019). Muscle contributions to upper-extremity
+movement and work from a musculoskeletal model of the human shoulder. *Frontiers in
+Neurorobotics*, 13, 90. doi:10.3389/fnbot.2019.00090. CC BY.
+
+Table 1 gives the thoracoscapular muscles' maximal isometric force, optimal fibre length, tendon
+slack length and pennation, aggregated from van der Helm (1994) bundles with Klein Breteler et
+al. (1999) parameters: trapezius in four parts, serratus anterior in three, rhomboids in two,
+levator scapulae, pectoralis minor. The source of those muscles' parameters here; they are the
+ones MyoSuite's arm has no actuator for.
+
+### `bruno2015` — T1
+Bruno, A. G., Bouxsein, M. L., & Anderson, D. E. (2015). Development and validation of a
+musculoskeletal model of the fully articulated thoracolumbar spine and rib cage. *Journal of
+Biomechanical Engineering*, 137(8), 081003. doi:10.1115/1.4030408. PMC5101035.
+
+The intercostals' sizing rule: PCSA as rib length (tubercle to anterior end) times 5 mm, the two
+sheets' thickness together at 2.5 mm each; optimal fibre length the distance between the
+attachments on adjacent ribs; pennation 0; tendon slack length 0.1 mm; external fibres at about
+40 degrees to the rib above, internal at about 120; a maximum muscle stress of 100 N/cm².
+Followed here for the intercostals, with this project's rib lengths.
+
+### `zheng2013` — T1
+Zheng, L., Siegmund, G., Ozyigit, G., & Vasavada, A. (2013). Sex-specific prediction of neck
+muscle volumes. *Journal of Biomechanics*, 46(5), 899–904. doi:10.1016/j.jbiomech.2012.12.018.
+PMC3648672.
+
+Neck muscle volumes from MRI of living subjects: total neck muscle volume 813.9 ± 63.6 cm³ in
+men (n = 7) and 510.4 ± 43.0 cm³ in women (n = 3), and each muscle's share of it. The volume
+distribution is reproduced as Table 2 of `roos2019`. The source of the neck muscles' volumes
+here, from which their cross-sections follow by the fibre length measured on this project's own
+bones.
+
+### `roos2019` — T1
+Roos, P. E., Vasavada, A., Zheng, L., & Zhou, X. (2019). Neck musculoskeletal model generation
+through anthropometric scaling. bioRxiv 695833. doi:10.1101/695833. CC0.
+
+Reproduces the `zheng2013` volume distribution (Table 2) and states the 50th-percentile neck
+strengths a scaled model should reach (Table 1). Read for the table; the volumes are Zheng's.
+
+### `vasavada1998` — T1
+Vasavada, A. N., Li, S., & Delp, S. L. (1998). Influence of muscle morphometry and moment arms
+on the moment-generating capacity of human neck muscles. *Spine*, 23(4), 412–422.
+
+The neck model whose muscles the neck set here is shaped after, and the specific tension of
+35 N/cm² by which it turned cross-section into force (as `mortensen2018` reports it). The paper's
+own parameter tables were not to hand; nothing here is copied from them.
+
+### `mortensen2018` — T1
+Mortensen, J. D., Vasavada, A. N., & Merryweather, A. S. (2018). The inclusion of hyoid muscles
+improve moment generating capability and dynamic simulations in musculoskeletal models of the
+head and neck. *PLoS ONE*, 13(6), e0199912. doi:10.1371/journal.pone.0199912. CC BY.
+
+Reports Vasavada's specific tension of 35 N/cm² for the neck muscles and the factors by which
+neck models have had to be strengthened to meet measured strengths (1.4 in extension, 2.7 in
+flexion). Read for those statements.
+
 ## Passive joint properties
 
 ### `riener1999` — T1

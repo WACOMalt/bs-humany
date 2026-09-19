@@ -1,6 +1,8 @@
 {
  "vertebra_c7": {
-  "Spinous_process_tip": "most posterior vertex of the C7 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the C7 mesh (max Z, world frame)",
+  "Transverse_process_tip_l": "most lateral vertex of the C7 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the C7 mesh on the right (max X)"
  },
  "vertebra_t8": {
   "Spinous_process_tip": "most posterior vertex of the T8 mesh (max Z, world frame)"
@@ -56,5 +58,271 @@
  },
  "calcaneus_r": {
   "Posterior_calcaneal_tuberosity_point": "most posterior vertex of the calcaneus mesh (max Z, world frame)"
+ },
+ "vertebra_c1": {
+  "Transverse_process_tip_l": "most lateral vertex of the C1 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the C1 mesh on the right (max X)"
+ },
+ "vertebra_c2": {
+  "Transverse_process_tip_l": "most lateral vertex of the C2 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the C2 mesh on the right (max X)"
+ },
+ "vertebra_c3": {
+  "Transverse_process_tip_l": "most lateral vertex of the C3 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the C3 mesh on the right (max X)"
+ },
+ "vertebra_c4": {
+  "Transverse_process_tip_l": "most lateral vertex of the C4 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the C4 mesh on the right (max X)"
+ },
+ "vertebra_c5": {
+  "Transverse_process_tip_l": "most lateral vertex of the C5 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the C5 mesh on the right (max X)",
+  "Anterior_surface_of_body": "most anterior vertex of the C5 mesh within 8 mm of the midline (min Z, |X| < 0.008)"
+ },
+ "vertebra_c6": {
+  "Transverse_process_tip_l": "most lateral vertex of the C6 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the C6 mesh on the right (max X)"
+ },
+ "vertebra_t1": {
+  "Transverse_process_tip_l": "most lateral vertex of the T1 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the T1 mesh on the right (max X)",
+  "Spinous_process_tip": "most posterior vertex of the T1 mesh (max Z, world frame)"
+ },
+ "vertebra_t2": {
+  "Transverse_process_tip_l": "most lateral vertex of the T2 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the T2 mesh on the right (max X)",
+  "Spinous_process_tip": "most posterior vertex of the T2 mesh (max Z, world frame)",
+  "Anterior_surface_of_body": "most anterior vertex of the T2 mesh within 8 mm of the midline (min Z, |X| < 0.008)"
+ },
+ "vertebra_t3": {
+  "Transverse_process_tip_l": "most lateral vertex of the T3 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the T3 mesh on the right (max X)",
+  "Spinous_process_tip": "most posterior vertex of the T3 mesh (max Z, world frame)"
+ },
+ "vertebra_t4": {
+  "Transverse_process_tip_l": "most lateral vertex of the T4 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the T4 mesh on the right (max X)",
+  "Spinous_process_tip": "most posterior vertex of the T4 mesh (max Z, world frame)"
+ },
+ "vertebra_t5": {
+  "Transverse_process_tip_l": "most lateral vertex of the T5 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the T5 mesh on the right (max X)",
+  "Spinous_process_tip": "most posterior vertex of the T5 mesh (max Z, world frame)"
+ },
+ "vertebra_t6": {
+  "Transverse_process_tip_l": "most lateral vertex of the T6 mesh on the left (min X)",
+  "Transverse_process_tip_r": "most lateral vertex of the T6 mesh on the right (max X)",
+  "Spinous_process_tip": "most posterior vertex of the T6 mesh (max Z, world frame)"
+ },
+ "vertebra_t10": {
+  "Spinous_process_tip": "most posterior vertex of the T10 mesh (max Z, world frame)"
+ },
+ "vertebra_t12": {
+  "Spinous_process_tip": "most posterior vertex of the T12 mesh (max Z, world frame)"
+ },
+ "hip_l": {
+  "Iliac_crest_highest": "most superior vertex of the hip bone mesh (max Y): the top of the iliac crest"
+ },
+ "hip_r": {
+  "Iliac_crest_highest": "most superior vertex of the hip bone mesh (max Y): the top of the iliac crest"
+ },
+ "rib_1_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_1_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_2_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_2_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_3_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_3_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_4_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_4_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_5_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_5_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_6_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_6_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_7_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_7_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_8_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_8_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_9_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_9_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_10_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_10_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_11_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_11_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_12_l": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "rib_12_r": {
+  "Upper_border_at_50": "the highest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Upper_border_at_60": "the highest vertex of the bin at 60 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_50": "the lowest vertex of the bin at 50 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Lower_border_at_70": "the lowest vertex of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_70": "the vertex furthest from the centroid in the transverse plane of the bin at 70 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)",
+  "Outer_surface_at_90": "the vertex furthest from the centroid in the transverse plane of the bin at 90 per cent of the rib's arc from its head to its anterior end (see rib-arcs.json for the arc)"
+ },
+ "occipital": {
+  "Superior_nuchal_line_l": "the occipital vertex nearest the 'Superior_nuchal_line' marker",
+  "Superior_nuchal_line_r": "the occipital vertex nearest the 'Superior_nuchal_line' marker mirrored across the midline (X negated)",
+  "Inferior_nuchal_line_l": "the occipital vertex nearest the 'Inferior_nuchal_line' marker",
+  "Inferior_nuchal_line_r": "the occipital vertex nearest the 'Inferior_nuchal_line' marker mirrored across the midline (X negated)"
  }
 }

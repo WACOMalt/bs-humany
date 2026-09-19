@@ -8,9 +8,12 @@ import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
   FOREARM_MUSCLES,
+  GIRDLE_MUSCLES,
   HIP_MUSCLES,
   KNEE_MUSCLES,
+  NECK_MUSCLES,
   SHOULDER_MUSCLES,
+  THORAX_MUSCLES,
   TORSO_MUSCLES,
   TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
@@ -33,6 +36,9 @@ for (const region of [
   HIP_MUSCLES,
   ANKLE_MUSCLES,
   TRUNK_MUSCLES,
+  NECK_MUSCLES,
+  GIRDLE_MUSCLES,
+  THORAX_MUSCLES,
 ]) {
   for (const group of region) for (const unit of group.units) inData.add(unit.id);
 }

@@ -681,9 +681,11 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       // A muscle is a source of energy, so the passive-system check does not apply.
       passiveSystem: false,
       // The last group is still driving when the run ends and the body hangs from one wrist, so
-      // it is still swinging: three joules on a 70 kg body is the pendulum a driven limb makes of
-      // it, which is the scenario doing what it was written to do.
-      plausibility: { restKinetic: 4 },
+      // it is still swinging: a few joules on a 70 kg body is the pendulum a driven limb makes of
+      // it, which is the scenario doing what it was written to do. Six of them since the
+      // shoulder girdle got its muscles, because the body now hangs from the wrist through a
+      // scapula that is slung to the trunk rather than through the clavicle alone.
+      plausibility: { restKinetic: 8 },
       script: (time, api) => {
         const hand = api.segment('hand_r');
         if (time === 0) api.grab(hand, vec3(0, 0, 0), vec3(0.2, v.hold as number, 0));

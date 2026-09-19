@@ -3,15 +3,15 @@
  *
  * The studio's sliders are generated from this, the headless publisher's panel reads it, and so
  * the headset's panel shows exactly the same groups in the same order at the same ids. Every
- * one of the hundred and forty-eight units belongs to exactly one group -- a test holds that
- * against the muscle data -- so nothing in the body is out of reach of a slider.
+ * one of the two hundred and thirty-four units belongs to exactly one group -- a test holds
+ * that against the muscle data -- so nothing in the body is out of reach of a slider.
  *
  * Grouped the way a person thinks about a joint: what flexes it, what extends it, and so on.
  * Ids are the studio's original slider ids where a group already existed, so nothing that
  * remembered them by name has to change.
  */
 
-export type DriveSection = 'Arm' | 'Leg' | 'Trunk';
+export type DriveSection = 'Arm' | 'Leg' | 'Trunk' | 'Neck';
 
 export interface DriveGroup {
   readonly id: string;
@@ -201,6 +201,66 @@ export const MUSCLE_GROUPS: readonly DriveGroup[] = [
     title: 'Trunk extensors',
     section: 'Trunk',
     units: both('erector_spinae'),
+  },
+  {
+    id: 'intercostalDrive',
+    title: 'Intercostals',
+    section: 'Trunk',
+    units: both(
+      ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((n) => [
+        `external_intercostal_${n}`,
+        `internal_intercostal_${n}`,
+      ]),
+    ),
+  },
+  // --- neck and shoulder girdle -----------------------------------------------------------------
+  {
+    id: 'neckFlexorDrive',
+    title: 'Neck flexors',
+    section: 'Neck',
+    units: both(
+      'sternocleidomastoid',
+      'longus_colli',
+      'longus_capitis',
+      'scalenus_anterior',
+      'scalenus_medius',
+      'scalenus_posterior',
+    ),
+  },
+  {
+    id: 'neckExtensorDrive',
+    title: 'Neck extensors',
+    section: 'Neck',
+    units: both(
+      'splenius_capitis',
+      'splenius_cervicis',
+      'semispinalis_capitis',
+      'longissimus_capitis',
+      'longissimus_cervicis',
+    ),
+  },
+  {
+    id: 'girdleElevatorDrive',
+    title: 'Shoulder girdle elevators',
+    section: 'Neck',
+    units: both('trapezius_upper', 'levator_scapulae'),
+  },
+  {
+    id: 'girdleRetractorDrive',
+    title: 'Shoulder girdle retractors',
+    section: 'Neck',
+    units: both('trapezius_middle', 'trapezius_lower', 'rhomboid_minor', 'rhomboid_major'),
+  },
+  {
+    id: 'girdleProtractorDrive',
+    title: 'Shoulder girdle protractors',
+    section: 'Neck',
+    units: both(
+      'serratus_anterior_superior',
+      'serratus_anterior_middle',
+      'serratus_anterior_inferior',
+      'pectoralis_minor',
+    ),
   },
 ];
 

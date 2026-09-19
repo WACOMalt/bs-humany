@@ -121,7 +121,10 @@ let derivedCount = 0;
 for (const rule of DERIVED_RULES) {
   const bone = extracted.find((e) => e.id === rule.bone);
   if (!bone) continue;
-  const point = rule.pick(bone.mesh);
+  const point = rule.pick(bone.mesh, {
+    meshOf: (id) => extracted.find((e) => e.id === id)?.mesh,
+    landmark: (b, feature) => landmarks[b]?.[feature],
+  });
   const table = landmarks[rule.bone] ?? {};
   table[rule.feature] = point;
   landmarks[rule.bone] = table;

@@ -17,31 +17,20 @@
     "interpolationDefault": "monotoneCubic",
     "interpolationNote": "Clamp to [0,1]. Never use an unclamped spline: a negative excitation is physically meaningless."
   },
-
   "missingFromModel": {
     "note": "Muscles referenced by the source literature that have no counterpart in packages/muscle-data. Tracks that would need them are omitted, and the affected clips say so in their limitations array.",
-    "scapulothoracic": [
-      "trapezius_upper",
-      "trapezius_middle",
-      "trapezius_lower",
-      "serratus_anterior",
-      "rhomboid_major",
-      "rhomboid_minor",
-      "levator_scapulae"
-    ],
+    "scapulothoracic": [],
     "consequence": "The shoulder girdle has a full rotator cuff (supraspinatus, infraspinatus, subscapularis, teres_minor) but nothing that positions the scapula on the thorax. The flail-arms clip therefore cannot brace the girdle as its design calls for. Expect the humerus to drive the scapula through the glenohumeral joint alone.",
-    "recommendedTicket": "Add a scapulothoracic muscle set to muscle-data. Holzbaur et al. (2005) does not include them either; van der Helm (1994) shoulder model does."
+    "recommendedTicket": "Add a scapulothoracic muscle set to muscle-data. Holzbaur et al. (2005) does not include them either; van der Helm (1994) shoulder model does.",
+    "scapulothoracicResolved": "trapezius_upper, trapezius_middle, trapezius_lower, serratus_anterior (three parts), rhomboid_major, rhomboid_minor and levator_scapulae are in packages/muscle-data/src/girdle.ts (Seth 2019); the neck is in neck.ts. The scapular_stabilizers, neck_extensors and neck_flexors groups bind to them."
   },
-
   "namingNotes": [
     "muscle-data exposes both lumped ids (gastrocnemius_r, deltoid_r, triceps_surae_r, quadriceps_femoris_r) and compartment ids (gastrocnemius_medial_r, deltoid_anterior_r). Every track below targets COMPARTMENT ids, per muscle spec M-ADR-005. Confirm whether the lumped ids are separate simulated units or parent bundles: if they are simulated units, driving both double-counts the force.",
     "The literature says 'peroneus longus'. muscle-data uses the current term 'fibularis_longus'. Same muscle.",
     "adductor_magnus is subdivided as proximal, middle, distal and ischiocondylar. Only the ischiocondylar compartment is a meaningful hip extensor; the others are adductors. The groups below reflect that."
   ],
-
   "groups": {
     "note": "Section 3.3 of the research document requires 27 weighted functional groups and none exist in the repository yet. These are the definitions. Weights are moment-arm-and-cross-section plausible, not measured. Every weight marked source 'even-split-pending-data' needs replacing with a real value.",
-
     "ankle_plantarflexors": {
       "source": "Weights approximate relative physiological cross-sectional area. Soleus dominates: it is monoarticular, large, and about 80 percent type I fibres.",
       "weights": {
@@ -80,7 +69,6 @@
         "flexor_digitorum_longus": 0.2
       }
     },
-
     "knee_extensors": {
       "source": "Vasti carry the bulk. Rectus femoris is biarticular and is driven separately in gait, so it is weighted low here.",
       "weights": {
@@ -103,7 +91,6 @@
         "gastrocnemius_lateral": 0.15
       }
     },
-
     "hip_extensors": {
       "source": "Gluteus maximus compartments plus the hamstrings. Compartment weights follow the superior-to-inferior extension moment arm gradient.",
       "weights": {
@@ -168,14 +155,19 @@
         "tensor_fasciae_latae": 0.5
       }
     },
-
     "trunk_extensors": {
       "source": "muscle-data exposes erector_spinae as one unit per side. No multifidus, no semispinalis, no quadratus lumborum.",
-      "weights": { "erector_spinae": 1.0 }
+      "weights": {
+        "erector_spinae": 1.0
+      }
     },
     "trunk_flexors": {
       "source": "even-split-pending-data",
-      "weights": { "rectus_abdominis": 1.0, "external_oblique": 0.6, "internal_oblique": 0.6 }
+      "weights": {
+        "rectus_abdominis": 1.0,
+        "external_oblique": 0.6,
+        "internal_oblique": 0.6
+      }
     },
     "trunk_lateral_flexors": {
       "source": "even-split-pending-data. Driven unilaterally.",
@@ -186,7 +178,6 @@
         "rectus_abdominis": 0.3
       }
     },
-
     "shoulder_flexors": {
       "source": "even-split-pending-data",
       "weights": {
@@ -210,11 +201,19 @@
     },
     "shoulder_abductors": {
       "source": "Supraspinatus initiates, deltoid_middle carries the range.",
-      "weights": { "deltoid_middle": 1.0, "supraspinatus": 0.5, "deltoid_anterior": 0.4 }
+      "weights": {
+        "deltoid_middle": 1.0,
+        "supraspinatus": 0.5,
+        "deltoid_anterior": 0.4
+      }
     },
     "shoulder_rotators_external": {
       "source": "even-split-pending-data",
-      "weights": { "infraspinatus": 1.0, "teres_minor": 0.6, "deltoid_posterior": 0.3 }
+      "weights": {
+        "infraspinatus": 1.0,
+        "teres_minor": 0.6,
+        "deltoid_posterior": 0.3
+      }
     },
     "shoulder_rotators_internal": {
       "source": "even-split-pending-data",
@@ -226,10 +225,18 @@
       }
     },
     "scapular_stabilizers": {
-      "source": "EMPTY. See missingFromModel.scapulothoracic. This group is declared so clips can reference it and so the gap is visible, rather than silently omitted.",
-      "weights": {}
+      "source": "even-split-pending-data. The scapulothoracic set arrived with the girdle region (OQ-026 closed); weights are the retractors and serratus anterior as a couple, moment-arm plausible and not measured.",
+      "weights": {
+        "trapezius_middle": 1.0,
+        "trapezius_lower": 0.8,
+        "rhomboid_major": 0.8,
+        "rhomboid_minor": 0.5,
+        "serratus_anterior_superior": 0.6,
+        "serratus_anterior_middle": 0.8,
+        "serratus_anterior_inferior": 0.8,
+        "levator_scapulae": 0.3
+      }
     },
-
     "elbow_flexors": {
       "source": "Brachialis is the workhorse; biceps contributes more in supination.",
       "weights": {
@@ -250,22 +257,56 @@
     },
     "forearm_pronators": {
       "source": "even-split-pending-data",
-      "weights": { "pronator_teres": 1.0, "pronator_quadratus": 0.7 }
+      "weights": {
+        "pronator_teres": 1.0,
+        "pronator_quadratus": 0.7
+      }
     },
     "forearm_supinators": {
       "source": "even-split-pending-data",
-      "weights": { "supinator": 1.0, "biceps_brachii_long": 0.7, "biceps_brachii_short": 0.7 }
+      "weights": {
+        "supinator": 1.0,
+        "biceps_brachii_long": 0.7,
+        "biceps_brachii_short": 0.7
+      }
     },
     "wrist_flexors": {
       "source": "even-split-pending-data. No flexor digitorum or palmaris longus in muscle-data.",
-      "weights": { "flexor_carpi_radialis": 1.0, "flexor_carpi_ulnaris": 0.9 }
+      "weights": {
+        "flexor_carpi_radialis": 1.0,
+        "flexor_carpi_ulnaris": 0.9
+      }
     },
     "wrist_extensors": {
       "source": "even-split-pending-data. No extensor carpi ulnaris in muscle-data.",
-      "weights": { "extensor_carpi_radialis_longus": 1.0, "extensor_carpi_radialis_brevis": 0.9 }
+      "weights": {
+        "extensor_carpi_radialis_longus": 1.0,
+        "extensor_carpi_radialis_brevis": 0.9
+      }
+    },
+    "neck_extensors": {
+      "source": "even-split-pending-data. The neck region is derived from volume shares (OQ-027); weights follow those shares, the capitis muscles leading.",
+      "weights": {
+        "splenius_capitis": 1.0,
+        "splenius_cervicis": 0.6,
+        "semispinalis_capitis": 1.0,
+        "longissimus_capitis": 0.4,
+        "longissimus_cervicis": 0.3,
+        "trapezius_upper": 0.5
+      }
+    },
+    "neck_flexors": {
+      "source": "even-split-pending-data. Sternocleidomastoid leads by volume; the longus muscles and scalenes assist.",
+      "weights": {
+        "sternocleidomastoid": 1.0,
+        "longus_colli": 0.6,
+        "longus_capitis": 0.5,
+        "scalenus_anterior": 0.4,
+        "scalenus_medius": 0.4,
+        "scalenus_posterior": 0.2
+      }
     }
   },
-
   "clips": [
     {
       "id": "quiet-standing",
@@ -289,7 +330,10 @@
       ],
       "tracks": [
         {
-          "target": { "kind": "unit", "id": "soleus" },
+          "target": {
+            "kind": "unit",
+            "id": "soleus"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Tonic. Carries the standing plantarflexor moment. Nearly flat.",
@@ -304,7 +348,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "gastrocnemius_medial" },
+          "target": {
+            "kind": "unit",
+            "id": "gastrocnemius_medial"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Sway-coupled modulation near 0.3 Hz. Damps the oscillation rather than holding position.",
@@ -331,7 +378,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "gastrocnemius_medial" },
+          "target": {
+            "kind": "unit",
+            "id": "gastrocnemius_medial"
+          },
           "side": "left",
           "interpolation": "monotoneCubic",
           "note": "Same pattern, deliberately phase-offset by about 0.6 s. Perfectly symmetric sway looks mechanical.",
@@ -358,7 +408,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "gastrocnemius_lateral" },
+          "target": {
+            "kind": "unit",
+            "id": "gastrocnemius_lateral"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Lower than the medial head.",
@@ -373,7 +426,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "tibialis_anterior" },
+          "target": {
+            "kind": "unit",
+            "id": "tibialis_anterior"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "NEAR SILENT. Brief corrective bursts only. This is the counterintuitive part of the clip and it is deliberate.",
@@ -392,21 +448,30 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "tibialis_posterior" },
+          "target": {
+            "kind": "unit",
+            "id": "tibialis_posterior"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Low tonic. Medial arch and inversion support.",
           "points": [{ "t": 0.0, "level": 0.022 }, { "t": 30.0, "level": 0.022 }]
         },
         {
-          "target": { "kind": "unit", "id": "fibularis_longus" },
+          "target": {
+            "kind": "unit",
+            "id": "fibularis_longus"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Low tonic. Balances the invertors in the frontal plane at the ankle.",
           "points": [{ "t": 0.0, "level": 0.018 }, { "t": 30.0, "level": 0.018 }]
         },
         {
-          "target": { "kind": "group", "id": "hip_abductors" },
+          "target": {
+            "kind": "group",
+            "id": "hip_abductors"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Frontal-plane pelvic stability. Very low in double-limb support.",
@@ -419,7 +484,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "trunk_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "trunk_extensors"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Holds the trunk against gravity. The thoracic COM sits anterior to the lumbar spine.",
@@ -432,22 +500,41 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "knee_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "knee_extensors"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Near zero. A standing knee is held by passive structures near full extension, not by the quadriceps.",
           "points": [{ "t": 0.0, "level": 0.012 }, { "t": 30.0, "level": 0.012 }]
         },
         {
-          "target": { "kind": "unit", "id": "psoas_major" },
+          "target": {
+            "kind": "unit",
+            "id": "psoas_major"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Low tonic. Contributes to lumbar stability in standing.",
           "points": [{ "t": 0.0, "level": 0.02 }, { "t": 30.0, "level": 0.02 }]
+        },
+        {
+          "target": {
+            "kind": "group",
+            "id": "neck_extensors"
+          },
+          "side": "both",
+          "interpolation": "monotoneCubic",
+          "note": "Tonic. Holds the head against the forward moment of its own weight; low, as the neck extensors are at quiet stance. The level is a modelling assumption pending EMG, not a measured value.",
+          "points": [
+            { "t": 0.0, "level": 0.04 },
+            { "t": 15.0, "level": 0.045 },
+            { "t": 30.0, "level": 0.04 }
+          ]
         }
       ]
     },
-
     {
       "id": "walk-normal",
       "displayName": "Level walking, self-selected speed",
@@ -472,7 +559,10 @@
       ],
       "tracks": [
         {
-          "target": { "kind": "group", "id": "hip_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "hip_extensors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Hip extension from terminal swing through loading. Wraps past 100.",
@@ -487,7 +577,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "hip_abductors" },
+          "target": {
+            "kind": "group",
+            "id": "hip_abductors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Single-limb support pelvic stabilization. Peaks early in stance.",
@@ -502,7 +595,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "knee_flexors" },
+          "target": {
+            "kind": "group",
+            "id": "knee_flexors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Hamstrings. Decelerates the shank in terminal swing, then extends the hip through loading. Overlaps the vasti by design.",
@@ -518,7 +614,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "knee_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "knee_extensors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Vasti. Eccentric through loading response, absorbing knee flexion. Small pre-contact burst.",
@@ -533,7 +632,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "rectus_femoris" },
+          "target": {
+            "kind": "unit",
+            "id": "rectus_femoris"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Two bursts. Loading, then hip flexion with knee extension at pre-swing.",
@@ -550,7 +652,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "hip_flexors" },
+          "target": {
+            "kind": "group",
+            "id": "hip_flexors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Swing initiation. Iliopsoas drives the limb forward through pre-swing and initial swing.",
@@ -565,7 +670,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "hip_adductors" },
+          "target": {
+            "kind": "group",
+            "id": "hip_adductors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Late stance into early swing.",
@@ -579,7 +687,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "soleus" },
+          "target": {
+            "kind": "unit",
+            "id": "soleus"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "The largest single contributor in the cycle. Controls shank rotation, then push-off. Silent through swing.",
@@ -595,7 +706,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "gastrocnemius_medial" },
+          "target": {
+            "kind": "unit",
+            "id": "gastrocnemius_medial"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Push-off. Peaks slightly before the soleus and falls faster.",
@@ -611,7 +725,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "gastrocnemius_lateral" },
+          "target": {
+            "kind": "unit",
+            "id": "gastrocnemius_lateral"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "points": [
@@ -626,7 +743,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "tibialis_anterior" },
+          "target": {
+            "kind": "unit",
+            "id": "tibialis_anterior"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Two bursts. Eccentric control lowering the foot after heel contact, then swing clearance. Wraps past 100.",
@@ -644,7 +764,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "fibularis_longus" },
+          "target": {
+            "kind": "unit",
+            "id": "fibularis_longus"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Stance-phase lateral ankle stability.",
@@ -658,7 +781,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "tibialis_posterior" },
+          "target": {
+            "kind": "unit",
+            "id": "tibialis_posterior"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Controls pronation through mid-stance.",
@@ -672,7 +798,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "trunk_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "trunk_extensors"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Two bursts per cycle, one at each foot contact. This track is not sided and runs at double frequency.",
@@ -689,7 +818,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "external_oblique" },
+          "target": {
+            "kind": "unit",
+            "id": "external_oblique"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Low. Controls trunk rotation against arm and leg swing.",
@@ -702,7 +834,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "deltoid_posterior" },
+          "target": {
+            "kind": "unit",
+            "id": "deltoid_posterior"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Arm swing, counter-phase to the right leg. Deliberately very low: arm swing is mostly passive.",
@@ -715,7 +850,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "deltoid_anterior" },
+          "target": {
+            "kind": "unit",
+            "id": "deltoid_anterior"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "points": [
@@ -723,6 +861,20 @@
             { "p": 25, "level": 0.02 },
             { "p": 50, "level": 0.02 },
             { "p": 72, "level": 0.08 },
+            { "p": 100, "level": 0.05 }
+          ]
+        },
+        {
+          "target": {
+            "kind": "group",
+            "id": "neck_extensors"
+          },
+          "side": "both",
+          "interpolation": "monotoneCubic",
+          "note": "Tonic. Keeps the head up through the stride; a modelling assumption pending EMG, not a measured value.",
+          "points": [
+            { "p": 0.0, "level": 0.05 },
+            { "p": 50.0, "level": 0.05 },
             { "p": 100, "level": 0.05 }
           ]
         }
@@ -733,7 +885,6 @@
         "appliesToSides": ["right"]
       }
     },
-
     {
       "id": "flail-arms",
       "displayName": "Flailing arms",
@@ -754,7 +905,10 @@
       ],
       "tracks": [
         {
-          "target": { "kind": "group", "id": "shoulder_flexors" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_flexors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Base frequency 1.0. Agonist bursts with coast phases between.",
@@ -783,7 +937,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "shoulder_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_extensors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Antagonist. Onset deliberately LATE relative to the flexor peak, so the arm overshoots into its end range before deceleration arrives. That late onset is what makes it read as flailing rather than as a controlled swing.",
@@ -812,7 +969,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "shoulder_abductors" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_abductors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Frequency ratio 1.37 against the flexors, so the arm traces a changing plane rather than one repeated arc.",
@@ -837,7 +997,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "elbow_flexors" },
+          "target": {
+            "kind": "group",
+            "id": "elbow_flexors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Frequency ratio 2.13. The elbow flails faster than the shoulder, which is what a whipping limb does.",
@@ -874,7 +1037,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "elbow_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "elbow_extensors"
+          },
           "side": "right",
           "interpolation": "monotoneCubic",
           "note": "Counter-phase to the elbow flexors, with co-contraction at the reversals. Unlike standing, real flailing DOES co-contract.",
@@ -911,7 +1077,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "shoulder_flexors" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_flexors"
+          },
           "side": "left",
           "interpolation": "monotoneCubic",
           "note": "Left arm at a different phase AND a slightly different frequency, so the two arms never lock into a mirrored rhythm.",
@@ -939,7 +1108,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "shoulder_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_extensors"
+          },
           "side": "left",
           "interpolation": "monotoneCubic",
           "points": [
@@ -966,7 +1138,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "shoulder_abductors" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_abductors"
+          },
           "side": "left",
           "interpolation": "monotoneCubic",
           "points": [
@@ -988,7 +1163,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "elbow_flexors" },
+          "target": {
+            "kind": "group",
+            "id": "elbow_flexors"
+          },
           "side": "left",
           "interpolation": "monotoneCubic",
           "points": [
@@ -1021,7 +1199,10 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "elbow_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "elbow_extensors"
+          },
           "side": "left",
           "interpolation": "monotoneCubic",
           "points": [
@@ -1054,27 +1235,39 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "shoulder_rotators_external" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_rotators_external"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Moderate constant. Rotator cuff resisting glenohumeral distraction under high-amplitude motion. This is the nearest available substitute for the missing scapular bracing, and it is not equivalent.",
           "points": [{ "t": 0.0, "level": 0.24 }, { "t": 12.0, "level": 0.24 }]
         },
         {
-          "target": { "kind": "group", "id": "shoulder_rotators_internal" },
+          "target": {
+            "kind": "group",
+            "id": "shoulder_rotators_internal"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "points": [{ "t": 0.0, "level": 0.22 }, { "t": 12.0, "level": 0.22 }]
         },
         {
-          "target": { "kind": "unit", "id": "supraspinatus" },
+          "target": {
+            "kind": "unit",
+            "id": "supraspinatus"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Held up. Resists inferior humeral translation, which high-amplitude arm motion provokes.",
           "points": [{ "t": 0.0, "level": 0.3 }, { "t": 12.0, "level": 0.3 }]
         },
         {
-          "target": { "kind": "group", "id": "trunk_extensors" },
+          "target": {
+            "kind": "group",
+            "id": "trunk_extensors"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "A flailing person braces the trunk. Without this the arms throw the torso around.",
@@ -1087,21 +1280,30 @@
           ]
         },
         {
-          "target": { "kind": "group", "id": "trunk_flexors" },
+          "target": {
+            "kind": "group",
+            "id": "trunk_flexors"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Co-contracts with the extensors to stiffen the trunk. Correct here, wrong in quiet standing.",
           "points": [{ "t": 0.0, "level": 0.2 }, { "t": 12.0, "level": 0.2 }]
         },
         {
-          "target": { "kind": "group", "id": "hip_abductors" },
+          "target": {
+            "kind": "group",
+            "id": "hip_abductors"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Stance bracing against the lateral momentum the arms generate.",
           "points": [{ "t": 0.0, "level": 0.18 }, { "t": 12.0, "level": 0.18 }]
         },
         {
-          "target": { "kind": "unit", "id": "soleus" },
+          "target": {
+            "kind": "unit",
+            "id": "soleus"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Raised above the quiet-standing level, because the arms are perturbing the centre of mass continuously.",
@@ -1115,7 +1317,10 @@
           ]
         },
         {
-          "target": { "kind": "unit", "id": "tibialis_anterior" },
+          "target": {
+            "kind": "unit",
+            "id": "tibialis_anterior"
+          },
           "side": "both",
           "interpolation": "monotoneCubic",
           "note": "Genuine co-contraction here, unlike quiet standing. The ankle is being perturbed and stiffening it is the right response.",
@@ -1127,11 +1332,38 @@
             { "t": 9.5, "level": 0.1 },
             { "t": 12.0, "level": 0.1 }
           ]
+        },
+        {
+          "target": {
+            "kind": "group",
+            "id": "scapular_stabilizers"
+          },
+          "side": "both",
+          "interpolation": "monotoneCubic",
+          "note": "Moderate constant. Braces the girdle so the arms do not drag the scapula, as the design holds it; the rotator-cuff substitute stays alongside.",
+          "points": [
+            { "t": 0.0, "level": 0.2 },
+            { "t": 6.0, "level": 0.2 },
+            { "t": 12.0, "level": 0.2 }
+          ]
+        },
+        {
+          "target": {
+            "kind": "group",
+            "id": "neck_extensors"
+          },
+          "side": "both",
+          "interpolation": "monotoneCubic",
+          "note": "Tonic. Keeps the head up while the arms flail; a modelling assumption.",
+          "points": [
+            { "t": 0.0, "level": 0.06 },
+            { "t": 6.0, "level": 0.06 },
+            { "t": 12.0, "level": 0.06 }
+          ]
         }
       ]
     }
   ],
-
   "validation": {
     "note": "Run these before trusting any clip. Sections 9 of the research document expands on each.",
     "checks": [

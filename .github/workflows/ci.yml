@@ -57,6 +57,12 @@ jobs:
 
       - name: Generated torso data matches its source
         run: pnpm generate:torso-muscles --check
+      - name: Generated neck data matches its source
+        run: pnpm generate:neck-muscles --check
+      - name: Generated girdle data matches its source
+        run: pnpm generate:girdle-muscles --check
+      - name: Generated thorax data matches its source
+        run: pnpm generate:thorax-muscles --check
 
       - name: Generated via points match their source
         run: pnpm generate:via-points --check

@@ -469,7 +469,7 @@ export function readGrabIntents(
  * What crosses is not the belly meshes but their rings -- centre, orientation, radius: eight
  * floats -- because a swept tube's vertices are a function of its rings and the renderer can
  * sweep them itself, and because eight floats a ring is a hundred times less than the vertices.
- * At 148 bellies of 24 rings that is 113 KB a frame; three slots of it is what the file holds.
+ * At 234 bellies of 24 rings that is 180 KB a frame; three slots of it is what the file holds.
  *
  *   HEADER, 64 bytes
  *     0   u32  magic       0x4353554d, "MUSC"

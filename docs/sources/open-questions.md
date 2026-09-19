@@ -814,7 +814,11 @@ and not one of them between two ribs.
 
 **Closes when:** a source that states intercostal architecture is added to the bibliography and
 the units are generated from it, the way every other region's are.
-**Status:** open, and the reason the rib cage is bound by constraints rather than by muscle.
+**Status:** closed. Bruno et al. (2015) size an intercostal sheet as rib length times 2.5 mm at
+100 N/cm², with the fibre length as the distance between its attachments; `bruno2015` is in the
+bibliography and `pnpm generate:thorax-muscles` writes twenty-two sheets a side from it, on rib
+lengths measured along this project's ribs (`rib-arcs.json`). The cartilage constraints stay:
+the sheets pull on ribs that are still mostly welded, which OQ-028 is about.
 
 ### OQ-026 — There are no scapulothoracic muscles
 
@@ -828,4 +832,40 @@ cuff activity, which is not equivalent.
 Holzbaur et al. (2005), the upper-limb source the muscle spec names, does not include these
 muscles either. The van der Helm (1994) shoulder model does. Adding them is a `muscle-data`
 region with its own generator and a source to cite, not a clip change.
+
+**Status:** closed. Seth et al. (2019) state the thoracoscapular muscles' parameters from van der
+Helm's bundles (`seth2019`, Table 1), and `pnpm generate:girdle-muscles` writes trapezius in
+three parts, levator scapulae, both rhomboids, serratus anterior in three parts and pectoralis
+minor from them, on points measured for the purpose on the scapula, the ribs and the spine. The
+clips' scapular-stabiliser group is filled.
+
+### OQ-027 — The neck's fibre lengths are a fraction, not a measurement
+**Needed for:** `packages/muscle-data/src/neck.ts`, `pnpm generate:neck-muscles`
+**Provisional value:** MyoSuite has no neck, so the neck set is derived: each muscle's volume is
+its share of the neck's total by MRI (`zheng2013`, 813.9 cm³ in men and 510.4 in women, the mean
+taken for the reference body), its optimal fibre length is seven tenths of the straight distance
+between its attachments on this project's bones with the rest tendon, its cross-section is volume
+over fibre length, and its force is that at Vasavada's 35 N/cm² (`vasavada1998`, as
+`mortensen2018` reports it). The volumes and the specific tension are cited; the seven tenths is
+an assumption in the range Kamibayashi & Richmond (1998) measured, whose tables were not to hand.
+Where Zheng gives one share for a muscle carried in parts -- splenius, the scalenes -- the split
+is stated in the generator and is a guess. Neck models built from Vasavada's numbers have needed
+their forces raised by 1.4 to 2.7 to meet measured neck strengths (`mortensen2018`); nothing is
+raised here.
+**Closes when:** Kamibayashi & Richmond (1998) is read and each muscle's fascicle length and
+pennation replace the fraction, or the neck's strength is validated against the head-on-neck
+moments Roos et al. (2019) Table 1 collects and the forces scaled to them.
+**Status:** open.
+
+### OQ-028 — The intercostals pull on a cage that is mostly welded
+**Needed for:** `packages/skeleton/src/constraints.ts`, `jointsL3.ts`
+**Provisional value:** the intercostals of OQ-025 now exist, but ribs one to seven are still
+welded rigidly to the sternum and eight to ten softly to the rib above (OQ-011), and every
+costovertebral joint is a one-axis hinge of a tenth of a radian. In the upper cage the sheets
+therefore change nothing dynamically; from the eighth space down they act, against the soft
+welds and the free eleventh and twelfth ribs. The intercostals' rest lengths are their attachment
+distances, so they carry no force at rest and the cage settles as it did.
+**Closes when:** the welds are replaced by cartilage of cited stiffness (OQ-011) and the
+costovertebral joints get their second axis, at which point the sheets are what holds the cage.
+**Status:** open.
 
