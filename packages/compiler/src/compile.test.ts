@@ -182,18 +182,26 @@ describe('failure modes', () => {
     const l1 = compileArticulation(document, 'l1_standard', morphology).articulation;
     const l2 = compileArticulation(document, 'l2_biomechanical', morphology).articulation;
     // L1 has sternoclavicular joints but no per-level lumbar, patella or acromioclavicular.
-    expect(l1.constraints.length).toBe(4);
+    const couplingsAndWelds = (c: { kind: { type: string } }) => c.kind.type !== 'jointHold';
+    expect(l1.constraints.filter(couplingsAndWelds).length).toBe(4);
+    // Its lumped lumbar and neck joints carry discs all the same: a hold a degree of freedom.
+    expect(l1.constraints.filter((c) => c.kind.type === 'jointHold').length).toBeGreaterThan(0);
     // Per side: patella, two sternoclavicular, two scapular counter-rotations, three
     // acromioclavicular. Plus the nine lumbar level shares, and two costal welds: L2 splits the
     // thorax in two, so of the ten per side only the pair that spans the split survives -- one
     // sternocostal and one of the costal margin's.
-    expect(l2.constraints.length).toBe(9 + 2 * 8 + 2);
+    expect(l2.constraints.filter(couplingsAndWelds).length).toBe(9 + 2 * 8 + 2);
     expect(l2.constraints.filter((c) => c.kind.type === 'weld')).toHaveLength(2);
     // L3 gives every rib its own body, so every costal weld survives: thirteen to the sternum
     // and six more down the costal margin.
     const l3 = compileArticulation(document, 'l3_anatomical', morphology).articulation;
     expect(l3.constraints.filter((c) => c.kind.type === 'weld')).toHaveLength(19);
     expect(emitMjcf(l3, {}).xml).toContain('<weld name="sternocostal_7_l"');
+    // Every spinal degree of freedom at L3 is held by a disc, emitted as a soft joint equality.
+    expect(l3.constraints.filter((c) => c.kind.type === 'jointHold').length).toBeGreaterThan(90);
+    expect(emitMjcf(l3, {}).xml).toContain(
+      '<joint name="disc_l4_l5_flexion" joint1="l4_l5/flexion"',
+    );
     const patella = l2.constraints.find((c) => c.id === 'patellofemoral_r_follows_knee');
     expect(patella?.kind.type === 'jointCoupling' && patella.kind.drivers[0]?.higher?.length).toBe(
       3,

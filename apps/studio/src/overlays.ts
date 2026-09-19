@@ -14,6 +14,7 @@ import {
   BufferGeometry,
   CapsuleGeometry,
   Color,
+  CylinderGeometry,
   Group,
   LineBasicMaterial,
   LineSegments,
@@ -68,6 +69,8 @@ export interface Overlays {
   readonly contacts: Group;
   readonly muscles: Group;
   readonly muscleVolumes: Group;
+  /** What is neither bone nor muscle: discs, cartilage, ligament-like holds and couplings. */
+  readonly tissue: Group;
   update(channels: OverlayChannels): void;
   dispose(): void;
 }
@@ -109,7 +112,8 @@ export function createOverlays(
   const contacts = new Group();
   const muscles = new Group();
   const muscleVolumes = new Group();
-  root.add(proxies, axes, com, contacts, muscles, muscleVolumes);
+  const tissue = new Group();
+  root.add(proxies, axes, com, contacts, muscles, muscleVolumes, tissue);
 
   // --- Proxies: one wireframe per segment, children placed at the proxy transform -------------
   const proxyMaterial = new MeshBasicMaterial({
@@ -223,9 +227,113 @@ export function createOverlays(
   const volumeMeshes: Mesh[] = [];
   const volumeMaterials: MeshStandardMaterial[] = [];
 
+  // --- Connective tissue: the discs, the cartilage and the couplings ---------------------------
+  //
+  // Everything in the simulation that is neither a bone nor a muscle, drawn so it can be seen
+  // holding: a disc at every spinal level held by a `jointHold` constraint, a bead at every
+  // costovertebral one, a bar of cartilage for every weld between two segments, and a thread
+  // between the two joints a coupling ties together. Welds are drawn between the two segments'
+  // nearest hull points at rest, which for a rib and the sternum is the rib's front end and the
+  // sternum's edge -- where the cartilage is.
+  const discMaterial = new MeshBasicMaterial({ color: 0x9fe3d8, transparent: true, opacity: 0.85 });
+  const discGeometry = new CylinderGeometry(0.014, 0.014, 0.005, 16);
+  const beadGeometry = new SphereGeometry(0.006, 8, 6);
+  const heldJoints = new Map<number, number>();
+  for (const c of model.constraints) {
+    if (c.kind.type !== 'jointHold') continue;
+    const joint = model.dofs[c.kind.dof]?.joint;
+    if (joint !== undefined) heldJoints.set(joint, (heldJoints.get(joint) ?? 0) + 1);
+  }
+  const discMeshes: { joint: number; mesh: Mesh }[] = [];
+  for (const [joint, count] of heldJoints) {
+    const mesh = new Mesh(count > 1 ? discGeometry : beadGeometry, discMaterial);
+    tissue.add(mesh);
+    discMeshes.push({ joint, mesh });
+  }
+  const welds = model.constraints.filter((c) => c.kind.type === 'weld');
+  const restPosition = (i: number) => {
+    const t = model.segments[i]?.restWorld.translation;
+    return new Vector3(t?.x ?? 0, t?.y ?? 0, t?.z ?? 0);
+  };
+  const restRotation = (i: number) => {
+    const r = model.segments[i]?.restWorld.rotation;
+    return new Quaternion(r?.x ?? 0, r?.y ?? 0, r?.z ?? 0, r?.w ?? 1);
+  };
+  /** The point of segment `a`'s hulls nearest segment `b`'s centre at rest, in `a`'s frame. */
+  const anchor = (a: number, b: number): Vector3 => {
+    const target = new Vector3();
+    const bSeg = model.segments[b];
+    if (bSeg) target.set(bSeg.com.x, bSeg.com.y, bSeg.com.z).applyQuaternion(restRotation(b));
+    target.add(restPosition(b)).sub(restPosition(a)).applyQuaternion(restRotation(a).invert());
+    let best: Vector3 | undefined;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    const aSeg = model.segments[a];
+    for (const index of aSeg?.proxyIndices ?? []) {
+      const proxy = model.proxies[index];
+      if (!proxy || proxy.shape.kind !== 'convexHull') continue;
+      const pr = proxy.transform.rotation;
+      const pt = proxy.transform.translation;
+      const q = new Quaternion(pr.x, pr.y, pr.z, pr.w);
+      for (const v of proxy.shape.vertices) {
+        const local = new Vector3(v.x, v.y, v.z)
+          .applyQuaternion(q)
+          .add(new Vector3(pt.x, pt.y, pt.z));
+        const d = local.distanceToSquared(target);
+        if (d < bestDistance) {
+          bestDistance = d;
+          best = local;
+        }
+      }
+    }
+    return best ?? new Vector3(aSeg?.com.x ?? 0, aSeg?.com.y ?? 0, aSeg?.com.z ?? 0);
+  };
+  const weldAnchors = welds.map((c) =>
+    c.kind.type === 'weld'
+      ? {
+          a: c.kind.segmentA,
+          b: c.kind.segmentB,
+          onA: anchor(c.kind.segmentA, c.kind.segmentB),
+          onB: anchor(c.kind.segmentB, c.kind.segmentA),
+        }
+      : undefined,
+  );
+  const weldPositions = new Float32Array(Math.max(1, welds.length) * 6);
+  const weldGeometry = new BufferGeometry();
+  weldGeometry.setAttribute('position', new BufferAttribute(weldPositions, 3));
+  weldGeometry.setDrawRange(0, welds.length * 2);
+  const weldLines = new LineSegments(
+    weldGeometry,
+    new LineBasicMaterial({ color: 0xf7c59f, linewidth: 2 }),
+  );
+  weldLines.frustumCulled = false;
+  tissue.add(weldLines);
+  const couplings = model.constraints.flatMap((c) =>
+    c.kind.type === 'jointCoupling'
+      ? [
+          {
+            from: model.dofs[c.kind.dependent]?.joint ?? -1,
+            to: model.dofs[c.kind.drivers[0]?.dof ?? -1]?.joint ?? -1,
+          },
+        ]
+      : [],
+  );
+  const couplingPositions = new Float32Array(Math.max(1, couplings.length) * 6);
+  const couplingGeometry = new BufferGeometry();
+  couplingGeometry.setAttribute('position', new BufferAttribute(couplingPositions, 3));
+  couplingGeometry.setDrawRange(0, couplings.length * 2);
+  const couplingLines = new LineSegments(
+    couplingGeometry,
+    new LineBasicMaterial({ color: 0xb8a1ff, transparent: true, opacity: 0.7 }),
+  );
+  couplingLines.frustumCulled = false;
+  tissue.add(couplingLines);
+  const jointOrigins = new Float32Array(model.joints.length * 3);
+  const jointRotations = new Float32Array(model.joints.length * 4);
+
   const jointOrigin = new Vector3();
   const jointRotation = new Quaternion();
   const axisVector = new Vector3();
+  const anchorVector = new Vector3();
 
   return {
     root,
@@ -235,6 +343,7 @@ export function createOverlays(
     contacts,
     muscles,
     muscleVolumes,
+    tissue,
     update(ch) {
       const total = model.totalMass;
       let cx = 0;
@@ -266,7 +375,7 @@ export function createOverlays(
       });
       if (com.visible) bodyCom.position.set(cx, cy, cz);
 
-      if (axes.visible) {
+      if (axes.visible || tissue.visible) {
         model.joints.forEach((joint, k) => {
           const p = joint.parentSegment;
           _position.set(
@@ -289,6 +398,14 @@ export function createOverlays(
             .set(f.rotation.x, f.rotation.y, f.rotation.z, f.rotation.w)
             .premultiply(_rotation);
           jointMarkers[k]?.position.copy(jointOrigin);
+          jointOrigins[3 * k] = jointOrigin.x;
+          jointOrigins[3 * k + 1] = jointOrigin.y;
+          jointOrigins[3 * k + 2] = jointOrigin.z;
+          jointRotations[4 * k] = jointRotation.x;
+          jointRotations[4 * k + 1] = jointRotation.y;
+          jointRotations[4 * k + 2] = jointRotation.z;
+          jointRotations[4 * k + 3] = jointRotation.w;
+          if (!axes.visible) return;
           for (const dof of joint.dofs) {
             axisVector
               .set(dof.vector.x, dof.vector.y, dof.vector.z)
@@ -312,6 +429,59 @@ export function createOverlays(
         });
         axisGeometry.getAttribute('position').needsUpdate = true;
         axisGeometry.getAttribute('color').needsUpdate = true;
+      }
+
+      if (tissue.visible) {
+        for (const { joint, mesh } of discMeshes) {
+          mesh.position.set(
+            jointOrigins[3 * joint] ?? 0,
+            jointOrigins[3 * joint + 1] ?? 0,
+            jointOrigins[3 * joint + 2] ?? 0,
+          );
+          mesh.quaternion.set(
+            jointRotations[4 * joint] ?? 0,
+            jointRotations[4 * joint + 1] ?? 0,
+            jointRotations[4 * joint + 2] ?? 0,
+            jointRotations[4 * joint + 3] ?? 1,
+          );
+        }
+        weldAnchors.forEach((w, i) => {
+          if (!w) return;
+          for (const [end, seg, local] of [
+            [0, w.a, w.onA],
+            [1, w.b, w.onB],
+          ] as const) {
+            _position.set(
+              ch.position[3 * seg] ?? 0,
+              ch.position[3 * seg + 1] ?? 0,
+              ch.position[3 * seg + 2] ?? 0,
+            );
+            _rotation.set(
+              ch.orientation[4 * seg] ?? 0,
+              ch.orientation[4 * seg + 1] ?? 0,
+              ch.orientation[4 * seg + 2] ?? 0,
+              ch.orientation[4 * seg + 3] ?? 1,
+            );
+            anchorVector.copy(local).applyQuaternion(_rotation).add(_position);
+            const o = 6 * i + 3 * end;
+            weldPositions[o] = anchorVector.x;
+            weldPositions[o + 1] = anchorVector.y;
+            weldPositions[o + 2] = anchorVector.z;
+          }
+        });
+        weldGeometry.getAttribute('position').needsUpdate = true;
+        couplings.forEach((c, i) => {
+          for (const [end, joint] of [
+            [0, c.from],
+            [1, c.to],
+          ] as const) {
+            const o = 6 * i + 3 * end;
+            couplingPositions[o] = jointOrigins[3 * joint] ?? 0;
+            couplingPositions[o + 1] = jointOrigins[3 * joint + 1] ?? 0;
+            couplingPositions[o + 2] = jointOrigins[3 * joint + 2] ?? 0;
+          }
+        });
+        couplingGeometry.getAttribute('position').needsUpdate = true;
       }
 
       if (contacts.visible) {

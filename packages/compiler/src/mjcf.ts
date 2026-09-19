@@ -261,8 +261,23 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
 
   const couplings = model.constraints.filter((c) => c.kind.type === 'jointCoupling');
   const welds = model.constraints.filter((c) => c.kind.type === 'weld');
-  if (couplings.length > 0 || welds.length > 0) {
+  const holds = model.constraints.filter((c) => c.kind.type === 'jointHold');
+  if (couplings.length > 0 || welds.length > 0 || holds.length > 0) {
     push(1, '<equality>');
+    for (const c of holds) {
+      if (c.kind.type !== 'jointHold') continue;
+      const held = jointNames[c.kind.dof];
+      if (!held) continue;
+      // A joint equality with no second joint holds the first at the constant term; solref is
+      // the hold's time constant and damping ratio, and the solver scales the stiffness to the
+      // inertia on the joint, which is what makes a stiff disc between light vertebrae stable
+      // where an explicit spring would not be.
+      push(
+        2,
+        `<joint name="${esc(c.id)}" joint1="${esc(held)}" polycoef="${f(c.kind.angle)} 0 0 0 0"` +
+          ` solref="${f(c.kind.timeConstant)} ${f(c.kind.dampingRatio)}"/>`,
+      );
+    }
     for (const c of welds) {
       if (c.kind.type !== 'weld') continue;
       const a = model.segments[c.kind.segmentA];

@@ -116,7 +116,15 @@ export interface CompiledConstraint {
         }[];
         readonly offset: number;
       }
-    | { readonly type: 'weld'; readonly segmentA: number; readonly segmentB: number };
+    | { readonly type: 'weld'; readonly segmentA: number; readonly segmentB: number }
+    | {
+        readonly type: 'jointHold';
+        /** Global DoF index. */
+        readonly dof: number;
+        readonly angle: number;
+        readonly timeConstant: number;
+        readonly dampingRatio: number;
+      };
   readonly soft: boolean;
 }
 

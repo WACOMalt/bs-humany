@@ -120,7 +120,8 @@ gains those levels.
 ### OQ-008 — Passive joint moment curves are not yet sourced per joint
 **Needed for:** `packages/modules-mechanics/src/passiveJointModule.ts`
 **Provisional value:** where a DoF carries no `passiveStiffness`, the module derives a
-double-exponential end-range curve from the DoF's range and the child segment's inertia about the
+double-exponential end-range curve from the DoF's range and the reduced inertia of the two bodies
+the joint separates about the
 axis: resistance rising over the last 0.2 rad before each limit, reaching a moment at the limit
 that makes the effective wall stiffness a 6 Hz spring for that inertia, plus viscous damping
 equal to the axis inertia times 4 per second. Defensible in form (Riener & Edrich 1999) and in
@@ -128,7 +129,17 @@ scale (tens of newton-metres at the hip, a few at the wrist), but the coefficien
 not measured, and the module and the UI say so.
 **Closes when:** Riener & Edrich (1999) hip, knee and ankle coefficients are transcribed with
 their knee-angle coupling, and an upper-limb and spinal source is found for the rest.
-**Status:** open
+**Status:** open. The inertia the curve is scaled to changed on 2026-09-19: it had been the child
+segment's own, which is the thigh at the hip and a single vertebra at each spinal level, and an
+L3 body left to itself sank six centimetres at the head in a third of a second as the pelvis
+tilted back on the femoral heads and the lumbar spine flexed into walls sized for a bone. It is
+now the reduced inertia of the child's subtree and everything else (`dofReducedInertia`), which
+is what leans on the wall, capped at what lets the child segment alone ring under it at no more
+than 25 Hz (`dofPassiveInertia`): a vertebra between two walls sized to the whole trunk rang at
+over a kilohertz and the spine came apart at 1000 Hz. So the hip's wall holds the trunk and a
+vertebra's stays a bone's; what holds the trunk at a spinal level is the disc of OQ-029, a
+constraint the solver sizes itself. The curves' form and frequency remain unsourced; per-joint
+measured stiffness would still replace them.
 
 ### OQ-009 — Native range limits for oblique axes on the Rapier backend
 **Needed for:** `packages/backend-rapier/src/rapierBackend.ts`, `packages/testkit/src/plausibility.ts`
@@ -867,5 +878,21 @@ welds and the free eleventh and twelfth ribs. The intercostals' rest lengths are
 distances, so they carry no force at rest and the cage settles as it did.
 **Closes when:** the welds are replaced by cartilage of cited stiffness (OQ-011) and the
 costovertebral joints get their second axis, at which point the sheets are what holds the cage.
+**Status:** open.
+
+### OQ-029 — The discs' settling time is a choice
+**Needed for:** `packages/skeleton/src/constraints.ts`, `spinalDiscs`
+**Provisional value:** every intervertebral and costovertebral degree of freedom, at every
+profile, is held at neutral by a `jointHold` constraint with a time constant of 0.01 s and
+critical damping, which the MuJoCo backend solves as a soft joint equality. A spine of
+twenty-four vertebrae with nothing between them but an end-stop at each level's range folded
+under the trunk's weight -- six centimetres at the head in a third of a second -- and a wall
+stiff enough to stop it, applied as an explicit torque, rang the vertebrae at over a kilohertz
+at 1000 Hz (OQ-008). A constraint the solver sizes to the inertia it holds is stable at any
+stiffness; at a twentieth of a second the trunk still sank five centimetres, at a hundredth it
+stands. The number is what stands, not what a disc measures.
+**Closes when:** a cited disc and ligament stiffness per level (Panjabi's neutral-zone and
+elastic-zone data, or the bushing stiffnesses of a published thoracolumbar model) replaces the
+settling time, and the costovertebral ligaments get their own.
 **Status:** open.
 

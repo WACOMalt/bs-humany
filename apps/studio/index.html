@@ -25,7 +25,7 @@
           </label>
           <input type="range" id="sex" min="0" max="1" step="0.01" value="0.5" />
           <div class="endpoints"><span>female-typical</span><span>male-typical</span></div>
-          <p class="note live" id="sex-note"></p>
+          <p class="note" id="sex-note"></p>
         </div>
 
         <div class="control">
@@ -72,8 +72,8 @@
           <label for="quality">Tessellation</label>
           <select id="quality">
             <option value="low">Low — mobile budget</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
           </select>
         </div>
         <div class="control">
@@ -96,9 +96,9 @@
           <label for="profile">Fidelity profile</label>
           <select id="profile">
             <option value="l0_ragdoll">L0 — Ragdoll (15 bodies, 240 Hz)</option>
-            <option value="l1_standard" selected>L1 — Standard (23 bodies, 500 Hz)</option>
+            <option value="l1_standard">L1 — Standard (23 bodies, 500 Hz)</option>
             <option value="l2_biomechanical">L2 — Biomechanical (49 bodies, 500 Hz)</option>
-            <option value="l3_anatomical">L3 — Anatomical (~110 bodies, 1000 Hz)</option>
+            <option value="l3_anatomical" selected>L3 — Anatomical (~110 bodies, 1000 Hz)</option>
           </select>
         </div>
         <div class="control">
@@ -227,6 +227,7 @@
           <label class="checkbox"><input type="checkbox" id="showAxes" /> Joint axes, end-range heat</label>
           <label class="checkbox"><input type="checkbox" id="showCom" /> Centres of mass</label>
           <label class="checkbox"><input type="checkbox" id="showContacts" /> Contacts</label>
+          <label class="checkbox" title="Discs at every spinal level, beads at the costovertebral joints, the costal cartilage as bars between rib and sternum, and the couplings as threads between the joints they tie: everything simulated that is neither bone nor muscle."><input type="checkbox" id="showTissue" checked /> Connective tissue</label>
         <label class="checkbox"><input type="checkbox" id="showMuscles" checked /> Muscle paths</label>
         <label class="checkbox"><input type="checkbox" id="showMuscleVolumes" checked /> Muscle volumes</label>
         </div>
@@ -309,7 +310,7 @@
       </section>
     </aside>
 
-    <div id="hint">drag to orbit · scroll to zoom · click a bone · while simulating, drag a bone to pull it</div>
+    <div id="hint" class="note">drag to orbit · scroll to zoom · click a bone · while simulating, drag a bone to pull it</div>
     <div id="loading">Loading the measured skeleton…</div>
     <div id="attribution" hidden></div>
 

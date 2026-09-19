@@ -68,6 +68,25 @@ export const ConstraintDefSchema = z
           bodyB: IdSchema,
         })
         .strict(),
+      /**
+       * One degree of freedom held at an angle by a compliant tissue: an intervertebral disc
+       * and its ligaments, holding a level at neutral. Stated as a settling time rather than a
+       * stiffness, because what a disc does is bring its level back in so many milliseconds
+       * whatever leans on it, and a backend that solves it as a soft constraint sizes the
+       * stiffness to the inertia it holds. Always soft.
+       */
+      z
+        .object({
+          type: z.literal('jointHold'),
+          dof: DofRefSchema,
+          /** Radians; the DoF's neutral when absent. */
+          angle: z.number().finite().optional(),
+          /** Seconds for the hold to bring the DoF back; the stiffness follows from it. */
+          timeConstant: z.number().positive(),
+          /** Damping relative to critical; 1 when absent. */
+          dampingRatio: z.number().positive().optional(),
+        })
+        .strict(),
     ]),
     /**
      * Soft constraints are solved with a finite stiffness, so they may be violated under load.

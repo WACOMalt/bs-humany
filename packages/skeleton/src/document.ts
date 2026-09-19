@@ -174,7 +174,7 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
           },
           defaultClass: 'bone_on_ground',
         },
-    constraints: options.placement === 'procedural' ? [] : buildConstraints(),
+    constraints: options.placement === 'procedural' ? [] : buildConstraints(joints),
 
     morphology: {
       default: { sex: 0.5, stature: 1.7, mass: 70 },

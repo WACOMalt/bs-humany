@@ -16,7 +16,7 @@
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
-import { ROOT_NQ, ROOT_NV, dofAxisInertia } from '@bs-humany/compiler';
+import { ROOT_NQ, ROOT_NV, dofPassiveInertia } from '@bs-humany/compiler';
 import { type StiffnessCurve, passiveMoment, provisional } from '@bs-humany/hsdl';
 import type {
   ModuleInitContext,
@@ -46,7 +46,12 @@ export const DEFAULT_PASSIVE = {
   ),
 } as const;
 
-/** Build the default curve for a DoF from its axis inertia; the range enters at evaluation. */
+/**
+ * Build the default curve for a DoF from an inertia; the range enters at evaluation. The inertia
+ * is the reduced inertia of the two bodies the joint separates (`dofPassiveInertia`): a wall
+ * sized to the child segment alone was the thigh's at the hip and a vertebra's at each spinal
+ * level, and the trunk sank into those in a fraction of a second.
+ */
 export function defaultPassiveCurve(inertia: number): StiffnessCurve {
   const rate = 3 / DEFAULT_PASSIVE.softZone;
   const omega = 2 * Math.PI * DEFAULT_PASSIVE.wallFrequencyHz;
@@ -88,14 +93,14 @@ export class PassiveJointModule implements SimModule {
     this.curves = articulation.dofs.map((dof) => {
       if (dof.passiveStiffness) return dof.passiveStiffness;
       defaulted.push(dof.index);
-      return defaultPassiveCurve(dofAxisInertia(articulation, dof));
+      return defaultPassiveCurve(dofPassiveInertia(articulation, dof));
     });
     this.defaulted = defaulted;
     this.damping = Float64Array.from(
       articulation.dofs.map((dof) =>
         dof.passiveDamping > 0
           ? dof.passiveDamping
-          : Math.max(dofAxisInertia(articulation, dof), 1e-6) * DEFAULT_PASSIVE.dampingRate,
+          : Math.max(dofPassiveInertia(articulation, dof), 1e-6) * DEFAULT_PASSIVE.dampingRate,
       ),
     );
     this.lower = Float64Array.from(articulation.dofs.map((d) => d.range[0]));

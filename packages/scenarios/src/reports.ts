@@ -8,7 +8,7 @@
  */
 
 import type { ResolvedMorphology } from '@bs-humany/anthropometry';
-import { type CompiledArticulation, ROOT_NQ, dofAxisInertia } from '@bs-humany/compiler';
+import { type CompiledArticulation, ROOT_NQ, dofPassiveInertia } from '@bs-humany/compiler';
 import { passiveMoment } from '@bs-humany/hsdl';
 import { defaultPassiveCurve } from '@bs-humany/modules-mechanics';
 
@@ -29,7 +29,7 @@ export interface SweepRow {
 export function jointSweep(model: CompiledArticulation, samples = 25): SweepRow[] {
   return model.dofs.map((dof) => {
     const joint = model.joints[dof.joint];
-    const curve = dof.passiveStiffness ?? defaultPassiveCurve(dofAxisInertia(model, dof));
+    const curve = dof.passiveStiffness ?? defaultPassiveCurve(dofPassiveInertia(model, dof));
     const [lo, hi] = dof.range;
     const angles: number[] = [];
     const moments: number[] = [];

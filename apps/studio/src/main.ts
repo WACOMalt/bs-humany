@@ -234,6 +234,7 @@ const ui = {
   showAxes: must<HTMLInputElement>('#showAxes'),
   showCom: must<HTMLInputElement>('#showCom'),
   showContacts: must<HTMLInputElement>('#showContacts'),
+  showTissue: must<HTMLInputElement>('#showTissue'),
   showMuscles: must<HTMLInputElement>('#showMuscles'),
   showMuscleVolumes: must<HTMLInputElement>('#showMuscleVolumes'),
   muscles: must<HTMLInputElement>('#muscles'),
@@ -266,7 +267,7 @@ const driveInputs = new Map<string, HTMLInputElement>();
     let section = sections.get(group.section);
     if (!section) {
       const details = window.document.createElement('details');
-      details.open = true;
+      details.open = false;
       const summary = window.document.createElement('summary');
       summary.textContent = group.section;
       details.append(summary);
@@ -851,6 +852,7 @@ function applyOverlayVisibility(): void {
   overlays.axes.visible = ui.showAxes.checked && live;
   overlays.com.visible = ui.showCom.checked && live;
   overlays.contacts.visible = ui.showContacts.checked && live;
+  overlays.tissue.visible = ui.showTissue.checked;
   overlays.muscles.visible = ui.showMuscles.checked && live;
   overlays.muscleVolumes.visible = ui.showMuscleVolumes.checked;
 }

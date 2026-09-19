@@ -1,6 +1,6 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { RapierBackend } from '@bs-humany/backend-rapier';
-import { ROOT_NQ, ROOT_NV, compileArticulation, dofAxisInertia } from '@bs-humany/compiler';
+import { ROOT_NQ, ROOT_NV, compileArticulation, dofPassiveInertia } from '@bs-humany/compiler';
 import { passiveMoment } from '@bs-humany/hsdl';
 import { Kernel } from '@bs-humany/kernel';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -18,7 +18,7 @@ describe('the default passive curve', () => {
     (d) => articulation.joints[d.joint]?.id === 'hip_r' && d.axisName === 'flexion',
   );
   if (!hipFlexion) throw new Error('no hip flexion');
-  const inertia = dofAxisInertia(articulation, hipFlexion);
+  const inertia = dofPassiveInertia(articulation, hipFlexion);
   const curve = defaultPassiveCurve(inertia);
 
   it('is nearly silent mid-range and resists toward both limits', () => {

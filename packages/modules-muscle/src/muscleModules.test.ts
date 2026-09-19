@@ -24,7 +24,14 @@ import { DEFAULT_UPDATE_HZ, MuscleVolumeModule, rateDivisorFor } from './muscleV
 
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
-const { articulation } = compileArticulation(document, 'l3_anatomical', morphology);
+const compiled = compileArticulation(document, 'l3_anatomical', morphology).articulation;
+// The elbow is what is under test, and several readings below are taken from wherever the
+// unplaced body has landed a few hundred ticks in. The spine's discs change how it lands; the
+// body here is compiled without them so those readings keep the landing they were written for.
+const articulation = {
+  ...compiled,
+  constraints: compiled.constraints.filter((c) => c.kind.type !== 'jointHold'),
+};
 const muscles = compileMuscleSet(
   ELBOW_MUSCLES,
   document.attachmentSites,

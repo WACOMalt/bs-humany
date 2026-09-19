@@ -7,7 +7,7 @@
  */
 
 import { LIMIT_STOP_FREQUENCY_HZ } from '@bs-humany/backend-rapier';
-import { ROOT_NQ, dofAxisInertia } from '@bs-humany/compiler';
+import { ROOT_NQ, dofAxisInertia, dofPassiveInertia } from '@bs-humany/compiler';
 import { defaultPassiveCurve } from '@bs-humany/modules-mechanics';
 import type { Sample, Trajectory } from './runner.js';
 
@@ -29,7 +29,7 @@ export function elasticEnergy(
     const [lo, hi] = dof.range;
     const inertia = Math.max(dofAxisInertia(model, dof), 1e-6);
     if (options.passiveJoints) {
-      const curve = dof.passiveStiffness ?? defaultPassiveCurve(inertia);
+      const curve = dof.passiveStiffness ?? defaultPassiveCurve(dofPassiveInertia(model, dof));
       energy += (curve.lowerGain / curve.lowerRate) * Math.exp(-curve.lowerRate * (q - lo));
       energy += (curve.upperGain / curve.upperRate) * Math.exp(curve.upperRate * (q - hi));
       if (curve.linear) energy += 0.5 * curve.linear * (q - (curve.linearNeutral ?? 0)) ** 2;

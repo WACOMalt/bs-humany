@@ -9,7 +9,7 @@ describe('joint couplings', () => {
   it('validate against the joints they reference', () => {
     const result = validateDocument(document);
     expect(result.issues.filter((i) => i.severity === 'error')).toEqual([]);
-    expect(document.constraints.length).toBe(buildConstraints().length);
+    expect(document.constraints.length).toBe(buildConstraints(document.joints).length);
   });
 
   it('cover the lumbar levels, both patellae and both shoulder girdles, each cited', () => {
@@ -22,15 +22,45 @@ describe('joint couplings', () => {
     expect(ids).toContain('acromioclavicular_r_dof2_follows_elevation');
     // Every coupling is transcribed from MyoSuite; the costal welds are provisional against
     // OQ-011, because no stiffness for the cartilage they stand in for has been cited yet.
+    // The discs are provisional against OQ-029: their settling time is a choice.
     for (const c of document.constraints) {
       if (c.kind.type === 'weld') {
         expect(isSourced(c.source ?? { key: '' }), c.id).toBe(false);
         expect(c.source?.provisional?.openQuestion, c.id).toBe('OQ-011');
         continue;
       }
+      if (c.kind.type === 'jointHold') {
+        expect(c.source?.provisional?.openQuestion, c.id).toBe('OQ-029');
+        expect(c.soft, c.id).toBe(true);
+        continue;
+      }
       expect(c.source && isSourced(c.source), c.id).toBe(true);
       expect(c.source?.key).toBe('caggiano2022');
     }
+  });
+
+  it('hold every spinal and costovertebral degree of freedom with a disc', () => {
+    const holds = document.constraints.filter((c) => c.kind.type === 'jointHold');
+    const held = new Set(holds.map((c) => (c.kind.type === 'jointHold' ? c.kind.dof.joint : '')));
+    // Every level of the spine at every profile's lumping, and every rib's hinge; nothing else.
+    for (const id of [
+      'c0_c1',
+      'c4_c5',
+      'c7_t1',
+      't6_t7',
+      't12_l1',
+      'l4_l5',
+      'l5_s1',
+      'costovertebral_7_r',
+      'lumbar_region_lower',
+      'neck_region_upper',
+    ]) {
+      expect(held, id).toContain(id);
+    }
+    for (const id of ['hip_r', 'knee_l', 'glenohumeral_r', 'talocrural_l'])
+      expect(held, id).not.toContain(id);
+    // One hold a degree of freedom: a three-axis level has three.
+    expect(holds.filter((c) => c.id.startsWith('disc_l4_l5_'))).toHaveLength(3);
   });
 
   it('close the rib cage, which a tree of joints cannot', () => {

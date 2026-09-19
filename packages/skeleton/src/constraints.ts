@@ -15,7 +15,7 @@
  * MuJoCo solves these natively; on Rapier the CouplingModule enforces them softly.
  */
 
-import { type ConstraintDef, cite, provisional } from '@bs-humany/hsdl';
+import { type ConstraintDef, type JointDef, cite, provisional } from '@bs-humany/hsdl';
 
 const TORSO = 'myo_sim/models/torso/assets/myotorso_assets.xml';
 const LEG = 'myo_sim/models/leg/assets/myolegs_assets.xml';
@@ -249,12 +249,65 @@ export const TRUE_RIBS = 7;
 /** The last rib whose cartilage reaches the costal margin; the eleventh and twelfth float. */
 export const FALSE_RIBS = 10;
 
-export function buildConstraints(): ConstraintDef[] {
+/** Which joints are intervertebral or costovertebral, at any profile's level of lumping. */
+const SPINAL_JOINT =
+  /^(c0_c1|c\d_c\d|c7_t1|t\d+_t\d+|t12_l1|l\d_l\d|l5_s1|costovertebral_\d+_[lr]|lumbar_region_(upper|lower)|neck_region_(upper|lower)|thoracic_region_(upper|lower))$/;
+
+/** Seconds for a disc to bring its level back to neutral; a 16 Hz response. */
+const DISC_TIME_CONSTANT = 0.01;
+
+/**
+ * The intervertebral discs and the ligaments beside them, as holds on every spinal degree of
+ * freedom, and the costovertebral ligaments as holds on the ribs' hinges.
+ *
+ * A spine of twenty-four vertebrae with nothing between them but an end-stop at each level's
+ * range is a chain that folds under the trunk's own weight: left to itself, the L3 body sank six
+ * centimetres at the head in a third of a second, every level flexed to its limit. In life the
+ * discs and ligaments resist from neutral, not from the end of the range, and that is most of
+ * what holds a standing trunk up before any muscle does. A wall applied as a torque cannot be
+ * that stiff between bodies as light as vertebrae without ringing at a kilohertz; a constraint
+ * the solver sizes to the inertia it holds can, so the discs are declared as holds and the
+ * backend solves them as such.
+ *
+ * The settling time is not sourced: OQ-029. It is chosen so a level comes back in a hundredth
+ * of a second, critically damped -- at a twentieth the trunk still sank five centimetres, at a
+ * hundredth it stands -- which is at least twice the coarsest profile's step, as the solver
+ * asks. Every level's range still applies, and a muscle still bends it.
+ */
+function spinalDiscs(joints: readonly JointDef[]): ConstraintDef[] {
+  const out: ConstraintDef[] = [];
+  for (const joint of joints) {
+    if (!SPINAL_JOINT.test(joint.id)) continue;
+    joint.dofs.forEach((dof, index) => {
+      out.push({
+        id: `disc_${joint.id}_${dof.axis}`,
+        displayName: `Disc and ligaments, ${joint.displayName}, ${dof.axis.replace(/_/g, ' ')}`,
+        kind: {
+          type: 'jointHold',
+          dof: { joint: joint.id, dof: index },
+          timeConstant: DISC_TIME_CONSTANT,
+        },
+        soft: true,
+        source: provisional(
+          'gray1918',
+          'OQ-029',
+          'The intervertebral disc and the longitudinal, interspinous and capsular ligaments hold ' +
+            'the level at neutral; the costovertebral ligaments the rib. The settling time is a ' +
+            'choice, not a measurement.',
+        ),
+      });
+    });
+  }
+  return out;
+}
+
+export function buildConstraints(joints: readonly JointDef[] = []): ConstraintDef[] {
   return [
     ...lumbarCouplings(),
     ...sideCouplings('r'),
     ...sideCouplings('l'),
     ...ribCageWelds(),
     ...costalMarginWelds(),
+    ...spinalDiscs(joints),
   ];
 }

@@ -395,6 +395,30 @@ export function compileArticulation(
         },
         soft: c.soft ?? false,
       });
+    } else if (c.kind.type === 'jointHold') {
+      const dof = dofIndexOf.get(`${c.kind.dof.joint}/${c.kind.dof.dof}`);
+      if (dof === undefined) {
+        notes.push({
+          severity: 'info',
+          feature: 'constraint',
+          element: c.id,
+          message: `Hold '${c.id}' names a joint this profile does not activate; not compiled.`,
+        });
+        continue;
+      }
+      const at = allDofs[dof];
+      constraints.push({
+        index: constraints.length,
+        id: c.id,
+        kind: {
+          type: 'jointHold',
+          dof,
+          angle: c.kind.angle ?? at?.neutral ?? 0,
+          timeConstant: c.kind.timeConstant,
+          dampingRatio: c.kind.dampingRatio ?? 1,
+        },
+        soft: true,
+      });
     } else {
       const a = segmentOfBone.get(c.kind.bodyA);
       const b = segmentOfBone.get(c.kind.bodyB);
