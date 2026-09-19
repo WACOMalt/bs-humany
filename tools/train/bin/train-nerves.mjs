@@ -236,7 +236,10 @@ for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
   const top = Math.max(...fitness);
   const topAlive = alive[fitness.indexOf(top)];
   const seconds = (performance.now() - t0) / 1000;
-  const line = { generation: g, mean, top, topAlive, seconds };
+  // Resident memory, in the log and on the line: sixteen rigs in one process is the first thing
+  // the out-of-memory killer reaches for, and it leaves no note.
+  const rssMb = Math.round(process.memoryUsage().rss / 1048576);
+  const line = { generation: g, mean, top, topAlive, seconds, rssMb };
   appendFileSync(log, `${JSON.stringify(line)}\n`);
   series.push([g, Number(mean.toFixed(4)), Number(top.toFixed(4)), Number(topAlive.toFixed(3))]);
   let improved = '';
@@ -255,7 +258,7 @@ for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
     }
   }
   console.log(
-    `  gen ${String(g).padStart(4)}  mean ${mean.toFixed(3)}  top ${top.toFixed(3)} (${topAlive.toFixed(2)} s up)  ${seconds.toFixed(1)} s${improved}`,
+    `  gen ${String(g).padStart(4)}  mean ${mean.toFixed(3)}  top ${top.toFixed(3)} (${topAlive.toFixed(2)} s up)  ${seconds.toFixed(1)} s  ${rssMb} MB${improved}`,
   );
   publishLatest(best, episodes, shape);
   writeFileSync(

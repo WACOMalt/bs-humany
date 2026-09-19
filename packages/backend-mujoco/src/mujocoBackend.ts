@@ -575,6 +575,9 @@ export class MujocoBackend implements IPhysicsBackend {
       out.depth[i] = -c.dist;
       (c as { delete?: () => void }).delete?.();
     }
+    // The list itself is a copy the bindings make in wasm memory on every read; released here,
+    // or every step leaves one behind and a long run of them fills the heap.
+    (contacts as { delete?: () => void }).delete?.();
     return n;
   }
 
