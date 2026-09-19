@@ -88,6 +88,8 @@ export class MuscleTestDriveModule implements SimModule {
    * exist. Held as numbers rather than a map so `step` stays allocation-free.
    */
   private readonly overrideLevel: Float64Array;
+  /** The scenario script's layer of `setOverride`; `scriptLevel` above is the scripted pattern's points. */
+  private readonly scriptDrive: Float64Array;
   private readonly indexOf: Map<string, number>;
 
   private excitation: Float64Array | undefined;
@@ -106,6 +108,7 @@ export class MuscleTestDriveModule implements SimModule {
     const index = new Map(muscles.units.map((u, i) => [u.id, i]));
     this.indexOf = index;
     this.overrideLevel = new Float64Array(n).fill(Number.NaN);
+    this.scriptDrive = new Float64Array(n).fill(Number.NaN);
     const times: number[] = [];
     const levels: number[] = [];
 
@@ -185,20 +188,38 @@ export class MuscleTestDriveModule implements SimModule {
    * tick from scratch -- the accumulator is zeroed at the top of each one, so there is no stale
    * value to clear.
    */
-  setOverride(unitId: string, level: number | null): void {
+  /**
+   * Drive a unit from outside its pattern. Two layers, because two things do this and they used
+   * to fight: a scenario's script, which sets its postural tone every tick, and a person's
+   * slider, which the script then overwrote on the next tick for exactly the units it toned --
+   * the ankle, the trunk, the hip -- while every other slider worked. The `script` layer is the
+   * scenario's; the default layer is the person's; the unit gets the larger of the two, so a
+   * slider at zero leaves the tone alone and a slider raised adds to it.
+   */
+  setOverride(unitId: string, level: number | null, layer: 'user' | 'script' = 'user'): void {
     const at = this.indexOf.get(unitId);
     if (at === undefined) {
       throw new Error(`No muscle unit '${unitId}' in this set.`);
     }
-    this.overrideLevel[at] = level === null ? Number.NaN : level;
+    const store = layer === 'script' ? this.scriptDrive : this.overrideLevel;
+    store[at] = level === null ? Number.NaN : level;
   }
 
   /** The level a unit is being driven at from outside, or null where its pattern still applies. */
   overrideFor(unitId: string): number | null {
     const at = this.indexOf.get(unitId);
     if (at === undefined) return null;
-    const level = this.overrideLevel[at] as number;
+    const level = this.effectiveOverride(at);
     return Number.isNaN(level) ? null : level;
+  }
+
+  /** The larger of the two layers, or NaN when neither is set. */
+  private effectiveOverride(at: number): number {
+    const user = this.overrideLevel[at] as number;
+    const script = this.scriptDrive[at] as number;
+    if (Number.isNaN(user)) return script;
+    if (Number.isNaN(script)) return user;
+    return Math.max(user, script);
   }
 
   init(ctx: ModuleInitContext): void {
@@ -220,7 +241,7 @@ export class MuscleTestDriveModule implements SimModule {
 
     for (let i = 0; i < this.units; i++) {
       let level: number;
-      const forced = this.overrideLevel[i] as number;
+      const forced = this.effectiveOverride(i);
       if (!Number.isNaN(forced)) {
         excitation[i] = (excitation[i] as number) + (forced < 0 ? 0 : forced > 1 ? 1 : forced);
         continue;

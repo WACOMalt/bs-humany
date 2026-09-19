@@ -179,6 +179,47 @@ describe('MuscleTestDriveModule', () => {
     ).toThrow(/breakpoint/);
   });
 
+  it('lets a slider and a scenario script drive the same unit, the larger winning', async () => {
+    // What a person found in the studio: the standing scenario set its postural tone on the
+    // ankle every tick through the same override the sliders used, so those sliders did nothing
+    // while every other group worked. Two layers now, and the unit gets the larger.
+    const kernel = new Kernel({ rateHz: 500, seed: 1 });
+    const driver = new MuscleTestDriveModule(muscles, [
+      { units: 'all', pattern: { kind: 'constant', level: 0 } },
+    ]);
+    kernel.register(
+      new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }),
+    );
+    kernel.register(driver);
+    kernel.register(new MusclePathModule(articulation, muscles));
+    kernel.register(new MuscleDynamicsModule(articulation, muscles));
+    await kernel.init();
+    const activation = kernel.channels.storage(MUSCLE_STATE).fields.activation as Float64Array;
+    // The script's tone, set every tick as a script does; the slider at zero, as it starts.
+    driver.setOverride('biceps_brachii_long_r', 0, 'user');
+    for (let i = 0; i < 200; i++) {
+      driver.setOverride('biceps_brachii_long_r', 0.3, 'script');
+      kernel.step();
+    }
+    expect(activation[BICEPS]).toBeCloseTo(0.3, 2);
+    expect(driver.overrideFor('biceps_brachii_long_r')).toBeCloseTo(0.3, 6);
+    // The slider raised above the tone takes over; the script keeps writing and does not win.
+    driver.setOverride('biceps_brachii_long_r', 0.8, 'user');
+    for (let i = 0; i < 200; i++) {
+      driver.setOverride('biceps_brachii_long_r', 0.3, 'script');
+      kernel.step();
+    }
+    expect(activation[BICEPS]).toBeCloseTo(0.8, 2);
+    // Cleared, the tone is what is left.
+    driver.setOverride('biceps_brachii_long_r', null, 'user');
+    for (let i = 0; i < 200; i++) {
+      driver.setOverride('biceps_brachii_long_r', 0.3, 'script');
+      kernel.step();
+    }
+    expect(activation[BICEPS]).toBeCloseTo(0.3, 2);
+    kernel.dispose();
+  });
+
   it('writes drive and nothing else', async () => {
     const driver = new MuscleTestDriveModule(muscles, [
       { units: 'all', pattern: { kind: 'constant', level: 1 } },
