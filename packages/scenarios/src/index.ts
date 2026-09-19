@@ -838,7 +838,7 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       'evolution strategies on this simulation, with a twitch of a random group each episode so ' +
       'it stands through a nudge. How long it stays up is the number the training log reports.',
     parameters: [
-      param('authority', 'Nerve authority', 0.5, 0, 1, 0.05),
+      param('authority', 'Nerve authority', 0.3, 0, 1, 0.05),
       param('gain', 'Clip gain', 1, 0, 3, 0.05, '\u00d7'),
     ],
     make: (v) => ({

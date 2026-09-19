@@ -70,7 +70,8 @@ describe('NervesModule', () => {
     const inputs = nerves.observation.size;
     const nq = (kernel.channels.storage(BODY_JOINT_STATE).fields.q as Float64Array).length;
     const nv = (kernel.channels.storage(BODY_JOINT_STATE).fields.qdot as Float64Array).length;
-    expect(inputs).toBe(nq - 7 + (nv - 6) + 11 + 4 + 2 * muscles.units.length + 2);
+    // Joints, the pelvis, the feet, a sense a group of activation and of stretch, the goal.
+    expect(inputs).toBe(nq - 7 + (nv - 6) + 11 + 4 + 2 * 2 + 2);
     kernel.run(100);
     // Twenty evaluations in a hundred ticks at a divisor of five.
     expect(nerves.evaluationsSoFar).toBe(20);

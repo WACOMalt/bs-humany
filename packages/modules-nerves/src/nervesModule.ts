@@ -99,6 +99,7 @@ export class NervesModule implements SimModule {
       muscles,
       options.feet,
       options.goalSize,
+      options.outputs,
     );
     this.command = new Float64Array(options.outputs.length);
     this.unitIndex = new Map(muscles.units.map((u, i) => [u.id, i]));

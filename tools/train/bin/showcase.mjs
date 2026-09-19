@@ -49,7 +49,7 @@ const rig = await StandRig.build({
   hidden: [32, 32],
   seconds: 30,
   controlDivisor: 5,
-  authority: 0.5,
+  authority: Number(flag('authority', 0.3)),
   clip: task === 'walk' ? 'walk-normal' : 'quiet-standing',
   poseBones: true,
 });

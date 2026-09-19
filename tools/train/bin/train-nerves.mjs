@@ -39,6 +39,7 @@ const sigma = Number(flag('sigma', 0.05));
 const learningRate = Number(flag('lr', 0.02));
 const hidden = flag('hidden', '32,32').split(',').map(Number);
 const profileId = flag('profile', 'l1_standard');
+const authority = Number(flag('authority', 0.3));
 const resume = args.includes('--resume');
 const out = flag('out', join(ROOT, 'packages/modules-nerves/policies', `${task}.json`));
 const runsDir = join(ROOT, 'tools/train/runs');
@@ -76,7 +77,7 @@ const options = {
   hidden,
   seconds,
   controlDivisor: 5,
-  authority: 0.5,
+  authority,
   clip: task === 'stand' ? 'quiet-standing' : task === 'walk' ? 'walk-normal' : 'quiet-standing',
 };
 

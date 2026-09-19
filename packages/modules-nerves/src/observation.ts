@@ -43,26 +43,33 @@ export class ObservationBuilder {
   private readonly head: number;
   private readonly leftFeet: number[];
   private readonly rightFeet: number[];
-  private readonly units: number;
   private readonly goalSize: number;
   private channels: ObservationChannels | undefined;
 
-  private readonly unitIds: readonly string[];
+  /** Per group: the unit indices in it; and every unit's optimal fibre length. */
+  private readonly groupUnits: Int32Array[];
+  private readonly groupIds: readonly string[];
+  private readonly optimal: Float64Array;
 
   constructor(
     articulation: CompiledArticulation,
     muscles: CompiledMuscleSet,
     feet: Feet,
     goalSize: number,
+    groups: readonly { readonly id: string; readonly units: readonly { readonly id: string }[] }[],
   ) {
     const index = new Map(articulation.segments.map((s) => [s.id, s.index]));
     this.pelvis = index.get('pelvis') ?? 0;
     this.head = index.get('head') ?? this.pelvis;
     this.leftFeet = feet.left.map((id) => index.get(id) ?? -1).filter((i) => i >= 0);
     this.rightFeet = feet.right.map((id) => index.get(id) ?? -1).filter((i) => i >= 0);
-    this.units = muscles.units.length;
-    this.unitIds = muscles.units.map((u) => u.id);
     this.goalSize = goalSize;
+    const unitIndex = new Map(muscles.units.map((u, i) => [u.id, i]));
+    this.groupIds = groups.map((g) => g.id);
+    this.groupUnits = groups.map((g) =>
+      Int32Array.from(g.units.map((u) => unitIndex.get(u.id) ?? -1).filter((i) => i >= 0)),
+    );
+    this.optimal = Float64Array.from(muscles.units, (u) => u.parameters.optimalFiberLength || 0.1);
   }
 
   bind(channels: ObservationChannels): void {
@@ -77,8 +84,8 @@ export class ObservationBuilder {
     names.push('pelvis.velocity.x', 'pelvis.velocity.y', 'pelvis.velocity.z');
     names.push('pelvis.height', 'head.height');
     names.push('foot.left.contacts', 'foot.left.load', 'foot.right.contacts', 'foot.right.load');
-    for (const id of this.unitIds) names.push(`activation:${id}`);
-    for (const id of this.unitIds) names.push(`fibre:${id}`);
+    for (const id of this.groupIds) names.push(`activation:${id}`);
+    for (const id of this.groupIds) names.push(`stretch:${id}`);
     for (let g = 0; g < this.goalSize; g++) names.push(`goal[${g}]`);
     this.names = names;
     this.size = names.length;
@@ -168,10 +175,25 @@ export class ObservationBuilder {
     out[at++] = Math.min(1, rightCount / 8);
     out[at++] = Math.min(2, rightLoad);
 
+    // Muscles by group: the mean activation, and the mean stretch past optimal, of the units in
+    // each. A stretch of 0 is a fibre at its optimal length; 0.5 is half again as long. Per
+    // group rather than per unit, because a hundred and forty-eight of each swamped the rest,
+    // and fibre lengths scaled tenfold saturated the first policy before it sensed anything.
     const activation = c.muscles.fields.activation as Float64Array;
     const fibre = c.muscles.fields.fiberLength as Float64Array;
-    for (let u = 0; u < this.units; u++) out[at++] = activation[u] as number;
-    for (let u = 0; u < this.units; u++) out[at++] = 10 * (fibre[u] as number);
+    for (const units of this.groupUnits) {
+      let sum = 0;
+      for (let k = 0; k < units.length; k++) sum += activation[units[k] as number] as number;
+      out[at++] = units.length ? sum / units.length : 0;
+    }
+    for (const units of this.groupUnits) {
+      let sum = 0;
+      for (let k = 0; k < units.length; k++) {
+        const u = units[k] as number;
+        sum += (fibre[u] as number) / (this.optimal[u] as number) - 1;
+      }
+      out[at++] = units.length ? Math.max(-1, Math.min(2, sum / units.length)) : 0;
+    }
     for (let g = 0; g < this.goalSize; g++) out[at++] = goal[g] ?? 0;
   }
 }

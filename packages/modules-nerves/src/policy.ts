@@ -57,7 +57,7 @@ export class MlpPolicy {
   }
 
   /** Small random weights, so an untrained policy is a quiet one rather than a saturated one. */
-  static random(sizes: readonly number[], random: () => number, scale = 0.1): MlpPolicy {
+  static random(sizes: readonly number[], random: () => number, scale = 0.05): MlpPolicy {
     const weights = new Float32Array(MlpPolicy.parameterCount(sizes));
     let at = 0;
     for (let l = 1; l < sizes.length; l++) {

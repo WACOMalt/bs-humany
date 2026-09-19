@@ -103,6 +103,8 @@ export class StandRig {
   private readonly parents: readonly number[];
   private readonly segmentIds: readonly string[];
   private live = 0;
+  private startX = 0;
+  private startZ = 0;
   private position: Float64Array;
   private orientation: Float64Array;
   private linear: Float64Array;
@@ -338,6 +340,8 @@ export class StandRig {
     const twitchLevel = 0.25;
 
     const ticks = Math.round(this.options.seconds / this.dt);
+    this.startX = this.position[3 * this.pelvis] as number;
+    this.startZ = this.position[3 * this.pelvis + 2] as number;
     const every = this.options.controlDivisor;
     let fitness = 0;
     let alive = 0;
@@ -370,8 +374,18 @@ export class StandRig {
         for (let u = 0; u < this.activation.length; u++) effort += this.activation[u] as number;
         effort /= this.activation.length;
         const stepSeconds = every * this.dt;
+        // Where the pelvis has gone from where it started, along the floor: standing still is
+        // standing here, and drifting off is the start of a fall the head has not shown yet.
+        const px = this.position[3 * p] as number;
+        const pz = this.position[3 * p + 2] as number;
+        const drift = Math.sqrt((px - this.startX) ** 2 + (pz - this.startZ) ** 2);
         fitness +=
-          stepSeconds * (1 + 0.5 * Math.max(0, upY) - 0.5 * Math.min(1, speed) - 0.5 * effort);
+          stepSeconds *
+          (1 +
+            0.5 * Math.max(0, upY) +
+            0.5 * (1 - Math.min(1, drift / 0.25)) -
+            0.5 * Math.min(1, speed) -
+            0.5 * effort);
       }
     }
     return { fitness, aliveSeconds: alive };
