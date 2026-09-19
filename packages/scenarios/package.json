@@ -20,5 +20,8 @@
     "@bs-humany/anthropometry": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
     "@bs-humany/modules-mechanics": "workspace:*"
+  },
+  "devDependencies": {
+    "@bs-humany/muscle-data": "workspace:*"
   }
 }

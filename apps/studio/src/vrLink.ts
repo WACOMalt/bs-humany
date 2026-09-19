@@ -228,7 +228,7 @@ export class VrLink {
       this.lastCommands = now;
       void this.pollCommands();
     }
-    if (now - this.lastStatus >= 250) {
+    if (now - this.lastStatus >= 100) {
       const elapsed = (now - this.lastStatus) / 1000;
       this.speed =
         this.lastStatus === 0
@@ -259,7 +259,7 @@ export class VrLink {
       this.lastCommands = now;
       void this.pollCommands();
     }
-    if (now - this.lastStatus >= 250) {
+    if (now - this.lastStatus >= 100) {
       this.lastStatus = now;
       void this.writeStatus(null);
     }

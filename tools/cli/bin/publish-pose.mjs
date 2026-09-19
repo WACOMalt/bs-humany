@@ -69,7 +69,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.ts'));
-const { scenario, SCENARIOS, DEFAULT_SCENARIO, MUSCLE_GROUPS } = await jiti.import(
+const { scenario, SCENARIOS, DEFAULT_SCENARIO, MUSCLE_GROUPS, driveForSlider } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
 const { openPoseBridge, openMuscleBridge, GrabIntentReader } = await jiti.import(
@@ -124,7 +124,6 @@ const REBUILDS = new Set([
 /** Slider positions, 0..100, one a muscle group; kept across rebuilds. */
 const drives = MUSCLE_GROUPS.map(() => 0);
 /** The studio's mapping: squared, so the first few per cent of drive get a usable stretch. */
-const driveForSlider = (position) => (position / 100) ** 2;
 
 /** The morphology a build uses: the scenario's, with whatever the panel overrode. */
 function effectiveMorphology(chosen) {
@@ -582,7 +581,7 @@ while (live.simulation.ticks * live.simulation.dt < seconds) {
   }
 
   const now = performance.now();
-  if (now - lastStatus >= 250) {
+  if (now - lastStatus >= 100) {
     writeStatus();
     lastStatus = now;
   }

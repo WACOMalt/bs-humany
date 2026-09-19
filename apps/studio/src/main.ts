@@ -44,6 +44,7 @@ import {
   inertiaAudit,
   jointSweep,
 } from '@bs-humany/scenarios';
+import { MUSCLE_GROUPS, driveForSlider } from '@bs-humany/scenarios';
 import { buildDocument, computeWorldTransforms, modelLimitations } from '@bs-humany/skeleton';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import {
@@ -235,23 +236,6 @@ const ui = {
   outputFramerate: must<HTMLInputElement>('#outputFramerate'),
   stepsPerSecond: must<HTMLInputElement>('#stepsPerSecond'),
   captureBudget: must<HTMLInputElement>('#captureBudget'),
-  flexorDrive: must<HTMLInputElement>('#flexorDrive'),
-  extensorDrive: must<HTMLInputElement>('#extensorDrive'),
-  kneeFlexorDrive: must<HTMLInputElement>('#kneeFlexorDrive'),
-  kneeExtensorDrive: must<HTMLInputElement>('#kneeExtensorDrive'),
-  hipFlexorDrive: must<HTMLInputElement>('#hipFlexorDrive'),
-  hipExtensorDrive: must<HTMLInputElement>('#hipExtensorDrive'),
-  hipAbductorDrive: must<HTMLInputElement>('#hipAbductorDrive'),
-  hipAdductorDrive: must<HTMLInputElement>('#hipAdductorDrive'),
-  anklePlantarflexorDrive: must<HTMLInputElement>('#anklePlantarflexorDrive'),
-  ankleDorsiflexorDrive: must<HTMLInputElement>('#ankleDorsiflexorDrive'),
-  armAdductorDrive: must<HTMLInputElement>('#armAdductorDrive'),
-  wristFlexorDrive: must<HTMLInputElement>('#wristFlexorDrive'),
-  wristExtensorDrive: must<HTMLInputElement>('#wristExtensorDrive'),
-  pronatorDrive: must<HTMLInputElement>('#pronatorDrive'),
-  supinatorDrive: must<HTMLInputElement>('#supinatorDrive'),
-  trunkFlexorDrive: must<HTMLInputElement>('#trunkFlexorDrive'),
-  trunkExtensorDrive: must<HTMLInputElement>('#trunkExtensorDrive'),
   showNotes: must<HTMLInputElement>('#showNotes'),
 };
 
@@ -268,128 +252,43 @@ const ui = {
  * "flexor" there names a different muscle depending on where the arm already is. It stays along
  * for the ride until the range-of-motion scenarios give it something better than a slider.
  */
-const sides = <T extends string>(...names: T[]): string[] =>
-  names.flatMap((name) => [`${name}_r`, `${name}_l`]);
-
-const ELBOW_FLEXORS = sides(
-  'biceps_brachii_long',
-  'biceps_brachii_short',
-  'brachialis',
-  'brachioradialis',
-);
-const ELBOW_EXTENSORS = sides(
-  'triceps_brachii_long',
-  'triceps_brachii_lateral',
-  'triceps_brachii_medial',
-);
-const KNEE_FLEXORS = sides(
-  'biceps_femoris_long',
-  'biceps_femoris_short',
-  'semitendinosus',
-  'semimembranosus',
-  'gastrocnemius_lateral',
-  'gastrocnemius_medial',
-);
-const KNEE_EXTENSORS = sides(
-  'rectus_femoris',
-  'vastus_lateralis',
-  'vastus_medialis',
-  'vastus_intermedius',
-);
-
-const HIP_FLEXORS = sides('iliacus', 'psoas_major', 'sartorius', 'tensor_fasciae_latae');
-const HIP_EXTENSORS = sides(
-  'gluteus_maximus_superior',
-  'gluteus_maximus_middle',
-  'adductor_magnus_ischiocondylar',
-);
-/**
- * The abductors, which have no opposite number on a slider of their own.
- *
- * Adduction is what the adductors do and they are five units a side, so the pair would be even
- * enough; what stops it is that adduction on one leg is resisted by the other one's abductors
- * through the ground rather than by anything at the same hip. The single-leg stance the gluteals
- * are for is a scenario, not a slider.
- */
-const HIP_ABDUCTORS = sides(
-  'gluteus_medius_anterior',
-  'gluteus_medius_middle',
-  'gluteus_medius_posterior',
-  'gluteus_minimus_anterior',
-  'gluteus_minimus_middle',
-  'gluteus_minimus_posterior',
-);
-const HIP_ADDUCTORS = sides(
-  'adductor_longus',
-  'adductor_brevis',
-  'adductor_magnus_proximal',
-  'adductor_magnus_middle',
-  'adductor_magnus_distal',
-  'gracilis',
-);
-
-const ANKLE_PLANTARFLEXORS = sides(
-  'soleus',
-  'tibialis_posterior',
-  'fibularis_longus',
-  'fibularis_brevis',
-  'flexor_digitorum_longus',
-  'flexor_hallucis_longus',
-);
-const ANKLE_DORSIFLEXORS = sides(
-  'tibialis_anterior',
-  'extensor_digitorum_longus',
-  'extensor_hallucis_longus',
-);
-
-/**
- * The two that hold the arm onto the trunk, driven together.
- *
- * Latissimus dorsi and pectoralis major pull the arm down and in from behind and in front, and
- * between them that is most of what brings a raised arm back. They get one slider because they
- * do the same thing from opposite sides: nothing here opposes them, which is the shoulder's own
- * abductors, and those already have theirs.
- */
-const ARM_ADDUCTORS = sides(
-  'latissimus_dorsi_thoracic',
-  'latissimus_dorsi_iliac',
-  'pectoralis_major_sternal',
-  'pectoralis_major_abdominal',
-);
-
-const WRIST_FLEXORS = sides('flexor_carpi_radialis', 'flexor_carpi_ulnaris');
-const WRIST_EXTENSORS = sides('extensor_carpi_radialis_longus', 'extensor_carpi_radialis_brevis');
-const FOREARM_PRONATORS = sides('pronator_teres', 'pronator_quadratus');
-const FOREARM_SUPINATORS = sides('supinator');
-/**
- * The abdominal wall, driven as one.
- *
- * The two obliques cross, so driving them together flexes the trunk and neither rotates it, and
- * rectus abdominis flexes it straight. Erector spinae opposes all three.
- */
-const TRUNK_FLEXORS = sides('rectus_abdominis', 'external_oblique', 'internal_oblique');
-const TRUNK_EXTENSORS = sides('erector_spinae');
-
-/** The driven groups, each with the slider that drives it and the readout it feeds. */
-const DRIVEN = [
-  { units: ELBOW_FLEXORS, slider: 'flexorDrive' },
-  { units: ELBOW_EXTENSORS, slider: 'extensorDrive' },
-  { units: KNEE_FLEXORS, slider: 'kneeFlexorDrive' },
-  { units: KNEE_EXTENSORS, slider: 'kneeExtensorDrive' },
-  { units: HIP_FLEXORS, slider: 'hipFlexorDrive' },
-  { units: HIP_EXTENSORS, slider: 'hipExtensorDrive' },
-  { units: HIP_ABDUCTORS, slider: 'hipAbductorDrive' },
-  { units: HIP_ADDUCTORS, slider: 'hipAdductorDrive' },
-  { units: ANKLE_PLANTARFLEXORS, slider: 'anklePlantarflexorDrive' },
-  { units: ANKLE_DORSIFLEXORS, slider: 'ankleDorsiflexorDrive' },
-  { units: ARM_ADDUCTORS, slider: 'armAdductorDrive' },
-  { units: WRIST_FLEXORS, slider: 'wristFlexorDrive' },
-  { units: WRIST_EXTENSORS, slider: 'wristExtensorDrive' },
-  { units: FOREARM_PRONATORS, slider: 'pronatorDrive' },
-  { units: FOREARM_SUPINATORS, slider: 'supinatorDrive' },
-  { units: TRUNK_FLEXORS, slider: 'trunkFlexorDrive' },
-  { units: TRUNK_EXTENSORS, slider: 'trunkExtensorDrive' },
-] as const;
+// The drive groups and their sliders, one an entry of `MUSCLE_GROUPS`, generated so the studio
+// and the headset's panel offer the same groups at the same ids.
+const driveInputs = new Map<string, HTMLInputElement>();
+{
+  const host = must<HTMLDivElement>('#muscle-drives');
+  const sections = new Map<string, HTMLElement>();
+  for (const group of MUSCLE_GROUPS) {
+    let section = sections.get(group.section);
+    if (!section) {
+      const details = window.document.createElement('details');
+      details.open = true;
+      const summary = window.document.createElement('summary');
+      summary.textContent = group.section;
+      details.append(summary);
+      host.append(details);
+      sections.set(group.section, details);
+      section = details;
+    }
+    const label = window.document.createElement('label');
+    label.htmlFor = group.id;
+    const readout = window.document.createElement('output');
+    readout.id = `${group.id}-value`;
+    readout.textContent = '0%';
+    label.append(`${group.title} `, readout);
+    const input = window.document.createElement('input');
+    input.type = 'range';
+    input.id = group.id;
+    input.min = '0';
+    input.max = '100';
+    input.step = '1';
+    input.value = '0';
+    section.append(label, input);
+    driveInputs.set(group.id, input);
+  }
+}
+/** The group a readout row is about, by id, since the table's order is not the readout's. */
+const groupIndex = (id: string) => MUSCLE_GROUPS.findIndex((g) => g.id === id);
 
 function currentMorphology(): Morphology {
   return {
@@ -1134,33 +1033,12 @@ function showRates(): void {
     `${steps} keyframes a second of timeline, ${fps} frames a second of timeline${pending}.`;
 }
 
-/**
- * What excitation a slider at a given position asks for.
- *
- * Squared, and the reason is that a muscle's useful range is not spread evenly over its drive. A
- * limb with nothing loading it starts moving at a few per cent of maximum excitation and has done
- * most of what it is going to do by a quarter of it: driven from straight, the knee flexors reach
- * 54 degrees at five per cent and 76 at twenty-five, and the last quarter of the joint's range
- * needs the whole rest of the slider. On a linear control all of that lives in the first
- * centimetre of travel and the remaining nine do almost nothing, which is what a slider feels
- * like when it feels broken.
- *
- * Squaring spreads that first five per cent of excitation over the first twenty-two per cent of
- * the slider. What it does not do is lie about it: the readout beside each slider shows the
- * excitation the muscles are actually given, not the position of the handle, so a reading of five
- * per cent means five per cent of maximum voluntary drive wherever the handle happens to sit.
- */
-export function driveForSlider(position: number): number {
-  const fraction = position / 100;
-  return fraction * fraction;
-}
-
 /** Push every slider into the drive module. Safe to call before a run, and on every change. */
 function applyMuscleDrive(sim: Simulation | null | undefined): void {
   const drive = sim?.muscleDrive;
   if (!drive) return;
-  for (const group of DRIVEN) {
-    const level = driveForSlider(Number(ui[group.slider].value));
+  for (const group of MUSCLE_GROUPS) {
+    const level = driveForSlider(Number(driveInputs.get(group.id)?.value ?? 0));
     for (const unit of group.units) drive.setOverride(unit, level);
   }
 }
@@ -1177,7 +1055,7 @@ function updateMuscles(sim: Simulation): void {
   const state = sim.muscleState();
   const units = sim.muscles?.units;
   if (!state || !units) return;
-  const pulled = [0, 0, 0, 0];
+  const pulled: number[] = MUSCLE_GROUPS.map(() => 0);
   let loaded = 0;
   let strained = 0;
   for (let i = 0; i < units.length; i++) {
@@ -1188,16 +1066,19 @@ function updateMuscles(sim: Simulation): void {
     // arrived "not a flexor" meant "an extensor"; now it would mean the deltoid too, and the
     // readout would say a hanging arm's extensors were pulling ten kilonewtons.
     const id = units[i]?.id ?? '';
-    DRIVEN.forEach((group, at) => {
+    MUSCLE_GROUPS.forEach((group, at) => {
       if (group.units.includes(id)) pulled[at] = (pulled[at] ?? 0) + force;
     });
   }
   const pair = (flex: number, extend: number) =>
     `${(flex ?? 0).toFixed(0)} / ${(extend ?? 0).toFixed(0)} N`;
-  must<HTMLElement>('#muscle-flexion').textContent = pair(pulled[0] as number, pulled[1] as number);
+  must<HTMLElement>('#muscle-flexion').textContent = pair(
+    pulled[groupIndex('flexorDrive')] as number,
+    pulled[groupIndex('extensorDrive')] as number,
+  );
   must<HTMLElement>('#muscle-extension').textContent = pair(
-    pulled[2] as number,
-    pulled[3] as number,
+    pulled[groupIndex('kneeFlexorDrive')] as number,
+    pulled[groupIndex('kneeExtensorDrive')] as number,
   );
   must<HTMLElement>('#muscle-loaded').textContent = `${loaded} of ${units.length} units`;
   // How many tendons are in contact with a bone right now. A muscle that is wrapping has its
@@ -1264,25 +1145,7 @@ ui.showNotes.addEventListener('change', () => {
   document.body.classList.toggle('notes', ui.showNotes.checked);
 });
 
-for (const slider of [
-  ui.flexorDrive,
-  ui.extensorDrive,
-  ui.kneeFlexorDrive,
-  ui.kneeExtensorDrive,
-  ui.hipFlexorDrive,
-  ui.hipExtensorDrive,
-  ui.hipAbductorDrive,
-  ui.hipAdductorDrive,
-  ui.anklePlantarflexorDrive,
-  ui.ankleDorsiflexorDrive,
-  ui.armAdductorDrive,
-  ui.wristFlexorDrive,
-  ui.wristExtensorDrive,
-  ui.pronatorDrive,
-  ui.supinatorDrive,
-  ui.trunkFlexorDrive,
-  ui.trunkExtensorDrive,
-]) {
+for (const slider of driveInputs.values()) {
   slider.addEventListener('input', () => {
     const level = driveForSlider(Number(slider.value));
     must<HTMLElement>(`#${slider.id}-value`).textContent =
@@ -1932,12 +1795,9 @@ const vrHost = {
         fps: Number(ui.outputFramerate.value),
         stepsPerSecond: sim?.stepsPerSecond ?? Number(ui.stepsPerSecond.value),
       },
-      driveGroups: DRIVEN.map((group) => ({
-        title:
-          window.document
-            .querySelector(`label[for="${group.slider}"]`)
-            ?.firstChild?.textContent?.trim() ?? group.slider,
-        level: Number(ui[group.slider].value),
+      driveGroups: MUSCLE_GROUPS.map((group) => ({
+        title: group.title,
+        level: Number(driveInputs.get(group.id)?.value ?? 0),
       })),
       groundHeight: sim?.groundHeight ?? 0,
       staticBoxes: (sim?.staticBoxes ?? []).map((b) => ({
@@ -1971,8 +1831,8 @@ const vrHost = {
         if (simulation) scrubTo(Math.round(command.seconds * simulation.outputFramerate));
         break;
       case 'drive': {
-        const group = DRIVEN[command.group];
-        if (group) setFromPanel(ui[group.slider], Math.max(0, Math.min(100, command.value)));
+        const input = driveInputs.get(MUSCLE_GROUPS[command.group]?.id ?? '');
+        if (input) setFromPanel(input, Math.max(0, Math.min(100, command.value)));
         break;
       }
       case 'set': {

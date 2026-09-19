@@ -362,6 +362,10 @@ importers:
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../skeleton
+    devDependencies:
+      '@bs-humany/muscle-data':
+        specifier: workspace:*
+        version: link:../muscle-data
 
   packages/skeleton:
     dependencies:

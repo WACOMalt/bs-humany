@@ -151,49 +151,8 @@
         </div>
         <label class="checkbox"><input type="checkbox" id="muscles" checked /> Muscles</label>
         <div class="control" id="muscle-control">
-          <details open>
-            <summary>Arm</summary>
-            <label for="flexorDrive">Elbow flexors <output id="flexorDrive-value">0%</output></label>
-            <input type="range" id="flexorDrive" min="0" max="100" step="1" value="0" />
-            <label for="extensorDrive">Elbow extensors <output id="extensorDrive-value">0%</output></label>
-            <input type="range" id="extensorDrive" min="0" max="100" step="1" value="0" />
-            <label for="wristFlexorDrive">Wrist flexors <output id="wristFlexorDrive-value">0%</output></label>
-            <input type="range" id="wristFlexorDrive" min="0" max="100" step="1" value="0" />
-            <label for="wristExtensorDrive">Wrist extensors <output id="wristExtensorDrive-value">0%</output></label>
-            <input type="range" id="wristExtensorDrive" min="0" max="100" step="1" value="0" />
-            <label for="pronatorDrive">Pronators <output id="pronatorDrive-value">0%</output></label>
-            <input type="range" id="pronatorDrive" min="0" max="100" step="1" value="0" />
-            <label for="supinatorDrive">Supinator <output id="supinatorDrive-value">0%</output></label>
-            <input type="range" id="supinatorDrive" min="0" max="100" step="1" value="0" />
-            <label for="armAdductorDrive">Latissimus and pectoralis <output id="armAdductorDrive-value">0%</output></label>
-            <input type="range" id="armAdductorDrive" min="0" max="100" step="1" value="0" />
-          </details>
-          <details>
-            <summary>Leg</summary>
-            <label for="hipFlexorDrive">Hip flexors <output id="hipFlexorDrive-value">0%</output></label>
-            <input type="range" id="hipFlexorDrive" min="0" max="100" step="1" value="0" />
-            <label for="hipExtensorDrive">Hip extensors <output id="hipExtensorDrive-value">0%</output></label>
-            <input type="range" id="hipExtensorDrive" min="0" max="100" step="1" value="0" />
-            <label for="hipAbductorDrive">Hip abductors <output id="hipAbductorDrive-value">0%</output></label>
-            <input type="range" id="hipAbductorDrive" min="0" max="100" step="1" value="0" />
-            <label for="hipAdductorDrive">Hip adductors <output id="hipAdductorDrive-value">0%</output></label>
-            <input type="range" id="hipAdductorDrive" min="0" max="100" step="1" value="0" />
-            <label for="kneeFlexorDrive">Knee flexors <output id="kneeFlexorDrive-value">0%</output></label>
-            <input type="range" id="kneeFlexorDrive" min="0" max="100" step="1" value="0" />
-            <label for="kneeExtensorDrive">Knee extensors <output id="kneeExtensorDrive-value">0%</output></label>
-            <input type="range" id="kneeExtensorDrive" min="0" max="100" step="1" value="0" />
-            <label for="anklePlantarflexorDrive">Ankle plantarflexors <output id="anklePlantarflexorDrive-value">0%</output></label>
-            <input type="range" id="anklePlantarflexorDrive" min="0" max="100" step="1" value="0" />
-            <label for="ankleDorsiflexorDrive">Ankle dorsiflexors <output id="ankleDorsiflexorDrive-value">0%</output></label>
-            <input type="range" id="ankleDorsiflexorDrive" min="0" max="100" step="1" value="0" />
-          </details>
-          <details>
-            <summary>Trunk</summary>
-            <label for="trunkFlexorDrive">Trunk flexors <output id="trunkFlexorDrive-value">0%</output></label>
-            <input type="range" id="trunkFlexorDrive" min="0" max="100" step="1" value="0" />
-            <label for="trunkExtensorDrive">Trunk extensors <output id="trunkExtensorDrive-value">0%</output></label>
-            <input type="range" id="trunkExtensorDrive" min="0" max="100" step="1" value="0" />
-          </details>
+          <!-- One slider a drive group, generated from the same table the headset's panel uses. -->
+          <div id="muscle-drives"></div>
           <p class="note">A hundred and forty-eight units a body: seven at each elbow, nine at each
           shoulder, six at each shoulder girdle, eight at each forearm, twenty-one at each hip,
           ten at each knee, nine at each ankle and four either side of the trunk. Peak force comes

@@ -178,6 +178,7 @@ pub struct Panel {
     /// The slider being dragged, and its value, which is the panel's until it is let go and the
     /// publisher confirms it. Every other slider shows what the publisher last said.
     editing: Option<(&'static str, f32)>,
+    last_live_send: f64,
 }
 
 impl Default for Panel {
@@ -192,11 +193,17 @@ impl Default for Panel {
 pub struct Editing {
     current: Option<(&'static str, f32)>,
     on_panel: bool,
+    /// When a live slider last sent, so a drag sends a few dozen times a second, not a few hundred.
+    last_live_send: f64,
+    now: f64,
 }
 
-/// A slider whose value comes from the status except while it is being dragged; `Some` on the
-/// frame it should be sent, which is only ever the end of a drag or a click by a pointer that is
-/// on the panel.
+/// A slider whose value comes from the status except while it is being dragged; `Some` on a
+/// frame it should be sent. A `live` slider sends as it is dragged, throttled, and again on
+/// release -- drives, the timeline, grab strength, which the run takes in its stride. One that is
+/// not live sends only at the end of a drag or on a click, because what it sets rebuilds the run
+/// and a stature dragged across its range must not rebuild fifty bodies on the way.
+#[allow(clippy::too_many_arguments)]
 fn slider(
     ui: &mut egui::Ui,
     editing: &mut Editing,
@@ -205,6 +212,7 @@ fn slider(
     from_status: f32,
     range: std::ops::RangeInclusive<f32>,
     decimals: usize,
+    live: bool,
 ) -> Option<f32> {
     let mut value = match editing.current {
         Some((k, v)) if k == key => v,
@@ -222,7 +230,12 @@ fn slider(
         return None;
     }
     if response.dragged() {
+        let moved = editing.current != Some((key, value));
         editing.current = Some((key, value));
+        if live && moved && editing.now - editing.last_live_send >= 0.05 {
+            editing.last_live_send = editing.now;
+            return Some(value);
+        }
     }
     if response.drag_stopped() || response.clicked() {
         editing.current = None;
@@ -260,6 +273,7 @@ impl Panel {
             was_on: false,
             tab: Tab::Run,
             editing: None,
+            last_live_send: 0.0,
         }
     }
 
@@ -314,6 +328,8 @@ impl Panel {
         let mut editing = Editing {
             current: self.editing,
             on_panel: pointer.at.is_some(),
+            last_live_send: self.last_live_send,
+            now: self.started.elapsed().as_secs_f64(),
         };
         let output = self.ctx.run(input, |ctx| {
             egui::CentralPanel::default()
@@ -358,6 +374,7 @@ impl Panel {
         });
         self.tab = tab;
         self.editing = editing.current;
+        self.last_live_send = editing.last_live_send;
 
         let meshes = self
             .ctx
@@ -418,7 +435,7 @@ fn run_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut 
     ui.add_space(4.0);
     // The range grows in whole seconds, so the handle never sits on an end that moves under it.
     let end = (s.sim_seconds as f32).ceil().max(1.0);
-    if let Some(seconds) = slider(ui, editing, "timeline", "s", s.sim_seconds as f32, 0.0..=end, 2) {
+    if let Some(seconds) = slider(ui, editing, "timeline", "s", s.sim_seconds as f32, 0.0..=end, 2, true) {
         commands.push(Command::Scrub(seconds as f64));
     }
     ui.add_space(6.0);
@@ -484,7 +501,7 @@ fn scenario_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: 
             commands.push(Command::Set("floor", floor.into()));
         }
     });
-    if let Some(v) = slider(ui, editing, "dropHeight", "drop height m", st.drop_height as f32, 0.0..=1.5, 2) {
+    if let Some(v) = slider(ui, editing, "dropHeight", "drop height m", st.drop_height as f32, 0.0..=1.5, 2, false) {
         commands.push(Command::Set("dropHeight", (v as f64).into()));
     }
     ui.label(egui::RichText::new("Rebuilds the body; the bridges reopen.").weak());
@@ -502,7 +519,7 @@ fn body_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut
         ("legLength", "relative leg length", st.leg_length as f32, 0.9..=1.1, 3),
     ];
     for (key, label, value, range, decimals) in rows {
-        if let Some(v) = slider(ui, editing, key, label, value, range, decimals) {
+        if let Some(v) = slider(ui, editing, key, label, value, range, decimals, false) {
             commands.push(Command::Set(key, (v as f64).into()));
         }
     }
@@ -516,29 +533,43 @@ fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &
     }
     ui.label(egui::RichText::new("Drive, per group").strong());
     // Each group's slider keeps its own key, so dragging one never moves another.
-    const KEYS: [&str; 24] = [
+    const KEYS: [&str; 32] = [
         "drive0", "drive1", "drive2", "drive3", "drive4", "drive5", "drive6", "drive7", "drive8",
         "drive9", "drive10", "drive11", "drive12", "drive13", "drive14", "drive15", "drive16",
-        "drive17", "drive18", "drive19", "drive20", "drive21", "drive22", "drive23",
+        "drive17", "drive18", "drive19", "drive20", "drive21", "drive22", "drive23", "drive24",
+        "drive25", "drive26", "drive27", "drive28", "drive29", "drive30", "drive31",
     ];
-    for (i, group) in s.drive_groups.iter().enumerate().take(KEYS.len()) {
-        if let Some(v) = slider(ui, editing, KEYS[i], &group.title, group.level as f32, 0.0..=100.0, 0) {
-            commands.push(Command::Drive(i, v));
+    // Two columns, narrower sliders: twenty-three groups on one panel.
+    ui.style_mut().spacing.slider_width = 110.0;
+    let half = s.drive_groups.len().div_ceil(2);
+    ui.columns(2, |columns| {
+        for (column, ui) in columns.iter_mut().enumerate() {
+            ui.style_mut().spacing.slider_width = 110.0;
+            for (i, group) in s.drive_groups.iter().enumerate().take(KEYS.len()) {
+                if (i < half) != (column == 0) {
+                    continue;
+                }
+                if let Some(v) =
+                    slider(ui, editing, KEYS[i], &group.title, group.level as f32, 0.0..=100.0, 0, true)
+                {
+                    commands.push(Command::Drive(i, v));
+                }
+            }
         }
-    }
+    });
 }
 
 fn rates_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     let st = &s.settings;
-    if let Some(v) = slider(ui, editing, "fps", "output frames / s", st.fps as f32, 1.0..=240.0, 0) {
+    if let Some(v) = slider(ui, editing, "fps", "output frames / s", st.fps as f32, 1.0..=240.0, 0, false) {
         commands.push(Command::Set("fps", (v.round() as f64).into()));
     }
-    if let Some(v) = slider(ui, editing, "stepsPerSecond", "simulation steps / s", st.steps_per_second as f32, 60.0..=2000.0, 0) {
+    if let Some(v) = slider(ui, editing, "stepsPerSecond", "simulation steps / s", st.steps_per_second as f32, 60.0..=2000.0, 0, false) {
         commands.push(Command::Set("stepsPerSecond", (((v / 20.0).round() * 20.0) as f64).into()));
     }
     ui.label(egui::RichText::new("Both rebuild the run.").weak());
     ui.add_space(6.0);
-    if let Some(v) = slider(ui, editing, "grabStrength", "grab strength", s.grab_strength as f32, 0.2..=5.0, 2) {
+    if let Some(v) = slider(ui, editing, "grabStrength", "grab strength", s.grab_strength as f32, 0.2..=5.0, 2, true) {
         commands.push(Command::Set("grabStrength", (v as f64).into()));
     }
 }

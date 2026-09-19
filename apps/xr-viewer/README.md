@@ -195,12 +195,14 @@ shows where the aim ray lands; the trigger presses. Five tabs:
 - **Scenario** -- a button per scenario and per fidelity profile; muscles, passive joints,
   redistribution, gravity and floor; drop height.
 - **Body** -- sex, stature, mass, crural and brachial index, relative leg length.
-- **Muscles** -- a drive slider per muscle group, the studio's squared mapping.
+- **Muscles** -- a drive slider per muscle group: the same twenty-three groups the studio's
+  sliders are generated from, one table in `packages/scenarios`, covering every unit.
 - **Rates** -- output frames a second, simulation steps a second, grab strength.
 
 What changes the articulation -- scenario, profile, muscles, the body, the rates -- rebuilds the
-simulation on the publisher's side and the bridges reopen; the rest applies to the run as it
-goes. Export, save and load stay in the studio, since they open file dialogs.
+simulation on the publisher's side and the bridges reopen, and those sliders send only when let
+go; the rest -- drives, the timeline, grab strength -- applies to the run as it goes and sends as
+it is dragged. Export, save and load stay in the studio, since they open file dialogs.
 
 A grid on the floor, half-metre squares out to five metres, is the stage's own frame: where the
 headset thinks the floor is, which is where the body stands.

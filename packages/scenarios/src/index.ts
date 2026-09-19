@@ -178,7 +178,19 @@ const ELBOW_EXTENSORS_R = [
 const ELBOW_EXTENSORS_L = ELBOW_EXTENSORS_R.map((id) => id.replace(/_r$/, '_l'));
 
 /** The groups the range-of-motion scenario takes through their range, in order. */
-export const MUSCLE_GROUPS: readonly { readonly title: string; readonly units: string[] }[] = [
+export {
+  MUSCLE_GROUPS,
+  driveForSlider,
+  type DriveGroup,
+  type DriveSection,
+} from './muscleGroups.js';
+
+/**
+ * The four groups the range-of-motion scenario cycles through. Its own list, not the full drive
+ * table: the table grew to cover every unit, and this scenario's golden trajectory was baked
+ * against these four.
+ */
+const RANGE_OF_MOTION_GROUPS: readonly { readonly title: string; readonly units: string[] }[] = [
   { title: 'Elbow flexors', units: [...ELBOW_FLEXORS_R, ...ELBOW_FLEXORS_L] },
   { title: 'Elbow extensors', units: [...ELBOW_EXTENSORS_R, ...ELBOW_EXTENSORS_L] },
   {
@@ -633,8 +645,8 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
         const group = Math.floor(since / phase);
         const within = (since - group * phase) / phase;
         const level = since < 0 ? 0 : Math.sin(Math.PI * Math.min(1, Math.max(0, within)));
-        for (let at = 0; at < MUSCLE_GROUPS.length; at++) {
-          const units = MUSCLE_GROUPS[at]?.units ?? [];
+        for (let at = 0; at < RANGE_OF_MOTION_GROUPS.length; at++) {
+          const units = RANGE_OF_MOTION_GROUPS[at]?.units ?? [];
           for (const unit of units) api.drive(unit, at === group ? level : 0);
         }
       },
