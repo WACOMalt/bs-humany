@@ -142,6 +142,8 @@ function writeStatus(episode, upFor) {
     groundHeight: 0,
     staticBoxes: [],
     training: { task, episode, generation: meta.generations ?? 0, fitness: meta.fitness ?? 0 },
+    // Each unit's tendon force as a fraction of its maximum, in unit order: the tint.
+    tension: Array.from(rig.muscleTension(), (v) => Number(v.toFixed(3))),
   };
   writeFileSync(`${path}-status.json.tmp`, JSON.stringify(status));
   renameSync(`${path}-status.json.tmp`, `${path}-status.json`);
@@ -218,7 +220,7 @@ for (;;) {
       }
     }
     const now = performance.now();
-    if (now - lastStatus > 250) {
+    if (now - lastStatus > 100) {
       writeStatus(episode, result.time);
       lastStatus = now;
     }

@@ -2004,6 +2004,7 @@ function followFrame(skin: SkinnedSkeleton): void {
     }
     followTubes.update(muscles.position, muscles.orientation, muscles.radius);
   }
+  if (followTubes && bridgeFollower.tension) followTubes.tint(bridgeFollower.tension);
   const status = bridgeFollower.status as {
     scenario?: { title?: string };
     training?: { generation?: number; episode?: number };

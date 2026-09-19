@@ -34,6 +34,8 @@ export class BridgeFollower {
   pose: FollowedPose | null = null;
   muscles: FollowedMuscles | null = null;
   status: Record<string, unknown> | null = null;
+  /** Each unit's tendon force as a fraction of its maximum, when the publisher says. */
+  tension: ArrayLike<number> | null = null;
   /** What went wrong last, for the status line; null while it is going well. */
   problem: string | null = null;
   private running = false;
@@ -47,7 +49,7 @@ export class BridgeFollower {
     this.running = true;
     void this.loop(() => this.readPose(), 16);
     void this.loop(() => this.readMuscles(), 33);
-    void this.loop(() => this.readStatus(), 500);
+    void this.loop(() => this.readStatus(), 100);
   }
 
   stop(): void {
@@ -131,5 +133,7 @@ export class BridgeFollower {
   private async readStatus(): Promise<void> {
     const response = await fetch(`${this.base}/status`, { cache: 'no-store' });
     this.status = response.ok ? ((await response.json()) as Record<string, unknown>) : null;
+    const tension = this.status?.tension;
+    this.tension = Array.isArray(tension) ? (tension as number[]) : null;
   }
 }

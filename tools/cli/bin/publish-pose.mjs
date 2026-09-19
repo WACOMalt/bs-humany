@@ -152,6 +152,8 @@ async function build() {
     redistribute: settings.redistribute,
     scenario: chosen,
     dropHeight: settings.dropHeight ?? chosen.clearance,
+    // Each unit's tendon force as a fraction of its maximum, for whatever tints muscles.
+    tension: muscleTension(simulation),
     groundHeight: chosen.ground.height,
     // As the studio does: a scenario that drives muscles gets them whatever the box says.
     muscles:
@@ -324,6 +326,16 @@ function writeStatus() {
   const tmp = `${path}-status.json.tmp`;
   writeFileSync(tmp, JSON.stringify(status));
   renameSync(tmp, `${path}-status.json`);
+}
+
+function muscleTension(simulation) {
+  const state = simulation.muscleState();
+  const units = simulation.muscles?.units;
+  if (!state || !units) return [];
+  return units.map((u, i) => {
+    const maximum = u.parameters.maxIsometricForce;
+    return Number((maximum > 0 ? (state.tendonForce[i] ?? 0) / maximum : 0).toFixed(3));
+  });
 }
 
 function effectiveMorphologyFlat(chosen) {

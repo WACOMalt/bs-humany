@@ -97,6 +97,8 @@ export class StandRig {
   readonly boneOrder: readonly string[];
   readonly restContext: unknown;
   private readonly volume: MuscleVolumeModule | undefined;
+  private readonly maxForce: Float64Array;
+  private tension: Float64Array | undefined;
   private rings: RingBuffers | undefined;
   private readonly parents: readonly number[];
   private readonly segmentIds: readonly string[];
@@ -121,8 +123,10 @@ export class StandRig {
     parents: readonly number[],
     segmentIds: readonly string[],
     volume: MuscleVolumeModule | undefined,
+    maxForce: Float64Array,
   ) {
     this.volume = volume;
+    this.maxForce = maxForce;
     this.boneOrder = boneOrder;
     this.restContext = restContext;
     this.parents = parents;
@@ -233,6 +237,7 @@ export class StandRig {
       articulation.segments.map((seg) => seg.parent),
       articulation.segments.map((seg) => seg.id),
       volume,
+      Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce),
     );
   }
 
@@ -265,6 +270,17 @@ export class StandRig {
       this.rings,
     );
     return { units, rings: volume.rings, segments: volume.segments, buffers: this.rings };
+  }
+
+  /** Each unit's tendon force as a fraction of its maximum, for the slack-to-taut tint. */
+  muscleTension(): Float64Array {
+    const force = this.kernel.channels.storage(MUSCLE_STATE).fields.tendonForce as Float64Array;
+    if (!this.tension) this.tension = new Float64Array(this.maxForce.length);
+    for (let i = 0; i < this.maxForce.length; i++) {
+      const maximum = this.maxForce[i] as number;
+      this.tension[i] = maximum > 0 ? (force[i] as number) / maximum : 0;
+    }
+    return this.tension;
   }
 
   /** Every segment's world position, and each segment's parent, for a stick figure. */

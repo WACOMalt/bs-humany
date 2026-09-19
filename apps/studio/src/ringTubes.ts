@@ -7,7 +7,12 @@
  * strips between consecutive rings of a unit, units not stitched to each other.
  */
 
-import { BufferAttribute, BufferGeometry, Mesh, MeshStandardMaterial } from 'three';
+import { BufferAttribute, BufferGeometry, Color, Mesh, MeshStandardMaterial } from 'three';
+
+// The studio's own overlay's colours: slack to taut.
+const SLACK = new Color(0xa8c8e8);
+const TAUT = new Color(0xff3b30);
+const _tint = new Color();
 
 export class RingTubes {
   readonly mesh: Mesh;
@@ -37,10 +42,17 @@ export class RingTubes {
     this.geometry = new BufferGeometry();
     this.geometry.setAttribute('position', new BufferAttribute(new Float32Array(3 * vertices), 3));
     this.geometry.setAttribute('normal', new BufferAttribute(new Float32Array(3 * vertices), 3));
+    const colours = new Float32Array(3 * vertices);
+    for (let i = 0; i < vertices; i++) {
+      colours[3 * i] = SLACK.r;
+      colours[3 * i + 1] = SLACK.g;
+      colours[3 * i + 2] = SLACK.b;
+    }
+    this.geometry.setAttribute('color', new BufferAttribute(colours, 3));
     this.geometry.setIndex(new BufferAttribute(indices, 1));
     this.mesh = new Mesh(
       this.geometry,
-      new MeshStandardMaterial({ color: 0xb84448, roughness: 0.55, metalness: 0 }),
+      new MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0 }),
     );
     this.mesh.frustumCulled = false;
   }
@@ -89,6 +101,22 @@ export class RingTubes {
     }
     this.geometry.getAttribute('position').needsUpdate = true;
     this.geometry.getAttribute('normal').needsUpdate = true;
+  }
+
+  /** Tint each unit from slack to taut by its tension fraction, in unit order. */
+  tint(tension: ArrayLike<number>): void {
+    const colours = this.geometry.getAttribute('color').array as Float32Array;
+    const perUnit = this.rings * this.segments;
+    for (let unit = 0; unit < this.units; unit++) {
+      _tint.copy(SLACK).lerp(TAUT, Math.min(1, Math.max(0, tension[unit] ?? 0)));
+      const from = 3 * unit * perUnit;
+      for (let v = 0; v < perUnit; v++) {
+        colours[from + 3 * v] = _tint.r;
+        colours[from + 3 * v + 1] = _tint.g;
+        colours[from + 3 * v + 2] = _tint.b;
+      }
+    }
+    this.geometry.getAttribute('color').needsUpdate = true;
   }
 
   dispose(): void {
