@@ -16,13 +16,15 @@ parentPort.postMessage({
   inputNames: rig.inputNames,
   outputNames: rig.outputNames,
 });
+// One episode a message: the finest grain there is, so no thread sits idle at the end of a
+// generation waiting on another's last long episode.
 parentPort.on('message', (message) => {
   if (message.type !== 'evaluate') return;
-  const results = message.seeds.map((seed) => rig.episode(message.weights, seed));
+  const result = rig.episode(message.weights, message.seed);
   parentPort.postMessage({
     type: 'result',
     id: message.id,
-    fitness: results.reduce((a, r) => a + r.fitness, 0) / results.length,
-    alive: results.reduce((a, r) => a + r.aliveSeconds, 0) / results.length,
+    fitness: result.fitness,
+    alive: result.aliveSeconds,
   });
 });

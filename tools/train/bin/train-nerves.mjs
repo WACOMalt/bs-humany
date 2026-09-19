@@ -47,6 +47,9 @@ const started = new Date();
 const log = join(runsDir, `${task}-${started.toISOString().replace(/[:.]/g, '-')}.jsonl`);
 // What the dashboard draws: every generation so far, and where things stand.
 const latest = join(runsDir, `${task}-latest.json`);
+// The search's own centre, every generation, so a restart continues the search rather than
+// starting again from the last policy that beat the best.
+const centrePath = join(runsDir, `${task}-centre.json`);
 const series = [];
 const publishLatest = (best, episodes, shape) => {
   writeFileSync(
@@ -103,7 +106,19 @@ console.log(
 
 let initial;
 let startGeneration = 0;
-if (resume && existsSync(out)) {
+if (resume && existsSync(centrePath)) {
+  try {
+    const centre = JSON.parse(readFileSync(centrePath, 'utf8'));
+    if (centre.task === task && centre.sizes.join('x') === shape.sizes.join('x')) {
+      initial = MlpPolicy.fromFile(centre).weights;
+      startGeneration = centre.trained?.generations ?? 0;
+      console.log(`  resuming the search from ${centrePath} at generation ${startGeneration}`);
+    }
+  } catch {
+    // A half-written centre: fall back to the saved policy below.
+  }
+}
+if (!initial && resume && existsSync(out)) {
   const file = JSON.parse(readFileSync(out, 'utf8'));
   if (file.sizes.join('x') === shape.sizes.join('x')) {
     initial = MlpPolicy.fromFile(file).weights;
@@ -136,27 +151,37 @@ const es = new OpenAiEs(
   initial,
 );
 
-/** Score every candidate, spread over the pool; resolves with fitness and alive time per candidate. */
+/**
+ * Score every candidate, spread over the pool, one episode a task -- `candidates x seeds` of
+ * them -- so the threads stay busy to the last episode of the generation; resolves with the mean
+ * fitness and alive time per candidate.
+ */
 function evaluate(candidates, generation) {
   return new Promise((resolve) => {
+    const tasks = [];
+    candidates.forEach((weights, c) => {
+      for (let k = 0; k < seedsPerCandidate; k++) {
+        tasks.push({ candidate: c, weights, seed: 1000 * generation + 7 * c + k });
+      }
+    });
     const fitness = new Array(candidates.length).fill(0);
     const alive = new Array(candidates.length).fill(0);
     let next = 0;
     let done = 0;
-    const seeds = (i) =>
-      Array.from({ length: seedsPerCandidate }, (_, k) => 1000 * generation + 7 * i + k);
     const feed = (worker) => {
-      if (next >= candidates.length) return;
+      if (next >= tasks.length) return;
       const id = next++;
-      worker.postMessage({ type: 'evaluate', id, weights: candidates[id], seeds: seeds(id) });
+      const task = tasks[id];
+      worker.postMessage({ type: 'evaluate', id, weights: task.weights, seed: task.seed });
     };
     for (const worker of pool) {
       worker.on('message', function onResult(m) {
         if (m.type !== 'result') return;
-        fitness[m.id] = m.fitness;
-        alive[m.id] = m.alive;
+        const task = tasks[m.id];
+        fitness[task.candidate] += m.fitness / seedsPerCandidate;
+        alive[task.candidate] += m.alive / seedsPerCandidate;
         done += 1;
-        if (done === candidates.length) {
+        if (done === tasks.length) {
           for (const w of pool) w.removeAllListeners('message');
           resolve({ fitness, alive });
         } else {
@@ -232,5 +257,16 @@ for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
     `  gen ${String(g).padStart(4)}  mean ${mean.toFixed(3)}  top ${top.toFixed(3)} (${topAlive.toFixed(2)} s up)  ${seconds.toFixed(1)} s${improved}`,
   );
   publishLatest(best, episodes, shape);
+  writeFileSync(
+    centrePath,
+    `${JSON.stringify(
+      new MlpPolicy(shape.sizes, Float32Array.from(es.theta)).toFile({
+        task,
+        inputs: shape.inputNames,
+        outputs: shape.outputNames,
+        trained: { generations: g, fitness: mean, episodes, at: new Date().toISOString() },
+      }),
+    )}\n`,
+  );
 }
 stop();
