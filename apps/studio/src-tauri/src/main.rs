@@ -285,6 +285,31 @@ fn bridge_commands(state: tauri::State<'_, Bridges>) -> Result<Vec<String>, Stri
         .collect())
 }
 
+/// Every file a session leaves on tmpfs. Removed when a session starts and when it ends, so a
+/// viewer never opens the last session's ring and takes it for this one.
+fn bridge_clear_files() {
+    for suffix in [
+        "",
+        ".json",
+        "-muscles",
+        "-grab",
+        "-status.json",
+        "-status.json.tmp",
+        ".json.tmp",
+        "-commands.jsonl",
+    ] {
+        let _ = std::fs::remove_file(format!("{BRIDGE_BASE}{suffix}"));
+    }
+}
+
+/// Wipe the last session's files before this one writes any.
+#[tauri::command]
+fn bridge_clear(state: tauri::State<'_, Bridges>) {
+    state.files.lock().unwrap().clear();
+    *state.commands_read.lock().unwrap() = 0;
+    bridge_clear_files();
+}
+
 /// Close every bridge file and forget the command log's position. The files stay on tmpfs for a
 /// viewer still looking at them, except the muscle ring, which a run without muscles must not
 /// leave behind.
@@ -419,6 +444,7 @@ fn main() {
             bridge_read_pair,
             bridge_commands,
             bridge_close,
+            bridge_clear,
             xr_viewer_launch,
             xr_viewer_running,
             xr_viewer_stop,
@@ -436,6 +462,7 @@ fn main() {
                     let _ = child.kill();
                     let _ = child.wait();
                 }
+                bridge_clear_files();
             }
         });
 }

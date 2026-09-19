@@ -159,6 +159,8 @@ export class VrLink {
 
   /** Open the bridges for the current run and launch the viewer. Says what was launched. */
   async connect(): Promise<string> {
+    // Nothing of the last session: a viewer must never open its ring and take it for ours.
+    await invoke('bridge_clear');
     this.live = true;
     this.started = performance.now();
     // The bridges first, and landed, so the viewer never opens a file of zeros. A viewer that is
@@ -181,7 +183,7 @@ export class VrLink {
     this.poses = null;
     this.muscles = null;
     await invoke('xr_viewer_stop');
-    await invoke('bridge_close', { removeMuscles: true });
+    await invoke('bridge_clear');
   }
 
   /**

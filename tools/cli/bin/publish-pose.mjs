@@ -241,6 +241,15 @@ function applyDrives(simulation) {
   });
 }
 
+/** Every file a session leaves on tmpfs: wiped at start and at the end, so nothing of the last
+ * session is ever mistaken for this one. */
+function clearBridgeFiles() {
+  for (const suffix of ['', '.json', '-muscles', '-grab', '-status.json', '-commands.jsonl']) {
+    rmSync(`${path}${suffix}`, { force: true });
+  }
+}
+clearBridgeFiles();
+
 let generation = 1;
 let live = await build();
 console.log('  Ctrl-C to stop');
@@ -601,6 +610,7 @@ while (live.simulation.ticks * live.simulation.dt < seconds) {
 live.writer.close();
 live.muscleWriter?.close();
 live.simulation.dispose();
+clearBridgeFiles();
 console.log(
   `done: ${live.writer.framesPublished} poses over ${(live.simulation.ticks * live.simulation.dt).toFixed(2)} s`,
 );
