@@ -108,18 +108,23 @@ export class OpenAiEs {
       for (let i = 0; i < dimension; i++)
         gradient[i] = (gradient[i] as number) + weight * (epsilon[i] as number);
     }
-    // Adam, on the ascent direction.
+    // Adam, on the ascent direction. The decay is applied outside Adam's normalisation, as
+    // AdamW does: inside it, on the thousands of weights whose gradient is noise, a decay of a
+    // thousandth became a full-sized step toward zero every generation, and the policy eroded
+    // to nothing over twenty generations while the record sat untouched.
     this.step += 1;
     const b1 = 0.9;
     const b2 = 0.999;
     const decay = this.options.weightDecay ?? 0;
     for (let i = 0; i < dimension; i++) {
-      const g = (gradient[i] as number) - decay * (this.theta[i] as number);
+      const g = gradient[i] as number;
       this.m[i] = b1 * (this.m[i] as number) + (1 - b1) * g;
       this.v[i] = b2 * (this.v[i] as number) + (1 - b2) * g * g;
       const mHat = (this.m[i] as number) / (1 - b1 ** this.step);
       const vHat = (this.v[i] as number) / (1 - b2 ** this.step);
-      this.theta[i] = (this.theta[i] as number) + (learningRate * mHat) / (Math.sqrt(vHat) + 1e-8);
+      this.theta[i] =
+        (this.theta[i] as number) * (1 - learningRate * decay) +
+        (learningRate * mHat) / (Math.sqrt(vHat) + 1e-8);
     }
   }
 
