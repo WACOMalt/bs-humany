@@ -152,8 +152,6 @@ async function build() {
     redistribute: settings.redistribute,
     scenario: chosen,
     dropHeight: settings.dropHeight ?? chosen.clearance,
-    // Each unit's tendon force as a fraction of its maximum, for whatever tints muscles.
-    tension: muscleTension(simulation),
     groundHeight: chosen.ground.height,
     // As the studio does: a scenario that drives muscles gets them whatever the box says.
     muscles:
@@ -313,6 +311,8 @@ function writeStatus() {
     driveGroups: MUSCLE_GROUPS.map((g, i) => ({ title: g.title, level: drives[i] })),
     // The scenery, which the viewer has no other way to know: the ground's height and every
     // static box, in the simulation's frame.
+    // Each unit's tendon force as a fraction of its maximum, for whatever tints muscles.
+    tension: muscleTension(simulation),
     groundHeight: chosen.ground.height,
     staticBoxes: (chosen.staticBoxes ?? []).map((b) => ({
       halfExtents: [b.halfExtents.x, b.halfExtents.y, b.halfExtents.z],
