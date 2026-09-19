@@ -51,7 +51,6 @@ import {
 } from '@bs-humany/muscle-data';
 import {
   type CompiledClip,
-  FEET,
   GOAL_SIZE,
   driveOutputs,
   loadActivationClips,
@@ -212,7 +211,6 @@ export class StandRig {
     const nerves = new NervesModule(articulation, muscles, {
       policy: (inputs, outs) => new MlpPolicy([inputs, ...options.hidden, outs]),
       outputs,
-      feet: FEET,
       goalSize: GOAL_SIZE,
       goal: () => goal,
       controlDivisor: options.controlDivisor,

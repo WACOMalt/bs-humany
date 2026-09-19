@@ -45,7 +45,7 @@ const { openPoseBridge, openMuscleBridge } = await jiti.import(
 );
 
 const rig = await StandRig.build({
-  profileId: 'l1_standard',
+  profileId: flag('profile', 'l3_anatomical'),
   hidden: [32, 32],
   seconds: 30,
   controlDivisor: 5,
@@ -96,11 +96,18 @@ function reload() {
   if (mtime === loadedAt) return false;
   try {
     const file = JSON.parse(readFileSync(policyPath, 'utf8'));
-    if (file.sizes.join('x') !== rig.sizes.join('x')) {
-      console.log(`policy ${file.sizes.join('x')} does not fit this rig ${rig.sizes.join('x')}`);
+    if (file.task !== task) {
+      console.log(`policy is for ${file.task}, not ${task}`);
       return false;
     }
-    weights = MlpPolicy.fromFile(file).weights;
+    // Fitted by name: a policy from a coarser body plays on this one with what it learned.
+    const fitted = MlpPolicy.fit(file, rig.inputNames, rig.outputNames);
+    weights = fitted.policy.weights;
+    if (fitted.carried.inputs !== rig.inputNames.length) {
+      console.log(
+        `policy from ${file.profile ?? 'another body'}: ${fitted.carried.inputs} of ${rig.inputNames.length} senses carried`,
+      );
+    }
     meta = file.trained ?? {};
     loadedAt = mtime;
     console.log(
@@ -120,7 +127,7 @@ function writeStatus(episode, upFor) {
     },
     scenarios: [],
     profiles: [],
-    profile: 'l1_standard',
+    profile: rig.profileId,
     simSeconds: upFor,
     wallSeconds: (performance.now() - started) / 1000,
     speed: 1,

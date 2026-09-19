@@ -35,3 +35,20 @@ describe('MlpPolicy', () => {
     expect(() => new MlpPolicy([3, 2], new Float32Array(5))).toThrow(/weights/);
   });
 });
+
+describe('MlpPolicy.fit', () => {
+  it('carries weights by name onto a body with different senses and drives', () => {
+    // Two senses and two drives, one hidden unit, weights numbered so each is recognisable.
+    const from = new MlpPolicy([2, 1, 2], Float32Array.from([1, 2, 3, 4, 5, 6, 7]));
+    const file = from.toFile({ task: 't', inputs: ['a', 'b'], outputs: ['x', 'y'] });
+    // The new body senses c, b, a and drives y, z: b and a keep their columns, y its row.
+    const { policy, carried } = MlpPolicy.fit(file, ['c', 'b', 'a'], ['y', 'z']);
+    expect(policy.sizes).toEqual([3, 1, 2]);
+    expect(carried).toEqual({ inputs: 2, outputs: 1 });
+    // First layer: [c b a] columns then the bias; last layer: rows y, z then biases y, z.
+    expect(Array.from(policy.weights)).toEqual([0, 2, 1, 3, 5, 0, 7, 0]);
+    // Same senses and drives in the same order: the file's own weights, untouched.
+    const same = MlpPolicy.fit(file, ['a', 'b'], ['x', 'y']);
+    expect(Array.from(same.policy.weights)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+});

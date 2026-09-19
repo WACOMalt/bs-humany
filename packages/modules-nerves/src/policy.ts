@@ -15,9 +15,11 @@ export interface PolicyFile {
   readonly format: 'bs-humany.policy/1';
   /** What it was trained to do -- `stand`, later `walk` -- for the studio to say. */
   readonly task: string;
+  /** The fidelity profile it was trained on, when known; it fits any, by the names below. */
+  readonly profile?: string;
   /** Layer widths, input to output. */
   readonly sizes: readonly number[];
-  /** What each input is, in order; what each output drives. Documentation and a check. */
+  /** What each input is, in order; what each output drives. The key a policy is fitted by. */
   readonly inputs: readonly string[];
   readonly outputs: readonly string[];
   /** The weights, little-endian float32, base64. */
@@ -100,6 +102,72 @@ export class MlpPolicy {
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     const weights = new Float32Array(bytes.buffer, 0, bytes.byteLength / 4);
     return new MlpPolicy(file.sizes, weights);
+  }
+
+  /**
+   * A policy for a body with these senses and drives, carrying what the file has by name: a
+   * sense the file knows keeps its column, a drive the file knows keeps its row, and the ones
+   * it has never met start at zero, so a policy trained on a coarser body layers onto a finer
+   * one and behaves as it did until the new senses learn to matter. The hidden layers are the
+   * file's and must be the same widths as wanted.
+   */
+  static fit(
+    file: PolicyFile,
+    inputs: readonly string[],
+    outputs: readonly string[],
+  ): { policy: MlpPolicy; carried: { inputs: number; outputs: number } } {
+    const from = MlpPolicy.fromFile(file);
+    const hidden = file.sizes.slice(1, -1);
+    const sizes = [inputs.length, ...hidden, outputs.length];
+    if (
+      sizes.join('x') === file.sizes.join('x') &&
+      inputs.join('\n') === file.inputs.join('\n') &&
+      outputs.join('\n') === file.outputs.join('\n')
+    ) {
+      return { policy: from, carried: { inputs: inputs.length, outputs: outputs.length } };
+    }
+    const to = new MlpPolicy(sizes);
+    const inputAt = new Map(file.inputs.map((name, i) => [name, i]));
+    const outputAt = new Map(file.outputs.map((name, i) => [name, i]));
+    const carried = { inputs: 0, outputs: 0 };
+    // First layer: rows are hidden units, columns are senses; copy the columns by name.
+    const h0 = sizes[1] as number;
+    const fromIn = file.sizes[0] as number;
+    for (let i = 0; i < inputs.length; i++) {
+      const j = inputAt.get(inputs[i] as string);
+      if (j === undefined) continue;
+      carried.inputs += 1;
+      for (let o = 0; o < h0; o++)
+        to.weights[o * inputs.length + i] = from.weights[o * fromIn + j] as number;
+    }
+    let toAt = h0 * inputs.length;
+    let fromAt = h0 * fromIn;
+    to.weights.set(from.weights.subarray(fromAt, fromAt + h0), toAt); // first biases
+    toAt += h0;
+    fromAt += h0;
+    // Hidden layers between: the same widths, copied whole.
+    for (let l = 2; l < sizes.length - 1; l++) {
+      const n = (sizes[l] as number) * ((sizes[l - 1] as number) + 1);
+      to.weights.set(from.weights.subarray(fromAt, fromAt + n), toAt);
+      toAt += n;
+      fromAt += n;
+    }
+    // Last layer: rows are drives; copy the rows and their biases by name.
+    const last = sizes[sizes.length - 2] as number;
+    const fromOut = file.sizes[file.sizes.length - 1] as number;
+    for (let o = 0; o < outputs.length; o++) {
+      const j = outputAt.get(outputs[o] as string);
+      if (j === undefined) continue;
+      carried.outputs += 1;
+      to.weights.set(
+        from.weights.subarray(fromAt + j * last, fromAt + (j + 1) * last),
+        toAt + o * last,
+      );
+      to.weights[toAt + outputs.length * last + o] = from.weights[
+        fromAt + fromOut * last + j
+      ] as number;
+    }
+    return { policy: to, carried };
   }
 
   toFile(meta: Omit<PolicyFile, 'format' | 'sizes' | 'weights'>): PolicyFile {

@@ -40,6 +40,17 @@ standing: a point a hundredth of a second the head is up, a little for a level a
 a little off for effort, and a random twitch each episode so what is learned is standing through
 a nudge. The trained weights are a JSON file the scenario imports.
 
+**Trained at L3, fitted to any profile by name.** The reference anatomy is the body the nerves
+are for, so training runs on `l3_anatomical` unless `--profile` says otherwise, and any profile
+trains. Every sense has a name -- a joint sense is `angle:<joint>:<axis>`, not a slot -- and a
+policy file carries its senses' and drives' names, so a policy is fitted to a body by name:
+senses the body has and the file knows keep their weights, senses the body adds start from zero,
+and the drives are the same forty-six on every profile. Joint ids mostly survive from one
+profile to the next, so a search begun on a coarser body carries on at a finer one with what it
+learned; `--resume` does exactly that when the profile has changed. The feet are found by name
+too, so a foot that is one segment at L1 and talus, midfoot, forefoot and toes at L3 reads as a
+foot either way.
+
 **Not in Python, not in native MuJoCo.** A native MuJoCo would run the rollouts a hundred times
 faster and could not run *these* muscles: the path solver, the wrapping, the Hill model and the
 via points are this repository's and not MuJoCo's, and a policy trained against different

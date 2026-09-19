@@ -92,7 +92,9 @@ it, what is in the image, and the two headers it has to serve.
 **The dev server**, which is `pnpm dev`.
 
 **Training the nerves.** `pnpm train:nerves` trains the standing policy by evolution strategies
-across every core, saving the best to `packages/modules-nerves/policies/stand.json` as it goes;
+across every core, on the L3 anatomy unless `--profile` names another, saving the best to
+`packages/modules-nerves/policies/stand.json` as it goes (a policy fits any profile by the names
+of its senses, so `--resume` carries a search from a coarser body onto a finer one);
 `pnpm train:dashboard` serves a page at `http://localhost:5280/` with the fitness curves, the
 live body and the network's activity; `pnpm train:showcase` keeps the current best running in a
 body published to the pose bridge, so the headset viewer shows the learner -- and so does the

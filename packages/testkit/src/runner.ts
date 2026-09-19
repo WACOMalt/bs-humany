@@ -38,7 +38,7 @@ import {
   MuscleTestDriveModule,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
-import { MlpPolicy, NervesModule } from '@bs-humany/modules-nerves';
+import { NervesModule } from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -50,7 +50,6 @@ import {
   TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
 import {
-  FEET,
   GOAL_SIZE,
   type Scenario,
   type ScenarioApi,
@@ -164,9 +163,8 @@ export async function runScenario(
       goal[Math.max(0, Math.min(GOAL_SIZE - 1, scenario.nerves.goal))] = 1;
       kernel.register(
         new NervesModule(articulation, muscles, {
-          policy: MlpPolicy.fromFile(scenario.nerves.policy),
+          policy: scenario.nerves.policy,
           outputs: driveOutputs(),
-          feet: FEET,
           goalSize: GOAL_SIZE,
           goal: () => goal,
           controlDivisor: scenario.nerves.controlDivisor,

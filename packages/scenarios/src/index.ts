@@ -206,7 +206,7 @@ import type { PolicyFile } from '@bs-humany/modules-nerves';
 import standPolicy from '@bs-humany/modules-nerves/policies/stand.json' with { type: 'json' };
 import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
 import type { NervesSetup } from './nerves.js';
-export { FEET, GOAL_SIZE, GOALS, driveOutputs, type NervesSetup } from './nerves.js';
+export { GOAL_SIZE, GOALS, driveOutputs, type NervesSetup } from './nerves.js';
 
 /**
  * The activation clips, compiled once against the units they name. That every one of those is a
@@ -842,7 +842,7 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       param('gain', 'Clip gain', 1, 0, 3, 0.05, '\u00d7'),
     ],
     make: (v) => ({
-      profileId: 'l1_standard',
+      profileId: 'l3_anatomical',
       morphology: REFERENCE,
       muscles: true,
       durationSeconds: 10,

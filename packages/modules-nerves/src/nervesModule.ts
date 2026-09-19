@@ -40,7 +40,7 @@ import {
   MUSCLE_STATE,
 } from '@bs-humany/modules-muscle';
 import { type Feet, ObservationBuilder } from './observation.js';
-import type { MlpPolicy } from './policy.js';
+import { MlpPolicy, type PolicyFile } from './policy.js';
 
 export const NERVES_MODULE_ID = 'bsums.xyz.bs-humany.nerves';
 
@@ -50,11 +50,24 @@ export interface DriveOutput {
   readonly units: readonly { readonly id: string; readonly weight: number }[];
 }
 
+/** The names a policy is fitted by: the body's senses and drives, in order. */
+export interface PolicyNames {
+  readonly inputs: readonly string[];
+  readonly outputs: readonly string[];
+}
+
 export interface NervesOptions {
-  /** The policy, or how to make one once the body says how many inputs there are. */
-  readonly policy: MlpPolicy | ((inputs: number, outputs: number) => MlpPolicy);
+  /**
+   * The policy: made, a file to fit to this body by its senses' and drives' names, or how to
+   * make one once the body says what it observes.
+   */
+  readonly policy:
+    | MlpPolicy
+    | PolicyFile
+    | ((inputs: number, outputs: number, names: PolicyNames) => MlpPolicy);
   readonly outputs: readonly DriveOutput[];
-  readonly feet: Feet;
+  /** Which segments are feet; found from the body by name when not given. */
+  readonly feet?: Feet;
   /** The goal vector's size, and where to read it each control step. */
   readonly goalSize: number;
   readonly goal?: () => ArrayLike<number>;
@@ -68,7 +81,9 @@ export class NervesModule implements SimModule {
   readonly manifest: ModuleManifest;
   readonly observation: ObservationBuilder;
   readonly outputs: readonly DriveOutput[];
-  private readonly makePolicy: (inputs: number, outputs: number) => MlpPolicy;
+  private readonly makePolicy: (inputs: number, outputs: number, names: PolicyNames) => MlpPolicy;
+  /** How much of a fitted file this body could use; all of it when the file was its own. */
+  carried: { inputs: number; outputs: number } | undefined;
   private policyInUse: MlpPolicy | undefined;
   private readonly authority: number;
   private readonly controlDivisor: number;
@@ -89,7 +104,16 @@ export class NervesModule implements SimModule {
     options: NervesOptions,
   ) {
     const given = options.policy;
-    this.makePolicy = typeof given === 'function' ? given : () => given;
+    this.makePolicy =
+      typeof given === 'function'
+        ? given
+        : 'format' in given
+          ? (_inputs, _outputs, names) => {
+              const fitted = MlpPolicy.fit(given, names.inputs, names.outputs);
+              this.carried = fitted.carried;
+              return fitted.policy;
+            }
+          : () => given;
     this.outputs = options.outputs;
     this.authority = options.authority ?? 0.5;
     this.controlDivisor = Math.max(1, Math.round(options.controlDivisor ?? 5));
@@ -151,7 +175,10 @@ export class NervesModule implements SimModule {
     // The observation's size is known once the joints are: the policy is checked, or made, now.
     const inputs = this.observation.size;
     if (!this.policyInUse) {
-      const policy = this.makePolicy(inputs, this.outputs.length);
+      const policy = this.makePolicy(inputs, this.outputs.length, {
+        inputs: this.observation.names,
+        outputs: this.outputs.map((o) => o.id),
+      });
       const sizes = policy.sizes;
       if (sizes[0] !== inputs) {
         throw new Error(`The policy takes ${sizes[0]} inputs and this body observes ${inputs}.`);

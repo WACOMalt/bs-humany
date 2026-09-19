@@ -5,6 +5,11 @@
  *   pnpm train:nerves                              # defaults below; Ctrl-C keeps the best so far
  *   pnpm train:nerves --generations 400 --population 32 --workers 16 --seconds 6
  *   pnpm train:nerves --resume                     # continue from the saved policy
+ *   pnpm train:nerves --profile l1_standard        # a coarser body; L3, the reference, is the default
+ *
+ * A resumed policy is fitted to the body by the names of its senses and drives, so a search
+ * begun on a coarser profile carries on at a finer one: what it learned stays, the senses the
+ * finer body adds start from nothing.
  *
  * Evolution strategies over the policy's weights, every candidate scored on its own copy of the
  * simulation in a worker thread. The best policy so far is written to
@@ -38,7 +43,7 @@ const seedsPerCandidate = Number(flag('seeds', 2));
 const sigma = Number(flag('sigma', 0.05));
 const learningRate = Number(flag('lr', 0.02));
 const hidden = flag('hidden', '32,32').split(',').map(Number);
-const profileId = flag('profile', 'l1_standard');
+const profileId = flag('profile', 'l3_anatomical');
 const authority = Number(flag('authority', 0.3));
 const resume = args.includes('--resume');
 const out = flag('out', join(ROOT, 'packages/modules-nerves/policies', `${task}.json`));
@@ -63,6 +68,7 @@ const publishLatest = (best, episodes, shape) => {
       seeds: seedsPerCandidate,
       seconds,
       workers,
+      profile: profileId,
       sizes: shape.sizes,
       parameters: shape.parameterCount,
       episodes,
@@ -107,29 +113,42 @@ console.log(
 
 let initial;
 let startGeneration = 0;
+/** Whether the resumed file was this very body's, so its record still stands. */
+let sameBody = false;
+const names = { inputs: shape.inputNames, outputs: shape.outputNames };
+/** The file's weights fitted to this body by name, or undefined when its hidden layers differ. */
+const fitted = (file, from) => {
+  if (file.task !== task) return undefined;
+  if (file.sizes.slice(1, -1).join('x') !== hidden.join('x')) {
+    console.log(
+      `  ${from} has hidden layers ${file.sizes.slice(1, -1).join('x')}, not ${hidden.join('x')}; starting afresh`,
+    );
+    return undefined;
+  }
+  const { policy, carried } = MlpPolicy.fit(file, names.inputs, names.outputs);
+  sameBody =
+    carried.inputs === names.inputs.length && file.sizes.join('x') === shape.sizes.join('x');
+  console.log(
+    `  resuming from ${from} at generation ${file.trained?.generations ?? 0}` +
+      (sameBody
+        ? ''
+        : `, fitted from ${file.profile ?? 'another body'}: ${carried.inputs} of ${names.inputs.length} senses and ${carried.outputs} of ${names.outputs.length} drives carried`),
+  );
+  return policy.weights;
+};
 if (resume && existsSync(centrePath)) {
   try {
-    const centre = JSON.parse(readFileSync(centrePath, 'utf8'));
-    if (centre.task === task && centre.sizes.join('x') === shape.sizes.join('x')) {
-      initial = MlpPolicy.fromFile(centre).weights;
-      startGeneration = centre.trained?.generations ?? 0;
-      console.log(`  resuming the search from ${centrePath} at generation ${startGeneration}`);
-    }
+    initial = fitted(JSON.parse(readFileSync(centrePath, 'utf8')), centrePath);
+    if (initial)
+      startGeneration = JSON.parse(readFileSync(centrePath, 'utf8')).trained?.generations ?? 0;
   } catch {
     // A half-written centre: fall back to the saved policy below.
   }
 }
 if (!initial && resume && existsSync(out)) {
   const file = JSON.parse(readFileSync(out, 'utf8'));
-  if (file.sizes.join('x') === shape.sizes.join('x')) {
-    initial = MlpPolicy.fromFile(file).weights;
-    startGeneration = file.trained?.generations ?? 0;
-    console.log(
-      `  resuming from ${out} at generation ${startGeneration}, fitness ${file.trained?.fitness?.toFixed(3)}`,
-    );
-  } else {
-    console.log(`  ${out} has a different shape; starting afresh`);
-  }
+  initial = fitted(file, out);
+  if (initial) startGeneration = file.trained?.generations ?? 0;
 }
 if (!initial) {
   let s = 12345;
@@ -199,7 +218,9 @@ if (resume && existsSync(latest)) {
   try {
     const previous = JSON.parse(readFileSync(latest, 'utf8'));
     if (previous.task === task && Array.isArray(previous.series)) series.push(...previous.series);
-    if (previous.best && initial) best = { ...previous.best, weights: Float32Array.from(initial) };
+    // The record carries over only on the same body; a fitted policy starts a new one.
+    if (previous.best && initial && sameBody)
+      best = { ...previous.best, weights: Float32Array.from(initial) };
   } catch {
     // A half-written file: start the chart afresh.
   }
@@ -208,6 +229,7 @@ const save = (fitness, generation, alive, episodes) => {
   const policy = new MlpPolicy(shape.sizes, best.weights);
   const file = policy.toFile({
     task,
+    profile: profileId,
     inputs: shape.inputNames,
     outputs: shape.outputNames,
     trained: { generations: generation, fitness, episodes, at: new Date().toISOString() },
@@ -266,6 +288,7 @@ for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
     `${JSON.stringify(
       new MlpPolicy(shape.sizes, Float32Array.from(es.theta)).toFile({
         task,
+        profile: profileId,
         inputs: shape.inputNames,
         outputs: shape.outputNames,
         trained: { generations: g, fitness: mean, episodes, at: new Date().toISOString() },

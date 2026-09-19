@@ -46,7 +46,7 @@ import {
   compileMuscleSet,
   extractMuscleRings,
 } from '@bs-humany/modules-muscle';
-import { MlpPolicy, NervesModule } from '@bs-humany/modules-nerves';
+import { NervesModule } from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -58,7 +58,6 @@ import {
   TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
 import {
-  FEET,
   GOAL_SIZE,
   type NervesSetup,
   type Scenario,
@@ -349,9 +348,8 @@ export class Simulation {
         const goal = new Float64Array(GOAL_SIZE);
         goal[Math.max(0, Math.min(GOAL_SIZE - 1, setup.goal))] = 1;
         this.nerves = new NervesModule(this.articulation, this.muscles, {
-          policy: MlpPolicy.fromFile(setup.policy),
+          policy: setup.policy,
           outputs: driveOutputs(),
-          feet: FEET,
           goalSize: GOAL_SIZE,
           goal: () => goal,
           controlDivisor: setup.controlDivisor,

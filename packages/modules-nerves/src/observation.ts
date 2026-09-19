@@ -11,6 +11,13 @@
  *
  * Everything is scaled to land within a few units of zero, because a network is trained more
  * easily when its inputs are.
+ *
+ * Every sense has a name, and the joint senses are named by joint and axis rather than by slot,
+ * because the slots move between fidelity profiles and the names mostly do not: a lumbar joint
+ * at L1 is the same lumbar joint at L3, with a few more vertebrae beside it. A policy is matched
+ * to a body by these names, so one trained on a lower profile carries onto a higher one and the
+ * senses the higher one adds start from nothing. The feet are found the same way, by name, so
+ * that a foot split into talus and toes still reads as a foot.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
@@ -21,6 +28,31 @@ import type { CompiledMuscleSet } from '@bs-humany/modules-muscle';
 export interface Feet {
   readonly left: readonly string[];
   readonly right: readonly string[];
+}
+
+/**
+ * The segments of each foot, whatever the profile: a segment is a foot if it, or a segment
+ * above it, is the foot itself (L0 to L2) or the talus (L3, where the foot is several bones).
+ */
+export function feetOf(articulation: CompiledArticulation): Feet {
+  const segments = articulation.segments;
+  const side = (id: string): 'l' | 'r' | undefined =>
+    /^(foot|talus)_l$/.test(id) ? 'l' : /^(foot|talus)_r$/.test(id) ? 'r' : undefined;
+  const left: string[] = [];
+  const right: string[] = [];
+  for (const segment of segments) {
+    let at: number = segment.index;
+    let found: 'l' | 'r' | undefined;
+    while (at >= 0 && !found) {
+      const s = segments[at];
+      if (!s) break;
+      found = side(s.id);
+      at = s.parent;
+    }
+    if (found === 'l') left.push(segment.id);
+    else if (found === 'r') right.push(segment.id);
+  }
+  return { left, right };
 }
 
 export interface ObservationChannels {
@@ -50,19 +82,27 @@ export class ObservationBuilder {
   private readonly groupUnits: Int32Array[];
   private readonly groupIds: readonly string[];
   private readonly optimal: Float64Array;
+  /** Every joint degree of freedom by name, in slot order: `<joint>:<axis>`. */
+  private readonly dofNames: readonly string[];
 
   constructor(
     articulation: CompiledArticulation,
     muscles: CompiledMuscleSet,
-    feet: Feet,
+    feet: Feet | undefined,
     goalSize: number,
     groups: readonly { readonly id: string; readonly units: readonly { readonly id: string }[] }[],
   ) {
     const index = new Map(articulation.segments.map((s) => [s.id, s.index]));
     this.pelvis = index.get('pelvis') ?? 0;
     this.head = index.get('head') ?? this.pelvis;
-    this.leftFeet = feet.left.map((id) => index.get(id) ?? -1).filter((i) => i >= 0);
-    this.rightFeet = feet.right.map((id) => index.get(id) ?? -1).filter((i) => i >= 0);
+    const soles = feet ?? feetOf(articulation);
+    this.leftFeet = soles.left.map((id) => index.get(id) ?? -1).filter((i) => i >= 0);
+    this.rightFeet = soles.right.map((id) => index.get(id) ?? -1).filter((i) => i >= 0);
+    const dofs: string[] = [];
+    for (const joint of articulation.joints) {
+      for (const dof of joint.dofs) dofs[dof.index] = `${joint.id}:${dof.axisName}`;
+    }
+    this.dofNames = dofs;
     this.goalSize = goalSize;
     const unitIndex = new Map(muscles.units.map((u, i) => [u.id, i]));
     this.groupIds = groups.map((g) => g.id);
@@ -76,9 +116,14 @@ export class ObservationBuilder {
     this.channels = channels;
     const nq = (channels.joints.fields.q as Float64Array).length;
     const nv = (channels.joints.fields.qdot as Float64Array).length;
+    if (nq - ROOT_NQ !== this.dofNames.length || nv - ROOT_NV !== this.dofNames.length) {
+      throw new Error(
+        `The body has ${this.dofNames.length} joint degrees of freedom but publishes q of ${nq} and qdot of ${nv}.`,
+      );
+    }
     const names: string[] = [];
-    for (let i = ROOT_NQ; i < nq; i++) names.push(`q[${i}]`);
-    for (let i = ROOT_NV; i < nv; i++) names.push(`qdot[${i}]`);
+    for (const dof of this.dofNames) names.push(`angle:${dof}`);
+    for (const dof of this.dofNames) names.push(`rate:${dof}`);
     names.push('pelvis.down.x', 'pelvis.down.y', 'pelvis.down.z');
     names.push('pelvis.spin.x', 'pelvis.spin.y', 'pelvis.spin.z');
     names.push('pelvis.velocity.x', 'pelvis.velocity.y', 'pelvis.velocity.z');

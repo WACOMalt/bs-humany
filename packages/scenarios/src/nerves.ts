@@ -15,12 +15,6 @@ import { MUSCLE_GROUPS } from './muscleGroups.js';
 export const GOAL_SIZE = 3;
 export const GOALS = ['stand', 'walk', 'flail'] as const;
 
-/** Which segments are feet, for the sole's sense of contact. */
-export const FEET = {
-  left: ['foot_l', 'toes_l'],
-  right: ['foot_r', 'toes_r'],
-} as const;
-
 /** Twenty-three groups a side, right first then left, each output driving its units evenly. */
 export function driveOutputs(): DriveOutput[] {
   const outputs: DriveOutput[] = [];
