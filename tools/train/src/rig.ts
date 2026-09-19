@@ -241,6 +241,11 @@ export class StandRig {
     );
   }
 
+  /** The fidelity profile this body was built from. */
+  get profileId(): string {
+    return this.options.profileId;
+  }
+
   get parameterCount(): number {
     return this.nerves.policy.weights.length;
   }
