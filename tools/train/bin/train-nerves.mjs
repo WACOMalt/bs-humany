@@ -158,17 +158,14 @@ if (!initial) {
   initial = MlpPolicy.random(shape.sizes, random).weights;
 }
 
-const es = new OpenAiEs(
-  {
-    dimension: shape.parameterCount,
-    population,
-    sigma,
-    learningRate,
-    weightDecay: 0.001,
-    seed: 42 + startGeneration,
-  },
-  initial,
-);
+const search = (from, seed) =>
+  new OpenAiEs(
+    { dimension: shape.parameterCount, population, sigma, learningRate, weightDecay: 0.001, seed },
+    from,
+  );
+let es = search(initial, 42 + startGeneration);
+/** Centre scores in a row below half the record: a search that has walked off a cliff. */
+let slumped = 0;
 
 /**
  * Score every candidate, spread over the pool, one episode a task -- `candidates x seeds` of
@@ -180,7 +177,11 @@ function evaluate(candidates, generation) {
     const tasks = [];
     candidates.forEach((weights, c) => {
       for (let k = 0; k < seedsPerCandidate; k++) {
-        tasks.push({ candidate: c, weights, seed: 1000 * generation + 7 * c + k });
+        // A mirrored pair shares its twitches: the search asks which of +epsilon and -epsilon
+        // stands better through the same nudge, and a pair nudged differently answers with the
+        // difference between the nudges instead, which is noise the step then walks along.
+        const pair = generation < 0 ? c : Math.floor(c / 2);
+        tasks.push({ candidate: c, weights, seed: 1000 * generation + 7 * pair + k });
       }
     });
     const fitness = new Array(candidates.length).fill(0);
@@ -267,7 +268,16 @@ for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
   if (g % 5 === 0 || g === startGeneration + 1) {
     const centre = await evaluate([Float32Array.from(es.theta)], -g);
     const centreFitness = centre.fitness[0];
-    if (centreFitness > best.fitness) {
+    // The step is Adam-normalised, so a noisy estimate still moves at full speed, and a run of
+    // them can carry the centre somewhere it cannot stand at all while the record sits behind
+    // it. Three checks in a row at less than half the record, and the search restarts from the
+    // record with fresh momentum and fresh noise.
+    slumped = best.weights && centreFitness < 0.5 * best.fitness ? slumped + 1 : 0;
+    if (slumped >= 3) {
+      es = search(best.weights, 42 + g);
+      slumped = 0;
+      improved = `  restarted from the record (centre ${centreFitness.toFixed(3)} against ${best.fitness.toFixed(3)})`;
+    } else if (centreFitness > best.fitness) {
       best = {
         fitness: centreFitness,
         weights: Float32Array.from(es.theta),
