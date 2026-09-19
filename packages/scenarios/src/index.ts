@@ -184,6 +184,44 @@ export {
   type DriveGroup,
   type DriveSection,
 } from './muscleGroups.js';
+export {
+  ACTIVATION_CLIP_FILE,
+  type ActivationClip,
+  type ClipFile,
+  type ClipTrack,
+  CompiledClip,
+  compileClip,
+  loadActivationClips,
+  unitsNamedByClips,
+} from './activationClips.js';
+import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
+
+/**
+ * The activation clips, compiled once against the units they name. That every one of those is a
+ * unit the muscle set compiles is held by `activationClips.test.ts` against the muscle data.
+ */
+const CLIPS = loadActivationClips(unitsNamedByClips());
+
+function clipCalled(id: string): CompiledClip {
+  const clip = CLIPS.get(id);
+  if (!clip) throw new Error(`no activation clip called '${id}'`);
+  return clip;
+}
+
+/**
+ * A script that plays a clip: each tick, every unit the clip touches is driven at its level,
+ * scaled by `gain`, with the clock run at `rate`. The scenario's own layer of the drive, so a
+ * person's sliders add to it rather than fight it.
+ */
+function playClip(clip: CompiledClip, gain: number, rate: number): Scenario['script'] {
+  const units = clip.units;
+  return (time, api) => {
+    const levels = clip.levels(time * rate);
+    for (let i = 0; i < units.length; i++) {
+      api.drive(units[i] as string, Math.min(1, gain * (levels[i] as number)));
+    }
+  };
+}
 
 /**
  * The four groups the range-of-motion scenario cycles through. Its own list, not the full drive
@@ -693,6 +731,88 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
         for (const unit of ELBOW_FLEXORS_L) api.drive(unit, depth * left);
         for (const unit of ELBOW_EXTENSORS_L) api.drive(unit, depth * (1 - left));
       },
+    }),
+  }),
+  // --- the activation clips ---------------------------------------------------------------------
+  // Excitation authored from the literature, played open loop. What they are for is said in
+  // `docs/sources/humansim-activation-research.md`: standing is a validation of the muscle
+  // parameters, walking is the pattern of walking and not a walk, flailing is a stress test.
+  define({
+    id: 'clip-quiet-standing',
+    title: 'Quiet standing, from the clip',
+    description:
+      'The excitations of quiet standing as the literature reports them: the soleus tonic at ' +
+      'eight per cent, the medial gastrocnemius swaying near a third of a hertz, the tibialis ' +
+      'anterior near silent but for three brief bursts, and everything else a few per cent or ' +
+      'nothing. Open loop, so it stands until it does not. If it needs more than fifteen per ' +
+      'cent in the soleus to stand at all, the fault is upstream in the parameters, not here.',
+    parameters: [
+      param('gain', 'Drive gain', 1, 0, 3, 0.05, '\u00d7'),
+      param('rate', 'Playback rate', 1, 0.25, 2, 0.05, '\u00d7'),
+    ],
+    make: (v) => ({
+      profileId: 'l3_anatomical',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 6,
+      clearance: 0,
+      ground: { height: 0 },
+      passiveJoints: true,
+      passiveSystem: false,
+      plausibility: { restKinetic: 30 },
+      script: playClip(clipCalled('quiet-standing'), v.gain as number, v.rate as number),
+    }),
+  }),
+  define({
+    id: 'clip-walk-normal',
+    title: 'Walking, from the clip',
+    description:
+      'The muscle activity of level walking at a self-selected speed, timing from Perry and ' +
+      'from twenty-eight thousand strides, amplitudes estimated, the left leg the right leg half ' +
+      'a cycle on. It is the pattern of walking and not a walk: nothing corrects a step that ' +
+      'lands wrong, so it takes a step or two and goes over, and how long it stays up is the ' +
+      'number a reflex controller has to beat.',
+    parameters: [
+      param('gain', 'Drive gain', 1, 0, 3, 0.05, '\u00d7'),
+      param('rate', 'Playback rate', 1, 0.25, 2, 0.05, '\u00d7'),
+    ],
+    make: (v) => ({
+      profileId: 'l3_anatomical',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 6,
+      clearance: 0,
+      ground: { height: 0 },
+      passiveJoints: true,
+      passiveSystem: false,
+      plausibility: { restKinetic: 60 },
+      script: playClip(clipCalled('walk-normal'), v.gain as number, v.rate as number),
+    }),
+  }),
+  define({
+    id: 'clip-flail-arms',
+    title: 'Flailing, from the clip',
+    description:
+      'Both arms flailing: antagonists at the shoulder and elbow in counter-phase at three ' +
+      'incommensurable frequencies, the decelerating burst arriving late so each joint reaches ' +
+      'its end stop, the trunk and the hips bracing. Constructed, not measured -- nobody funds a ' +
+      'flailing study -- and the best stress test of the muscle module there is: many units ' +
+      'driven hard, reversing often.',
+    parameters: [
+      param('gain', 'Drive gain', 1, 0, 3, 0.05, '\u00d7'),
+      param('rate', 'Playback rate', 1, 0.25, 2, 0.05, '\u00d7'),
+    ],
+    make: (v) => ({
+      profileId: 'l3_anatomical',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 8,
+      clearance: 0,
+      ground: { height: 0 },
+      passiveJoints: true,
+      passiveSystem: false,
+      plausibility: { restKinetic: 80 },
+      script: playClip(clipCalled('flail-arms'), v.gain as number, v.rate as number),
     }),
   }),
 ];

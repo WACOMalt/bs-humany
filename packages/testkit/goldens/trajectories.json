@@ -4,6 +4,21 @@
     "ticks": 8000,
     "platform": "linux-x64"
   },
+  "clip-flail-arms/l3_anatomical/mujoco": {
+    "hash": "84cb35c55158a4b0",
+    "ticks": 8000,
+    "platform": "linux-x64"
+  },
+  "clip-quiet-standing/l3_anatomical/mujoco": {
+    "hash": "c9f0683a76fc6780",
+    "ticks": 6000,
+    "platform": "linux-x64"
+  },
+  "clip-walk-normal/l3_anatomical/mujoco": {
+    "hash": "9d91f6e5ab04f54c",
+    "ticks": 6000,
+    "platform": "linux-x64"
+  },
   "drop-prone/l1_standard/mujoco": {
     "hash": "7e376e4706a9e707",
     "ticks": 1500,

@@ -104,6 +104,9 @@ Project: `bs-humany`. Workspace scope: `@bs-humany/*`. Where a globally-unique i
 - `docs/sources/bibliography.md` — every parameter citation.
 - `docs/guides/` — how to write a module, extend HSDL, export a run to Blender, and deploy the studio as a container.
 - `CONTRIBUTING.md` — **read before your first change.** Especially §11.
+- `docs/sources/humansim-activation-research.md` — where the activation clips come from: the
+  literature on muscle timing, why clips carry excitation and not activation, and what the
+  three shipped clips (`clip-*` scenarios) are for.
 
 ## Licensing
 

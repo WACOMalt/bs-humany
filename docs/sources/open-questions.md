@@ -815,3 +815,17 @@ and not one of them between two ribs.
 **Closes when:** a source that states intercostal architecture is added to the bibliography and
 the units are generated from it, the way every other region's are.
 **Status:** open, and the reason the rib cage is bound by constraints rather than by muscle.
+
+### OQ-026 — There are no scapulothoracic muscles
+
+The muscle set has the rotator cuff and teres major, and nothing that positions the scapula on
+the thorax: no trapezius, no serratus anterior, no rhomboids, no levator scapulae. The activation
+research (`humansim-activation-research.md`, section 1.5) found it while binding its flailing
+clip, whose design holds the scapular stabilisers at about 0.2 so the arm does not drag the
+girdle. The clip declares that group empty so the gap is visible, and substitutes raised rotator
+cuff activity, which is not equivalent.
+
+Holzbaur et al. (2005), the upper-limb source the muscle spec names, does not include these
+muscles either. The van der Helm (1994) shoulder model does. Adding them is a `muscle-data`
+region with its own generator and a source to cite, not a clip change.
+
