@@ -40,8 +40,8 @@ const population = Number(flag('population', 32));
 const workers = Number(flag('workers', Math.max(1, Math.min(cpus().length, 16))));
 const seconds = Number(flag('seconds', 6));
 const seedsPerCandidate = Number(flag('seeds', 2));
-const sigma = Number(flag('sigma', 0.05));
-const learningRate = Number(flag('lr', 0.02));
+const sigma = Number(flag('sigma', 0.03));
+const learningRate = Number(flag('lr', 0.005));
 const hidden = flag('hidden', '32,32').split(',').map(Number);
 const profileId = flag('profile', 'l3_anatomical');
 const authority = Number(flag('authority', 0.3));
@@ -273,7 +273,7 @@ for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
     // it. Three checks in a row at less than half the record, and the search restarts from the
     // record with fresh momentum and fresh noise.
     slumped = best.weights && centreFitness < 0.5 * best.fitness ? slumped + 1 : 0;
-    if (slumped >= 3) {
+    if (slumped >= 2) {
       es = search(best.weights, 42 + g);
       slumped = 0;
       improved = `  restarted from the record (centre ${centreFitness.toFixed(3)} against ${best.fitness.toFixed(3)})`;

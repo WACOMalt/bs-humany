@@ -94,12 +94,26 @@ export class OpenAiEs {
   tell(fitness: readonly number[]): void {
     const { dimension, population, sigma, learningRate } = this.options;
     if (fitness.length !== population) throw new Error('tell: one fitness per candidate.');
-    // Centred ranks: the best +0.5, the worst -0.5.
+    // Centred ranks: the best +0.5, the worst -0.5. Equal scores share the mean of their ranks,
+    // because a stable sort would rank every tied plus-sample below its minus twin, and a
+    // generation with many candidates fallen at the first check -- all scoring exactly nothing
+    // -- would then push the centre a full step along the sum of their noise.
     const order = fitness.map((f, i) => [f, i] as const).sort((a, b) => a[0] - b[0]);
     const shaped = new Float64Array(population);
-    order.forEach(([, i], rank) => {
-      shaped[i] = rank / (population - 1) - 0.5;
-    });
+    for (let from = 0; from < order.length; ) {
+      let to = from;
+      while (
+        to + 1 < order.length &&
+        (order[to + 1] as readonly [number, number])[0] ===
+          (order[from] as readonly [number, number])[0]
+      )
+        to += 1;
+      const rank = (from + to) / 2;
+      for (let k = from; k <= to; k++) {
+        shaped[(order[k] as readonly [number, number])[1]] = rank / (population - 1) - 0.5;
+      }
+      from = to + 1;
+    }
     const gradient = new Float64Array(dimension);
     for (let pair = 0; pair < population / 2; pair++) {
       const epsilon = this.epsilons[pair] as Float32Array;
