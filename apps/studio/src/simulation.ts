@@ -45,6 +45,7 @@ import {
   RENDER_MUSCLE_MESH,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
+import { MlpPolicy, NervesModule } from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -55,7 +56,15 @@ import {
   TORSO_MUSCLES,
   TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
-import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
+import {
+  FEET,
+  GOAL_SIZE,
+  type NervesSetup,
+  type Scenario,
+  type ScenarioApi,
+  driveOutputs,
+  placeArticulation,
+} from '@bs-humany/scenarios';
 
 export type BackendId = 'rapier' | 'mujoco';
 
@@ -158,6 +167,9 @@ export class Simulation {
   readonly musclePath: MusclePathModule | undefined;
   readonly muscleDynamics: MuscleDynamicsModule | undefined;
   readonly muscleVolume: MuscleVolumeModule | undefined;
+  /** The nerves, when the scenario puts a trained policy in the loop, and what it asked for. */
+  readonly nerves: NervesModule | undefined;
+  readonly scenarioNerves: NervesSetup | undefined;
   readonly backendId: BackendId;
   readonly capabilities: BackendCapabilities;
   readonly scenario: Scenario | undefined;
@@ -330,6 +342,22 @@ export class Simulation {
       this.kernel.register(this.musclePath);
       this.kernel.register(this.muscleDynamics);
       this.kernel.register(this.muscleVolume);
+      const setup = options.scenario?.nerves;
+      this.scenarioNerves = setup;
+      if (setup) {
+        const goal = new Float64Array(GOAL_SIZE);
+        goal[Math.max(0, Math.min(GOAL_SIZE - 1, setup.goal))] = 1;
+        this.nerves = new NervesModule(this.articulation, this.muscles, {
+          policy: MlpPolicy.fromFile(setup.policy),
+          outputs: driveOutputs(),
+          feet: FEET,
+          goalSize: GOAL_SIZE,
+          goal: () => goal,
+          controlDivisor: setup.controlDivisor,
+          authority: setup.authority,
+        });
+        this.kernel.register(this.nerves);
+      }
     }
 
     this.outputFramerate = options.outputFramerate ?? DEFAULT_OUTPUT_FRAMERATE;

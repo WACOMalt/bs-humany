@@ -1589,6 +1589,7 @@ function animate(): void {
     }
     updateDiagnostics(simulation);
     updateTimeline(simulation);
+    drawNerves(simulation);
     must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
     const capture = simulation.capture;
     // Both captures, because the muscle one is what usually stops first and it used to stop
@@ -1910,4 +1911,57 @@ if (isTauri()) {
       }
     })();
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// The brain on screen: the policy's layers as pixels, redrawn every frame the nerves are in.
+// ---------------------------------------------------------------------------------------------
+
+const nervesControl = must<HTMLElement>('#nerves-control');
+const nervesCanvas = must<HTMLCanvasElement>('#nerves-activity');
+const nervesNote = must<HTMLElement>('#nerves-note');
+let nervesImage: ImageData | null = null;
+
+function drawNerves(sim: Simulation): void {
+  const nerves = sim.nerves;
+  if (!nerves) {
+    if (!nervesControl.hidden) nervesControl.hidden = true;
+    return;
+  }
+  if (nervesControl.hidden) nervesControl.hidden = false;
+  const context = nervesCanvas.getContext('2d');
+  if (!context) return;
+  const layers = nerves.policy.layers;
+  const width = nervesCanvas.width;
+  const height = nervesCanvas.height;
+  if (!nervesImage || nervesImage.width !== width || nervesImage.height !== height) {
+    nervesImage = context.createImageData(width, height);
+  }
+  const data = nervesImage.data;
+  const rowHeight = Math.floor(height / layers.length);
+  layers.forEach((layer, row) => {
+    const n = layer.length;
+    for (let px = 0; px < width; px++) {
+      const v = layer[Math.floor((px / width) * n)] ?? 0;
+      const m = Math.max(-1, Math.min(1, v));
+      const red = m > 0 ? 40 + 215 * m : 40;
+      const blue = m < 0 ? 40 - 215 * m : 40;
+      const green = 40 + 30 * Math.abs(m);
+      for (let py = row * rowHeight; py < (row + 1) * rowHeight - 1; py++) {
+        const i = 4 * (py * width + px);
+        data[i] = red;
+        data[i + 1] = green;
+        data[i + 2] = blue;
+        data[i + 3] = 255;
+      }
+    }
+  });
+  context.putImageData(nervesImage, 0, 0);
+  const trained = sim.scenarioNerves?.policy.trained;
+  nervesNote.textContent =
+    `${nerves.policy.sizes.join(' × ')} weights, ${nerves.evaluationsSoFar} evaluations` +
+    (trained
+      ? `; trained ${trained.generations} generations to fitness ${trained.fitness.toFixed(2)}`
+      : '') +
+    (nerves.unreadableSoFar ? `; ${nerves.unreadableSoFar} unreadable inputs` : '');
 }

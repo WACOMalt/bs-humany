@@ -38,6 +38,7 @@ import {
   MuscleTestDriveModule,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
+import { MlpPolicy, NervesModule } from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -48,7 +49,14 @@ import {
   TORSO_MUSCLES,
   TRUNK_MUSCLES,
 } from '@bs-humany/muscle-data';
-import { type Scenario, type ScenarioApi, placeArticulation } from '@bs-humany/scenarios';
+import {
+  FEET,
+  GOAL_SIZE,
+  type Scenario,
+  type ScenarioApi,
+  driveOutputs,
+  placeArticulation,
+} from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 
 export interface Sample {
@@ -151,6 +159,21 @@ export async function runScenario(
     kernel.register(muscleDrive);
     kernel.register(new MusclePathModule(articulation, muscles));
     kernel.register(new MuscleDynamicsModule(articulation, muscles));
+    if (scenario.nerves) {
+      const goal = new Float64Array(GOAL_SIZE);
+      goal[Math.max(0, Math.min(GOAL_SIZE - 1, scenario.nerves.goal))] = 1;
+      kernel.register(
+        new NervesModule(articulation, muscles, {
+          policy: MlpPolicy.fromFile(scenario.nerves.policy),
+          outputs: driveOutputs(),
+          feet: FEET,
+          goalSize: GOAL_SIZE,
+          goal: () => goal,
+          controlDivisor: scenario.nerves.controlDivisor,
+          authority: scenario.nerves.authority,
+        }),
+      );
+    }
   }
   await kernel.init();
 

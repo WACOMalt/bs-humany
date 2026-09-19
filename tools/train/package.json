@@ -1,0 +1,21 @@
+{
+  "name": "@bs-humany/train",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Training the nerves: evolution strategies over a policy, evaluated on the simulation across worker threads.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@bs-humany/anthropometry": "workspace:*",
+    "@bs-humany/backend-mujoco": "workspace:*",
+    "@bs-humany/compiler": "workspace:*",
+    "@bs-humany/kernel": "workspace:*",
+    "@bs-humany/modules-mechanics": "workspace:*",
+    "@bs-humany/modules-muscle": "workspace:*",
+    "@bs-humany/modules-nerves": "workspace:*",
+    "@bs-humany/muscle-data": "workspace:*",
+    "@bs-humany/scenarios": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*",
+    "jiti": "^2.4.2"
+  }
+}

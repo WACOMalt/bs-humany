@@ -39,7 +39,10 @@ function readGoldens(): Goldens {
   return existsSync(GOLDENS) ? (JSON.parse(readFileSync(GOLDENS, 'utf8')) as Goldens) : {};
 }
 
-describe.each(SCENARIOS.map((s) => [s.id, s] as const))('scenario %s', (_id, scenario) => {
+// A scenario driven by a trained policy has no golden: its policy file changes with every
+// training run, and its physics is the same physics the others pin.
+const PINNED = SCENARIOS.filter((s) => s.golden !== false);
+describe.each(PINNED.map((s) => [s.id, s] as const))('scenario %s', (_id, scenario) => {
   describe.each(Object.keys(BACKENDS))('on %s', (backend) => {
     it('is physically plausible', async () => {
       const t = await trajectory(scenario, backend);

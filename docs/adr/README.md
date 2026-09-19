@@ -19,3 +19,4 @@ to be revisited, so future contributors do not re-open settled questions blindly
 | [010](adr-010-naming-and-platform-floor.md) | Project naming and platform floor | Accepted |
 | [011](adr-011-measurement-from-datasets.md) | Commercial viability is not a goal; measurement from licensed meshes is permitted | Accepted |
 | [012](adr-012-render-rate-independent-of-simulation-rate.md) | The render rate is independent of the simulation rate | Accepted |
+| [013](adr-013-the-nerves-a-policy-over-the-drive.md) | The nerves: a policy over the drive, trained on the simulation itself | Accepted |

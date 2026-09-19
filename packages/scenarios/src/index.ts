@@ -64,6 +64,14 @@ export interface Scenario {
    */
   readonly plausibility?: Readonly<Partial<Record<PlausibilityKey, number>>> | undefined;
   readonly conformance?: Readonly<Partial<Record<ConformanceKey, number>>> | undefined;
+  /** The nerves in the loop: a trained policy over the drive. */
+  readonly nerves?: NervesSetup | undefined;
+  /**
+   * Whether a golden trajectory is kept for this scenario. Off for a scenario driven by a trained
+   * policy, whose file changes with every training run; its hash would be a record of the last
+   * run rather than of the physics.
+   */
+  readonly golden?: boolean | undefined;
 }
 
 export type PlausibilityKey =
@@ -194,7 +202,11 @@ export {
   loadActivationClips,
   unitsNamedByClips,
 } from './activationClips.js';
+import type { PolicyFile } from '@bs-humany/modules-nerves';
+import standPolicy from '@bs-humany/modules-nerves/policies/stand.json' with { type: 'json' };
 import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
+import type { NervesSetup } from './nerves.js';
+export { FEET, GOAL_SIZE, GOALS, driveOutputs, type NervesSetup } from './nerves.js';
 
 /**
  * The activation clips, compiled once against the units they name. That every one of those is a
@@ -813,6 +825,40 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       passiveSystem: false,
       plausibility: { restKinetic: 80 },
       script: playClip(clipCalled('flail-arms'), v.gain as number, v.rate as number),
+    }),
+  }),
+  // --- the nerves ------------------------------------------------------------------------------
+  define({
+    id: 'nerves-stand',
+    title: 'Standing, with the nerves',
+    description:
+      'The quiet-standing clip as feedforward and the trained standing policy on top of it: a ' +
+      'small network that reads the joints, the pelvis, the feet and the muscles a hundred ' +
+      'times a second and corrects the drive of every muscle group on each side. Trained by ' +
+      'evolution strategies on this simulation, with a twitch of a random group each episode so ' +
+      'it stands through a nudge. How long it stays up is the number the training log reports.',
+    parameters: [
+      param('authority', 'Nerve authority', 0.5, 0, 1, 0.05),
+      param('gain', 'Clip gain', 1, 0, 3, 0.05, '\u00d7'),
+    ],
+    make: (v) => ({
+      profileId: 'l1_standard',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 10,
+      clearance: 0,
+      ground: { height: 0 },
+      passiveJoints: true,
+      passiveSystem: false,
+      golden: false,
+      plausibility: { restKinetic: 30 },
+      nerves: {
+        policy: standPolicy as unknown as PolicyFile,
+        authority: v.authority as number,
+        goal: 0,
+        controlDivisor: 5,
+      },
+      script: playClip(clipCalled('quiet-standing'), v.gain as number, 1),
     }),
   }),
 ];

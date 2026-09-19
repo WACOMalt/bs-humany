@@ -1,0 +1,29 @@
+{
+  "name": "@bs-humany/modules-nerves",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The nerves: a policy network that reads the body's afferents and drives its muscles, trained on the simulation itself.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./policies/*": "./policies/*"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "@bs-humany/compiler": "workspace:*",
+    "@bs-humany/kernel": "workspace:*",
+    "@bs-humany/modules-mechanics": "workspace:*",
+    "@bs-humany/modules-muscle": "workspace:*"
+  },
+  "devDependencies": {
+    "@bs-humany/anthropometry": "workspace:*",
+    "@bs-humany/backend-mujoco": "workspace:*",
+    "@bs-humany/muscle-data": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*"
+  }
+}

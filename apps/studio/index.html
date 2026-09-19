@@ -162,6 +162,13 @@
           against how far it travels there. Each slider drives its muscles on both sides at once,
           and is squared, so the readout shows the excitation given rather than where the handle
           sits.</p>
+          <div id="nerves-control" hidden>
+            <p class="note">The nerves: a trained policy reading the joints, the pelvis, the feet and every
+            muscle a hundred times a second and correcting the drive of each group on each side. One
+            row a layer, senses at the top, drives at the bottom; blue is negative, red positive.</p>
+            <canvas id="nerves-activity" width="320" height="64" style="width:100%;image-rendering:pixelated;border-radius:4px"></canvas>
+            <p class="note" id="nerves-note"></p>
+          </div>
           <dl class="readout" id="muscle-readout">
             <dt title="Summed over the elbow flexors and extensors, which is what the two elbow sliders drive">Elbow, flex / ext</dt><dd id="muscle-flexion">&mdash;</dd>
             <dt title="Summed over the knee flexors and extensors, which is what the two knee sliders drive">Knee, flex / ext</dt><dd id="muscle-extension">&mdash;</dd>

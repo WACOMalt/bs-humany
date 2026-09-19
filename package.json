@@ -39,7 +39,10 @@
     "measure:source-travel": "node tools/cli/bin/measure-source-travel.mjs",
     "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs",
     "publish:pose": "node tools/cli/bin/publish-pose.mjs",
-    "desktop:sidecar": "cargo build --release --manifest-path apps/xr-viewer/Cargo.toml && mkdir -p apps/studio/src-tauri/binaries && cp apps/xr-viewer/target/release/bs-humany-xr-viewer apps/studio/src-tauri/binaries/bs-humany-xr-viewer-x86_64-unknown-linux-gnu"
+    "desktop:sidecar": "cargo build --release --manifest-path apps/xr-viewer/Cargo.toml && mkdir -p apps/studio/src-tauri/binaries && cp apps/xr-viewer/target/release/bs-humany-xr-viewer apps/studio/src-tauri/binaries/bs-humany-xr-viewer-x86_64-unknown-linux-gnu",
+    "train:nerves": "node tools/train/bin/train-nerves.mjs",
+    "train:showcase": "node tools/train/bin/showcase.mjs",
+    "train:dashboard": "node tools/train/bin/dashboard.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

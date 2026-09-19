@@ -62,6 +62,9 @@ importers:
       '@bs-humany/modules-muscle':
         specifier: workspace:*
         version: link:../../packages/modules-muscle
+      '@bs-humany/modules-nerves':
+        specifier: workspace:*
+        version: link:../../packages/modules-nerves
       '@bs-humany/muscle-data':
         specifier: workspace:*
         version: link:../../packages/muscle-data
@@ -256,6 +259,34 @@ importers:
         specifier: workspace:*
         version: link:../skeleton
 
+  packages/modules-nerves:
+    dependencies:
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@bs-humany/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@bs-humany/modules-mechanics':
+        specifier: workspace:*
+        version: link:../modules-mechanics
+      '@bs-humany/modules-muscle':
+        specifier: workspace:*
+        version: link:../modules-muscle
+    devDependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../anthropometry
+      '@bs-humany/backend-mujoco':
+        specifier: workspace:*
+        version: link:../backend-mujoco
+      '@bs-humany/muscle-data':
+        specifier: workspace:*
+        version: link:../muscle-data
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
+
   packages/modules-sensing:
     dependencies:
       '@bs-humany/compiler':
@@ -359,6 +390,9 @@ importers:
       '@bs-humany/modules-mechanics':
         specifier: workspace:*
         version: link:../modules-mechanics
+      '@bs-humany/modules-nerves':
+        specifier: workspace:*
+        version: link:../modules-nerves
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../skeleton
@@ -406,6 +440,9 @@ importers:
       '@bs-humany/modules-muscle':
         specifier: workspace:*
         version: link:../modules-muscle
+      '@bs-humany/modules-nerves':
+        specifier: workspace:*
+        version: link:../modules-nerves
       '@bs-humany/muscle-data':
         specifier: workspace:*
         version: link:../muscle-data
@@ -440,6 +477,42 @@ importers:
       '@types/three':
         specifier: ^0.186.0
         version: 0.186.0
+      jiti:
+        specifier: ^2.4.2
+        version: 2.7.0
+
+  tools/train:
+    dependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../../packages/anthropometry
+      '@bs-humany/backend-mujoco':
+        specifier: workspace:*
+        version: link:../../packages/backend-mujoco
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
+      '@bs-humany/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@bs-humany/modules-mechanics':
+        specifier: workspace:*
+        version: link:../../packages/modules-mechanics
+      '@bs-humany/modules-muscle':
+        specifier: workspace:*
+        version: link:../../packages/modules-muscle
+      '@bs-humany/modules-nerves':
+        specifier: workspace:*
+        version: link:../../packages/modules-nerves
+      '@bs-humany/muscle-data':
+        specifier: workspace:*
+        version: link:../../packages/muscle-data
+      '@bs-humany/scenarios':
+        specifier: workspace:*
+        version: link:../../packages/scenarios
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../../packages/skeleton
       jiti:
         specifier: ^2.4.2
         version: 2.7.0

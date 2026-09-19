@@ -23,7 +23,8 @@
     "@bs-humany/skeleton": "workspace:*",
     "@bs-humany/backend-rapier": "workspace:*",
     "@bs-humany/modules-muscle": "workspace:*",
-    "@bs-humany/muscle-data": "workspace:*"
+    "@bs-humany/muscle-data": "workspace:*",
+    "@bs-humany/modules-nerves": "workspace:*"
   },
   "devDependencies": {
     "@bs-humany/backend-mujoco": "workspace:*"

@@ -7,11 +7,12 @@
   "include": ["src/**/*"],
   "references": [
     { "path": "../compiler" },
-    { "path": "../frames" },
-    { "path": "../hsdl" },
-    { "path": "../anthropometry" },
-    { "path": "../skeleton" },
+    { "path": "../kernel" },
     { "path": "../modules-mechanics" },
-    { "path": "../modules-nerves" }
+    { "path": "../modules-muscle" },
+    { "path": "../anthropometry" },
+    { "path": "../backend-mujoco" },
+    { "path": "../muscle-data" },
+    { "path": "../skeleton" }
   ]
 }

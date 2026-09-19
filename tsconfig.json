@@ -39,6 +39,12 @@
       "path": "./packages/modules-sensing"
     },
     {
+      "path": "./packages/modules-nerves"
+    },
+    {
+      "path": "./tools/train"
+    },
+    {
       "path": "./packages/muscle-model"
     },
     {

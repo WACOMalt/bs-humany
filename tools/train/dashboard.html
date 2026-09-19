@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>bs-humany — training</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #14161a; color: #d8dbe0; font: 14px/1.4 system-ui, sans-serif; }
+  header { padding: 14px 20px; display: flex; gap: 28px; align-items: baseline; flex-wrap: wrap; border-bottom: 1px solid #2a2e35; }
+  header b { font-size: 18px; }
+  header .k { color: #8a919c; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 20px; }
+  section { background: #1b1e24; border: 1px solid #2a2e35; border-radius: 6px; padding: 12px; }
+  section h2 { margin: 0 0 8px; font-size: 13px; color: #8a919c; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  canvas { width: 100%; height: auto; display: block; image-rendering: pixelated; }
+  .wide { grid-column: 1 / -1; }
+  .legend { display: flex; gap: 16px; color: #8a919c; font-size: 12px; margin-top: 6px; }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+  #outputs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 14px; font-size: 11px; font-variant-numeric: tabular-nums; }
+  #outputs div { display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 6px; }
+  #outputs span { height: 8px; background: #2a2e35; position: relative; border-radius: 2px; }
+  #outputs span::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #3b4048; }
+  #outputs span b { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+</style>
+</head>
+<body>
+<header>
+  <b>bs-humany training</b>
+  <span><span class="k">task</span> <span id="task">–</span></span>
+  <span><span class="k">generation</span> <span id="gen">–</span></span>
+  <span><span class="k">best</span> <span id="best">–</span></span>
+  <span><span class="k">episodes</span> <span id="episodes">–</span></span>
+  <span><span class="k">policy</span> <span id="sizes">–</span></span>
+  <span><span class="k">updated</span> <span id="updated">–</span></span>
+</header>
+<main>
+  <section>
+    <h2>Fitness by generation</h2>
+    <canvas id="fitness" width="640" height="260"></canvas>
+    <div class="legend"><span><i style="background:#5aa0ff"></i>best of generation</span><span><i style="background:#8a919c"></i>population mean</span></div>
+  </section>
+  <section>
+    <h2>Seconds standing, best of generation</h2>
+    <canvas id="alive" width="640" height="260"></canvas>
+    <div class="legend"><span><i style="background:#ffb454"></i>seconds up before the head drops</span></div>
+  </section>
+  <section class="wide">
+    <h2>The body, live <span id="body-live" style="text-transform:none;font-weight:normal"></span></h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <canvas id="front" width="400" height="420"></canvas>
+      <canvas id="side" width="400" height="420"></canvas>
+    </div>
+    <div class="legend"><span>front (x across, y up)</span><span>side (z across, y up)</span><span>the showcase writes it twenty times a second: the current best policy, restarted whenever it falls</span></div>
+  </section>
+  <section class="wide">
+    <h2>The brain, live <span id="live" style="text-transform:none;font-weight:normal"></span></h2>
+    <canvas id="brain" width="800" height="120"></canvas>
+    <div class="legend"><span>one row a layer, input at the top, output at the bottom; blue negative, red positive; the showcase writes it ten times a second</span></div>
+  </section>
+  <section class="wide">
+    <h2>Drives, live</h2>
+    <div id="outputs"></div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+function chart(canvas, series, pick, colours, yLabel) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, L = 44, B = 24, T = 10, R = 10;
+  ctx.fillStyle = '#1b1e24'; ctx.fillRect(0, 0, W, H);
+  if (series.length < 2) return;
+  const xs = series.map((s) => s[0]);
+  const all = pick.flatMap((p) => series.map((s) => s[p]));
+  const xMin = xs[0], xMax = xs[xs.length - 1];
+  let yMin = Math.min(...all), yMax = Math.max(...all);
+  if (yMax - yMin < 1e-6) { yMax = yMin + 1; }
+  const pad = (yMax - yMin) * 0.08; yMin -= pad; yMax += pad;
+  const x = (v) => L + ((v - xMin) / (xMax - xMin)) * (W - L - R);
+  const y = (v) => T + (1 - (v - yMin) / (yMax - yMin)) * (H - T - B);
+  ctx.strokeStyle = '#2a2e35'; ctx.fillStyle = '#8a919c'; ctx.font = '11px system-ui';
+  for (let i = 0; i <= 4; i++) {
+    const v = yMin + ((yMax - yMin) * i) / 4;
+    ctx.beginPath(); ctx.moveTo(L, y(v)); ctx.lineTo(W - R, y(v)); ctx.stroke();
+    ctx.fillText(v.toFixed(2), 4, y(v) + 4);
+  }
+  ctx.fillText(`gen ${xMin}`, L, H - 6); ctx.fillText(`gen ${xMax}`, W - R - 50, H - 6);
+  pick.forEach((p, k) => {
+    ctx.strokeStyle = colours[k]; ctx.lineWidth = k === 0 ? 2 : 1; ctx.beginPath();
+    series.forEach((s, i) => (i ? ctx.lineTo(x(s[0]), y(s[p])) : ctx.moveTo(x(s[0]), y(s[p]))));
+    ctx.stroke();
+  });
+}
+async function poll() {
+  try {
+    const r = await fetch('runs/stand-latest.json', { cache: 'no-store' });
+    if (r.ok) {
+      const d = await r.json();
+      $('task').textContent = d.task;
+      $('gen').textContent = d.series.length ? d.series[d.series.length - 1][0] : '–';
+      $('best').textContent = `${d.best.fitness.toFixed(3)} · ${d.best.alive.toFixed(2)} s up · gen ${d.best.generation}`;
+      $('episodes').textContent = d.episodes.toLocaleString();
+      $('sizes').textContent = `${d.sizes.join(' × ')} = ${d.parameters.toLocaleString()} weights`;
+      $('updated').textContent = new Date(d.updated).toLocaleTimeString();
+      chart($('fitness'), d.series, [2, 1], ['#5aa0ff', '#8a919c']);
+      chart($('alive'), d.series, [3], ['#ffb454']);
+    }
+  } catch {}
+  try {
+    const r = await fetch('runs/stand-activity.json', { cache: 'no-store' });
+    if (r.ok) {
+      const a = await r.json();
+      $('live').textContent = `— generation ${a.generation}, ${a.time.toFixed(2)} s into the episode${a.up ? '' : ', down'}`;
+      const c = $('brain'); const ctx = c.getContext('2d');
+      const rows = a.layers.length; const rowH = Math.floor(c.height / rows);
+      const img = ctx.createImageData(c.width, c.height);
+      for (let r2 = 0; r2 < rows; r2++) {
+        const layer = a.layers[r2]; const n = layer.length;
+        for (let px = 0; px < c.width; px++) {
+          const v = layer[Math.floor((px / c.width) * n)];
+          const m = Math.max(-1, Math.min(1, v));
+          const red = m > 0 ? 40 + 215 * m : 40, blue = m < 0 ? 40 - 215 * m : 40, green = 40 + 30 * Math.abs(m);
+          for (let py = r2 * rowH; py < (r2 + 1) * rowH - 2; py++) {
+            const i = 4 * (py * c.width + px); img.data[i] = red; img.data[i + 1] = green; img.data[i + 2] = blue; img.data[i + 3] = 255;
+          }
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      const out = a.layers[a.layers.length - 1]; const box = $('outputs');
+      if (box.children.length !== out.length) {
+        box.innerHTML = a.outputs.map((name) => `<div><label>${name}</label><span><b></b></span></div>`).join('');
+      }
+      out.forEach((v, i) => {
+        const b = box.children[i].querySelector('b');
+        const w = Math.abs(v) * 50;
+        b.style.left = v < 0 ? `${50 - w}%` : '50%'; b.style.width = `${w}%`; b.style.background = v < 0 ? '#5aa0ff' : '#ff6a5a';
+      });
+    }
+  } catch {}
+}
+function figure(canvas, pose, ax) {
+  const ctx = canvas.getContext('2d'); const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#1b1e24'; ctx.fillRect(0, 0, W, H);
+  const scale = H / 2.1; const cx = W / 2; const floor = H - 24;
+  ctx.strokeStyle = '#2a2e35'; ctx.beginPath(); ctx.moveTo(0, floor); ctx.lineTo(W, floor); ctx.stroke();
+  const p = pose.position; const n = p.length / 3;
+  const X = (i) => cx + p[3 * i + ax] * scale * (ax === 0 ? -1 : 1);
+  const Y = (i) => floor - p[3 * i + 1] * scale;
+  ctx.strokeStyle = pose.up ? '#d8dbe0' : '#ff6a5a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const parent = pose.parents[i]; if (parent < 0) continue;
+    ctx.beginPath(); ctx.moveTo(X(parent), Y(parent)); ctx.lineTo(X(i), Y(i)); ctx.stroke();
+  }
+  ctx.fillStyle = '#5aa0ff';
+  for (let i = 0; i < n; i++) { ctx.beginPath(); ctx.arc(X(i), Y(i), 3.5, 0, 7); ctx.fill(); }
+  const head = pose.ids.indexOf('head');
+  if (head >= 0) { ctx.beginPath(); ctx.arc(X(head), Y(head) - 0.06 * scale, 0.09 * scale, 0, 7); ctx.stroke(); }
+}
+async function pollPose() {
+  try {
+    const r = await fetch('runs/stand-pose.json', { cache: 'no-store' });
+    if (r.ok) { const pose = await r.json(); figure($('front'), pose, 0); figure($('side'), pose, 2); $('body-live').textContent = `— ${pose.time.toFixed(2)} s into the episode${pose.up ? '' : ', down'}`; }
+  } catch {}
+}
+poll(); setInterval(poll, 1000); pollPose(); setInterval(pollPose, 60);
+</script>
+</body>
+</html>

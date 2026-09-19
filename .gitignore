@@ -11,3 +11,5 @@ tools/*/dist/
 dist-release/
 # The VR viewer copied in as a Tauri sidecar by `pnpm desktop:sidecar`.
 apps/studio/src-tauri/binaries/
+# Training logs, one line a generation; the policy that results is committed, the log is not.
+tools/train/runs/
