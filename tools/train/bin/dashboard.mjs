@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 /**
  * Serve the training dashboard: `tools/train/dashboard.html`, and the run files it polls.
@@ -101,8 +101,24 @@ const number = (v, fallback, lo, hi) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : fallback;
 };
+/** Whether any trainer is running on this machine, this server's or a terminal's. */
+function trainerElsewhere() {
+  try {
+    const out = execSync('pgrep -f tools/train/bin/train-nerves.mjs', { encoding: 'utf8' });
+    return (
+      out
+        .split('\n')
+        .filter((line) => line.trim() !== '' && Number(line) !== process.pid)
+        .filter((line) => Number(line) !== training?.trainer.pid).length > 0
+    );
+  } catch {
+    return false; // pgrep found nothing.
+  }
+}
 function trainStart(body) {
   if (training && training.trainer.exitCode === null) return { error: 'a run is already going' };
+  if (trainerElsewhere())
+    return { error: 'a trainer is already running on this machine, started from a terminal' };
   const task = body.task === 'walk' ? 'walk' : 'stand';
   const args = [
     join(ROOT, 'tools/train/bin/train-nerves.mjs'),
