@@ -476,6 +476,43 @@ mod tests {
         let _ = bridge.newest();
         assert!(bridge.stale_for() >= Duration::from_millis(20));
     }
+
+    #[test]
+    fn the_studio_status_parses_with_everything_the_panels_show_and_without() {
+        // What the studio and `pnpm publish:pose` write now, trimmed to one of each thing.
+        let now = r#"{"generation":3,"scenario":{"id":"quiet-standing","title":"Quiet standing"},
+            "scenarios":[{"id":"quiet-standing","title":"Quiet standing"}],"profile":"l3_anatomical",
+            "simSeconds":1.5,"speed":0.24,"paused":false,"muscles":true,"holding":[],"grabStrength":1,
+            "mode":"running","overlays":{"muscles":true,"tissue":false},
+            "scenarioParameters":[{"id":"lean","title":"Lean","value":0.1,"min":0,"max":0.3,"step":0.01,"unit":"m"}],
+            "muscleReadout":{"loaded":"12 of 234"},"tension":[0.1,0.5],
+            "driveGroups":[{"title":"Elbow flexors","level":20,"section":"Arm"}],
+            "tissue":{"discs":[{"bone":"sacrum","kind":"disc","position":[0.017,0.013,-0.051],
+            "rotation":[-0.018,0.707,-0.018,0.707]}],"bars":[{"boneA":"sternum","localA":[0.02,0.07,0.04],
+            "boneB":"rib_2_r","localB":[-0.01,-0.05,-0.07]}]},
+            "brain":{"serverUp":true,"active":false,"authority":0.3,"selected":"stand-7",
+            "checkpoints":[{"id":"stand-7","name":"stand, generation 7"}],"fit":"","training":"",
+            "trainingRunning":true,"following":false},
+            "training":{"task":"stand","episode":4,"generation":7,"fitness":0.812}}"#;
+        let status: Status = serde_json::from_str(now).expect("parses");
+        assert_eq!(status.mode, "running");
+        assert_eq!(status.overlays.get("tissue"), Some(&false));
+        assert_eq!(status.scenario_parameters[0].unit, "m");
+        assert_eq!(status.drive_groups[0].section, "Arm");
+        assert_eq!(status.tissue.discs[0].bone, "sacrum");
+        assert_eq!(status.tissue.bars[0].bone_b, "rib_2_r");
+        assert_eq!(status.brain.checkpoints[0].name, "stand, generation 7");
+        assert!(status.brain.training_running);
+        assert_eq!(status.training.as_ref().map(|t| t.generation), Some(7));
+        // An older publisher that says none of that is still a status: every new key defaults.
+        let before = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
+            "profile":"l1_standard","simSeconds":0,"speed":1,"paused":true,"muscles":false,
+            "holding":[],"grabStrength":1}"#;
+        let status: Status = serde_json::from_str(before).expect("parses");
+        assert!(status.overlays.is_empty() && status.tissue.discs.is_empty());
+        assert!(status.training.is_none() && !status.brain.server_up);
+    }
+
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -516,6 +553,113 @@ pub struct Status {
     pub ground_height: f64,
     #[serde(default)]
     pub static_boxes: Vec<StaticBox>,
+    /// At rest, running, paused, or following the bridge: the studio's top-bar mode.
+    #[serde(default)]
+    pub mode: String,
+    /// The overlays as the studio's viewport shows them, by name.
+    #[serde(default)]
+    pub overlays: std::collections::HashMap<String, bool>,
+    #[serde(default)]
+    pub scenario_parameters: Vec<ScenarioParameter>,
+    #[serde(default)]
+    pub muscle_readout: std::collections::HashMap<String, String>,
+    /// Tendon force as a fraction of each unit's maximum, in the muscle bridge's unit order.
+    #[serde(default)]
+    pub tension: Vec<f32>,
+    #[serde(default)]
+    pub tissue: Tissue,
+    #[serde(default)]
+    pub brain: Brain,
+    /// What the training showcase says of the run it is playing, when that is the publisher.
+    #[serde(default)]
+    pub training: Option<Training>,
+}
+
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ScenarioParameter {
+    pub id: String,
+    pub title: String,
+    pub value: f64,
+    pub min: f64,
+    pub max: f64,
+    pub step: f64,
+    #[serde(default)]
+    pub unit: String,
+}
+
+/// A disc or a bead at a held joint, in its parent bone's frame; a bar of cartilage between two
+/// points in two bones' frames. The headset draws them from the poses it already has.
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Tissue {
+    #[serde(default)]
+    pub discs: Vec<TissueDisc>,
+    #[serde(default)]
+    pub bars: Vec<TissueBar>,
+}
+
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TissueDisc {
+    pub bone: String,
+    pub kind: String,
+    pub position: [f32; 3],
+    #[serde(default = "identity")]
+    pub rotation: [f32; 4],
+}
+
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TissueBar {
+    pub bone_a: String,
+    pub local_a: [f32; 3],
+    pub bone_b: String,
+    pub local_b: [f32; 3],
+}
+
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Brain {
+    #[serde(default)]
+    pub server_up: bool,
+    #[serde(default)]
+    pub active: bool,
+    #[serde(default)]
+    pub authority: f64,
+    #[serde(default)]
+    pub selected: String,
+    #[serde(default)]
+    pub checkpoints: Vec<Checkpoint>,
+    #[serde(default)]
+    pub fit: String,
+    #[serde(default)]
+    pub training: String,
+    #[serde(default)]
+    pub training_running: bool,
+    #[serde(default)]
+    pub following: bool,
+}
+
+/// A checkpoint the dashboard lists, as the studio's brain panel names it.
+#[derive(serde::Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct Checkpoint {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+}
+
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Training {
+    #[serde(default)]
+    pub task: String,
+    #[serde(default)]
+    pub episode: u64,
+    #[serde(default)]
+    pub generation: u64,
+    #[serde(default)]
+    pub fitness: f64,
 }
 
 /// A box in the scenery, in the simulation's frame.
@@ -564,12 +708,17 @@ pub struct Settings {
     pub gravity: bool,
     #[serde(default)]
     pub floor: bool,
+    #[serde(default)]
+    pub percentile: f64,
 }
 
 #[derive(serde::Deserialize, Clone, Debug, Default)]
 pub struct DriveGroup {
     pub title: String,
     pub level: f64,
+    /// Arm, Leg, Trunk or Neck: the desktop's collapsed sections.
+    #[serde(default)]
+    pub section: String,
 }
 
 #[derive(serde::Deserialize, Clone, Debug, Default)]

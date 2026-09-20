@@ -20,6 +20,7 @@ mod bridge;
 mod pack;
 mod panel;
 mod render;
+mod tissue;
 mod xr;
 
 use anyhow::{Context, Result};

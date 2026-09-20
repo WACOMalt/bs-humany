@@ -29,7 +29,7 @@ Each runs `pnpm build:studio` first, so the bundle in the binary is never stale.
 | Command | Output | Built |
 | --- | --- | --- |
 | `pnpm desktop:build` | `target/release/bs-humany-studio` | 11.5 MB |
-| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_0.0.0_amd64.AppImage` | 112 MB |
+| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_0.2.0_amd64.AppImage` | 124 MB |
 
 The studio's `dist` is about 27 MB -- the MuJoCo wasm, the skeleton meshes and the landmark
 tables -- and all of it is embedded in the binary rather than fetched, so nothing is downloaded at

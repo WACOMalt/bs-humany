@@ -184,32 +184,67 @@ hand right: let go
 
 and, in the publisher, `holding femur_r` on its own line while it lasts.
 
-### The panel
+### The panels
 
-The studio's controls, in the room: a dark panel half a metre wide, to your right of the body at
-chest height, turned to face where you stand. Point a controller at it and a small blue mark
-shows where the aim ray lands; the trigger presses. Five tabs:
+The studio's controls, in the room, on two dark panels that face where you stand: the
+**properties panel**, sixty centimetres wide, to your right of the body at chest height, and the
+**transport strip** a metre wide under it. Point a controller at either and a small blue mark
+shows where the aim ray lands; the trigger presses.
 
-- **Run** -- scenario, sim time and speed, what is held; Pause and Resume, Reset, a frame back
-  and forward, a timeline to scrub; the diagnostics strip.
-- **Scenario** -- a button per scenario and per fidelity profile; muscles, passive joints,
-  redistribution, gravity and floor; drop height.
-- **Body** -- sex, stature, mass, crural and brachial index, relative leg length.
-- **Muscles** -- a drive slider per muscle group: the same twenty-nine groups the studio's
-  sliders are generated from, one table in `packages/scenarios`, covering every unit.
-- **Rates** -- output frames a second, simulation steps a second, grab strength.
+Down the left edge of each is a **grab strip**, a darker band with a row of dots. Point at it,
+pull the trigger, and the panel comes with the hand -- turned as the hand turns -- until the
+trigger is let go, when it stays where it was put. The strip lights while the panel is carried,
+and a press on it is a grab and never a click. Put the transport where your hand rests and the
+properties wherever you can read them.
+
+The properties panel's tabs run down its left edge like the desktop's, and each is the desktop's
+tab, the same controls sending the same keys:
+
+- **Body** -- skeletal proportions, stature, mass, the ANSUR percentile; crural and brachial
+  index, relative leg length; what is held. The bone inspector stays on the desktop.
+- **World** -- gravity, floor; passive joint resistance, spinal redistribution; drop height;
+  grab strength.
+- **Sim** -- steps a second, output frames a second; the diagnostics readout. The capture
+  budget is the desktop's.
+- **Scene** -- a button per scenario and a slider per parameter the scenario has; muscles on or
+  off; a button per fidelity profile.
+- **Muscles** -- a drive slider per muscle group, folded by region as the desktop folds them:
+  the same twenty-nine groups, one table in `packages/scenarios`; the readout.
+- **Brain** -- the checkpoints the dashboard lists, the authority, Hand over and Release, the
+  fit line; Start and Stop training and Follow bridge, with the training line. The training's
+  generations, population, episode length and workers are as set on the desktop; the activity
+  bitmap stays there too.
+- **Export** -- what cannot be done from a headset, disabled, with the line that says why.
+- **Health** -- this run's rates and diagnostics and the bridge's state; the compile report,
+  the inertia audit and the joint sweep stay on the desktop.
+
+The transport strip is the desktop's top bar and timeline in one: Start or Resume, Pause,
+Reset; the mode -- own run, paused, at rest, or following the bridge -- with the time and speed;
+Play, a frame back, a frame on, Live, and the playhead to scrub; then the overlays. Grid, muscle
+paths, muscle volumes and connective tissue are honoured here; proxies, axes, centres of mass
+and contacts are the desktop viewport's, toggled from here all the same.
 
 What changes the articulation -- scenario, profile, muscles, the body, the rates -- rebuilds the
 simulation on the publisher's side and the bridges reopen, and those sliders send only when let
 go; the rest -- drives, the timeline, grab strength -- applies to the run as it goes and sends as
 it is dragged. Export, save and load stay in the studio, since they open file dialogs.
 
+### What is drawn
+
+Bones, from the mesh pack, posed from the bridge. Muscles as tubes swept from the belly rings,
+tinted from slack to taut by each unit's tendon force as the studio tints its own -- the status
+carries the tension. The connective tissue as the studio's overlay draws it: a pale disc at
+every held spinal level, a bead at each costovertebral hinge, a bar of cartilage between each rib
+and the sternum, built each frame from the bone poses and the table of frames the status
+carries, so a publisher that says nothing of tissue simply shows none. The overlays the studio's
+viewport has turned off are off here too.
+
 A grid on the floor, half-metre squares out to five metres, is the stage's own frame: where the
 headset thinks the floor is, which is where the body stands.
 
-It is drawn with egui -- immediate mode, laid out afresh each frame from what the publisher last
-said -- on its own pipeline over the same render pass as the bones, so the body occludes it and
-it occludes the body like anything else in the room. The web UI itself cannot come along: there
+The panels are drawn with egui -- immediate mode, laid out afresh each frame from what the
+publisher last said -- on their own pipeline over the same render pass as the bones, so the body
+occludes them and they occlude the body like anything else in the room. The web UI itself cannot come along: there
 is no way to get a WebKit view onto a Vulkan image at headset rate, and the controls that matter
 from inside a headset are few enough to draw again.
 

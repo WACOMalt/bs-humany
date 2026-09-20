@@ -61,11 +61,31 @@ export interface BrainHost {
   following(): boolean;
 }
 
+export interface BrainState {
+  readonly serverUp: boolean;
+  readonly active: boolean;
+  readonly authority: number;
+  readonly selected: string;
+  readonly checkpoints: readonly { readonly id: string; readonly name: string }[];
+  readonly fit: string;
+  readonly training: string;
+  readonly trainingRunning: boolean;
+  readonly following: boolean;
+}
+
 export interface BrainPanel {
   /** Refresh the checkpoint list and the training status; cheap, safe to call often. */
   poll(): Promise<void>;
   /** What the panel would put in the loop for a new run, if a policy is chosen. */
   readonly setup: NervesSetup | undefined;
+  /** The panel as the headset sees it. */
+  state(): BrainState;
+  /** The headset's hands on the panel: the same buttons the mouse presses. */
+  act(
+    action: 'select' | 'handover' | 'release' | 'authority' | 'trainStart' | 'trainStop' | 'follow',
+    id?: string,
+    value?: number,
+  ): void;
 }
 
 const must = <T extends Element>(selector: string): T => {
@@ -97,6 +117,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let rows: CheckpointRow[] = [];
   let setup: NervesSetup | undefined;
   let serverUp = false;
+  let trainingRunning = false;
 
   const readouts: [HTMLInputElement, string][] = [
     [ui.generations, '#train-generations-value'],
@@ -237,6 +258,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   };
 
   const showStatus = (status: TrainingStatus | undefined) => {
+    trainingRunning = status?.running === true;
     ui.start.disabled = !serverUp || status?.running === true;
     ui.stop.disabled = !serverUp || status?.running !== true;
     if (!status) {
@@ -318,6 +340,53 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     poll,
     get setup() {
       return setup;
+    },
+    state() {
+      return {
+        serverUp,
+        active: host.fit() !== undefined,
+        authority: Number(ui.authority.value),
+        selected: ui.policy.value,
+        checkpoints: rows.map((r) => ({ id: r.id, name: describe(r) })),
+        fit: ui.fitNote.textContent ?? '',
+        training: ui.status.textContent ?? '',
+        trainingRunning,
+        following: host.following(),
+      };
+    },
+    act(action, id, value) {
+      switch (action) {
+        case 'select':
+          ui.policy.value = id ?? '';
+          ui.policy.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        case 'handover':
+          if (id !== undefined) {
+            ui.policy.value = id;
+            ui.policy.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          ui.handover.click();
+          break;
+        case 'release':
+          ui.release.click();
+          break;
+        case 'authority':
+          ui.authority.value = String(value ?? Number(ui.authority.value));
+          ui.authority.dispatchEvent(new Event('input', { bubbles: true }));
+          ui.authority.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        case 'trainStart':
+          ui.start.click();
+          break;
+        case 'trainStop':
+          ui.stop.click();
+          break;
+        case 'follow':
+          host.follow();
+          break;
+        default:
+          break;
+      }
     },
   };
 }

@@ -6,7 +6,7 @@ layout(location = 0) out vec4 outColour;
 
 // Slots from firstController up are the tracked controllers, and worldSlot is the muscles: each
 // drawn in a colour no bone is.
-layout(push_constant) uniform Push { uint firstController; uint worldSlot; uint stageSlot; uint sceneSlot; } push;
+layout(push_constant) uniform Push { uint firstController; uint worldSlot; uint stageSlot; uint sceneSlot; uint tintBase; } push;
 
 void main() {
     vec3 n = normalize(vNormal);
@@ -20,7 +20,18 @@ void main() {
     vec3 muscle = vec3(0.72, 0.26, 0.28);
     vec3 grid = vec3(0.34, 0.36, 0.40);
     vec3 scenery = vec3(0.52, 0.50, 0.46);
-    vec3 albedo = vBone == push.sceneSlot ? scenery
+    // The studio's own colours: a slack muscle pale blue, a taut one signal red, the discs pale
+    // teal and the cartilage a warm bar. Codes from tintBase: 0..15 the tension ramp, 16 a disc,
+    // 17 a bead, 18 a bar.
+    vec3 slack = vec3(0.66, 0.78, 0.91);
+    vec3 taut = vec3(1.00, 0.23, 0.19);
+    vec3 disc = vec3(0.62, 0.89, 0.85);
+    vec3 cartilage = vec3(0.97, 0.77, 0.62);
+    uint code = vBone >= push.tintBase ? vBone - push.tintBase : 999u;
+    vec3 albedo = code < 16u ? mix(slack, taut, float(code) / 15.0)
+        : code == 16u || code == 17u ? disc
+        : code == 18u ? cartilage
+        : vBone == push.sceneSlot ? scenery
         : vBone == push.stageSlot ? grid
         : vBone == push.worldSlot ? muscle
         : vBone >= push.firstController ? controller

@@ -112,6 +112,55 @@ export function tissueOf(model: CompiledArticulation): Tissue {
   return { discs, bars };
 }
 
+// --- The table for the bridge -----------------------------------------------------------------
+
+/** The tissue as the pose bridge's status carries it: every frame named by its anchor bone. */
+export interface TissueTable {
+  readonly discs: readonly {
+    readonly bone: string;
+    readonly kind: 'disc' | 'bead';
+    readonly position: readonly [number, number, number];
+    readonly rotation: readonly [number, number, number, number];
+  }[];
+  readonly bars: readonly {
+    readonly boneA: string;
+    readonly localA: readonly [number, number, number];
+    readonly boneB: string;
+    readonly localB: readonly [number, number, number];
+  }[];
+}
+
+/**
+ * The tissue in the terms a headset has: bone names rather than segment indices, since a
+ * segment's frame is its anchor bone's, and the pose bridge names bones.
+ */
+export function tissueTable(model: CompiledArticulation): TissueTable {
+  const tissue = tissueOf(model);
+  return {
+    discs: tissue.discs.map((d) => ({
+      bone: model.segments[d.parentSegment]?.anchor ?? '',
+      kind: d.kind,
+      position: [
+        d.frameInParent.translation.x,
+        d.frameInParent.translation.y,
+        d.frameInParent.translation.z,
+      ],
+      rotation: [
+        d.frameInParent.rotation.x,
+        d.frameInParent.rotation.y,
+        d.frameInParent.rotation.z,
+        d.frameInParent.rotation.w,
+      ],
+    })),
+    bars: tissue.bars.map((b) => ({
+      boneA: model.segments[b.a]?.anchor ?? '',
+      localA: [b.onA.x, b.onA.y, b.onA.z],
+      boneB: model.segments[b.b]?.anchor ?? '',
+      localB: [b.onB.x, b.onB.y, b.onB.z],
+    })),
+  };
+}
+
 // --- Meshes ------------------------------------------------------------------------------------
 
 export interface TissueMesh {

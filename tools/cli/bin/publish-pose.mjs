@@ -69,6 +69,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.ts'));
+const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
 const { scenario, SCENARIOS, DEFAULT_SCENARIO, MUSCLE_GROUPS, driveForSlider } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
@@ -104,6 +105,17 @@ const settings = {
   stepsPerSecond: null, // rebuild; null = the profile's own
   gravity: true, // live
   floor: true, // live
+};
+/** The viewport overlays, as the headset's transport strip toggles them; nothing here draws. */
+const overlays = {
+  muscles: true,
+  muscleVolumes: true,
+  tissue: true,
+  grid: true,
+  proxies: false,
+  axes: false,
+  com: false,
+  contacts: false,
 };
 const REBUILDS = new Set([
   'scenario',
@@ -308,7 +320,18 @@ function writeStatus() {
       passive: settings.passive ?? chosen.passiveJoints,
       stepsPerSecond: simulation.stepsPerSecond,
     },
-    driveGroups: MUSCLE_GROUPS.map((g, i) => ({ title: g.title, level: drives[i] })),
+    driveGroups: MUSCLE_GROUPS.map((g, i) => ({
+      title: g.title,
+      level: drives[i],
+      section: g.section,
+    })),
+    // The same keys the studio publishes, so a headset's panel is the same panel: no scenario
+    // has parameters here, and there is no readout to show.
+    mode: paused ? 'paused' : 'running',
+    overlays,
+    scenarioParameters: [],
+    muscleReadout: {},
+    tissue: tissueOf(live),
     // The scenery, which the viewer has no other way to know: the ground's height and every
     // static box, in the simulation's frame.
     // Each unit's tendon force as a fraction of its maximum, for whatever tints muscles.
@@ -326,6 +349,15 @@ function writeStatus() {
   const tmp = `${path}-status.json.tmp`;
   writeFileSync(tmp, JSON.stringify(status));
   renameSync(tmp, `${path}-status.json`);
+}
+
+/** The tissue table, once a build: it is the articulation's, and that lives as long as `live`. */
+let tissueCache;
+function tissueOf(built) {
+  if (tissueCache?.built !== built) {
+    tissueCache = { built, table: tissueTable(built.simulation.articulation) };
+  }
+  return tissueCache.table;
 }
 
 function muscleTension(simulation) {
@@ -449,6 +481,21 @@ async function command(line) {
       const { key, value } = parsed;
       if (key === 'grabStrength') {
         if (Number.isFinite(Number(value)) && Number(value) > 0) grabStrength = Number(value);
+        break;
+      }
+      // The transport strip's keys: an overlay is remembered for the status; Play resumes, and
+      // Live is where a headless run always is.
+      const overlay = /^overlay\.(\w+)$/.exec(key)?.[1];
+      if (overlay || key === 'grid') {
+        overlays[overlay ?? 'grid'] = Boolean(value);
+        break;
+      }
+      if (key === 'play') {
+        await command(JSON.stringify({ kind: 'resume' }));
+        return;
+      }
+      if (key === 'live' || key === 'percentile' || key.startsWith('scenario.')) {
+        console.log(`  panel: ${key} is the studio's; nothing to do here`);
         break;
       }
       if (!(key in settings)) {

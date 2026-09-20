@@ -33,7 +33,21 @@ export type VrCommand =
   | { kind: 'step'; frames: number }
   | { kind: 'scrub'; seconds: number }
   | { kind: 'drive'; group: number; value: number }
-  | { kind: 'set'; key: string; value: unknown };
+  | { kind: 'set'; key: string; value: unknown }
+  /** The brain panel, from the headset: choose, hand over, release, train. */
+  | {
+      kind: 'brain';
+      action:
+        | 'select'
+        | 'handover'
+        | 'release'
+        | 'authority'
+        | 'trainStart'
+        | 'trainStop'
+        | 'follow';
+      id?: string;
+      value?: number;
+    };
 
 /** What the studio says about its run, for the panel. The link adds what only it knows. */
 export interface VrStatus {
@@ -42,7 +56,12 @@ export interface VrStatus {
   readonly profiles: readonly string[];
   readonly profile: string;
   readonly settings: Readonly<Record<string, number | boolean>>;
-  readonly driveGroups: readonly { readonly title: string; readonly level: number }[];
+  readonly driveGroups: readonly {
+    readonly title: string;
+    readonly level: number;
+    /** Arm, Leg, Trunk or Neck: the section the desktop folds the slider under. */
+    readonly section?: string;
+  }[];
   readonly groundHeight: number;
   readonly staticBoxes: readonly {
     readonly halfExtents: readonly number[];
@@ -52,6 +71,51 @@ export interface VrStatus {
   readonly grabStrength: number;
   readonly diagnostics: Readonly<Record<string, number>>;
   readonly paused: boolean;
+  /** At rest, running, paused, or following the bridge: the top bar's mode. */
+  readonly mode: 'rest' | 'running' | 'paused' | 'following';
+  /** The overlays as the viewport shows them, by checkbox id without the `show` prefix. */
+  readonly overlays: Readonly<Record<string, boolean>>;
+  /** The chosen scenario's parameters, as its sliders show them. */
+  readonly scenarioParameters: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly value: number;
+    readonly min: number;
+    readonly max: number;
+    readonly step: number;
+    readonly unit: string;
+  }[];
+  /** The Muscles tab's readout, as text. */
+  readonly muscleReadout: Readonly<Record<string, string>>;
+  /** Tendon force as a fraction of each unit's maximum, for the tint; empty without muscles. */
+  readonly tension: readonly number[];
+  /** The connective tissue, in bone frames, so the headset can draw it from the poses. */
+  readonly tissue: {
+    readonly discs: readonly {
+      readonly bone: string;
+      readonly kind: 'disc' | 'bead';
+      readonly position: readonly number[];
+      readonly rotation: readonly number[];
+    }[];
+    readonly bars: readonly {
+      readonly boneA: string;
+      readonly localA: readonly number[];
+      readonly boneB: string;
+      readonly localB: readonly number[];
+    }[];
+  };
+  /** The brain panel's state. */
+  readonly brain: {
+    readonly serverUp: boolean;
+    readonly active: boolean;
+    readonly authority: number;
+    readonly selected: string;
+    readonly checkpoints: readonly { readonly id: string; readonly name: string }[];
+    readonly fit: string;
+    readonly training: string;
+    readonly trainingRunning: boolean;
+    readonly following: boolean;
+  };
 }
 
 export interface VrHost {

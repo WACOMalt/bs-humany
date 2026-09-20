@@ -75,6 +75,7 @@ pub struct Renderer {
     memory_properties: vk::PhysicalDeviceMemoryProperties,
     /// The muscle tubes, once a bridge has said how many rings there are.
     muscles: Option<Muscles>,
+    tissue: Option<Tissue>,
     /// The scenery, rebuilt whenever the publisher's generation changes.
     scene: Option<(Buffer, Buffer, u32)>,
     panel: PanelGpu,
@@ -109,6 +110,25 @@ struct Muscles {
     vertex_floats: usize,
     per_target: Vec<Buffer>,
     /// Whether each image's buffer has ever been filled; an unfilled one is not drawn.
+    filled: Vec<std::cell::Cell<bool>>,
+}
+
+/// Slots from here up are colour codes, not bones: see `skeleton.vert`. Past every bone slot
+/// the uniform holds, so a code is never mistaken for one.
+pub const TINT_BASE: u32 = MAX_BONES as u32;
+/// Codes: a muscle's tension in sixteenths, then the tissue kinds.
+pub const TINT_STEPS: u32 = 16;
+pub const CODE_DISC: u32 = 16;
+pub const CODE_BEAD: u32 = 17;
+pub const CODE_BAR: u32 = 18;
+
+/// The connective tissue's buffers, the same shape as the muscles': connectivity fixed once,
+/// vertices every frame.
+struct Tissue {
+    index: Buffer,
+    index_count: u32,
+    vertex_floats: usize,
+    per_target: Vec<Buffer>,
     filled: Vec<std::cell::Cell<bool>>,
 }
 
@@ -223,9 +243,9 @@ impl Renderer {
             )
         }?;
         let push = [vk::PushConstantRange::default()
-            .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+            .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT)
             .offset(0)
-            .size(16)];
+            .size(20)];
         let pipeline_layout = unsafe {
             device.create_pipeline_layout(
                 &vk::PipelineLayoutCreateInfo::default()
@@ -376,6 +396,7 @@ impl Renderer {
             first_controller: pack.bones.len(),
             memory_properties,
             muscles: None,
+            tissue: None,
             scene: None,
             panel,
             depth,
@@ -397,7 +418,8 @@ impl Renderer {
         view_projections: &[f32; 32],
         bones: Option<&[[f32; 16]]>,
         muscles: Option<&[f32]>,
-        panel: Option<&PanelDraw>,
+        tissue: Option<&[f32]>,
+        panels: &[PanelDraw],
     ) -> Result<()> {
         let target = &self.targets[image];
         let device = &self.device;
@@ -416,28 +438,45 @@ impl Renderer {
                 if vertices.len() == tubes.vertex_floats {
                     tubes.per_target[image].write(bytes_of(vertices));
                     tubes.filled[image].set(true);
+                } else {
+                    tubes.filled[image].set(false);
                 }
+            } else if let Some(tubes) = &self.muscles {
+                tubes.filled[image].set(false);
             }
-            // The panel's meshes, packed end to end into this image's buffers, remembering where
-            // each begins so it can be drawn with its own texture.
-            let mut panel_draws: Vec<(u64, u32, u32, i32)> = Vec::new();
-            if let Some(panel) = panel {
+            if let (Some(set), Some(vertices)) = (&self.tissue, tissue) {
+                if vertices.len() == set.vertex_floats {
+                    set.per_target[image].write(bytes_of(vertices));
+                    set.filled[image].set(true);
+                } else {
+                    set.filled[image].set(false);
+                }
+            } else if let Some(set) = &self.tissue {
+                set.filled[image].set(false);
+            }
+            // The panels' meshes, packed end to end into this image's buffers, remembering where
+            // each begins and which panel it belongs to, so it is drawn with its own texture
+            // under its own placement.
+            let mut panel_draws: Vec<(usize, u64, u32, u32, i32)> = Vec::new();
+            {
                 let (vertex_buffer, index_buffer) = &self.panel.per_target[image];
                 let mut vertex_at = 0usize;
                 let mut index_at = 0usize;
-                for (texture, vertices, indices) in panel.meshes {
-                    let key = texture_key(*texture);
-                    if !self.panel.textures.contains_key(&key)
-                        || vertex_at + vertices.len() > PANEL_VERTICES
-                        || index_at + indices.len() > PANEL_INDICES
-                    {
-                        continue;
+                for (which, panel) in panels.iter().enumerate() {
+                    for (texture, vertices, indices) in panel.meshes {
+                        let key = texture_key(*texture);
+                        if !self.panel.textures.contains_key(&key)
+                            || vertex_at + vertices.len() > PANEL_VERTICES
+                            || index_at + indices.len() > PANEL_INDICES
+                        {
+                            continue;
+                        }
+                        vertex_buffer.write_at(vertex_at * 20, bytes_of(vertices));
+                        index_buffer.write_at(index_at * 4, bytes_of(indices));
+                        panel_draws.push((which, key, index_at as u32, indices.len() as u32, vertex_at as i32));
+                        vertex_at += vertices.len();
+                        index_at += indices.len();
                     }
-                    vertex_buffer.write_at(vertex_at * 20, bytes_of(vertices));
-                    index_buffer.write_at(index_at * 4, bytes_of(indices));
-                    panel_draws.push((key, index_at as u32, indices.len() as u32, vertex_at as i32));
-                    vertex_at += vertices.len();
-                    index_at += indices.len();
                 }
             }
             device.reset_command_buffer(
@@ -487,13 +526,14 @@ impl Renderer {
             device.cmd_push_constants(
                 target.command_buffer,
                 self.pipeline_layout,
-                vk::ShaderStageFlags::FRAGMENT,
+                vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
                 0,
                 bytes_of(&[
                     self.first_controller as u32,
                     self.world_slot() as u32,
                     self.stage_slot() as u32,
                     self.scene_slot() as u32,
+                    TINT_BASE,
                 ]),
             );
             device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[self.vertex.handle], &[0]);
@@ -524,15 +564,34 @@ impl Renderer {
                     device.cmd_draw_indexed(target.command_buffer, tubes.index_count, 1, 0, 0, 0);
                 }
             }
+            // The tissue, in the simulation's frame like the muscles, rebuilt each frame.
+            if let Some(set) = &self.tissue {
+                if set.filled[image].get() {
+                    device.cmd_bind_vertex_buffers(
+                        target.command_buffer,
+                        0,
+                        &[set.per_target[image].handle],
+                        &[0],
+                    );
+                    device.cmd_bind_index_buffer(
+                        target.command_buffer,
+                        set.index.handle,
+                        0,
+                        vk::IndexType::UINT32,
+                    );
+                    device.cmd_draw_indexed(target.command_buffer, set.index_count, 1, 0, 0, 0);
+                }
+            }
             // The scenery, in the simulation's frame like the muscles.
             if let Some((vertex, index, count)) = &self.scene {
                 device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[vertex.handle], &[0]);
                 device.cmd_bind_index_buffer(target.command_buffer, index.handle, 0, vk::IndexType::UINT32);
                 device.cmd_draw_indexed(target.command_buffer, *count, 1, 0, 0, 0);
             }
-            // And the panel, on its own pipeline: blended, textured, one draw a mesh.
-            if let Some(panel) = panel {
-                if !panel_draws.is_empty() {
+            // And the panels, on their own pipeline: blended, textured, one draw a mesh, each
+            // panel's meshes under its own placement.
+            if !panel_draws.is_empty() {
+                {
                     let (vertex_buffer, index_buffer) = &self.panel.per_target[image];
                     device.cmd_bind_pipeline(
                         target.command_buffer,
@@ -547,13 +606,6 @@ impl Renderer {
                         &[target.descriptor_set],
                         &[],
                     );
-                    device.cmd_push_constants(
-                        target.command_buffer,
-                        self.panel.layout,
-                        vk::ShaderStageFlags::VERTEX,
-                        0,
-                        bytes_of(&panel.model),
-                    );
                     device.cmd_bind_vertex_buffers(target.command_buffer, 0, &[vertex_buffer.handle], &[0]);
                     device.cmd_bind_index_buffer(
                         target.command_buffer,
@@ -561,7 +613,18 @@ impl Renderer {
                         0,
                         vk::IndexType::UINT32,
                     );
-                    for (key, first_index, count, vertex_offset) in &panel_draws {
+                    let mut pushed: Option<usize> = None;
+                    for (which, key, first_index, count, vertex_offset) in &panel_draws {
+                        if pushed != Some(*which) {
+                            device.cmd_push_constants(
+                                target.command_buffer,
+                                self.panel.layout,
+                                vk::ShaderStageFlags::VERTEX,
+                                0,
+                                bytes_of(&panels[*which].model),
+                            );
+                            pushed = Some(*which);
+                        }
                         let texture = &self.panel.textures[key];
                         device.cmd_bind_descriptor_sets(
                             target.command_buffer,
@@ -800,6 +863,47 @@ impl Renderer {
     /// Make room for the muscle tubes: `units` bellies of `rings` rings, `segments` round each.
     /// The connectivity is fixed from these three numbers and built once here; the vertices come
     /// every frame through `draw`.
+    /// Make room for the tissue: `indices` is its fixed connectivity over `vertex_floats / 7`
+    /// vertices, whose positions come every frame through `draw`.
+    pub fn enable_tissue(&mut self, indices: &[u32], vertex_floats: usize) -> Result<()> {
+        if let Some(old) = self.tissue.take() {
+            unsafe {
+                let _ = self.device.device_wait_idle();
+                old.index.destroy(&self.device);
+                for buffer in &old.per_target {
+                    buffer.destroy(&self.device);
+                }
+            }
+        }
+        if indices.is_empty() || vertex_floats == 0 {
+            return Ok(());
+        }
+        let index = Buffer::new(
+            &self.device,
+            &self.memory_properties,
+            std::mem::size_of_val(indices),
+            vk::BufferUsageFlags::INDEX_BUFFER,
+        )?;
+        index.write(bytes_of(indices));
+        let mut per_target = Vec::with_capacity(self.targets.len());
+        for _ in &self.targets {
+            per_target.push(Buffer::new(
+                &self.device,
+                &self.memory_properties,
+                vertex_floats * 4,
+                vk::BufferUsageFlags::VERTEX_BUFFER,
+            )?);
+        }
+        self.tissue = Some(Tissue {
+            index,
+            index_count: indices.len() as u32,
+            vertex_floats,
+            per_target,
+            filled: (0..self.targets.len()).map(|_| std::cell::Cell::new(false)).collect(),
+        });
+        Ok(())
+    }
+
     pub fn enable_muscles(&mut self, units: usize, rings: usize, segments: usize) -> Result<()> {
         if let Some(old) = self.muscles.take() {
             unsafe {
@@ -867,6 +971,12 @@ impl Drop for Renderer {
             if let Some(tubes) = &self.muscles {
                 tubes.index.destroy(&self.device);
                 for buffer in &tubes.per_target {
+                    buffer.destroy(&self.device);
+                }
+            }
+            if let Some(set) = &self.tissue {
+                set.index.destroy(&self.device);
+                for buffer in &set.per_target {
                     buffer.destroy(&self.device);
                 }
             }
@@ -1291,10 +1401,28 @@ pub fn tube_indices(units: usize, rings: usize, segments: usize) -> Vec<u32> {
 /// owned by `slot`. `rings` is eight floats a ring -- centre, orientation, radius -- as the muscle
 /// bridge carries them. Vertex `k` of a ring sits at angle `2 pi k / segments` in the ring's own
 /// XY plane, and its normal is that same direction: the ring is a circle, so radial is normal.
-pub fn tube_vertices(rings: &[f32], segments: usize, slot: u32, out: &mut Vec<f32>) {
+///
+/// `tension` is each unit's tendon force as a fraction of its maximum, in unit order, with
+/// `rings_per_unit` rings to a unit; a unit with one carries a colour code from slack to taut
+/// instead of `slot`, and the shader draws it under the world slot regardless.
+pub fn tube_vertices(
+    rings: &[f32],
+    rings_per_unit: usize,
+    segments: usize,
+    slot: u32,
+    tension: &[f32],
+    out: &mut Vec<f32>,
+) {
     out.clear();
     out.reserve(rings.len() / 8 * segments * 7);
-    for ring in rings.chunks_exact(8) {
+    for (index, ring) in rings.chunks_exact(8).enumerate() {
+        let unit = index / rings_per_unit.max(1);
+        let slot = match tension.get(unit) {
+            Some(t) if t.is_finite() => {
+                TINT_BASE + (t.clamp(0.0, 1.0) * (TINT_STEPS - 1) as f32).round() as u32
+            }
+            _ => slot,
+        };
         let centre = [ring[0], ring[1], ring[2]];
         let r = rotation([ring[3], ring[4], ring[5], ring[6]]);
         let radius = ring[7];
@@ -1954,7 +2082,7 @@ mod tests {
         // are the four compass points of a circle in the XY plane, and each normal points out.
         let ring = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.05];
         let mut out = Vec::new();
-        tube_vertices(&ring, 4, 7, &mut out);
+        tube_vertices(&ring, 1, 4, 7, &[], &mut out);
         assert_eq!(out.len(), 4 * 7);
         let v = |k: usize| &out[k * 7..k * 7 + 7];
         assert!((v(0)[0] - 0.05).abs() < 1e-6 && (v(0)[1] - 1.0).abs() < 1e-6);

@@ -85,6 +85,7 @@ import {
 } from './session.js';
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
+import { tissueTable } from './tissue.js';
 import { createMemory } from './ui/memory.js';
 import { createResizer } from './ui/resizer.js';
 import { createTabs } from './ui/tabs.js';
@@ -905,6 +906,15 @@ for (const input of [
  * hard reads as hard as a big one. Absolute newtons would colour the whole arm by which muscle
  * happens to be the strongest.
  */
+/** The tissue in bone frames, for the headset: a segment's frame is its anchor bone's. */
+let tissueCache: { sim: Simulation; table: VrStatus['tissue'] } | undefined;
+function tissueForBridge(sim: Simulation): VrStatus['tissue'] {
+  if (tissueCache?.sim === sim) return tissueCache.table;
+  const table = tissueTable(sim.articulation);
+  tissueCache = { sim, table };
+  return table;
+}
+
 function muscleOverlay(sim: Simulation) {
   const state = sim.muscleState();
   const units = sim.muscles?.units;
@@ -1213,6 +1223,7 @@ ui.muscles.addEventListener('change', () => {
 // Explanatory text is off by default: the panel has thirteen paragraphs and a reader wants at
 // most one of them at a time. The notes that carry a live value are marked `live` and stay.
 // The brain panel is made once the follow code below exists; runs read its setup when they start.
+// biome-ignore lint/style/useConst: assigned once, but below the code that reads it, so a `const` there would be in its dead zone for the handlers above.
 let brain: ReturnType<typeof createBrainPanel> | undefined;
 
 // --- The editors' chrome: tabs, what the page remembers, the overlays popover ------------------
@@ -1957,6 +1968,7 @@ const vrHost = {
         crural: Number(ui.crural.value),
         brachial: Number(ui.brachial.value),
         legLength: Number(ui.legLength.value),
+        percentile: Number(ui.percentile.value),
         dropHeight: Number(ui.dropHeight.value),
         passive: ui.passive.checked,
         redistribute: ui.redistribute.checked,
@@ -1968,6 +1980,7 @@ const vrHost = {
       driveGroups: MUSCLE_GROUPS.map((group) => ({
         title: group.title,
         level: Number(driveInputs.get(group.id)?.value ?? 0),
+        section: group.section,
       })),
       groundHeight: sim?.groundHeight ?? 0,
       staticBoxes: (sim?.staticBoxes ?? []).map((b) => ({
@@ -1981,6 +1994,50 @@ const vrHost = {
       diagnostics: sim ? diagnosticsOf(sim) : {},
       // No run at all reads as paused: the panel's Resume is then Start Sim.
       paused: !sim || sim.paused || !following,
+      mode: bridgeFollower.active ? 'following' : !sim ? 'rest' : sim.paused ? 'paused' : 'running',
+      overlays: {
+        muscles: ui.showMuscles.checked,
+        muscleVolumes: ui.showMuscleVolumes.checked,
+        tissue: ui.showTissue.checked,
+        proxies: ui.showProxies.checked,
+        axes: ui.showAxes.checked,
+        com: ui.showCom.checked,
+        contacts: ui.showContacts.checked,
+        grid: ui.showGrid.checked,
+      },
+      scenarioParameters: (() => {
+        const definition = definitionFor(ui.scenario.value);
+        if (!definition) return [];
+        const values = scenarioValues.get(definition.id) ?? {};
+        return definition.parameters.map((p) => ({
+          id: p.id,
+          title: p.label,
+          value: values[p.id] ?? p.value,
+          min: p.min,
+          max: p.max,
+          step: p.step,
+          unit: p.unit,
+        }));
+      })(),
+      muscleReadout: Object.fromEntries(
+        (['flexion', 'extension', 'loaded', 'wrapping', 'strained'] as const).map((key) => [
+          key,
+          must<HTMLElement>(`#muscle-${key}`).textContent ?? '',
+        ]),
+      ),
+      tension: sim ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],
+      tissue: sim ? tissueForBridge(sim) : { discs: [], bars: [] },
+      brain: brain?.state() ?? {
+        serverUp: false,
+        active: false,
+        authority: 0,
+        selected: '',
+        checkpoints: [],
+        fit: '',
+        training: '',
+        trainingRunning: false,
+        following: bridgeFollower.active,
+      },
     };
   },
   command(command: VrCommand): void {
@@ -1999,6 +2056,9 @@ const vrHost = {
         break;
       case 'scrub':
         if (simulation) scrubTo(Math.round(command.seconds * simulation.outputFramerate));
+        break;
+      case 'brain':
+        brain?.act(command.action, command.id, command.value);
         break;
       case 'drive': {
         const input = driveInputs.get(MUSCLE_GROUPS[command.group]?.id ?? '');
@@ -2040,10 +2100,37 @@ const vrHost = {
           case 'gravity':
           case 'floor':
           case 'grabStrength':
+          case 'percentile':
             setFromPanel(ui[key], value);
             break;
-          default:
-            console.warn('VR panel: no setting', key);
+          case 'grid':
+            setFromPanel(ui.showGrid, value);
+            break;
+          case 'play':
+            ui.playToggle.click();
+            break;
+          case 'live':
+            ui.goLive.click();
+            break;
+          default: {
+            // `overlay.<name>` is the viewport's checkbox of that name; `scenario.<id>` is one
+            // of the chosen scenario's own sliders.
+            const overlay = /^overlay\.(\w+)$/.exec(key)?.[1];
+            const parameter = /^scenario\.([\w-]+)$/.exec(key)?.[1];
+            if (overlay) {
+              const box = window.document.querySelector<HTMLInputElement>(
+                `#show${overlay.charAt(0).toUpperCase()}${overlay.slice(1)}`,
+              );
+              if (box) setFromPanel(box, value);
+              else console.warn('VR panel: no overlay', overlay);
+            } else if (parameter) {
+              const input = window.document.querySelector<HTMLInputElement>(
+                `#scenario-${parameter}`,
+              );
+              if (input) setFromPanel(input, value);
+              else console.warn('VR panel: no scenario parameter', parameter);
+            } else console.warn('VR panel: no setting', key);
+          }
         }
         break;
       }

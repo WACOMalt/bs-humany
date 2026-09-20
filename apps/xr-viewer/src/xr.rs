@@ -396,15 +396,26 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     const DEAD_ZONE: f32 = 0.15;
     let controller_scale = crate::render::scale_matrix(1.0);
     let mut muscle_vertices: Vec<f32> = Vec::new();
+    let mut tissue_vertices: Vec<f32> = Vec::new();
+    // The connective tissue's fixed shape, rebuilt when the publisher's generation changes.
+    let mut tissue_shape: Option<crate::tissue::TissueShape> = None;
+    let mut tissue_generation: Option<u64> = None;
     let mut last_tick: Option<u64> = None;
     let mut last_muscle_tick: Option<u64> = None;
 
-    // The panel: to the viewer's right of the body, a little below eye height, turned to face
-    // where they stand. Whichever hand is pointing at it is the pointer; a hand that pressed on
-    // it keeps being the pointer until it lets go, so a drag does not change hands mid-way.
-    let placement = crate::panel::Placement::facing([0.85, 1.25, -1.0], [0.0, 1.25, 0.0]);
-    let mut panel = crate::panel::Panel::new();
-    let mut pointer_hand: Option<usize> = None;
+    // The panels: the properties panel to the viewer's right of the body, a little below eye
+    // height, and the transport strip under it, both turned to face where the viewer stands.
+    // Whichever hand is pointing at a panel is its pointer; a hand that pressed on it keeps being
+    // the pointer until it lets go, so a drag does not change hands mid-way. A hand on a grab
+    // strip carries the panel instead.
+    use crate::panel::{Held, Hit, Kind, Panel, Placement};
+    let mut placements = [
+        Placement::facing(Kind::Properties.size(), [0.95, 1.3, -1.0], [0.0, 1.3, 0.0]),
+        Placement::facing(Kind::Transport.size(), [0.55, 0.76, -1.05], [0.0, 0.76, 0.0]),
+    ];
+    let mut panels = [Panel::new(Kind::Properties), Panel::new(Kind::Transport)];
+    let mut pointer_hand: [Option<usize>; 2] = [None, None];
+    let mut carrying: [Option<(usize, Held)>; crate::bridge::HANDS] = [None, None];
 
     let stage =
         session.create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)?;
@@ -511,6 +522,27 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     }
                 }
             }
+            // The tissue's shape, from the status's table and the bridge's bone order, once a
+            // generation -- or when a table first arrives from a publisher that had none.
+            if let (Some(f), Some(s)) = (feeds.as_ref(), status.as_ref()) {
+                let table_arrived = tissue_shape.is_none() && !s.tissue.discs.is_empty();
+                if tissue_generation != Some(f.generation) || table_arrived {
+                    tissue_generation = Some(f.generation);
+                    let shape = crate::tissue::TissueShape::new(&s.tissue, &f.bridge.names);
+                    renderer.enable_tissue(&shape.indices, shape.vertex_count * 7)?;
+                    tissue_vertices.clear();
+                    if shape.is_empty() {
+                        tissue_shape = None;
+                    } else {
+                        println!(
+                            "tissue: {} discs and beads, {} bars",
+                            s.tissue.discs.len(),
+                            s.tissue.bars.len()
+                        );
+                        tissue_shape = Some(shape);
+                    }
+                }
+            }
         }
 
         // The newest pose, if there is one and it is newer than the one already applied. Per
@@ -543,16 +575,22 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                             None => place,
                         };
                     }
+                    if let Some(shape) = &tissue_shape {
+                        shape.vertices(&frame.pose, &mut tissue_vertices);
+                    }
                 }
             }
             if let Some(m) = f.muscles.as_mut() {
                 if let Some(frame) = m.newest() {
                     if last_muscle_tick != Some(frame.tick) {
                         last_muscle_tick = Some(frame.tick);
+                        let tension: &[f32] = status.as_ref().map(|s| s.tension.as_slice()).unwrap_or(&[]);
                         crate::render::tube_vertices(
                             &frame.rings,
+                            m.rings,
                             m.segments,
                             renderer.world_slot() as u32,
+                            tension,
                             &mut muscle_vertices,
                         );
                     }
@@ -581,6 +619,17 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
         }
         let shift = crate::render::translation_matrix([-offset[0], -offset[1], -offset[2]]);
+        // The overlays as the studio has them; a publisher that says nothing shows everything.
+        let overlay = |name: &str| {
+            status
+                .as_ref()
+                .and_then(|s| s.overlays.get(name).copied())
+                .unwrap_or(true)
+        };
+        let show_muscles = overlay("muscles") || overlay("muscleVolumes");
+        let show_tissue = overlay("tissue");
+        matrices[renderer.stage_slot()] =
+            crate::render::scale_matrix(if overlay("grid") { 1.0 } else { 0.0 });
         // What is drawn: the world's slots through the shift, the hands' slots as they are.
         let mut drawn = matrices.clone();
         for (slot, m) in drawn.iter_mut().enumerate() {
@@ -590,13 +639,11 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 *m = crate::render::multiply(&shift, &matrices[slot]);
             }
         }
-        let panel_model = crate::render::multiply(&shift, &placement.model());
-
         // The hands: located in the stage like the eyes, drawn as cubes at their grips, and asked
         // whether they are squeezing. A hand the runtime cannot place this frame keeps its last
         // cube and cannot begin a grab, but a grab already begun continues at the last target.
-        let mut pointer = crate::panel::Pointer::default();
-        let mut pointer_candidate: Option<(usize, egui::Pos2, bool)> = None;
+        let mut pointers = [crate::panel::Pointer::default(); 2];
+        let mut pointer_candidate: [Option<(usize, egui::Pos2, bool)>; 2] = [None, None];
         for hand in 0..crate::bridge::HANDS {
             let slot = renderer.controller_slot(hand);
             let located = hands.locate(&hands.grip_spaces[hand], &stage, state.predicted_display_time)?;
@@ -621,27 +668,66 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 trigger_armed[hand] = true;
             }
             let aimed = hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?;
-            let on_panel = aimed.and_then(|(position, orientation)| {
-                let forward = crate::render::rotate([0.0, 0.0, -1.0], orientation);
-                // The panel is of the world; the ray is of the stage. Carry the ray over.
-                let from = [position[0] + offset[0], position[1] + offset[1], position[2] + offset[2]];
-                placement.hit(from, forward)
+            // The panels are of the world; the ray is of the stage. Carry the ray over.
+            let ray = aimed.map(|(position, orientation)| {
+                (
+                    [position[0] + offset[0], position[1] + offset[1], position[2] + offset[2]],
+                    orientation,
+                    crate::render::rotate([0.0, 0.0, -1.0], orientation),
+                )
             });
-            match on_panel {
-                // A hand that is holding a bone is busy; its ray is not a pointer.
-                Some(at) if holding[hand].is_none() => {
-                    let world = placement.to_world(at);
-                    let in_stage = [world[0] - offset[0], world[1] - offset[1], world[2] - offset[2]];
-                    drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
-                    let pressing = pressed && trigger_armed[hand];
-                    let keep = pointer_hand == Some(hand);
-                    if keep || pointer_candidate.is_none() {
-                        pointer_candidate = Some((hand, at, pressing));
+            // A hand carrying a panel keeps carrying it while the trigger is down, wherever it
+            // points; let go, the panel stays.
+            if let Some((which, held)) = carrying[hand] {
+                match ray {
+                    Some((from, q, _)) if pressed => {
+                        placements[which] = placements[which].carried(&held, from, q);
                     }
+                    Some(_) => {
+                        carrying[hand] = None;
+                        panels[which].grabbed = false;
+                        println!("hand {}: put the panel down", ["left", "right"][hand]);
+                    }
+                    None => {}
                 }
-                _ => {
-                    if pressed {
-                        trigger_armed[hand] = false;
+            } else {
+                let hit = ray.and_then(|(from, _, forward)| {
+                    placements
+                        .iter()
+                        .enumerate()
+                        .find_map(|(which, p)| p.hit(from, forward).map(|h| (which, h)))
+                });
+                match hit {
+                    // A hand that is holding a bone is busy; its ray is not a pointer.
+                    Some((which, Hit::Face(at))) if holding[hand].is_none() => {
+                        let world = placements[which].to_world(at);
+                        let in_stage = [world[0] - offset[0], world[1] - offset[1], world[2] - offset[2]];
+                        drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
+                        let pressing = pressed && trigger_armed[hand];
+                        let keep = pointer_hand[which] == Some(hand);
+                        if keep || pointer_candidate[which].is_none() {
+                            pointer_candidate[which] = Some((hand, at, pressing));
+                        }
+                    }
+                    Some((which, Hit::Grab(at))) if holding[hand].is_none() => {
+                        let world = placements[which].to_world(at);
+                        let in_stage = [world[0] - offset[0], world[1] - offset[1], world[2] - offset[2]];
+                        drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
+                        let already_carried = carrying.iter().flatten().any(|(w, _)| *w == which);
+                        if pressed && trigger_armed[hand] && !already_carried {
+                            if let Some((from, q, _)) = ray {
+                                carrying[hand] = Some((which, placements[which].held_by(from, q)));
+                                panels[which].grabbed = true;
+                                // This press is the grab; it clicks nothing when it ends.
+                                trigger_armed[hand] = false;
+                                println!("hand {}: took the panel", ["left", "right"][hand]);
+                            }
+                        }
+                    }
+                    _ => {
+                        if pressed {
+                            trigger_armed[hand] = false;
+                        }
                     }
                 }
             }
@@ -728,18 +814,20 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             };
             f.grabs.publish(hand, &intent);
         }
-        match pointer_candidate {
-            Some((hand, at, pressed)) => {
-                pointer_hand = if pressed { Some(hand) } else { None };
-                pointer = crate::panel::Pointer {
-                    at: Some(at),
-                    pressed,
-                };
+        for which in 0..2 {
+            match pointer_candidate[which] {
+                Some((hand, at, pressed)) => {
+                    pointer_hand[which] = if pressed { Some(hand) } else { None };
+                    pointers[which] = crate::panel::Pointer {
+                        at: Some(at),
+                        pressed,
+                    };
+                }
+                None => pointer_hand[which] = None,
             }
-            None => pointer_hand = None,
         }
 
-        // The panel, laid out afresh; its textures applied before the draw that samples them,
+        // The panels, laid out afresh; their textures applied before the draw that samples them,
         // and what was pressed sent on.
         let feeds_line = match (&feeds, follow) {
             (Some(f), _) => format!(
@@ -754,17 +842,28 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             ),
             (None, None) => "Not following a simulation: run with --follow.".to_string(),
         };
-        let panel_frame = panel.run(status.as_ref(), pointer, &feeds_line);
-        if !panel_frame.textures.is_empty() {
-            renderer.update_panel_textures(&panel_frame.textures)?;
-        }
-        let panel_meshes = panel_frame.meshes;
-        if let Some(writer) = commands.as_mut() {
-            for command in &panel_frame.commands {
-                println!("panel: {command:?}");
-                writer.send(&command.to_json())?;
+        let mut panel_meshes = Vec::with_capacity(2);
+        for (which, panel) in panels.iter_mut().enumerate() {
+            let frame = panel.run(status.as_ref(), pointers[which], &feeds_line);
+            if !frame.textures.is_empty() {
+                renderer.update_panel_textures(&frame.textures)?;
             }
+            if let Some(writer) = commands.as_mut() {
+                for command in &frame.commands {
+                    println!("panel: {command:?}");
+                    writer.send(&command.to_json())?;
+                }
+            }
+            panel_meshes.push(frame.meshes);
         }
+        let panel_draws: Vec<crate::render::PanelDraw> = placements
+            .iter()
+            .zip(panel_meshes.iter())
+            .map(|(placement, meshes)| crate::render::PanelDraw {
+                model: crate::render::multiply(&shift, &placement.model()),
+                meshes,
+            })
+            .collect();
 
         let image = swapchain.acquire_image()?;
         swapchain.wait_image(openxr::Duration::INFINITE)?;
@@ -772,11 +871,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             image as usize,
             &crate::render::view_projections(&views, 0.05, 50.0),
             Some(drawn.as_slice()),
-            if muscle_vertices.is_empty() { None } else { Some(muscle_vertices.as_slice()) },
-            Some(&crate::render::PanelDraw {
-                model: panel_model,
-                meshes: &panel_meshes,
-            }),
+            if muscle_vertices.is_empty() || !show_muscles { None } else { Some(muscle_vertices.as_slice()) },
+            if tissue_vertices.is_empty() || !show_tissue { None } else { Some(tissue_vertices.as_slice()) },
+            &panel_draws,
         )?;
         swapchain.release_image()?;
         let cpu_ms = cpu_started.elapsed().as_secs_f64() * 1000.0;
