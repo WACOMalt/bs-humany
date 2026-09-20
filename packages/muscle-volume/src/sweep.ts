@@ -346,12 +346,17 @@ export function createSweptMesh(rings: number, segments: number): SweptMesh {
       const b = ring * segments + next;
       const c = (ring + 1) * segments + s;
       const d = (ring + 1) * segments + next;
+      // Wound so the face points out of the tube: `a -> b` goes round the ring the way the
+      // angle grows and `a -> c` goes along it the way the tangent points, and the frame is
+      // right-handed, so this order is the one whose cross product is the outward radius. The
+      // other order draws every belly inside out, which a front-face-culled material shows as
+      // the far wall lit from behind.
       index[at++] = a;
-      index[at++] = c;
-      index[at++] = b;
       index[at++] = b;
       index[at++] = c;
+      index[at++] = b;
       index[at++] = d;
+      index[at++] = c;
     }
   }
 
@@ -569,6 +574,10 @@ export function sweepMuscle(request: SweepRequest, scratch: SweepScratch, out: S
  * For tests rather than for rendering. It is the check that the bulge is real: a belly that
  * shortens must enclose the same volume it did before, and measuring the mesh is the only way to
  * know that the thing on screen does, rather than the formula that was meant to make it.
+ *
+ * Signed, and positive for a mesh whose faces point outwards. It used to return the magnitude,
+ * which made it blind to the one thing about a mesh a renderer cannot survive being wrong: for a
+ * while every belly was wound inside out and this said the volume was right.
  */
 export function enclosedVolume(mesh: SweptMesh): number {
   let total = 0;
@@ -587,5 +596,5 @@ export function enclosedVolume(mesh: SweptMesh): number {
     const cz = mesh.position[c + 2] as number;
     total += (ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) + az * (bx * cy - by * cx)) / 6;
   }
-  return Math.abs(total);
+  return total;
 }

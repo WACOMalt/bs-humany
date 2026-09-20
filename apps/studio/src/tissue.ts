@@ -215,7 +215,8 @@ export function sphereMesh(radius: number, rings = 6, sides = 8): TissueMesh {
     for (let s = 0; s < sides; s++) {
       const a = r * row + s;
       const b = a + row;
-      indices.push(a, b, a + 1, a + 1, b, b + 1);
+      // Outward: round the ring, then down to the next one.
+      indices.push(a, a + 1, b, a + 1, b + 1, b);
     }
   }
   return { positions: Float32Array.from(positions), indices: Uint32Array.from(indices) };
@@ -249,7 +250,8 @@ export function barMesh(from: Vec3, to: Vec3, radius = BAR_RADIUS, sides = 6): T
   const indices: number[] = [];
   for (let i = 0; i < sides; i++) {
     const j = (i + 1) % sides;
-    indices.push(i, sides + i, j, j, sides + i, sides + j);
+    // Outward: round the near end, then along to the far one.
+    indices.push(i, j, sides + i, j, sides + j, sides + i);
   }
   return { positions: Float32Array.from(positions), indices: Uint32Array.from(indices) };
 }

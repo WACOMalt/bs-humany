@@ -325,9 +325,12 @@ createServer((request, response) => {
     return;
   }
   const ext = file.slice(file.lastIndexOf('.'));
+  // CORS on the run files too: the studio draws the showcase's brain from `runs/<name>-activity
+  // .json`, and it is served from its own origin.
   response.writeHead(200, {
     'content-type': types[ext] ?? 'application/octet-stream',
     'cache-control': 'no-store',
+    ...CORS,
   });
   response.end(readFileSync(full));
 }).listen(port, '127.0.0.1', () => console.log(`dashboard: http://localhost:${port}/`));

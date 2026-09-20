@@ -550,3 +550,43 @@ describe('where the belly starts and ends', () => {
     expect(bellyLength(volume, 0.06, 0)).toBe(0.06);
   });
 });
+
+describe('the swept mesh faces', () => {
+  it('wind outward, so a front-face-culled material shows the near wall and not the far one', () => {
+    // The volume the divergence theorem measures is positive exactly when every triangle winds
+    // the way its vertices' normals point. Inside out it is the same number negated, which is
+    // why this is measured signed: a belly drawn inside out looks lit from within, and the
+    // magnitude alone cannot tell the two apart.
+    const mesh = createSweptMesh(12, 10);
+    const points = new Float64Array(3 * 5);
+    for (let i = 0; i < 5; i++) points[3 * i] = (0.2 * i) / 4;
+    sweepMuscle(
+      { points, from: 0, pointCount: 5, volume: 1e-4, tendonLength: 0.02, tendonRadius: 0.003 },
+      createSweepScratch(5),
+      mesh,
+    );
+    expect(enclosedVolume(mesh)).toBeGreaterThan(0);
+
+    // And face by face: each triangle's own normal agrees with the normals of its vertices.
+    let agree = 0;
+    for (let i = 0; i + 2 < mesh.index.length; i += 3) {
+      const at = (k: number) => 3 * (mesh.index[i + k] as number);
+      const p = (o: number, k: number) => mesh.position[at(k) + o] as number;
+      const e1 = [p(0, 1) - p(0, 0), p(1, 1) - p(1, 0), p(2, 1) - p(2, 0)] as const;
+      const e2 = [p(0, 2) - p(0, 0), p(1, 2) - p(1, 0), p(2, 2) - p(2, 0)] as const;
+      const face = [
+        e1[1] * e2[2] - e1[2] * e2[1],
+        e1[2] * e2[0] - e1[0] * e2[2],
+        e1[0] * e2[1] - e1[1] * e2[0],
+      ];
+      const n = at(0);
+      const dot =
+        face[0] * (mesh.normal[n] as number) +
+        face[1] * (mesh.normal[n + 1] as number) +
+        face[2] * (mesh.normal[n + 2] as number);
+      if (dot > 0) agree += 1;
+    }
+    // Every face but the degenerate ones where the radius is changing fastest.
+    expect(agree).toBeGreaterThan(0.95 * (mesh.index.length / 3));
+  });
+});

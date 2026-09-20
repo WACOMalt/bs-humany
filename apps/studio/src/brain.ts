@@ -17,6 +17,18 @@ export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
 /** What a checkpoint was trained in; the trainer's `TrainingRecipe`, as the policy file keeps it. */
 export type TrainingRecipe = NonNullable<PolicyFile['recipe']>;
 
+/**
+ * The showcase's brain, as it writes it ten times a second to
+ * `tools/train/runs/<name>-activity.json`: one array a layer, senses first, drives last.
+ */
+export interface RemoteActivity {
+  readonly name: string;
+  readonly layers: readonly (readonly number[])[];
+  readonly generation: number;
+  readonly time: number;
+  readonly up: boolean;
+}
+
 /** The part of a recipe the studio's own tabs supply: the scene, the body, the joints. */
 export type RecipeInput = Pick<
   TrainingRecipe,
@@ -72,6 +84,12 @@ export interface BrainHost {
   toggleFollowing(): void;
   /** The scene, body and joints as the tabs have them now: what a new checkpoint trains in. */
   recipe(): RecipeInput;
+  /**
+   * The checkpoint whose showcase is publishing to the bridge, if one is -- the showcase puts its
+   * name in the status it writes -- so the brain being watched can be named even when this
+   * server did not start it.
+   */
+  publishedTrainingName(): string | undefined;
   /** Set the tabs up from a checkpoint's recipe, so the body handed over is the one it knows. */
   applyRecipe(recipe: TrainingRecipe): void;
   /** What the running body could use of the policy, once it is in. */
@@ -101,6 +119,11 @@ export interface BrainState {
 export interface BrainPanel {
   /** Refresh the checkpoint list and the training status; cheap, safe to call often. */
   poll(): Promise<void>;
+  /**
+   * The training showcase's brain as of the last tenth of a second, while one is publishing --
+   * what the Activity panel draws when the policy in the loop is not this page's own.
+   */
+  remoteActivity(): RemoteActivity | undefined;
   /** What the panel would put in the loop for a new run, if a policy is chosen. */
   readonly setup: NervesSetup | undefined;
   /** The panel as the headset sees it. */
@@ -148,6 +171,13 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let serverUp = false;
   let trainingRunning = false;
   let trainingStoppable = false;
+  /** The checkpoint the server is training, for the run files' names. */
+  let trainingName: string | undefined;
+  /** The checkpoint whoever is on the bridge is playing, when it is not this server's run. */
+  let publishedName: string | undefined;
+  let activity: RemoteActivity | undefined;
+  /** When the activity last actually changed: a file nobody is writing any more goes stale. */
+  let activityChangedAt = 0;
 
   const readouts: [HTMLInputElement, string][] = [
     [ui.generations, '#train-generations-value'],
@@ -247,7 +277,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const fit = host.fit();
     if (!fit) {
       ui.fitNote.textContent = setup ? 'Policy chosen; it goes in with the next run.' : '';
-      ui.idleNote.hidden = false;
+      // A showcase's brain is a brain in the loop, even though it is not this page's: the panel
+      // draws it, so the idle note would be saying the opposite of what is on the screen.
+      ui.idleNote.hidden = activity !== undefined;
       return;
     }
     ui.idleNote.hidden = true;
@@ -332,6 +364,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
 
   const showStatus = (status: TrainingStatus | undefined) => {
     trainingRunning = status?.running === true;
+    trainingName = status?.name ?? undefined;
     // The showcase that plays the run keeps publishing after the trainer has gone, and the studio
     // goes on following it, so Stop stays offered while there is anything left to stop.
     trainingStoppable = trainingRunning || status?.showcase === true;
@@ -409,6 +442,48 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   ui.start.addEventListener('click', () => void startTraining());
   ui.stop.addEventListener('click', () => void stopTraining());
 
+  /**
+   * The showcase's brain, ten times a second while there is one to watch.
+   *
+   * Its own poll rather than the status one's: the status is a second or three apart, which is a
+   * slideshow, and the activity file is small and rewritten at ten hertz. Which checkpoint's file
+   * to read comes from the server when it started the run, and otherwise from the name the
+   * showcase puts in the bridge status, so a run started in a terminal is watched too.
+   */
+  /** A showcase that has stopped leaves its last file behind; this long unchanged is gone. */
+  const ACTIVITY_STALE_MS = 3000;
+  let activityInFlight = false;
+  const pollActivity = async (): Promise<void> => {
+    const name = trainingName ?? publishedName ?? host.publishedTrainingName();
+    if (!serverUp || !name) {
+      activity = undefined;
+      return;
+    }
+    if (activityInFlight) return;
+    activityInFlight = true;
+    try {
+      const response = await fetch(`${dashboard}/runs/${encodeURIComponent(name)}-activity.json`, {
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`${response.status}`);
+      const fresh = (await response.json()) as Omit<RemoteActivity, 'name'>;
+      if (!Array.isArray(fresh.layers) || fresh.layers.length === 0) throw new Error('no layers');
+      const now = performance.now();
+      if (activity?.time !== fresh.time || activity?.generation !== fresh.generation) {
+        activityChangedAt = now;
+      }
+      // Between episodes the showcase rests a moment, so the file is allowed to stand still for
+      // a few seconds; longer than that and nobody is writing it.
+      activity = now - activityChangedAt > ACTIVITY_STALE_MS ? undefined : { ...fresh, name };
+    } catch {
+      // No showcase, or a file caught between writes: nothing to draw.
+      activity = undefined;
+    } finally {
+      activityInFlight = false;
+    }
+  };
+  window.setInterval(() => void pollActivity(), 100);
+
   async function poll(): Promise<void> {
     try {
       const [policies, status] = await Promise.all([
@@ -423,6 +498,21 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       rows = policies.policies;
       showRows();
       showStatus(status);
+      // Who is on the bridge, when this server is not the one training: the showcase names the
+      // checkpoint it is playing, and that is the run file to read the brain from.
+      if (!trainingName) {
+        try {
+          const bridge = await fetch(`${dashboard}/bridge/status`, { cache: 'no-store' });
+          const played = bridge.ok
+            ? ((await bridge.json()) as { training?: { task?: string } }).training?.task
+            : undefined;
+          publishedName = typeof played === 'string' && played !== '' ? played : undefined;
+        } catch {
+          publishedName = undefined;
+        }
+      } else {
+        publishedName = undefined;
+      }
     } catch {
       serverUp = false;
       rows = [];
@@ -437,6 +527,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     poll,
     get setup() {
       return setup;
+    },
+    remoteActivity() {
+      return activity;
     },
     state() {
       return {

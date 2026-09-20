@@ -1390,7 +1390,8 @@ pub fn tube_indices(units: usize, rings: usize, segments: usize) -> Vec<u32> {
             let b = a + segments as u32;
             for k in 0..segments as u32 {
                 let next = (k + 1) % segments as u32;
-                indices.extend_from_slice(&[a + k, b + k, b + next, a + k, b + next, a + next]);
+                // Outward, as the studio's sweep is: round the ring, then along it.
+                indices.extend_from_slice(&[a + k, a + next, b + k, a + next, b + next, b + k]);
             }
         }
     }

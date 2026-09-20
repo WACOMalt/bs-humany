@@ -34,7 +34,10 @@ export class RingTubes {
         const b = a + segments;
         for (let k = 0; k < segments; k++) {
           const next = (k + 1) % segments;
-          indices.set([a + k, b + k, b + next, a + k, b + next, a + next], at);
+          // Wound outward, as the sweep in `@bs-humany/muscle-volume` is: round the ring the way
+          // the angle grows, then along it the way the tangent points. The other order draws the
+          // tube inside out, which a front-face-culled material shows as its far wall.
+          indices.set([a + k, a + next, b + k, a + next, b + next, b + k], at);
           at += 6;
         }
       }

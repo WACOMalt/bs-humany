@@ -90,13 +90,14 @@ impl TissueShape {
             for i in 0..BAR_SIDES as u32 {
                 let j = (i + 1) % BAR_SIDES as u32;
                 let s = BAR_SIDES as u32;
+                // Outward: round the near end, then along to the far one.
                 indices.extend_from_slice(&[
                     base + i,
-                    base + s + i,
-                    base + j,
                     base + j,
                     base + s + i,
+                    base + j,
                     base + s + j,
+                    base + s + i,
                 ]);
             }
             vertex_count += 2 * BAR_SIDES;
@@ -221,7 +222,8 @@ fn sphere(radius: f32, rings: usize, sides: usize) -> Mesh {
         for s in 0..sides as u32 {
             let a = r * row + s;
             let b = a + row;
-            indices.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+            // Outward, as the studio's sphere is: round the ring, then down to the next.
+            indices.extend_from_slice(&[a, a + 1, b, a + 1, b + 1, b]);
         }
     }
     (vertices, indices)
