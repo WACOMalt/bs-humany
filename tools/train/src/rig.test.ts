@@ -105,3 +105,40 @@ describe('the rig a showcase publishes from', () => {
     }
   }, 180_000);
 });
+
+describe('a scenario with a seed of its own', () => {
+  it('gives every episode its own floor, and a mirrored pair the same one', async () => {
+    // The trainer hands out `1000 * generation + 7 * pair + k`, and both halves of a mirrored
+    // pair share a `pair`. What the rig does with that seed decides whether a policy is scored
+    // on the floor it learned or on one it has not seen.
+    const rig = await StandRig.build({
+      profileId: 'l1_standard',
+      hidden: [8],
+      seconds: 2,
+      authority: 0.3,
+      feedforward: { kind: 'none' },
+      task: 'balance',
+      scenario: { id: 'tilting-floor', parameters: { tilt: 8, every: 0.4, hold: 0.25 } },
+    });
+    try {
+      // Where the body has got to is a fingerprint of the floor it was standing on: the same
+      // weights and the same start, so anything that differs came from the floor.
+      const fingerprint = (seed: number): string => {
+        rig.begin(new Float32Array(rig.parameterCount), seed);
+        for (let i = 0; i < 700; i++) rig.tick();
+        const at = rig.segments();
+        const pelvis = at.ids.indexOf('pelvis');
+        return [0, 1, 2].map((k) => (at.position[3 * pelvis + k] as number).toFixed(6)).join(',');
+      };
+      const a = fingerprint(1000);
+      const b = fingerprint(1001);
+      const c = fingerprint(2000);
+      expect(a).not.toBe(b);
+      expect(a).not.toBe(c);
+      // The same seed twice is the same floor twice: a run has to be repeatable.
+      expect(fingerprint(1000)).toBe(a);
+    } finally {
+      rig.dispose();
+    }
+  }, 180_000);
+});

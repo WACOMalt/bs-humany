@@ -557,13 +557,30 @@ export class StandRig {
    * weights, `tick` advances one tick with the clip playing, and says whether the body is
    * still up.
    */
-  begin(weights: Float32Array): void {
+  begin(weights: Float32Array, seed = 0): void {
     this.nerves.policy.weights.set(weights);
     this.kernel.restore(this.snapshot);
     this.nerves.forget();
     for (const unit of this.units) this.drive.setOverride(unit, null, 'script');
+    this.reseedScenario(seed);
     this.live = 0;
     this.airborne = 0;
+  }
+
+  /**
+   * Draw this episode's scenario afresh, where the scenario has a seed of its own.
+   *
+   * The tilting floor does. A policy scored on one floor learns that floor, so every episode
+   * gets its own -- and the two halves of a mirrored pair get the same one, because the search
+   * is asking which of them stands better through the same disturbance and a pair disturbed
+   * differently answers with the difference between the disturbances instead.
+   */
+  private reseedScenario(seed: number): void {
+    if (!this.definition?.parameters.some((p) => p.id === 'seed')) return;
+    this.scenario = this.definition.build({
+      ...(this.options.scenario?.parameters ?? {}),
+      seed: 1 + (Math.abs(seed) % 9999),
+    });
   }
 
   /** What plays under the brain at this moment: the clip, the scenario's script, or nothing. */
@@ -596,14 +613,7 @@ export class StandRig {
     // The twitch: a group, a moment, a burst -- from the seed, so a candidate's seeds are the
     // same nudges for every candidate that gets them.
     const random = seeded(seed);
-    // A scenario with a seed of its own -- the tilting floor -- draws afresh each episode, so a
-    // policy is scored on floors it has not seen rather than on the one it has learned.
-    if (this.definition?.parameters.some((p) => p.id === 'seed')) {
-      this.scenario = this.definition.build({
-        ...(this.options.scenario?.parameters ?? {}),
-        seed: 1 + (Math.abs(seed) % 9999),
-      });
-    }
+    this.reseedScenario(seed);
     const twitchOutput = Math.floor(random() * this.nerves.outputs.length);
     const twitchAt = 0.5 + random() * Math.max(0.1, this.options.seconds - 1.5);
     const twitchUnits = this.nerves.outputs[twitchOutput]?.units.map((u) => u.id) ?? [];

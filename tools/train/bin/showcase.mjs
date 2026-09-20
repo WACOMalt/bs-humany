@@ -217,7 +217,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 for (;;) {
   reload();
   episode += 1;
-  rig.begin(weights);
+  // A different floor every episode, as training gets: watching one policy meet the same
+  // disturbance over and over says less than watching it meet a new one.
+  rig.begin(weights, episode);
   const episodeStart = performance.now();
   let ticks = 0;
   let lastStatus = 0;
