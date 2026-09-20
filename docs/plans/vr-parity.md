@@ -69,15 +69,18 @@ JSON; the status carries the settings, the drive groups and the diagnostics, and
 ## 5. Desktop
 
 - [x] `Connect VR viewer` still unhides under Tauri in the new top bar (`main.ts:2059`).
-- [ ] `pnpm desktop:appimage` builds with the new sidecar; the AppImage launches, connects the
-      viewer, and the viewer shows the new muscles and tissue. (First build started on the
-      pre-parity code to validate packaging.)
+- [x] `pnpm desktop:appimage` builds with the new sidecar (124 MB, both binaries in
+      `usr/bin`) and launches.
+- [ ] In the headset: the AppImage's Connect VR shows the new muscles, the tissue and the two
+      panels; the grab strip carries them; the Brain tab's buttons reach the studio.
 - [x] `apps/studio/src-tauri/README.md` version table says 0.2.0.
 
 ## 6. Verify
 
-- [ ] `cargo build --release` for the viewer; `pnpm publish:pose` headless and the viewer's
-      panels against it; the studio's Connect VR on the desktop build.
+- [x] `cargo build --release` for the viewer; `pnpm publish:pose` headless writes every key
+      the viewer reads, and every tissue frame names a bone in the pose order.
+- [ ] The viewer's panels against a headless publisher, and the studio's Connect VR on the
+      desktop build -- both want a headset on.
 - [x] Tests: the tissue table (`apps/studio/src/tissue.test.ts`); Rust: the panel's command
       JSON, a carried placement, the tissue shape. The brain's `state()`/`act()` and the command
       handler drive DOM elements and are checked in the browser, since the studio's tests run
