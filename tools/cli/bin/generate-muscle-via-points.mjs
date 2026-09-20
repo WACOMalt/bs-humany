@@ -50,6 +50,22 @@
  * two skeletons have similar proportions; where they do not, a forearm point is out by the
  * difference between the two ratios, which is a few per cent of a bone.
  *
+ * ## The bone a point is fixed to
+ *
+ * A carried point rides the bone the reference model's own body carries it on, which is usually
+ * right and sometimes not: the reference's bodies are its skeleton's, not ours. Its radius body
+ * carries the hand, so the flexor carpi ulnaris -- a muscle that runs down the ulna and inserts
+ * on the pisiform -- has its forearm points on the radius, where they would turn with pronation
+ * as the real tendon does not. Its tibia body carries the fibula, so the fibularis tendons, which
+ * run behind the lateral malleolus, are on the tibia.
+ *
+ * `rebind` moves such a unit's points to the bone they belong on, and names the bone they came
+ * from as well as the one they go to: the fibularis longus runs behind the malleolus *and* across
+ * the sole, so its leg points belong on the fibula and its foot points belong where they are. It
+ * is a change of *frame*, not of place: the point stays where it was carried to and is written as
+ * an offset from the other bone's centroid, so what changes is only which bone it moves with.
+ * Where the place is wrong too, that is the frame correspondence's business and not this.
+ *
  * ## Which way round a path runs
  *
  * The reference model does not agree with itself about which end of a tendon comes first: the
@@ -162,6 +178,12 @@ const LIMBS = [
       site: 'TRIlong_TRIlong-P5_r',
       ours: (skeleton) => skeleton.measuredWorld('ulna_r', 'Olecranon'),
     },
+    /** Points the reference carries on one bone that belong on another of ours. */
+    rebind: {
+      // Down the ulna to the pisiform: the reference's radius body carries the hand, so its
+      // forearm points are on the radius, where pronation would swing them.
+      flexor_carpi_ulnaris_r: { radius_r: 'ulna_r' },
+    },
     units: [
       { unit: 'deltoid_anterior_r', tendon: 'DELT1', from: 'clavicle_r' },
       { unit: 'deltoid_middle_r', tendon: 'DELT2', from: 'scapula_r' },
@@ -272,6 +294,13 @@ const LIMBS = [
         { name: 'superior_pole', pick: 'max', axis: 'y' },
         { name: 'inferior_pole', pick: 'min', axis: 'y' },
       ],
+    },
+    rebind: {
+      // Behind the lateral malleolus, which is the fibula's. The reference's tibia body carries
+      // the fibula, so both fibularis tendons arrive on the tibia. Their points on the foot are
+      // on the foot in both models and stay.
+      fibularis_longus_r: { tibia_r: 'fibula_r' },
+      fibularis_brevis_r: { tibia_r: 'fibula_r' },
     },
     units: [
       { unit: 'rectus_femoris_r', tendon: 'recfem_r', from: 'hip_r' },
@@ -631,8 +660,10 @@ for (const limb of LIMBS) {
       index++;
       const site = sites.get(name);
       if (!site) throw new Error(`${limb.chain}: no site '${name}' on any body of this limb`);
-      const centroid = centroids.get(site.bone);
-      if (!centroid) throw new Error(`'${site.bone}' is not in the packed dataset`);
+      // The bone it rides: the reference's, unless this unit's tendon runs on another there.
+      const bone = limb.rebind?.[spec.unit]?.[site.bone] ?? site.bone;
+      const centroid = centroids.get(bone);
+      if (!centroid) throw new Error(`'${bone}' is not in the packed dataset`);
       const inReference = intoFrame(referenceBasis, referenceOrigin, site.point);
       const scaled = inReference.map((c) => c * scale);
       const world = outOfFrame(ourBasis, ours.origin, scaled);
@@ -640,7 +671,7 @@ for (const limb of LIMBS) {
         id: `${spec.unit}__via_${index}`,
         unit: spec.unit,
         order: index,
-        bone: site.bone,
+        bone,
         site: name,
         local: [
           round((world[0] - centroid[0]) / stature),
@@ -649,9 +680,14 @@ for (const limb of LIMBS) {
         ],
       });
     }
+    const rebind = limb.rebind?.[spec.unit];
+    const from = [...new Set(names.map((n) => sites.get(n).bone))];
+    const to = [...new Set(from.map((b) => rebind?.[b] ?? b))];
+    const where = rebind
+      ? `${to.join(', ')} (from ${from.join(', ')})`
+      : from.join(', ') || '(none)';
     console.error(
-      `  ${spec.unit.padEnd(26)} ${String(names.length).padStart(2)} via point(s) on ` +
-        `${[...new Set(names.map((n) => sites.get(n).bone))].join(', ') || '(none)'}`,
+      `  ${spec.unit.padEnd(26)} ${String(names.length).padStart(2)} via point(s) on ${where}`,
     );
   }
 }
