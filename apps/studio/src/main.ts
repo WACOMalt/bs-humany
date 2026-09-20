@@ -2053,7 +2053,7 @@ const nervesNote = must<HTMLElement>('#nerves-note');
 let nervesImage: ImageData | null = null;
 
 function drawNerves(sim: Simulation): void {
-  const nerves = sim.nerves;
+  const nerves = sim.brainActive ? sim.nerves : undefined;
   if (!nerves) {
     if (!nervesControl.hidden) nervesControl.hidden = true;
     return;
@@ -2176,23 +2176,26 @@ followButton.addEventListener('click', () => {
 // ---------------------------------------------------------------------------------------------
 
 brain = createBrainPanel({
-  handOver() {
-    // A restart with the state carried, as a morphology change does; a run that is not going
-    // just takes the policy with it when it starts.
+  handOver(setup) {
+    // Live: the nerves are in every muscle run, so the policy goes in between one control step
+    // and the next, and nothing restarts. A run that is not going takes it when it starts.
     if (!simulation) return;
-    const carry = {
-      state: simulation.jointState(),
-      ticks: simulation.ticks,
-      paused: simulation.paused,
-    };
-    void startSimulation(undefined, carry);
+    if (!setup) {
+      simulation.releaseBrain();
+      return;
+    }
+    try {
+      simulation.handOver(setup.policy, setup.authority);
+    } catch (error) {
+      setSimulationStatus(String(error), true);
+    }
   },
   follow() {
     if (!bridgeFollower.active) followButton.click();
   },
   fit() {
     const nerves = simulation?.nerves;
-    if (!nerves) return undefined;
+    if (!nerves || !simulation?.brainActive) return undefined;
     const inputs = nerves.observation.size;
     const outputs = nerves.outputs.length;
     return { carried: nerves.carried ?? { inputs, outputs }, inputs, outputs };

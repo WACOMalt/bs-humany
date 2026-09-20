@@ -46,7 +46,7 @@ import {
   compileMuscleSet,
   extractMuscleRings,
 } from '@bs-humany/modules-muscle';
-import { NervesModule } from '@bs-humany/modules-nerves';
+import { MlpPolicy, NervesModule, type PolicyFile } from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -173,8 +173,10 @@ export class Simulation {
   readonly musclePath: MusclePathModule | undefined;
   readonly muscleDynamics: MuscleDynamicsModule | undefined;
   readonly muscleVolume: MuscleVolumeModule | undefined;
-  /** The nerves, when the scenario puts a trained policy in the loop, and what it asked for. */
+  /** The nerves: in every muscle run, dormant until a policy is handed to them. */
   readonly nerves: NervesModule | undefined;
+  /** Whether a policy is in charge, rather than the nerves lying dormant. */
+  brainActive = false;
   readonly scenarioNerves: NervesSetup | undefined;
   readonly backendId: BackendId;
   readonly capabilities: BackendCapabilities;
@@ -351,21 +353,26 @@ export class Simulation {
       this.kernel.register(this.musclePath);
       this.kernel.register(this.muscleDynamics);
       this.kernel.register(this.muscleVolume);
+      // The nerves are in every muscle run, dormant when nothing has been handed to them -- a
+      // zero policy with no authority adds nothing to the drive -- so a policy can be put in
+      // charge of a running body live, between one control step and the next, with nothing
+      // restarted and the recording unbroken.
       const setup = options.nerves ?? options.scenario?.nerves;
       this.scenarioNerves = setup;
-      if (setup) {
-        const goal = new Float64Array(GOAL_SIZE);
-        goal[Math.max(0, Math.min(GOAL_SIZE - 1, setup.goal))] = 1;
-        this.nerves = new NervesModule(this.articulation, this.muscles, {
-          policy: setup.policy,
-          outputs: driveOutputs(),
-          goalSize: GOAL_SIZE,
-          goal: () => goal,
-          controlDivisor: setup.controlDivisor,
-          authority: setup.authority,
-        });
-        this.kernel.register(this.nerves);
-      }
+      const goal = new Float64Array(GOAL_SIZE);
+      goal[Math.max(0, Math.min(GOAL_SIZE - 1, setup?.goal ?? 0))] = 1;
+      this.nerves = new NervesModule(this.articulation, this.muscles, {
+        policy: setup
+          ? setup.policy
+          : (inputs, outputs) => new MlpPolicy([inputs, 32, 32, outputs]),
+        outputs: driveOutputs(),
+        goalSize: GOAL_SIZE,
+        goal: () => goal,
+        controlDivisor: setup?.controlDivisor ?? Math.max(1, Math.round(rate / 100)),
+        authority: setup ? setup.authority : 0,
+      });
+      this.brainActive = setup !== undefined;
+      this.kernel.register(this.nerves);
     }
 
     this.outputFramerate = options.outputFramerate ?? DEFAULT_OUTPUT_FRAMERATE;
@@ -735,6 +742,25 @@ export class Simulation {
    * units are in. The same eight floats a ring the capture records, which is what a renderer that
    * sweeps its own tubes needs and a hundred times less than the vertices.
    */
+  /**
+   * Put a policy in charge of the running body, live: fitted to it by name, swapped into the
+   * nerves between one control step and the next. Returns what the body could use of it.
+   */
+  handOver(policy: PolicyFile, authority: number): { inputs: number; outputs: number } {
+    const nerves = this.nerves;
+    if (!nerves) throw new Error('This run has no muscles, so nothing for a policy to drive.');
+    const carried = nerves.adopt(policy);
+    nerves.authorityLevel = authority;
+    this.brainActive = true;
+    return carried;
+  }
+
+  /** Take the policy out of the loop; the run carries on under the clip and the sliders. */
+  releaseBrain(): void {
+    this.nerves?.release();
+    this.brainActive = false;
+  }
+
   muscleRings():
     | {
         readonly position: Float32Array;

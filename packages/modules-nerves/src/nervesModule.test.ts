@@ -91,6 +91,23 @@ describe('NervesModule', () => {
     expect(obs[obs.length - 1]).toBe(0);
     const downY = obs[nq - 7 + (nv - 6) + 1] as number;
     expect(downY).toBeLessThan(-0.8);
+
+    // A policy handed over live: fitted by name, in charge between one step and the next, and
+    // released to silence without a restart.
+    const file = new MlpPolicy([inputs, 4, 2]).toFile({
+      task: 'stand',
+      inputs: [...nerves.observation.names],
+      outputs: ['soleus', 'tibialis'],
+    });
+    expect(nerves.adopt(file)).toEqual({ inputs, outputs: 2 });
+    nerves.authorityLevel = 0.2;
+    // Adopting forgets: the count starts again, and ten ticks at a divisor of five are two.
+    kernel.run(10);
+    expect(nerves.evaluationsSoFar).toBe(2);
+    nerves.release();
+    expect(nerves.authorityLevel).toBe(0);
+    kernel.run(5);
+    expect(nerves.lastCommand[0]).toBe(0);
     kernel.dispose();
   });
 });

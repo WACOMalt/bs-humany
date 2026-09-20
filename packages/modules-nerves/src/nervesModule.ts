@@ -85,7 +85,7 @@ export class NervesModule implements SimModule {
   /** How much of a fitted file this body could use; all of it when the file was its own. */
   carried: { inputs: number; outputs: number } | undefined;
   private policyInUse: MlpPolicy | undefined;
-  private readonly authority: number;
+  private authority: number;
   private readonly controlDivisor: number;
   private readonly goal: (() => ArrayLike<number>) | undefined;
   private obs = new Float64Array(0);
@@ -196,6 +196,44 @@ export class NervesModule implements SimModule {
   /** Ticks between evaluations, as settled. */
   get divisor(): number {
     return this.controlDivisor;
+  }
+
+  /** How much any one output may add to or take from a unit's excitation; 0 is silence. */
+  get authorityLevel(): number {
+    return this.authority;
+  }
+
+  set authorityLevel(value: number) {
+    this.authority = Math.max(0, Math.min(1, value));
+  }
+
+  /**
+   * Put a policy file in charge of this body, live: fitted by the names of its senses and
+   * drives, so any checkpoint fits, and swapped in between one control step and the next with
+   * nothing restarted. What the body could use of it is reported in `carried`.
+   */
+  adopt(file: PolicyFile): { inputs: number; outputs: number } {
+    const inUse = this.policyInUse;
+    if (!inUse) throw new Error('NervesModule.adopt before init.');
+    const fitted = MlpPolicy.fit(
+      file,
+      this.observation.names,
+      this.outputs.map((o) => o.id),
+    );
+    this.policyInUse = fitted.policy;
+    this.carried = fitted.carried;
+    this.forget();
+    return fitted.carried;
+  }
+
+  /** Take the policy out of the loop: zero weights, so the command is silence, and no authority. */
+  release(): void {
+    const inUse = this.policyInUse;
+    if (!inUse) return;
+    this.policyInUse = new MlpPolicy(inUse.sizes);
+    this.carried = undefined;
+    this.authority = 0;
+    this.forget();
   }
 
   /** The policy in use; not until `init`, when the body has said how much it observes. */
