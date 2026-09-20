@@ -53,7 +53,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
-const { openPoseBridge, openMuscleBridge } = await jiti.import(
+const { openPoseBridge, openMuscleBridge, claimBridge, temporaryName } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
 
@@ -75,6 +75,8 @@ order.forEach((id, i) => {
   );
 });
 const stature = evaluate(param('stature'), rig.restContext);
+// One publisher a path, claimed before anything of the last one is wiped.
+claimBridge(path, 'A showcase or a publisher');
 for (const suffix of ['', '.json', '-muscles', '-grab', '-status.json', '-commands.jsonl'])
   rmSync(`${path}${suffix}`, { force: true });
 const writer = openPoseBridge(
@@ -96,6 +98,9 @@ const muscleWriter = shape
 
 // Static for the run: the body does not change while a showcase is playing it.
 const tissue = tissueTable(rig.articulation);
+
+const posePartial = temporaryName(posePath);
+const activityPartial = temporaryName(activityPath);
 
 let loadedAt = 0;
 let weights = null;
@@ -170,13 +175,14 @@ function writeStatus(episode, upFor) {
     // Each unit's tendon force as a fraction of its maximum, in unit order: the tint.
     tension: Array.from(rig.muscleTension(), (v) => Number(v.toFixed(3))),
   };
-  writeFileSync(`${path}-status.json.tmp`, JSON.stringify(status));
-  renameSync(`${path}-status.json.tmp`, `${path}-status.json`);
+  const tmp = temporaryName(`${path}-status.json`);
+  writeFileSync(tmp, JSON.stringify(status));
+  renameSync(tmp, `${path}-status.json`);
 }
 function writePose(time, up) {
   const s = rig.segments();
   writeFileSync(
-    `${posePath}.tmp`,
+    posePartial,
     JSON.stringify({
       time,
       up,
@@ -185,12 +191,12 @@ function writePose(time, up) {
       position: Array.from(s.position, (v) => Number(v.toFixed(3))),
     }),
   );
-  renameSync(`${posePath}.tmp`, posePath);
+  renameSync(posePartial, posePath);
 }
 function writeActivity(time, up) {
   const a = rig.activity();
   writeFileSync(
-    `${activityPath}.tmp`,
+    activityPartial,
     JSON.stringify({
       task,
       time,
@@ -200,7 +206,7 @@ function writeActivity(time, up) {
       outputs: a.outputs,
     }),
   );
-  renameSync(`${activityPath}.tmp`, activityPath);
+  renameSync(activityPartial, activityPath);
 }
 
 console.log(`showcasing ${name} from ${policyPath} -> ${path} at ${fps} poses/s; Ctrl-C to stop`);

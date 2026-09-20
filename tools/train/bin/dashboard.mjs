@@ -76,7 +76,8 @@ function trainStatus() {
   const running = training !== null && training.trainer.exitCode === null;
   // The showcase plays the run on the bridge and outlives the trainer, so it is said separately:
   // while it is up there is still something for Stop to stop.
-  const showcase = training !== null && training.showcase.exitCode === null;
+  const showcase =
+    training !== null && (training.showcase === null || training.showcase.exitCode === null);
   let latest = null;
   try {
     latest = JSON.parse(
@@ -211,16 +212,39 @@ function trainStart(body) {
     cwd: ROOT,
     stdio: ['ignore', 'inherit', 'inherit'],
   });
-  if (training && training.showcase.exitCode === null) training.showcase.kill('SIGINT');
-  const showcase = spawn(
-    process.execPath,
-    [join(ROOT, 'tools/train/bin/showcase.mjs'), '--recipe', recipePath],
-    {
+  // The old showcase has to be gone before the new one starts, not merely asked to go: the two
+  // publish to one bridge, and the new one's first act is to wipe the files the old one is still
+  // writing. The bridge refuses a second publisher anyway, so overlapping them just means the
+  // new one refuses to start.
+  const previous = training?.showcase;
+  if (previous && previous.exitCode === null) previous.kill('SIGINT');
+  const showcase = () =>
+    spawn(process.execPath, [join(ROOT, 'tools/train/bin/showcase.mjs'), '--recipe', recipePath], {
       cwd: ROOT,
       stdio: ['ignore', 'inherit', 'inherit'],
-    },
-  );
-  training = { task, name, recipe, trainer, showcase, startedAt: new Date().toISOString() };
+    });
+  const started =
+    previous && previous.exitCode === null
+      ? new Promise((resolve) => {
+          const go = () => resolve(showcase());
+          previous.once('exit', go);
+          // It is being asked to save what it has; a showcase that will not go is killed outright
+          // rather than left to fight the new one for the bridge.
+          setTimeout(() => {
+            if (previous.exitCode === null) previous.kill('SIGKILL');
+          }, 3000).unref?.();
+        })
+      : Promise.resolve(showcase());
+  training = { task, name, recipe, trainer, showcase: null, startedAt: new Date().toISOString() };
+  const mine = training;
+  void started.then((child) => {
+    // A run stopped while its showcase was still starting does not want it after all.
+    if (training !== mine) {
+      child.kill('SIGINT');
+      return;
+    }
+    mine.showcase = child;
+  });
   trainer.on('exit', () => {
     // The showcase keeps the last policy on the bridge; the studio can go on watching it.
   });
@@ -236,7 +260,7 @@ function trainStop() {
     training.trainer.kill('SIGINT');
     stopped = true;
   }
-  if (training.showcase.exitCode === null) {
+  if (training.showcase && training.showcase.exitCode === null) {
     training.showcase.kill('SIGINT');
     stopped = true;
   }

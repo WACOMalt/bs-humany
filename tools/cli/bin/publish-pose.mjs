@@ -73,9 +73,8 @@ const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'
 const { scenario, SCENARIOS, DEFAULT_SCENARIO, MUSCLE_GROUPS, driveForSlider } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
-const { openPoseBridge, openMuscleBridge, GrabIntentReader } = await jiti.import(
-  join(ROOT, 'packages/pose-bridge/src/index.ts'),
-);
+const { openPoseBridge, openMuscleBridge, GrabIntentReader, claimBridge, temporaryName } =
+  await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
 
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
@@ -259,6 +258,9 @@ function clearBridgeFiles() {
     rmSync(`${path}${suffix}`, { force: true });
   }
 }
+// One publisher a path: a showcase and this one on the same bridge wipe each other's files and
+// race on the names a status is renamed through.
+claimBridge(path, 'A showcase or a publisher');
 clearBridgeFiles();
 
 let generation = 1;
@@ -346,7 +348,7 @@ function writeStatus() {
     })),
     diagnostics: diagnostics(simulation),
   };
-  const tmp = `${path}-status.json.tmp`;
+  const tmp = temporaryName(`${path}-status.json`);
   writeFileSync(tmp, JSON.stringify(status));
   renameSync(tmp, `${path}-status.json`);
 }

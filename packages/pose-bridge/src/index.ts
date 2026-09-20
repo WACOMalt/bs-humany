@@ -5,3 +5,4 @@
 
 export * from './codec.js';
 export * from './node.js';
+export * from './owner.js';
