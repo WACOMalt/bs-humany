@@ -492,6 +492,9 @@ importers:
       '@bs-humany/compiler':
         specifier: workspace:*
         version: link:../../packages/compiler
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../../packages/hsdl
       '@bs-humany/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel

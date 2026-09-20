@@ -3,6 +3,7 @@
  * Show the learner: the best policy so far, standing in a body the headset can watch.
  *
  *   pnpm train:showcase            # follows packages/modules-nerves/policies/stand.json as it changes
+ *   pnpm train:showcase --recipe tools/train/runs/my-stand-recipe.json   # a named checkpoint, in its scenario
  *
  * A rig like the trainer's, but paced to the wall clock and publishing its bones to the pose
  * bridge every output frame, so `bs-humany-xr-viewer view --follow` shows the current best
@@ -24,14 +25,25 @@ const flag = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at >= 0 && args[at + 1] !== undefined ? args[at + 1] : fallback;
 };
-const task = flag('task', 'stand');
 const path = flag('path', '/dev/shm/bs-humany-pose');
 const fps = Number(flag('fps', 90));
-const policyPath = flag('policy', join(ROOT, 'packages/modules-nerves/policies', `${task}.json`));
-const activityPath = join(ROOT, 'tools/train/runs', `${task}-activity.json`);
-const posePath = join(ROOT, 'tools/train/runs', `${task}-pose.json`);
 
-const { StandRig } = await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
+const { StandRig, rigOptionsFor, defaultRecipe } = await jiti.import(
+  join(ROOT, 'tools/train/src/rig.ts'),
+);
+const recipePath = flag('recipe', undefined);
+const recipe = recipePath
+  ? JSON.parse(readFileSync(recipePath, 'utf8'))
+  : defaultRecipe(
+      flag('task', 'stand'),
+      flag('profile', 'l3_anatomical'),
+      Number(flag('authority', 0.3)),
+    );
+const task = recipe.task;
+const name = recipe.name;
+const policyPath = flag('policy', join(ROOT, 'packages/modules-nerves/policies', `${name}.json`));
+const activityPath = join(ROOT, 'tools/train/runs', `${name}-activity.json`);
+const posePath = join(ROOT, 'tools/train/runs', `${name}-pose.json`);
 const { MlpPolicy } = await jiti.import(join(ROOT, 'packages/modules-nerves/src/index.ts'));
 const { computeWorldTransforms, buildDocument } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/index.ts'),
@@ -44,14 +56,9 @@ const { openPoseBridge, openMuscleBridge } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
 
-const rig = await StandRig.build({
-  profileId: flag('profile', 'l3_anatomical'),
-  hidden: [32, 32],
-  seconds: 30,
-  authority: Number(flag('authority', 0.3)),
-  clip: task === 'walk' ? 'walk-normal' : 'quiet-standing',
-  poseBones: true,
-});
+const rig = await StandRig.build(
+  rigOptionsFor(recipe, { hidden: [32, 32], seconds: 30, poseBones: true }),
+);
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
 const rests = computeWorldTransforms(document, rig.restContext);
@@ -121,8 +128,8 @@ function writeStatus(episode, upFor) {
   const status = {
     generation: 1,
     scenario: {
-      id: `training-${task}`,
-      title: `Training: ${task}, generation ${meta.generations ?? 0}`,
+      id: `training-${name}`,
+      title: `Training: ${name}, generation ${meta.generations ?? 0}`,
     },
     scenarios: [],
     profiles: [],
@@ -147,7 +154,12 @@ function writeStatus(episode, upFor) {
     },
     groundHeight: 0,
     staticBoxes: [],
-    training: { task, episode, generation: meta.generations ?? 0, fitness: meta.fitness ?? 0 },
+    training: {
+      task: name,
+      episode,
+      generation: meta.generations ?? 0,
+      fitness: meta.fitness ?? 0,
+    },
     // Each unit's tendon force as a fraction of its maximum, in unit order: the tint.
     tension: Array.from(rig.muscleTension(), (v) => Number(v.toFixed(3))),
   };
@@ -184,14 +196,15 @@ function writeActivity(time, up) {
   renameSync(`${activityPath}.tmp`, activityPath);
 }
 
-console.log(`showcasing ${task} from ${policyPath} -> ${path} at ${fps} poses/s; Ctrl-C to stop`);
+console.log(`showcasing ${name} from ${policyPath} -> ${path} at ${fps} poses/s; Ctrl-C to stop`);
 while (!reload()) {
   console.log('  waiting for a policy file');
   await new Promise((r) => setTimeout(r, 2000));
 }
 const started = performance.now();
-const dt = 1 / 500;
-const ticksPerFrame = Math.max(1, Math.round(500 / fps));
+// The rig's own step: an L3 body runs at a thousand a second, an L1 at five hundred.
+const dt = rig.stepSeconds;
+const ticksPerFrame = Math.max(1, Math.round(1 / dt / fps));
 let episode = 0;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 for (;;) {

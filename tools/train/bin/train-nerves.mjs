@@ -6,6 +6,14 @@
  *   pnpm train:nerves --generations 400 --population 32 --workers 16 --seconds 6
  *   pnpm train:nerves --resume                     # continue from the saved policy
  *   pnpm train:nerves --profile l1_standard        # a coarser body; L3, the reference, is the default
+ *   pnpm train:nerves --recipe tools/train/runs/my-stand-recipe.json   # the studio's way
+ *
+ * A recipe names the checkpoint and says what it is trained in: the scenario and its parameter
+ * values, the body, whether the joints resist, and what plays under the brain -- nothing, the
+ * scenario's own muscle script, or an activation clip. The dashboard writes one from the
+ * studio's Brain tab; without one, the flags describe the reference body standing on the ground
+ * with the quiet-standing clip under it, saved as `<task>.json`. The recipe is written into the
+ * policy file, so a checkpoint says how to set the studio up before it is handed the body.
  *
  * A resumed policy is fitted to the body by the names of its senses and drives, so a search
  * begun on a coarser profile carries on at a finer one: what it learned stays, the senses the
@@ -13,8 +21,8 @@
  *
  * Evolution strategies over the policy's weights, every candidate scored on its own copy of the
  * simulation in a worker thread. The best policy so far is written to
- * `packages/modules-nerves/policies/<task>.json` whenever it improves, and a line a generation
- * goes to `tools/train/runs/<task>-<started>.jsonl`.
+ * `packages/modules-nerves/policies/<name>.json` whenever it improves, and a line a generation
+ * goes to `tools/train/runs/<name>-<started>.jsonl`.
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -28,13 +36,24 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const jiti = createJiti(import.meta.url);
 const { OpenAiEs } = await jiti.import(join(ROOT, 'tools/train/src/es.ts'));
 const { MlpPolicy } = await jiti.import(join(ROOT, 'packages/modules-nerves/src/index.ts'));
+const { rigOptionsFor, defaultRecipe } = await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at >= 0 && args[at + 1] !== undefined ? args[at + 1] : fallback;
 };
-const task = flag('task', 'stand');
+const recipePath = flag('recipe', undefined);
+/** What is trained, in what: from the recipe file, or the reference stand the flags describe. */
+const recipe = recipePath
+  ? JSON.parse(readFileSync(recipePath, 'utf8'))
+  : defaultRecipe(
+      flag('task', 'stand'),
+      flag('profile', 'l3_anatomical'),
+      Number(flag('authority', 0.3)),
+    );
+const task = recipe.task;
+const name = recipe.name;
 const generations = Number(flag('generations', 300));
 const population = Number(flag('population', 32));
 const workers = Number(flag('workers', Math.max(1, Math.min(cpus().length, 16))));
@@ -43,25 +62,26 @@ const seedsPerCandidate = Number(flag('seeds', 2));
 const sigma = Number(flag('sigma', 0.03));
 const learningRate = Number(flag('lr', 0.005));
 const hidden = flag('hidden', '32,32').split(',').map(Number);
-const profileId = flag('profile', 'l3_anatomical');
-const authority = Number(flag('authority', 0.3));
+const profileId = recipe.profile;
 const resume = args.includes('--resume');
-const out = flag('out', join(ROOT, 'packages/modules-nerves/policies', `${task}.json`));
+const out = flag('out', join(ROOT, 'packages/modules-nerves/policies', `${name}.json`));
 const runsDir = join(ROOT, 'tools/train/runs');
 mkdirSync(runsDir, { recursive: true });
 const started = new Date();
-const log = join(runsDir, `${task}-${started.toISOString().replace(/[:.]/g, '-')}.jsonl`);
+const log = join(runsDir, `${name}-${started.toISOString().replace(/[:.]/g, '-')}.jsonl`);
 // What the dashboard draws: every generation so far, and where things stand.
-const latest = join(runsDir, `${task}-latest.json`);
+const latest = join(runsDir, `${name}-latest.json`);
 // The search's own centre, every generation, so a restart continues the search rather than
 // starting again from the last policy that beat the best.
-const centrePath = join(runsDir, `${task}-centre.json`);
+const centrePath = join(runsDir, `${name}-centre.json`);
 const series = [];
 const publishLatest = (best, episodes, shape) => {
   writeFileSync(
     latest,
     JSON.stringify({
       task,
+      name,
+      recipe,
       started: started.toISOString(),
       updated: new Date().toISOString(),
       population,
@@ -78,17 +98,22 @@ const publishLatest = (best, episodes, shape) => {
   );
 };
 
-const options = {
-  profileId,
-  hidden,
-  seconds,
-  authority,
-  clip: task === 'stand' ? 'quiet-standing' : task === 'walk' ? 'walk-normal' : 'quiet-standing',
-};
+const options = rigOptionsFor(recipe, { hidden, seconds });
 
+const under =
+  recipe.feedforward.kind === 'clip'
+    ? `the ${recipe.feedforward.clip} clip`
+    : recipe.feedforward.kind === 'script'
+      ? "the scenario's script"
+      : 'nothing';
 console.log(
-  `training ${task}: ${generations} generations, population ${population} x ${seedsPerCandidate} seeds, ` +
+  `training ${name} (${task}): ${generations} generations, population ${population} x ${seedsPerCandidate} seeds, ` +
     `${seconds} s episodes on ${profileId}, ${workers} workers`,
+);
+console.log(
+  `  in ${recipe.scenario || 'the reference stand'}${
+    Object.keys(recipe.parameters ?? {}).length ? ` ${JSON.stringify(recipe.parameters)}` : ''
+  }, ${under} under the brain, authority ${recipe.authority}`,
 );
 const pool = [];
 const ready = [];
@@ -233,6 +258,7 @@ const save = (fitness, generation, alive, episodes) => {
     inputs: shape.inputNames,
     outputs: shape.outputNames,
     trained: { generations: generation, fitness, episodes, at: new Date().toISOString() },
+    recipe,
   });
   writeFileSync(out, `${JSON.stringify(file)}\n`);
 };
@@ -301,6 +327,7 @@ for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
         inputs: shape.inputNames,
         outputs: shape.outputNames,
         trained: { generations: g, fitness: mean, episodes, at: new Date().toISOString() },
+        recipe,
       }),
     )}\n`,
   );

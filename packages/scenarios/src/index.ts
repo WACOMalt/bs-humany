@@ -32,6 +32,12 @@ export interface ScenarioApi {
    * rather than failing, so a script can ask without checking first.
    */
   drive(unit: string, level: number): void;
+  /**
+   * Tilt the floor under the body: pitch about the world's X and roll about its Z, radians,
+   * absolute -- zero is level. Gravity is what actually turns (see `tiltingFloor.ts`); a run
+   * without the means ignores it.
+   */
+  tiltWorld(pitch: number, roll: number): void;
 }
 
 export interface Scenario {
@@ -206,6 +212,7 @@ import type { PolicyFile } from '@bs-humany/modules-nerves';
 import standPolicy from '@bs-humany/modules-nerves/policies/stand.json' with { type: 'json' };
 import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
 import type { NervesSetup } from './nerves.js';
+import { tiltingFloor } from './tiltingFloor.js';
 export { GOAL_SIZE, GOALS, driveOutputs, type NervesSetup } from './nerves.js';
 
 /**
@@ -439,6 +446,41 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       // a set of tonic excitations sways and keeps swaying.
       plausibility: { restKinetic: 30 },
       script: ankleStrategy(v),
+    }),
+  }),
+  define({
+    id: 'tilting-floor',
+    title: 'Tilting floor',
+    description:
+      'The rest pose on a floor that pitches and rolls under it in small random pulses -- a few ' +
+      'degrees, a fraction of a second each, a direction and a size drawn afresh every pulse ' +
+      'from the seed. Nothing drives the muscles: this is a floor for a brain to be trained on, ' +
+      'where a posture held still goes over at the first pulse and only a body that feels the ' +
+      'tilt and answers it stays up. The floor is gravity turning, the one thing the backend can ' +
+      'move; the studio turns the drawn world back by the tilt so the floor is what you see move.',
+    parameters: [
+      param('tilt', 'Tilt, at most', 4, 0, 15, 0.5, '\u00b0'),
+      param('every', 'A pulse every', 0.8, 0.2, 3, 0.1, ' s'),
+      param('hold', 'Held for', 0.3, 0.05, 2, 0.05, ' s'),
+      param('seed', 'Seed', 1, 1, 9999, 1, ''),
+    ],
+    make: (v) => ({
+      profileId: 'l3_anatomical',
+      morphology: REFERENCE,
+      muscles: true,
+      durationSeconds: 6,
+      clearance: 0,
+      ground: { height: 0 },
+      passiveJoints: true,
+      // The floor pumps energy in, and the run changes with the policy on it: no golden.
+      passiveSystem: false,
+      golden: false,
+      script: tiltingFloor({
+        tilt: v.tilt as number,
+        every: v.every as number,
+        hold: v.hold as number,
+        seed: v.seed as number,
+      }),
     }),
   }),
   define({
@@ -884,3 +926,4 @@ export function scenario(id: string): Scenario {
 
 export * from './place.js';
 export * from './reports.js';
+export * from './tiltingFloor.js';

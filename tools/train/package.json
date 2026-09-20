@@ -9,6 +9,7 @@
     "@bs-humany/anthropometry": "workspace:*",
     "@bs-humany/backend-mujoco": "workspace:*",
     "@bs-humany/compiler": "workspace:*",
+    "@bs-humany/hsdl": "workspace:*",
     "@bs-humany/kernel": "workspace:*",
     "@bs-humany/modules-mechanics": "workspace:*",
     "@bs-humany/modules-muscle": "workspace:*",

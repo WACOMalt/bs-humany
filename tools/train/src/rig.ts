@@ -3,9 +3,14 @@
  * from the same start over and over with different weights.
  *
  * Built the way the golden runner builds a scenario -- physics, coupling, passive joints, the
- * full muscle set, the drive -- with a `NervesModule` on top, and the quiet-standing clip played
- * into the drive's script layer as the feedforward. The kernel is snapshotted once after init
- * and restored at the start of every episode, so an episode costs its ticks and nothing else.
+ * full muscle set, the drive -- with a `NervesModule` on top. The body, its placement and the
+ * scenery come from a scenario and a morphology when the recipe names them (the studio's own
+ * Scene and Body tabs, so what is trained is what is shown), and from the reference body on the
+ * ground when it does not. Under the brain there may be a feedforward: an activation clip such
+ * as quiet standing played into the drive's script layer, the scenario's own muscle script, or
+ * nothing at all, so the brain stands the body by itself. The kernel is snapshotted once after
+ * init and restored at the start of every episode, so an episode costs its ticks and nothing
+ * else.
  *
  * The reward is standing, on the feet: a point for every hundredth of a second the head is near
  * its resting height with a foot on the ground, a little for the pelvis staying level and where
@@ -20,6 +25,7 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { compileArticulation } from '@bs-humany/compiler';
+import type { Morphology } from '@bs-humany/hsdl';
 import { Kernel, type KernelSnapshot } from '@bs-humany/kernel';
 import {
   BODY_BONE_TRANSFORMS,
@@ -29,6 +35,7 @@ import {
   CouplingModule,
   PassiveJointModule,
   PhysicsModule,
+  SIM_GRAVITY,
   SkeletonPoseModule,
 } from '@bs-humany/modules-mechanics';
 import {
@@ -60,12 +67,47 @@ import {
 import {
   type CompiledClip,
   GOAL_SIZE,
+  SCENARIO_DEFINITIONS,
+  type Scenario,
+  type ScenarioApi,
+  type ScenarioDefinition,
   driveOutputs,
   loadActivationClips,
   placeArticulation,
+  tiltedGravity,
   unitsNamedByClips,
 } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
+
+/**
+ * What drives the muscles under the brain: a clip by id, the scenario's own script, or nothing.
+ * The scenario's script always runs for what it does to the world -- a floor that tilts, a hand
+ * that grabs -- and only its muscle drive is gated by this.
+ */
+export type Feedforward =
+  | { readonly kind: 'clip'; readonly clip: string }
+  | { readonly kind: 'script' }
+  | { readonly kind: 'none' };
+
+/**
+ * What a checkpoint was trained in, saved with it so the studio can set itself up the same way
+ * before handing over: the scenario and its parameter values, the body, and what played under
+ * the brain.
+ */
+export interface TrainingRecipe {
+  /** The checkpoint's name: the file it is saved as, and the run files' prefix. */
+  readonly name: string;
+  readonly task: string;
+  /** A scenario id from `SCENARIO_DEFINITIONS`; empty for the reference stand on the ground. */
+  readonly scenario: string;
+  readonly parameters: Readonly<Record<string, number>>;
+  readonly profile: string;
+  readonly morphology: Morphology;
+  readonly passive: boolean;
+  readonly redistribute: boolean;
+  readonly feedforward: Feedforward;
+  readonly authority: number;
+}
 
 export interface RigOptions {
   readonly profileId: string;
@@ -75,10 +117,58 @@ export interface RigOptions {
   /** Ticks between policy evaluations; a hundred hertz at the profile's rate when not given. */
   readonly controlDivisor?: number;
   readonly authority: number;
-  /** The clip played as feedforward; `quiet-standing` to learn to stand. */
-  readonly clip: string;
+  /** What is scored: `stand` (still, cheap, up) or `balance` (the head still and level). */
+  readonly task?: string;
+  /** What plays under the brain. */
+  readonly feedforward: Feedforward;
+  /** The scenario the body starts in: placement, ground, scenery; the reference stand when absent. */
+  readonly scenario?: {
+    readonly id: string;
+    readonly parameters?: Readonly<Record<string, number>>;
+  };
+  /** The body; the reference one when absent. */
+  readonly morphology?: Morphology;
+  /** Passive joint resistance; on when absent. */
+  readonly passiveJoints?: boolean;
   /** Also pose the skeleton's bones each tick, for a rig that publishes what it does. */
   readonly poseBones?: boolean;
+}
+
+/** The rig options a recipe asks for. */
+export function rigOptionsFor(
+  recipe: TrainingRecipe,
+  rest: { hidden: readonly number[]; seconds: number; poseBones?: boolean },
+): RigOptions {
+  return {
+    profileId: recipe.profile,
+    hidden: rest.hidden,
+    seconds: rest.seconds,
+    authority: recipe.authority,
+    task: recipe.task,
+    feedforward: recipe.feedforward,
+    ...(recipe.scenario
+      ? { scenario: { id: recipe.scenario, parameters: recipe.parameters } }
+      : {}),
+    morphology: recipe.morphology,
+    passiveJoints: recipe.passive,
+    ...(rest.poseBones ? { poseBones: true } : {}),
+  };
+}
+
+/** The recipe the old flags describe: the reference body, standing, with the clip under it. */
+export function defaultRecipe(task: string, profile: string, authority: number): TrainingRecipe {
+  return {
+    name: task,
+    task,
+    scenario: '',
+    parameters: {},
+    profile,
+    morphology: { sex: 0.5, stature: 1.7, mass: 70 },
+    passive: true,
+    redistribute: true,
+    feedforward: { kind: 'clip', clip: task === 'walk' ? 'walk-normal' : 'quiet-standing' },
+    authority,
+  };
 }
 
 /** How far below and above its resting height the head may be and still count as standing. */
@@ -97,10 +187,22 @@ export class StandRig {
   inputNames: readonly string[] = [];
   outputNames: readonly string[] = [];
   private readonly kernel: Kernel;
+  private readonly physics: PhysicsModule;
+  /** The level gravity the body was compiled for; a tilt turns it. */
+  private readonly gravity: { x: number; y: number; z: number };
+  private angular: Float64Array;
   private readonly nerves: NervesModule;
   private readonly drive: MuscleTestDriveModule;
-  private readonly clip: CompiledClip;
+  /** The clip under the brain, when the feedforward is one. */
+  private readonly clip: CompiledClip | undefined;
   private readonly clipUnits: readonly string[];
+  /** The scenario the body is in, whose script runs every tick. */
+  private scenario: Scenario | undefined;
+  private readonly scriptApi: ScenarioApi;
+  /** The scenario's definition, to rebuild it with an episode's seed when it takes one. */
+  private readonly definition: ScenarioDefinition | undefined;
+  /** What the task scores: standing still and cheaply, or keeping the head still and level. */
+  private readonly task: string;
   private readonly units: readonly string[];
   private readonly snapshot: KernelSnapshot;
   private readonly dt: number;
@@ -134,9 +236,12 @@ export class StandRig {
   private constructor(
     options: RigOptions,
     kernel: Kernel,
+    physics: PhysicsModule,
     nerves: NervesModule,
     drive: MuscleTestDriveModule,
-    clip: CompiledClip,
+    clip: CompiledClip | undefined,
+    scenario: Scenario | undefined,
+    definition: ScenarioDefinition | undefined,
     units: readonly string[],
     head: number,
     pelvis: number,
@@ -159,10 +264,16 @@ export class StandRig {
     this.segmentIds = segmentIds;
     this.options = options;
     this.kernel = kernel;
+    this.physics = physics;
+    this.gravity = { ...kernelGravity(kernel) };
+    this.angular = kernel.channels.storage(BODY_VELOCITY).fields.angular as Float64Array;
     this.nerves = nerves;
     this.drive = drive;
     this.clip = clip;
-    this.clipUnits = clip.units;
+    this.clipUnits = clip?.units ?? [];
+    this.scenario = scenario;
+    this.definition = definition;
+    this.task = options.task ?? 'stand';
     this.units = units;
     this.head = head;
     this.pelvis = pelvis;
@@ -184,26 +295,61 @@ export class StandRig {
     };
     this.restHead = this.position[3 * this.head + 1] as number;
     this.snapshot = kernel.snapshot();
+    // What a scenario's script may do here: drive muscles. A grab has no hand in a training rig.
+    const index = new Map(segmentIds.map((id, i) => [id, i]));
+    this.scriptApi = {
+      segment: (id) => index.get(id) ?? -1,
+      segmentPosition: (i) => ({
+        x: this.position[3 * i] as number,
+        y: this.position[3 * i + 1] as number,
+        z: this.position[3 * i + 2] as number,
+      }),
+      grab: () => {},
+      moveGrab: () => {},
+      release: () => {},
+      // The script's muscle drive reaches the body only when it is the feedforward asked for.
+      drive: (unit, level) => {
+        if (options.feedforward.kind === 'script') this.drive.setOverride(unit, level, 'script');
+      },
+      tiltWorld: (pitch, roll) =>
+        this.physics.setGravity(tiltedGravity(this.gravity, { pitch, roll })),
+    };
   }
 
   static async build(options: RigOptions): Promise<StandRig> {
     const document = buildDocument();
     const profile = document.segmentation.find((p) => p.id === options.profileId);
     if (!profile) throw new Error(`No profile '${options.profileId}'.`);
-    const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
+    // The scenario, when the recipe names one: where the body starts and what it stands on.
+    let scenario: Scenario | undefined;
+    let definition: ScenarioDefinition | undefined;
+    if (options.scenario) {
+      definition = SCENARIO_DEFINITIONS.find((d) => d.id === options.scenario?.id);
+      if (!definition) throw new Error(`No scenario '${options.scenario.id}'.`);
+      scenario = definition.build(options.scenario.parameters);
+    }
+    const morphology = resolveMorphology(
+      options.morphology ?? scenario?.morphology ?? { sex: 0.5, stature: 1.7, mass: 70 },
+    );
     const compiled = compileArticulation(document, options.profileId, morphology).articulation;
-    const articulation = placeArticulation(compiled, undefined, 0, 0);
+    const groundHeight = scenario?.ground.height ?? 0;
+    const articulation = placeArticulation(
+      compiled,
+      scenario?.rootRotation,
+      scenario?.clearance ?? 0,
+      groundHeight,
+    );
     const rate = profile.solver?.rate ?? 500;
     const kernel = new Kernel({ rateHz: rate, seed: 1, preferShared: false });
     const backend = new MujocoBackend();
-    kernel.register(
-      new PhysicsModule(backend, articulation, {
-        ground: { height: 0 },
-        iterations: profile.solver?.iterations,
-      }),
-    );
+    const physics = new PhysicsModule(backend, articulation, {
+      ground: { height: groundHeight },
+      iterations: profile.solver?.iterations,
+      staticBoxes: scenario?.staticBoxes ?? [],
+    });
+    kernel.register(physics);
     kernel.register(new CouplingModule(articulation, backend.capabilities));
-    kernel.register(new PassiveJointModule(articulation));
+    if (options.passiveJoints ?? true) kernel.register(new PassiveJointModule(articulation));
     let boneOrder: readonly string[] = [];
     if (options.poseBones) {
       const pose = new SkeletonPoseModule(document.bones, articulation, { redistribute: true });
@@ -256,8 +402,11 @@ export class StandRig {
     kernel.register(nerves);
     await kernel.init();
 
-    const clip = loadActivationClips(unitsNamedByClips()).get(options.clip);
-    if (!clip) throw new Error(`No activation clip '${options.clip}'.`);
+    let clip: CompiledClip | undefined;
+    if (options.feedforward.kind === 'clip') {
+      clip = loadActivationClips(unitsNamedByClips()).get(options.feedforward.clip);
+      if (!clip) throw new Error(`No activation clip '${options.feedforward.clip}'.`);
+    }
     const index = new Map(articulation.segments.map((s) => [s.id, s.index]));
     const soles = feetOf(articulation);
     const feet = {
@@ -267,9 +416,12 @@ export class StandRig {
     return new StandRig(
       options,
       kernel,
+      physics,
       nerves,
       drive,
       clip,
+      scenario,
+      definition,
       muscles.units.map((u) => u.id),
       index.get('head') ?? 0,
       index.get('pelvis') ?? 0,
@@ -316,6 +468,11 @@ export class StandRig {
   /** The fidelity profile this body was built from. */
   get profileId(): string {
     return this.options.profileId;
+  }
+
+  /** Seconds a tick: the profile's solver rate. */
+  get stepSeconds(): number {
+    return this.dt;
   }
 
   get parameterCount(): number {
@@ -388,12 +545,20 @@ export class StandRig {
     this.airborne = 0;
   }
 
+  /** What plays under the brain at this moment: the clip, the scenario's script, or nothing. */
+  private feed(time: number): void {
+    if (this.clip) {
+      const at = this.clip.levels(time);
+      for (let i = 0; i < this.clipUnits.length; i++) {
+        this.drive.setOverride(this.clipUnits[i] as string, at[i] as number, 'script');
+      }
+    }
+    this.scenario?.script?.(time, this.scriptApi);
+  }
+
   tick(): { time: number; up: boolean; headHeight: number } {
     const time = this.live * this.dt;
-    const at = this.clip.levels(time);
-    for (let i = 0; i < this.clipUnits.length; i++) {
-      this.drive.setOverride(this.clipUnits[i] as string, at[i] as number, 'script');
-    }
+    this.feed(time);
     this.kernel.step();
     this.live += 1;
     const { headHeight, up } = this.standing(this.dt);
@@ -410,6 +575,14 @@ export class StandRig {
     // The twitch: a group, a moment, a burst -- from the seed, so a candidate's seeds are the
     // same nudges for every candidate that gets them.
     const random = seeded(seed);
+    // A scenario with a seed of its own -- the tilting floor -- draws afresh each episode, so a
+    // policy is scored on floors it has not seen rather than on the one it has learned.
+    if (this.definition?.parameters.some((p) => p.id === 'seed')) {
+      this.scenario = this.definition.build({
+        ...(this.options.scenario?.parameters ?? {}),
+        seed: 1 + (Math.abs(seed) % 9999),
+      });
+    }
     const twitchOutput = Math.floor(random() * this.nerves.outputs.length);
     const twitchAt = 0.5 + random() * Math.max(0.1, this.options.seconds - 1.5);
     const twitchUnits = this.nerves.outputs[twitchOutput]?.units.map((u) => u.id) ?? [];
@@ -425,11 +598,8 @@ export class StandRig {
     let alive = 0;
     for (let tick = 0; tick < ticks; tick++) {
       const time = tick * this.dt;
-      // Feedforward: the clip, into the script layer, with the twitch on top of it.
-      const at = this.clip.levels(time);
-      for (let i = 0; i < this.clipUnits.length; i++) {
-        this.drive.setOverride(this.clipUnits[i] as string, at[i] as number, 'script');
-      }
+      // Feedforward, if any, into the script layer, with the twitch on top of it.
+      this.feed(time);
       const twitching = time >= twitchAt && time < twitchAt + 0.15;
       if (twitching) {
         for (const unit of twitchUnits) this.drive.setOverride(unit, twitchLevel, 'script');
@@ -461,14 +631,42 @@ export class StandRig {
         const px = this.position[3 * p] as number;
         const pz = this.position[3 * p + 2] as number;
         const drift = Math.sqrt((px - this.startX) ** 2 + (pz - this.startZ) ** 2);
-        fitness +=
-          stepSeconds *
-          (1 +
-            0.5 * Math.max(0, upY) +
-            0.5 * (1 - Math.min(1, drift / 0.25)) -
-            0.5 * Math.min(1, speed) -
-            vertical -
-            0.5 * effort);
+        if (this.task === 'balance') {
+          // The head: how fast it moves and turns, and how level it is. A point a step for
+          // being up, most of it lost to a head that is thrown about, a little to effort, so a
+          // body that rides the floor out with its head still scores and one that holds a
+          // posture and topples does not.
+          const h = this.head;
+          const hv = Math.sqrt(
+            (this.linear[3 * h] as number) ** 2 +
+              (this.linear[3 * h + 1] as number) ** 2 +
+              (this.linear[3 * h + 2] as number) ** 2,
+          );
+          const hw = Math.sqrt(
+            (this.angular[3 * h] as number) ** 2 +
+              (this.angular[3 * h + 1] as number) ** 2 +
+              (this.angular[3 * h + 2] as number) ** 2,
+          );
+          const hx = this.orientation[4 * h] as number;
+          const hz = this.orientation[4 * h + 2] as number;
+          const headUp = 1 - 2 * (hx * hx + hz * hz);
+          fitness +=
+            stepSeconds *
+            (1 +
+              0.5 * Math.max(0, headUp) -
+              Math.min(1, hv / 0.5) -
+              Math.min(1, hw / 2) -
+              0.25 * effort);
+        } else {
+          fitness +=
+            stepSeconds *
+            (1 +
+              0.5 * Math.max(0, upY) +
+              0.5 * (1 - Math.min(1, drift / 0.25)) -
+              0.5 * Math.min(1, speed) -
+              vertical -
+              0.5 * effort);
+        }
       }
     }
     return { fitness, aliveSeconds: alive };
@@ -477,6 +675,12 @@ export class StandRig {
   dispose(): void {
     this.kernel.dispose();
   }
+}
+
+/** The gravity in force, from the channel the physics module publishes it on. */
+function kernelGravity(kernel: Kernel): { x: number; y: number; z: number } {
+  const g = kernel.channels.storage(SIM_GRAVITY).fields.gravity as Float64Array;
+  return { x: g[0] ?? 0, y: g[1] ?? -9.81, z: g[2] ?? 0 };
 }
 
 function seeded(seed: number): () => number {

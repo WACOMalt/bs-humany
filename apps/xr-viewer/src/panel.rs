@@ -926,10 +926,14 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
         if ui.add_enabled(b.server_up && !b.training_running, egui::Button::new("Start training")).clicked() {
             commands.push(Command::Brain { action: "trainStart", id: None, value: None });
         }
-        if ui.add_enabled(b.training_running, egui::Button::new("Stop training")).clicked() {
+        // Stoppable, not running: the showcase that plays the run outlives the trainer, and
+        // until it is stopped the studio goes on following it.
+        if ui.add_enabled(b.training_stoppable, egui::Button::new("Stop training")).clicked() {
             commands.push(Command::Brain { action: "trainStop", id: None, value: None });
         }
-        if ui.selectable_label(b.following, "Follow bridge").clicked() {
+        // The one button says which way it goes, because the headset has no other way to stop.
+        let follow = if b.following { "Stop following" } else { "Follow bridge" };
+        if ui.button(follow).clicked() {
             commands.push(Command::Brain { action: "follow", id: None, value: None });
         }
     });

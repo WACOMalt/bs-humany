@@ -319,6 +319,29 @@
             </details>
             <details class="panel" open>
               <summary>Training</summary>
+              <div class="control">
+                <label for="train-name">Checkpoint name</label>
+                <input type="text" id="train-name" value="stand" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" autocomplete="off" />
+                <p class="note">A new name starts a new checkpoint, trained in the scenario on the Scene tab with the body on the Body tab and the joints as the World tab has them. A name that exists is refused unless Resume is ticked, which continues that checkpoint in the scenario it was saved with.</p>
+              </div>
+              <div class="control">
+                <label for="train-task">Scored on</label>
+                <select id="train-task" title="What the trainer rewards">
+                  <option value="stand" selected>Standing: up, still, cheap</option>
+                  <option value="balance">Balance: the head still and level</option>
+                </select>
+                <p class="note">Standing scores every hundredth of a second the head is near its resting height with a foot on the ground, a little for the pelvis staying level and put, a little off for moving and for effort. Balance scores the same moments but by the head: most of the point is lost to a head that is thrown about or turned, so on the tilting floor a body that rides the pulses out with its head still is what wins.</p>
+              </div>
+              <div class="control">
+                <label for="train-feedforward">Under the brain</label>
+                <select id="train-feedforward" title="What drives the muscles besides the policy, during training and in the showcase">
+                  <option value="none" selected>Nothing: the brain alone</option>
+                  <option value="script">The scenario's own muscle script</option>
+                  <option value="clip">The quiet-standing clip</option>
+                </select>
+                <p class="note">The brain alone starts every muscle slack and leaves the policy to find its own tone. The scenario's script is what the Scene tab plays -- Standing quietly's ankle strategy, say -- and the clip is the tonic posture the first checkpoints were trained over.</p>
+              </div>
+              <p class="note live" id="train-recipe-note"></p>
               <div class="control grid2">
                 <label for="train-generations">Generations <output id="train-generations-value">600</output></label>
                 <input type="range" id="train-generations" min="10" max="2000" step="10" value="600" />
@@ -329,7 +352,7 @@
                 <label for="train-workers">Workers <output id="train-workers-value">16</output></label>
                 <input type="range" id="train-workers" min="1" max="64" step="1" value="16" />
               </div>
-              <label class="checkbox"><input type="checkbox" id="train-resume" checked /> Resume the search where it stopped</label>
+              <label class="checkbox"><input type="checkbox" id="train-resume" /> Resume the named checkpoint where it stopped</label>
               <div class="buttons">
                 <button type="button" id="train-start" disabled title="Start a training run on this machine and follow it here">Start training</button>
                 <button type="button" id="train-stop" disabled>Stop training</button>

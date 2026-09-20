@@ -492,7 +492,7 @@ mod tests {
             "boneB":"rib_2_r","localB":[-0.01,-0.05,-0.07]}]},
             "brain":{"serverUp":true,"active":false,"authority":0.3,"selected":"stand-7",
             "checkpoints":[{"id":"stand-7","name":"stand, generation 7"}],"fit":"","training":"",
-            "trainingRunning":true,"following":false},
+            "trainingRunning":true,"trainingStoppable":true,"following":false},
             "training":{"task":"stand","episode":4,"generation":7,"fitness":0.812}}"#;
         let status: Status = serde_json::from_str(now).expect("parses");
         assert_eq!(status.mode, "running");
@@ -502,7 +502,7 @@ mod tests {
         assert_eq!(status.tissue.discs[0].bone, "sacrum");
         assert_eq!(status.tissue.bars[0].bone_b, "rib_2_r");
         assert_eq!(status.brain.checkpoints[0].name, "stand, generation 7");
-        assert!(status.brain.training_running);
+        assert!(status.brain.training_running && status.brain.training_stoppable);
         assert_eq!(status.training.as_ref().map(|t| t.generation), Some(7));
         // An older publisher that says none of that is still a status: every new key defaults.
         let before = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
@@ -637,6 +637,9 @@ pub struct Brain {
     pub training: String,
     #[serde(default)]
     pub training_running: bool,
+    /// Whether there is anything to stop: the trainer, or the showcase that outlives it.
+    #[serde(default)]
+    pub training_stoppable: bool,
     #[serde(default)]
     pub following: bool,
 }

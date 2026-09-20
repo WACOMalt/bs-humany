@@ -386,13 +386,15 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // what it was, so a hand resting on the trigger does not click.
     let mut trigger_down = [false; crate::bridge::HANDS];
     let mut scene_generation: Option<u64> = None;
-    // Moving about: the left thumbstick carries the viewer through the world, which is to say
-    // the world is shifted the other way under a stage that does not move. `offset` is where the
-    // stage origin sits in the world; everything of the world is drawn through `shift`, and the
-    // hands, which are of the stage, are not.
-    let mut offset = [0.0f32; 3];
+    // Moving about: the sticks carry the viewer through the world, which is to say the world is
+    // moved the other way under a stage that does not move. `view_point` is where the stage
+    // origin sits in the world and how far the world is turned about the viewer; everything of
+    // the world is drawn through `shift`, and the hands, which are of the stage, are not.
+    let mut view_point = Viewpoint::default();
     let mut last_frame = std::time::Instant::now();
     const WALK_SPEED: f32 = 2.0; // m/s at full deflection
+    const TURN_SPEED: f32 = 1.6; // radians a second at full deflection, a little over a right angle
+    const LIFT_SPEED: f32 = 1.2; // m/s at full deflection
     const DEAD_ZONE: f32 = 0.15;
     let controller_scale = crate::render::scale_matrix(1.0);
     let mut muscle_vertices: Vec<f32> = Vec::new();
@@ -604,6 +606,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let now = std::time::Instant::now();
         let dt = (now - last_frame).as_secs_f32().min(0.1);
         last_frame = now;
+        let head = views[0].pose.position;
+        let head = [head.x, head.y, head.z];
         let stick = hands.thumbstick(&session, 0)?;
         let deflection = (stick[0] * stick[0] + stick[1] * stick[1]).sqrt();
         if deflection > DEAD_ZONE {
@@ -614,11 +618,31 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             forward = [forward[0] / length, 0.0, forward[2] / length];
             let right = [-forward[2], 0.0, forward[0]];
             let scale = WALK_SPEED * dt * ((deflection - DEAD_ZONE) / (1.0 - DEAD_ZONE)) / deflection;
+            // The step is in the frame of the head, which is of the stage; it is spent on the
+            // world, so it is turned there first.
+            let step = view_point.to_world_direction([
+                (right[0] * stick[0] + forward[0] * stick[1]) * scale,
+                (right[1] * stick[0] + forward[1] * stick[1]) * scale,
+                (right[2] * stick[0] + forward[2] * stick[1]) * scale,
+            ]);
             for axis in 0..3 {
-                offset[axis] += (right[axis] * stick[0] + forward[axis] * stick[1]) * scale;
+                view_point.offset[axis] += step[axis];
             }
         }
-        let shift = crate::render::translation_matrix([-offset[0], -offset[1], -offset[2]]);
+        // Turning and rising: the right stick. Left and right turn the viewer about where the
+        // head is, so it is a turn on the spot rather than a swing around the middle of the
+        // stage; forward and back lift and lower. Each axis has its own dead zone, so a stick
+        // pushed to turn does not also drift upwards.
+        let look = hands.thumbstick(&session, 1)?;
+        let turn = past_dead_zone(look[0], DEAD_ZONE);
+        if turn != 0.0 {
+            view_point.turn(turn * TURN_SPEED * dt, head);
+        }
+        let lift = past_dead_zone(look[1], DEAD_ZONE);
+        if lift != 0.0 {
+            view_point.offset[1] += lift * LIFT_SPEED * dt;
+        }
+        let shift = view_point.shift();
         // The overlays as the studio has them; a publisher that says nothing shows everything.
         let overlay = |name: &str| {
             status
@@ -668,12 +692,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 trigger_armed[hand] = true;
             }
             let aimed = hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?;
-            // The panels are of the world; the ray is of the stage. Carry the ray over.
+            // The panels are of the world; the ray is of the stage. Carry the ray over, turn
+            // and all: a viewer who has turned no longer points where the stage says.
             let ray = aimed.map(|(position, orientation)| {
+                let q = view_point.to_world_rotation(orientation);
                 (
-                    [position[0] + offset[0], position[1] + offset[1], position[2] + offset[2]],
-                    orientation,
-                    crate::render::rotate([0.0, 0.0, -1.0], orientation),
+                    view_point.to_world(position),
+                    q,
+                    crate::render::rotate([0.0, 0.0, -1.0], q),
                 )
             });
             // A hand carrying a panel keeps carrying it while the trigger is down, wherever it
@@ -701,7 +727,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     // A hand that is holding a bone is busy; its ray is not a pointer.
                     Some((which, Hit::Face(at))) if holding[hand].is_none() => {
                         let world = placements[which].to_world(at);
-                        let in_stage = [world[0] - offset[0], world[1] - offset[1], world[2] - offset[2]];
+                        let in_stage = view_point.to_stage(world);
                         drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
                         let pressing = pressed && trigger_armed[hand];
                         let keep = pointer_hand[which] == Some(hand);
@@ -711,7 +737,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     }
                     Some((which, Hit::Grab(at))) if holding[hand].is_none() => {
                         let world = placements[which].to_world(at);
-                        let in_stage = [world[0] - offset[0], world[1] - offset[1], world[2] - offset[2]];
+                        let in_stage = view_point.to_stage(world);
                         drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
                         let already_carried = carrying.iter().flatten().any(|(w, _)| *w == which);
                         if pressed && trigger_armed[hand] && !already_carried {
@@ -746,10 +772,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 pack.bones[pack_bone].id
                             );
                             // The surface is in the stage; the simulation wants the world.
-                            let point = crate::render::unplace(
-                                [surface[0] + offset[0], surface[1] + offset[1], surface[2] + offset[2]],
-                                ground,
-                            );
+                            let point = crate::render::unplace(view_point.to_world(surface), ground);
                             holding[hand] = Some(Hold {
                                 pose_bone,
                                 point,
@@ -766,7 +789,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 point,
                                 target: point,
                                 strength: 1.0,
-                                rotation: crate::render::unplace_rotation(hand_q),
+                                rotation: crate::render::unplace_rotation(
+                                    view_point.to_world_rotation(hand_q),
+                                ),
                             }
                         }
                         None => crate::bridge::GrabIntent::default(),
@@ -784,17 +809,24 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                             let carried = crate::render::rotate(hold.offset, delta);
                             (
                                 crate::render::unplace(
-                                    [
-                                        hand_at[0] + carried[0] + offset[0],
-                                        hand_at[1] + carried[1] + offset[1],
-                                        hand_at[2] + carried[2] + offset[2],
-                                    ],
+                                    view_point.to_world([
+                                        hand_at[0] + carried[0],
+                                        hand_at[1] + carried[1],
+                                        hand_at[2] + carried[2],
+                                    ]),
                                     ground,
                                 ),
-                                crate::render::unplace_rotation(hand_q),
+                                crate::render::unplace_rotation(
+                                    view_point.to_world_rotation(hand_q),
+                                ),
                             )
                         }
-                        None => (hold.point, crate::render::unplace_rotation(hold.hand_q)),
+                        None => (
+                            hold.point,
+                            crate::render::unplace_rotation(
+                                view_point.to_world_rotation(hold.hand_q),
+                            ),
+                        ),
                     };
                     crate::bridge::GrabIntent {
                         active: true,
@@ -1012,6 +1044,75 @@ impl Feeds {
             grabs,
             pose_index,
         })
+    }
+}
+
+/// Where the viewer stands in the world and how far they have turned: the stage does not move,
+/// so walking, turning and rising are all the world moving underneath it. `offset` is where the
+/// stage origin sits in the world; `yaw` is how far the world is turned about the viewer, growing
+/// as the viewer turns to their right.
+#[derive(Clone, Copy, Default)]
+struct Viewpoint {
+    offset: [f32; 3],
+    yaw: f32,
+}
+
+impl Viewpoint {
+    /// The turn the world is drawn through.
+    fn spin(&self) -> [f32; 4] {
+        [0.0, (self.yaw * 0.5).sin(), 0.0, (self.yaw * 0.5).cos()]
+    }
+
+    /// A point of the world, where the stage has it.
+    fn to_stage(&self, p: [f32; 3]) -> [f32; 3] {
+        crate::render::rotate(
+            [p[0] - self.offset[0], p[1] - self.offset[1], p[2] - self.offset[2]],
+            self.spin(),
+        )
+    }
+
+    /// A point of the stage -- a hand, a mark -- where the world has it.
+    fn to_world(&self, p: [f32; 3]) -> [f32; 3] {
+        let turned = self.to_world_direction(p);
+        [turned[0] + self.offset[0], turned[1] + self.offset[1], turned[2] + self.offset[2]]
+    }
+
+    /// A direction of the stage in the world: the turn without the walk.
+    fn to_world_direction(&self, v: [f32; 3]) -> [f32; 3] {
+        crate::render::rotate(v, crate::render::quaternion_conjugate(self.spin()))
+    }
+
+    /// A rotation of the stage -- a hand's -- in the world.
+    fn to_world_rotation(&self, q: [f32; 4]) -> [f32; 4] {
+        crate::render::quaternion_multiply(crate::render::quaternion_conjugate(self.spin()), q)
+    }
+
+    /// The matrix everything of the world is drawn through.
+    fn shift(&self) -> [f32; 16] {
+        crate::render::multiply(
+            &crate::render::pose_matrix([0.0, 0.0, 0.0], self.spin()),
+            &crate::render::translation_matrix([-self.offset[0], -self.offset[1], -self.offset[2]]),
+        )
+    }
+
+    /// Turn by `by` radians about where the head is, so the world under the head stays under it
+    /// and the viewer turns on the spot. `head` is in the stage.
+    fn turn(&mut self, by: f32, head: [f32; 3]) {
+        let was = self.to_world(head);
+        self.yaw += by;
+        let now = self.to_world(head);
+        for axis in 0..3 {
+            self.offset[axis] += was[axis] - now[axis];
+        }
+    }
+}
+
+/// One axis of a stick past its dead zone, rescaled so that it starts from nothing.
+fn past_dead_zone(v: f32, dead: f32) -> f32 {
+    if v.abs() <= dead {
+        0.0
+    } else {
+        v.signum() * (v.abs() - dead) / (1.0 - dead)
     }
 }
 
@@ -1341,4 +1442,72 @@ pub fn run_session(seconds: f32) -> Result<()> {
         println!("no frames were asked for: the session never reached a rendering state.");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn close(a: [f32; 3], b: [f32; 3]) -> bool {
+        (0..3).all(|i| (a[i] - b[i]).abs() < 1e-4)
+    }
+
+    #[test]
+    fn a_turn_to_the_right_swings_the_world_to_the_left() {
+        // A quarter turn to the right, standing at the stage's middle: what was straight ahead
+        // is now off to the left, which is what a viewer who turned right would see.
+        let mut v = Viewpoint::default();
+        v.turn(std::f32::consts::FRAC_PI_2, [0.0, 1.6, 0.0]);
+        let ahead = v.to_stage([0.0, 0.0, -2.0]);
+        assert!(close(ahead, [-2.0, 0.0, 0.0]), "{ahead:?}");
+    }
+
+    #[test]
+    fn a_turn_is_about_the_head_and_not_the_middle_of_the_stage() {
+        // The head is a metre off the stage's middle; the world under it stays under it.
+        let head = [1.0, 1.6, 0.0];
+        let mut v = Viewpoint { offset: [3.0, 0.0, -2.0], yaw: 0.4 };
+        let under = v.to_world(head);
+        v.turn(0.9, head);
+        assert!(close(v.to_world(head), under), "{:?}", v.to_world(head));
+    }
+
+    #[test]
+    fn the_stage_and_the_world_are_each_other_undone() {
+        let v = Viewpoint { offset: [1.5, 0.25, -3.0], yaw: -1.1 };
+        let p = [0.3, 1.2, -0.8];
+        assert!(close(v.to_world(v.to_stage(p)), p));
+        assert!(close(v.to_stage(v.to_world(p)), p));
+    }
+
+    #[test]
+    fn what_is_drawn_is_what_the_stage_says() {
+        // The shift matrix and `to_stage` are the same transform; the draw and the grab must not
+        // disagree about where the world is.
+        let v = Viewpoint { offset: [-0.7, 1.0, 2.5], yaw: 0.8 };
+        let p = [2.0, 0.5, -1.25];
+        let m = v.shift();
+        let drawn = [
+            m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12],
+            m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+            m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14],
+        ];
+        assert!(close(drawn, v.to_stage(p)), "{drawn:?} vs {:?}", v.to_stage(p));
+    }
+
+    #[test]
+    fn rising_lifts_the_viewer_rather_than_the_world() {
+        // The stick pushed forward raises the offset, and the world is then drawn lower down.
+        let v = Viewpoint { offset: [0.0, 1.5, 0.0], yaw: 0.0 };
+        assert!(close(v.to_stage([0.0, 0.0, 0.0]), [0.0, -1.5, 0.0]));
+    }
+
+    #[test]
+    fn a_stick_starts_from_nothing_once_it_is_past_its_dead_zone() {
+        assert_eq!(past_dead_zone(0.1, 0.15), 0.0);
+        assert_eq!(past_dead_zone(-0.15, 0.15), 0.0);
+        assert!((past_dead_zone(0.15 + 1e-6, 0.15)).abs() < 1e-5);
+        assert!((past_dead_zone(1.0, 0.15) - 1.0).abs() < 1e-6);
+        assert!((past_dead_zone(-1.0, 0.15) + 1.0).abs() < 1e-6);
+    }
 }

@@ -65,8 +65,10 @@ import {
   type NervesSetup,
   type Scenario,
   type ScenarioApi,
+  type WorldTilt,
   driveOutputs,
   placeArticulation,
+  tiltedGravity,
 } from '@bs-humany/scenarios';
 
 export type BackendId = 'rapier' | 'mujoco';
@@ -193,6 +195,8 @@ export class Simulation {
   private readonly timeline: { tick: number; snapshot: KernelSnapshot }[] = [];
   private readonly timelineCapacity = 600;
   private scriptApi: ScenarioApi | undefined;
+  private tilt: WorldTilt = { pitch: 0, roll: 0 };
+  private gravityOn = true;
   /** Ticks run so far, and the wall-clock cost of the last frame's ticks. */
   ticks = 0;
   paused = false;
@@ -407,6 +411,11 @@ export class Simulation {
       // Ignored rather than refused when the run has no muscles, so a script can ask without
       // checking first -- and so the same scenario is watchable with the muscles switched off.
       drive: (unit, level) => this.muscleDrive?.setOverride(unit, level, 'script'),
+      tiltWorld: (pitch, roll) => {
+        if (pitch === this.tilt.pitch && roll === this.tilt.roll) return;
+        this.tilt = { pitch, roll };
+        this.applyGravity();
+      },
     };
     this.timeline.push({ tick: 0, snapshot: this.kernel.snapshot() });
     this.record();
@@ -580,7 +589,20 @@ export class Simulation {
    * module publishes what is in force and the metrics module reads that.
    */
   setGravity(on: boolean): void {
-    this.physics.setGravity(on ? this.articulation.gravity : { x: 0, y: 0, z: 0 });
+    this.gravityOn = on;
+    this.applyGravity();
+  }
+
+  /** The floor's tilt as the scenario has set it: what a viewer turns the drawn world back by. */
+  get worldTilt(): WorldTilt {
+    return this.tilt;
+  }
+
+  /** Gravity as it stands: off, or the level gravity turned by the floor's tilt. */
+  private applyGravity(): void {
+    this.physics.setGravity(
+      this.gravityOn ? tiltedGravity(this.articulation.gravity, this.tilt) : { x: 0, y: 0, z: 0 },
+    );
   }
 
   /**

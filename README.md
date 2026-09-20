@@ -98,17 +98,25 @@ it, what is in the image, and the two headers it has to serve.
 
 **The dev server**, which is `pnpm dev`.
 
-**Training the nerves.** `pnpm train:nerves` trains the standing policy by evolution strategies
-across every core, on the L3 anatomy unless `--profile` names another, saving the best to
-`packages/modules-nerves/policies/stand.json` as it goes (a policy fits any profile by the names
-of its senses, so `--resume` carries a search from a coarser body onto a finer one);
-`pnpm train:dashboard` serves a page at `http://localhost:5280/` with the fitness curves, the
-live body and the network's activity; `pnpm train:showcase` keeps the current best running in a
-body published to the pose bridge, so the headset viewer shows the learner -- and so does the
-studio: its **Follow bridge** button, on the Brain tab, shows whatever is publishing, live,
-muscles and all, through the dashboard's server, and its **Start training** button starts the
-trainer and the showcase through the same server and follows them. ADR-013 is why it is shaped
-this way.
+**Training the nerves.** `pnpm train:nerves` trains a policy by evolution strategies across
+every core, saving the best to `packages/modules-nerves/policies/<name>.json` as it goes (a
+policy fits any profile by the names of its senses, so `--resume` carries a search from a
+coarser body onto a finer one). What it trains in is a **recipe**: the scenario and its
+parameter values, the body, whether the joints resist, what plays under the brain -- nothing,
+the scenario's own muscle script, or the quiet-standing clip -- and what is scored, standing
+still or keeping the head still and level. The recipe is saved into the checkpoint. Without one,
+the flags describe the reference body on the ground with the clip under it, saved as
+`stand.json`. `pnpm train:dashboard` serves a page at `http://localhost:5280/` with the fitness
+curves, the live body and the network's activity; `pnpm train:showcase` keeps the current best
+running in a body published to the pose bridge, so the headset viewer shows the learner -- and
+so does the studio: its **Follow bridge** button, on the Brain tab, shows whatever is publishing,
+live, muscles and all, through the dashboard's server. The Brain tab is also where a checkpoint
+is made: name it, choose what is scored and what plays under the brain, set the scene on the
+Scene tab (the **Tilting floor** is the one for a brain that has to react: the floor pitches and
+rolls in random pulses, and a posture held still goes over at the first) and the body on the
+Body tab, and **Start training** starts the trainer and the showcase through the dashboard's
+server and follows them. Choosing a checkpoint sets those tabs up the way it was trained.
+ADR-013 is why it is shaped this way.
 
 ## Naming
 

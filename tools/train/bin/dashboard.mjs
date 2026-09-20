@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execSync, spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 /**
  * Serve the training dashboard: `tools/train/dashboard.html`, and the run files it polls.
  *
@@ -44,6 +44,8 @@ function listPolicies() {
         profile: file.profile ?? null,
         sizes: file.sizes,
         trained: file.trained ?? null,
+        // What it was trained in, when the file says: the studio sets itself up from it.
+        recipe: file.recipe ?? null,
         modified: statSync(path).mtimeMs,
       });
     } catch {
@@ -72,18 +74,24 @@ const isPid = (p) => {
 };
 function trainStatus() {
   const running = training !== null && training.trainer.exitCode === null;
+  // The showcase plays the run on the bridge and outlives the trainer, so it is said separately:
+  // while it is up there is still something for Stop to stop.
+  const showcase = training !== null && training.showcase.exitCode === null;
   let latest = null;
   try {
     latest = JSON.parse(
-      readFileSync(join(RUNS, `${training?.task ?? 'stand'}-latest.json`), 'utf8'),
+      readFileSync(join(RUNS, `${training?.name ?? 'stand'}-latest.json`), 'utf8'),
     );
   } catch {
     // No run has written yet.
   }
   return {
     running,
+    showcase,
+    elsewhere: !running && trainerElsewhere(),
     startedAt: training?.startedAt ?? null,
     task: training?.task ?? null,
+    name: training?.name ?? null,
     exit: training && !running ? training.trainer.exitCode : null,
     latest: latest
       ? {
@@ -115,15 +123,78 @@ function trainerElsewhere() {
     return false; // pgrep found nothing.
   }
 }
+/** A checkpoint's name: a file stem, nothing that could leave the policies folder. */
+const NAME = /^[a-z0-9][a-z0-9_-]{0,40}$/;
+const PROFILES = ['l0_ragdoll', 'l1_standard', 'l2_biomechanical', 'l3_anatomical'];
+/**
+ * The recipe from the studio's request, every field checked: strings that are names or ids,
+ * numbers that are finite, booleans that are booleans. What is not checked here -- that the
+ * scenario exists, that its script exists when asked to play -- the trainer refuses on start and
+ * the status says so.
+ */
+function recipeFrom(body) {
+  const task = body.task === 'walk' ? 'walk' : body.task === 'balance' ? 'balance' : 'stand';
+  const name = typeof body.name === 'string' && NAME.test(body.name) ? body.name : task;
+  const r = body.recipe && typeof body.recipe === 'object' ? body.recipe : {};
+  const finite = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+  const parameters = {};
+  if (r.parameters && typeof r.parameters === 'object')
+    for (const [k, v] of Object.entries(r.parameters))
+      if (/^[\w-]{1,40}$/.test(k) && Number.isFinite(Number(v))) parameters[k] = Number(v);
+  const proportions = {};
+  if (r.morphology?.proportions && typeof r.morphology.proportions === 'object')
+    for (const [k, v] of Object.entries(r.morphology.proportions))
+      if (/^\w{1,40}$/.test(k) && Number.isFinite(Number(v))) proportions[k] = Number(v);
+  const kind = r.feedforward?.kind;
+  const feedforward =
+    kind === 'script'
+      ? { kind: 'script' }
+      : kind === 'clip'
+        ? {
+            kind: 'clip',
+            clip: /^[\w-]{1,40}$/.test(String(r.feedforward.clip))
+              ? String(r.feedforward.clip)
+              : 'quiet-standing',
+          }
+        : { kind: 'none' };
+  return {
+    name,
+    task,
+    scenario: typeof r.scenario === 'string' && /^[\w-]{0,40}$/.test(r.scenario) ? r.scenario : '',
+    parameters,
+    profile: PROFILES.includes(r.profile) ? r.profile : 'l3_anatomical',
+    morphology: {
+      sex: Math.min(1, Math.max(0, finite(r.morphology?.sex, 0.5))),
+      stature: Math.min(2.5, Math.max(1, finite(r.morphology?.stature, 1.7))),
+      mass: Math.min(300, Math.max(20, finite(r.morphology?.mass, 70))),
+      ...(Object.keys(proportions).length ? { proportions } : {}),
+    },
+    passive: r.passive !== false,
+    redistribute: r.redistribute !== false,
+    feedforward,
+    authority: Math.min(1, Math.max(0, finite(body.authority, 0.3))),
+  };
+}
 function trainStart(body) {
   if (training && training.trainer.exitCode === null) return { error: 'a run is already going' };
   if (trainerElsewhere())
     return { error: 'a trainer is already running on this machine, started from a terminal' };
-  const task = body.task === 'walk' ? 'walk' : 'stand';
+  const recipe = recipeFrom(body);
+  const { task, name } = recipe;
+  // A name is a checkpoint: starting afresh under one that exists would overwrite it. Resume
+  // continues it instead, with the recipe it was saved with.
+  const policyPath = join(POLICIES, `${name}.json`);
+  if (existsSync(policyPath) && !body.resume) {
+    return {
+      error: `a checkpoint named ${name} exists; tick Resume to continue it, or choose another name`,
+    };
+  }
+  const recipePath = join(RUNS, `${name}-recipe.json`);
+  writeFileSync(recipePath, `${JSON.stringify(recipe, null, 2)}\n`);
   const args = [
     join(ROOT, 'tools/train/bin/train-nerves.mjs'),
-    '--task',
-    task,
+    '--recipe',
+    recipePath,
     '--generations',
     String(number(body.generations, 600, 1, 100000)),
     '--population',
@@ -134,34 +205,42 @@ function trainStart(body) {
     String(number(body.seconds, 6, 1, 60)),
     '--seeds',
     String(number(body.seeds, 2, 1, 16)),
-    '--authority',
-    String(Math.min(1, Math.max(0, Number(body.authority) || 0.3))),
   ];
   if (body.resume) args.push('--resume');
   const trainer = spawn(process.execPath, args, {
     cwd: ROOT,
     stdio: ['ignore', 'inherit', 'inherit'],
   });
+  if (training && training.showcase.exitCode === null) training.showcase.kill('SIGINT');
   const showcase = spawn(
     process.execPath,
-    [join(ROOT, 'tools/train/bin/showcase.mjs'), '--task', task],
+    [join(ROOT, 'tools/train/bin/showcase.mjs'), '--recipe', recipePath],
     {
       cwd: ROOT,
       stdio: ['ignore', 'inherit', 'inherit'],
     },
   );
-  training = { task, trainer, showcase, startedAt: new Date().toISOString() };
+  training = { task, name, recipe, trainer, showcase, startedAt: new Date().toISOString() };
   trainer.on('exit', () => {
     // The showcase keeps the last policy on the bridge; the studio can go on watching it.
   });
-  return { started: true, task, args: args.slice(1) };
+  return { started: true, task, name, recipe, args: args.slice(1) };
 }
 function trainStop() {
   if (!training) return { stopped: false };
-  // SIGINT, so the trainer saves its centre and record on the way out.
-  if (training.trainer.exitCode === null) training.trainer.kill('SIGINT');
-  if (training.showcase.exitCode === null) training.showcase.kill('SIGINT');
-  return { stopped: true };
+  // SIGINT, so the trainer saves its centre and record on the way out. The showcase is stopped
+  // whether or not the trainer is still up: it is what keeps publishing, and what a studio that
+  // is following the bridge is following.
+  let stopped = false;
+  if (training.trainer.exitCode === null) {
+    training.trainer.kill('SIGINT');
+    stopped = true;
+  }
+  if (training.showcase.exitCode === null) {
+    training.showcase.kill('SIGINT');
+    stopped = true;
+  }
+  return { stopped };
 }
 process.on('exit', () => {
   if (training) trainStop();

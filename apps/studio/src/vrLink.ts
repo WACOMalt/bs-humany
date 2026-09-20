@@ -114,6 +114,7 @@ export interface VrStatus {
     readonly fit: string;
     readonly training: string;
     readonly trainingRunning: boolean;
+    readonly trainingStoppable: boolean;
     readonly following: boolean;
   };
 }

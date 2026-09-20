@@ -30,6 +30,31 @@ export interface PolicyFile {
     readonly episodes: number;
     readonly at: string;
   };
+  /**
+   * What it was trained in -- the scenario and its parameters, the body, what played under the
+   * brain -- so a studio can set itself up the same way before handing over. The trainer's
+   * `TrainingRecipe`; kept loose here so a policy file never depends on the trainer.
+   */
+  readonly recipe?: {
+    readonly name: string;
+    readonly task: string;
+    readonly scenario: string;
+    readonly parameters: Readonly<Record<string, number>>;
+    readonly profile: string;
+    readonly morphology: {
+      readonly sex: number;
+      readonly stature: number;
+      readonly mass: number;
+      readonly proportions?: Readonly<Partial<Record<string, number>>> | undefined;
+    };
+    readonly passive: boolean;
+    readonly redistribute: boolean;
+    readonly feedforward:
+      | { readonly kind: 'clip'; readonly clip: string }
+      | { readonly kind: 'script' }
+      | { readonly kind: 'none' };
+    readonly authority: number;
+  };
 }
 
 export class MlpPolicy {

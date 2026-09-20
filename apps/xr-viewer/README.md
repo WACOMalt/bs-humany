@@ -136,10 +136,15 @@ studio's bundled resources, or the checkout.
 ### Moving about
 
 The left thumbstick walks you through the world at up to two metres a second, in the direction
-you are looking, flattened to the floor. What actually happens is the other way round: the
-world -- body, muscles, grid, scenery and panel -- is shifted under a stage that never moves, and
-the hands, which belong to the stage, are not. A grab or a press carries the shift back over, so
-nothing else knows you moved.
+you are looking, flattened to the floor. The right one turns and lifts: left and right turn you
+about where your head is, a little over a right angle a second, and forward and back raise and
+lower you at a little over a metre a second -- which is how you get above the body to look down
+at it, or under the floor.
+
+What actually happens is the other way round: the world -- body, muscles, grid, scenery and
+panel -- is moved and turned under a stage that never moves, and the hands, which belong to the
+stage, are not. A grab or a press carries the move and the turn back over, so nothing else knows
+you moved.
 
 ### Grabbing it
 
@@ -211,7 +216,9 @@ tab, the same controls sending the same keys:
 - **Muscles** -- a drive slider per muscle group, folded by region as the desktop folds them:
   the same twenty-nine groups, one table in `packages/scenarios`; the readout.
 - **Brain** -- the checkpoints the dashboard lists, the authority, Hand over and Release, the
-  fit line; Start and Stop training and Follow bridge, with the training line. The training's
+  fit line; Start and Stop training, and Follow bridge, which reads Stop following once it is
+  following, with the training line. Stop training stops the showcase that plays the run as well
+  as the trainer, which is what the studio follows. The training's
   generations, population, episode length and workers are as set on the desktop; the activity
   bitmap stays there too.
 - **Export** -- what cannot be done from a headset, disabled, with the line that says why.

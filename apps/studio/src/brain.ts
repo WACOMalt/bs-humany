@@ -9,9 +9,19 @@
  * morphology change takes, because the nerves are a module registered at construction.
  */
 
-import type { NervesSetup } from '@bs-humany/scenarios';
+import type { PolicyFile } from '@bs-humany/modules-nerves';
+import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
 
 export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
+
+/** What a checkpoint was trained in; the trainer's `TrainingRecipe`, as the policy file keeps it. */
+export type TrainingRecipe = NonNullable<PolicyFile['recipe']>;
+
+/** The part of a recipe the studio's own tabs supply: the scene, the body, the joints. */
+export type RecipeInput = Pick<
+  TrainingRecipe,
+  'scenario' | 'parameters' | 'profile' | 'morphology' | 'passive' | 'redistribute'
+>;
 
 export interface CheckpointRow {
   readonly id: string;
@@ -25,12 +35,19 @@ export interface CheckpointRow {
     readonly episodes: number;
     readonly at: string;
   } | null;
+  readonly recipe?: TrainingRecipe | null;
 }
 
 export interface TrainingStatus {
   readonly running: boolean;
+  /** Whether the showcase that plays the run is still up; it outlives the trainer. */
+  readonly showcase?: boolean;
+  /** Whether a trainer someone started in a terminal is up, which this server cannot stop. */
+  readonly elsewhere?: boolean;
   readonly startedAt: string | null;
   readonly task: string | null;
+  /** The checkpoint being trained, when the server started it. */
+  readonly name?: string | null;
   readonly exit: number | null;
   readonly latest: {
     readonly updated: string;
@@ -50,7 +67,13 @@ export interface BrainHost {
   /** Restart the run with this policy in the loop, state carried; undefined takes it out. */
   handOver(setup: NervesSetup | undefined): void;
   /** Start following the bridge, where the training's showcase publishes. */
-  follow(): void;
+  startFollowing(): void;
+  /** Follow the bridge, or stop: the headset's one button, and the desktop's. */
+  toggleFollowing(): void;
+  /** The scene, body and joints as the tabs have them now: what a new checkpoint trains in. */
+  recipe(): RecipeInput;
+  /** Set the tabs up from a checkpoint's recipe, so the body handed over is the one it knows. */
+  applyRecipe(recipe: TrainingRecipe): void;
   /** What the running body could use of the policy, once it is in. */
   fit():
     | { carried: { inputs: number; outputs: number }; inputs: number; outputs: number }
@@ -70,6 +93,8 @@ export interface BrainState {
   readonly fit: string;
   readonly training: string;
   readonly trainingRunning: boolean;
+  /** Whether Stop would do anything: the trainer, or the showcase that outlives it. */
+  readonly trainingStoppable: boolean;
   readonly following: boolean;
 }
 
@@ -109,6 +134,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     seconds: must<HTMLInputElement>('#train-seconds'),
     workers: must<HTMLInputElement>('#train-workers'),
     resume: must<HTMLInputElement>('#train-resume'),
+    name: must<HTMLInputElement>('#train-name'),
+    task: must<HTMLSelectElement>('#train-task'),
+    feedforward: must<HTMLSelectElement>('#train-feedforward'),
+    recipeNote: must<HTMLElement>('#train-recipe-note'),
     start: must<HTMLButtonElement>('#train-start'),
     stop: must<HTMLButtonElement>('#train-stop'),
     status: must<HTMLElement>('#train-status'),
@@ -118,6 +147,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let setup: NervesSetup | undefined;
   let serverUp = false;
   let trainingRunning = false;
+  let trainingStoppable = false;
 
   const readouts: [HTMLInputElement, string][] = [
     [ui.generations, '#train-generations-value'],
@@ -139,13 +169,42 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   ui.authority.addEventListener('input', showAuthority);
   showAuthority();
 
+  const scenarioTitle = (id: string) =>
+    id === ''
+      ? 'the reference stand'
+      : (SCENARIO_DEFINITIONS.find((d) => d.id === id)?.title ?? id);
   const describe = (row: CheckpointRow): string => {
     const t = row.trained;
     const where = row.profile ? row.profile.replace(/_.*/, '').toUpperCase() : 'body unknown';
+    const scene = row.recipe ? `, ${scenarioTitle(row.recipe.scenario)}` : '';
     return t
-      ? `${row.name} — ${row.task}, ${where}, gen ${t.generations}, fitness ${t.fitness.toFixed(2)}`
-      : `${row.name} — ${row.task}, ${where}`;
+      ? `${row.name} — ${row.task}, ${where}${scene}, gen ${t.generations}, fitness ${t.fitness.toFixed(2)}`
+      : `${row.name} — ${row.task}, ${where}${scene}`;
   };
+
+  /** What Start would train, from the tabs as they are, so it is said before it is done. */
+  const NAME = /^[a-z0-9][a-z0-9_-]{0,40}$/;
+  const showRecipe = () => {
+    const input = host.recipe();
+    const name = ui.name.value.trim();
+    const exists = rows.some((r) => r.recipe?.name === name || r.name === `${name}.json`);
+    const under =
+      ui.feedforward.value === 'script'
+        ? "with the scenario's script under it"
+        : ui.feedforward.value === 'clip'
+          ? 'over the quiet-standing clip'
+          : 'alone';
+    const where = input.profile.replace(/_.*/, '').toUpperCase();
+    const body = `${input.morphology.stature.toFixed(2)} m, ${input.morphology.mass.toFixed(0)} kg`;
+    const scored = ui.task.value === 'balance' ? 'a still, level head' : 'standing';
+    ui.recipeNote.textContent = !NAME.test(name)
+      ? 'A name is lower-case letters, digits, dashes and underscores.'
+      : `${exists ? (ui.resume.checked ? 'Continues' : 'Refused: exists. Tick Resume to continue') : 'Starts'} ${name}: the brain ${under}, in ${scenarioTitle(input.scenario)} on ${where} (${body}), scored on ${scored}.`;
+  };
+  ui.name.addEventListener('input', showRecipe);
+  ui.feedforward.addEventListener('change', showRecipe);
+  ui.task.addEventListener('change', showRecipe);
+  ui.resume.addEventListener('change', showRecipe);
 
   const showRows = () => {
     const chosen = ui.policy.value;
@@ -166,8 +225,22 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       : 'No dashboard server: run pnpm train:dashboard to list checkpoints and train from here.';
     ui.handover.disabled = !serverUp || ui.policy.value === '';
   };
+  /**
+   * Choosing a checkpoint sets the tabs up the way it was trained -- its scenario, its body, its
+   * joints -- when its file says, so what is handed over is the body it knows, and puts its name
+   * in the name box so Resume continues it. An older checkpoint without a recipe changes nothing.
+   */
   ui.policy.addEventListener('change', () => {
     ui.handover.disabled = !serverUp || ui.policy.value === '';
+    const row = rows.find((r) => r.id === ui.policy.value);
+    if (row?.recipe) {
+      host.applyRecipe(row.recipe);
+      ui.name.value = row.recipe.name;
+      ui.feedforward.value = row.recipe.feedforward.kind;
+      ui.task.value = row.recipe.task === 'balance' ? 'balance' : 'stand';
+      ui.policyNote.textContent = `Scene, body and joints set from ${row.recipe.name}; they take effect on the next run.`;
+    }
+    showRecipe();
   });
 
   const showFit = () => {
@@ -259,8 +332,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
 
   const showStatus = (status: TrainingStatus | undefined) => {
     trainingRunning = status?.running === true;
-    ui.start.disabled = !serverUp || status?.running === true;
-    ui.stop.disabled = !serverUp || status?.running !== true;
+    // The showcase that plays the run keeps publishing after the trainer has gone, and the studio
+    // goes on following it, so Stop stays offered while there is anything left to stop.
+    trainingStoppable = trainingRunning || status?.showcase === true;
+    ui.start.disabled = !serverUp || trainingRunning || status?.elsewhere === true;
+    ui.stop.disabled = !serverUp || !trainingStoppable;
     if (!status) {
       ui.status.textContent = serverUp ? '' : 'Training needs the dashboard server.';
       ui.chart.hidden = true;
@@ -270,22 +346,38 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const record = latest?.best
       ? `record ${latest.best.fitness.toFixed(2)} (${latest.best.alive.toFixed(2)} s up) at generation ${latest.best.generation}`
       : 'no record yet';
-    ui.status.textContent = status.running
-      ? `Training ${status.task}: generation ${latest?.generations ?? 0}, ${record}.`
-      : latest
-        ? `Not training. Last run: generation ${latest.generations}, ${record}.`
-        : 'Not training.';
+    ui.status.textContent = status.elsewhere
+      ? 'A trainer started from a terminal is running; stop it there.'
+      : status.running
+        ? `Training ${status.task}: generation ${latest?.generations ?? 0}, ${record}.`
+        : status.showcase
+          ? `Not training; the showcase is still playing the run. ${record}.`
+          : latest
+            ? `Not training. Last run: generation ${latest.generations}, ${record}.`
+            : 'Not training.';
     drawChart(status);
   };
 
-  ui.start.addEventListener('click', async () => {
+  /**
+   * Start and stop are functions, not clicks: the headset asks for them through `act`, and a
+   * button disabled by a status the desktop has not polled since would swallow the click.
+   */
+  async function startTraining(): Promise<void> {
     ui.start.disabled = true;
     try {
+      const feedforward: TrainingRecipe['feedforward'] =
+        ui.feedforward.value === 'script'
+          ? { kind: 'script' }
+          : ui.feedforward.value === 'clip'
+            ? { kind: 'clip', clip: 'quiet-standing' }
+            : { kind: 'none' };
       const response = await fetch(`${dashboard}/train/start`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          task: 'stand',
+          task: ui.task.value,
+          name: ui.name.value.trim(),
+          recipe: { ...host.recipe(), feedforward },
           generations: Number(ui.generations.value),
           population: Number(ui.population.value),
           seconds: Number(ui.seconds.value),
@@ -297,13 +389,14 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       });
       const result = (await response.json()) as { error?: string };
       if (result.error) ui.status.textContent = `Could not start: ${result.error}`;
-      else if (!host.following()) host.follow();
+      else if (!host.following()) host.startFollowing();
     } catch (error) {
       ui.status.textContent = `Could not start: ${String(error)}`;
     }
     await poll();
-  });
-  ui.stop.addEventListener('click', async () => {
+  }
+
+  async function stopTraining(): Promise<void> {
     ui.stop.disabled = true;
     try {
       await fetch(`${dashboard}/train/stop`, { method: 'POST' });
@@ -311,7 +404,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       // The status poll says what happened.
     }
     await poll();
-  });
+  }
+
+  ui.start.addEventListener('click', () => void startTraining());
+  ui.stop.addEventListener('click', () => void stopTraining());
 
   async function poll(): Promise<void> {
     try {
@@ -334,6 +430,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       showStatus(undefined);
     }
     showFit();
+    showRecipe();
   }
 
   return {
@@ -351,6 +448,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         fit: ui.fitNote.textContent ?? '',
         training: ui.status.textContent ?? '',
         trainingRunning,
+        trainingStoppable,
         following: host.following(),
       };
     },
@@ -376,13 +474,13 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           ui.authority.dispatchEvent(new Event('change', { bubbles: true }));
           break;
         case 'trainStart':
-          ui.start.click();
+          void startTraining();
           break;
         case 'trainStop':
-          ui.stop.click();
+          void stopTraining();
           break;
         case 'follow':
-          host.follow();
+          host.toggleFollowing();
           break;
         default:
           break;

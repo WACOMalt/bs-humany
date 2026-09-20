@@ -90,12 +90,21 @@ function chart(canvas, series, pick, colours, yLabel) {
     ctx.stroke();
   });
 }
-async function poll() {
+// Which checkpoint's files to read: the one the server is training, else stand.
+let runName = 'stand';
+async function pollName() {
   try {
-    const r = await fetch('runs/stand-latest.json', { cache: 'no-store' });
+    const r = await fetch('train/status', { cache: 'no-store' });
+    if (r.ok) { const s = await r.json(); if (s.name) runName = s.name; }
+  } catch {}
+}
+async function poll() {
+  await pollName();
+  try {
+    const r = await fetch(`runs/${runName}-latest.json`, { cache: 'no-store' });
     if (r.ok) {
       const d = await r.json();
-      $('task').textContent = d.task;
+      $('task').textContent = d.name && d.name !== d.task ? `${d.name} (${d.task})` : d.task;
       $('gen').textContent = d.series.length ? d.series[d.series.length - 1][0] : '–';
       $('best').textContent = `${d.best.fitness.toFixed(3)} · ${d.best.alive.toFixed(2)} s up · gen ${d.best.generation}`;
       $('episodes').textContent = d.episodes.toLocaleString();
@@ -106,7 +115,7 @@ async function poll() {
     }
   } catch {}
   try {
-    const r = await fetch('runs/stand-activity.json', { cache: 'no-store' });
+    const r = await fetch(`runs/${runName}-activity.json`, { cache: 'no-store' });
     if (r.ok) {
       const a = await r.json();
       $('live').textContent = `— generation ${a.generation}, ${a.time.toFixed(2)} s into the episode${a.up ? '' : ', down'}`;
@@ -157,7 +166,7 @@ function figure(canvas, pose, ax) {
 }
 async function pollPose() {
   try {
-    const r = await fetch('runs/stand-pose.json', { cache: 'no-store' });
+    const r = await fetch(`runs/${runName}-pose.json`, { cache: 'no-store' });
     if (r.ok) { const pose = await r.json(); figure($('front'), pose, 0); figure($('side'), pose, 2); $('body-live').textContent = `— ${pose.time.toFixed(2)} s into the episode${pose.up ? '' : ', down'}`; }
   } catch {}
 }

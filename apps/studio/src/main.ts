@@ -175,8 +175,17 @@ const rimLight = new DirectionalLight(0xffffff, 0.65);
 rimLight.position.set(0, 2, 4);
 scene.add(rimLight);
 
+/**
+ * Everything in the simulation's frame -- the body, its overlays, the furniture, the grid --
+ * under one group, so a scenario that tilts the floor is drawn with gravity vertical and the
+ * floor moving: the physics tilts gravity (see `tiltingFloor.ts`), and this turns the drawn
+ * world back by the same tilt. Points picked in the scene go through `world` to reach the
+ * physics, and lights and the camera stay where they are.
+ */
+const world = new Group();
+scene.add(world);
 const grid = new GridHelper(6, 24, 0x3a4250, 0x252a33);
-scene.add(grid);
+world.add(grid);
 
 const boneMaterial = new MeshStandardMaterial({
   color: 0xe8e2d4,
@@ -348,11 +357,11 @@ function rebuild(): void {
 
   stopSimulation();
   if (skinned) {
-    scene.remove(skinned.mesh);
+    world.remove(skinned.mesh);
     skinned.dispose();
   }
   skinned = createSkinnedSkeleton(skeletonMesh, toSkeletonGeometry(skeletonMesh), boneMaterial);
-  scene.add(skinned.mesh);
+  world.add(skinned.mesh);
 
   // The ground sits under the soles: the dataset places them at y = 0 and stature scales about
   // the origin, so this is close to zero, but it is measured rather than assumed.
@@ -447,7 +456,7 @@ renderer.domElement.addEventListener('click', (event) => {
 function refreshSelection(): void {
   if (selectedObject) {
     selectedObject.geometry.dispose();
-    scene.remove(selectedObject);
+    world.remove(selectedObject);
     selectedObject = null;
   }
 
@@ -472,7 +481,7 @@ function refreshSelection(): void {
       include: new Set([bone.id]),
     });
     selectedObject = new Mesh(toSkeletonGeometry(highlight), selectedMaterial);
-    scene.add(selectedObject);
+    world.add(selectedObject);
   }
 
   const parent = definition.parent
@@ -672,7 +681,7 @@ function showFurniture(sim: Simulation): void {
       mesh.quaternion.set(box.rotation.x, box.rotation.y, box.rotation.z, box.rotation.w);
     furniture.add(mesh);
   }
-  scene.add(furniture);
+  world.add(furniture);
 }
 
 /** Capabilities as a definition list (spec section 9.3). */
@@ -739,7 +748,7 @@ async function startSimulation(
     overlays = createOverlays(sim.articulation, {
       musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
     });
-    scene.add(overlays.root);
+    world.add(overlays.root);
     applyOverlayVisibility();
     showFurniture(sim);
     showCapabilities(sim);
@@ -1654,8 +1663,11 @@ function beginGrab(event: PointerEvent): boolean {
   const segment = simulation.segmentOfBone(picked.boneId);
   if (segment < 0) return false;
   const pose = simulation.segmentPose(segment);
+  // The pick is in the scene; the simulation's frame is the world group's, which a tilted floor
+  // has turned. Everything from here is in the simulation's frame.
+  const hit = world.worldToLocal(picked.point.clone());
   // Hit point in the segment's own frame: rotate the offset back by the inverse orientation.
-  const offset = new Vector3().copy(picked.point).sub(pose.position as Vector3);
+  const offset = new Vector3().copy(hit).sub(pose.position as Vector3);
   const inverse = new Quaternion(
     pose.rotation.x,
     pose.rotation.y,
@@ -1666,11 +1678,7 @@ function beginGrab(event: PointerEvent): boolean {
   simulation.grab.grab(
     segment,
     { x: offset.x, y: offset.y, z: offset.z },
-    {
-      x: picked.point.x,
-      y: picked.point.y,
-      z: picked.point.z,
-    },
+    { x: hit.x, y: hit.y, z: hit.z },
     Number(ui.grabStrength.value),
   );
   grabState = { pointerId: event.pointerId, depth: picked.point.distanceTo(camera.position) };
@@ -1691,7 +1699,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  const target = raycaster.ray.at(grabState.depth, new Vector3());
+  const target = world.worldToLocal(raycaster.ray.at(grabState.depth, new Vector3()));
   simulation.grab.moveTo({ x: target.x, y: target.y, z: target.z });
 });
 
@@ -1723,6 +1731,10 @@ function animate(): void {
   controls.update();
 
   if (!simulation) vrLink?.idle();
+  // The floor's tilt, as the scenario has it: the world is turned back by it so gravity stays
+  // vertical on the screen and the floor is what is seen to move. Level when nothing runs.
+  const tilt = simulation?.worldTilt ?? { pitch: 0, roll: 0 };
+  world.rotation.set(-tilt.pitch, 0, -tilt.roll, 'ZXY');
   if (bridgeFollower.active && skinned) followFrame(skinned);
   if (simulation && skinned) {
     const frameSeconds = Math.min(elapsed, 250) / 1000;
@@ -2036,6 +2048,7 @@ const vrHost = {
         fit: '',
         training: '',
         trainingRunning: false,
+        trainingStoppable: false,
         following: bridgeFollower.active,
       },
     };
@@ -2246,11 +2259,11 @@ function followFrame(skin: SkinnedSkeleton): void {
         muscles.units * muscles.rings * muscles.segments
     ) {
       if (followTubes) {
-        scene.remove(followTubes.mesh);
+        world.remove(followTubes.mesh);
         followTubes.dispose();
       }
       followTubes = new RingTubes(muscles.units, muscles.rings, muscles.segments);
-      scene.add(followTubes.mesh);
+      world.add(followTubes.mesh);
     }
     followTubes.update(muscles.position, muscles.orientation, muscles.radius);
   }
@@ -2316,8 +2329,44 @@ brain = createBrainPanel({
       setSimulationStatus(String(error), true);
     }
   },
-  follow() {
+  startFollowing() {
     if (!bridgeFollower.active) followButton.click();
+  },
+  // The headset's Follow is the desktop's button, both ways: without this there is no way to
+  // stop following from in there.
+  toggleFollowing() {
+    followButton.click();
+  },
+  recipe() {
+    return {
+      scenario: ui.scenario.value,
+      parameters: { ...(scenarioValues.get(ui.scenario.value) ?? {}) },
+      profile: ui.profile.value,
+      morphology: currentMorphology(),
+      passive: ui.passive.checked,
+      redistribute: ui.redistribute.checked,
+    };
+  },
+  // A checkpoint's recipe is a session's settings for the scene and the body; the rest stays.
+  applyRecipe(recipe) {
+    const p = recipe.morphology.proportions ?? {};
+    applySettings({
+      ...currentSettings(),
+      sex: recipe.morphology.sex,
+      stature: recipe.morphology.stature,
+      mass: recipe.morphology.mass,
+      crural: p.crural ?? Number(ui.crural.value),
+      brachial: p.brachial ?? Number(ui.brachial.value),
+      legLength: p.relativeLegLength ?? Number(ui.legLength.value),
+      profile: recipe.profile,
+      scenario: recipe.scenario,
+      passive: recipe.passive,
+      redistribute: recipe.redistribute,
+      scenarioParameters: { ...recipe.parameters },
+    });
+    setSimulationStatus(
+      `Scene, body and joints set from the checkpoint ${recipe.name}; they take effect on the next run.`,
+    );
   },
   fit() {
     const nerves = simulation?.nerves;
