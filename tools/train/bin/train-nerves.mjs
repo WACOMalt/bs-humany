@@ -111,9 +111,6 @@ console.log(
     `${seconds} s episodes on ${profileId}, ${workers} workers`,
 );
 console.log(
-  `  ${shape.stepsPerSecond} steps a second, the policy every ${shape.controlDivisor} of them`,
-);
-console.log(
   `  in ${recipe.scenario || 'the reference stand'}${
     Object.keys(recipe.parameters ?? {}).length ? ` ${JSON.stringify(recipe.parameters)}` : ''
   }, ${under} under the brain, authority ${recipe.authority}`,
@@ -138,6 +135,9 @@ const shape = shapes[0];
 // at another step rate or evaluates it at another divisor is not what it was trained in.
 recipe.stepsPerSecond = shape.stepsPerSecond;
 recipe.controlDivisor = shape.controlDivisor;
+console.log(
+  `  ${shape.stepsPerSecond} steps a second, the policy every ${shape.controlDivisor} of them`,
+);
 console.log(
   `  policy ${shape.sizes.join(' x ')}: ${shape.parameterCount} weights; ${shape.inputNames.length} senses, ${shape.outputNames.length} drives`,
 );

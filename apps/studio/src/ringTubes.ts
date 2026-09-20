@@ -122,7 +122,9 @@ export class RingTubes {
     this.geometry.getAttribute('color').needsUpdate = true;
   }
 
+  /** Free the buffers and leave the scene: whoever added it need not remember where. */
   dispose(): void {
+    this.mesh.removeFromParent();
     this.geometry.dispose();
     (this.mesh.material as MeshStandardMaterial).dispose();
   }

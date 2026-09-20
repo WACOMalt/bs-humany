@@ -143,7 +143,9 @@ export class FollowTissue {
     this.barGeometry.getAttribute('position').needsUpdate = true;
   }
 
+  /** Free the geometry and leave the scene: whoever added it need not remember where. */
   dispose(): void {
+    this.root.removeFromParent();
     this.discGeometry.dispose();
     this.beadGeometry.dispose();
     this.discMaterial.dispose();

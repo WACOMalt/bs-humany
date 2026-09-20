@@ -180,6 +180,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let activity: RemoteActivity | undefined;
   /** When the activity last actually changed: a file nobody is writing any more goes stale. */
   let activityChangedAt = 0;
+  /** The last payload seen, whether or not it was shown: what "changed" is measured against. */
+  let activitySeen = '';
 
   const readouts: [HTMLInputElement, string][] = [
     [ui.generations, '#train-generations-value'],
@@ -474,7 +476,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       const fresh = (await response.json()) as Omit<RemoteActivity, 'name'>;
       if (!Array.isArray(fresh.layers) || fresh.layers.length === 0) throw new Error('no layers');
       const now = performance.now();
-      if (activity?.time !== fresh.time || activity?.generation !== fresh.generation) {
+      // Against what was last read rather than what is being shown: a stale file cleared and
+      // then read again would otherwise look like a change every time and flicker back on.
+      const seen = `${fresh.generation}:${fresh.time}`;
+      if (seen !== activitySeen) {
+        activitySeen = seen;
         activityChangedAt = now;
       }
       // Between episodes the showcase rests a moment, so the file is allowed to stand still for

@@ -553,7 +553,7 @@ function stopSimulation(): void {
   overlays?.dispose();
   overlays = null;
   if (furniture) {
-    scene.remove(furniture);
+    furniture.removeFromParent();
     for (const child of furniture.children) if (child instanceof Mesh) child.geometry.dispose();
     furniture = null;
   }
@@ -2302,7 +2302,6 @@ function followFrame(skin: SkinnedSkeleton): void {
         muscles.units * muscles.rings * muscles.segments
     ) {
       if (followTubes) {
-        world.remove(followTubes.mesh);
         followTubes.dispose();
       }
       followTubes = new RingTubes(muscles.units, muscles.rings, muscles.segments);
@@ -2337,7 +2336,6 @@ function followTissueFrame(pose: typeof bridgeFollower.pose): void {
   if (key !== followTissueKey) {
     followTissueKey = key;
     if (followTissue) {
-      world.remove(followTissue.root);
       followTissue.dispose();
       followTissue = null;
     }
@@ -2354,13 +2352,11 @@ function followTissueFrame(pose: typeof bridgeFollower.pose): void {
 function stopFollowing(): void {
   bridgeFollower.stop();
   if (followTissue) {
-    world.remove(followTissue.root);
     followTissue.dispose();
     followTissue = null;
     followTissueKey = '';
   }
   if (followTubes) {
-    scene.remove(followTubes.mesh);
     followTubes.dispose();
     followTubes = null;
   }
@@ -2368,6 +2364,8 @@ function stopFollowing(): void {
   followLastMuscleTick = -1;
   skinned?.rest();
   followButton.textContent = 'Follow bridge';
+  // Back to whatever this page's own run is doing, which with nothing running is nothing.
+  setMode(!simulation ? 'rest' : simulation.paused ? 'paused' : 'running');
   setSimulationStatus('At rest.');
 }
 
