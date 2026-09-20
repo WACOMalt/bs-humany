@@ -14,7 +14,7 @@
  *   - Segment and DoF ordering come from `CompiledArticulation` and are identical across backends.
  */
 
-import type { Transform, Vec3 } from '@bs-humany/frames';
+import type { Quat, Transform, Vec3 } from '@bs-humany/frames';
 import type { CompiledArticulation } from './articulation.js';
 
 export type Support = 'native' | 'emulated' | 'approximated' | 'unsupported';
@@ -175,6 +175,15 @@ export interface IPhysicsBackend {
    * solver are untouched; it simply stops taking part in contact.
    */
   setGroundCollision(enabled: boolean): void;
+  /**
+   * Turn the ground plane about its own origin, after `init`.
+   *
+   * A floor that tilts is not the same experiment as a gravity that tilts, though the two are a
+   * rotation apart. Tilt the gravity and the body stays square to the floor and leans against the
+   * weight, which is a room accelerating sideways. Tilt the floor and the body stays square to
+   * the weight while the floor goes out from under it, which is a ramp. Balance is the second.
+   */
+  setGroundOrientation(rotation: Quat): void;
   setKinematic(segmentIndex: number, enabled: boolean): void;
   setPose(segmentIndex: number, transform: Transform): void;
   /**

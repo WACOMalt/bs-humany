@@ -22,7 +22,7 @@ import type {
   PoseBuffer,
   VelocityBuffer,
 } from '@bs-humany/compiler';
-import type { Vec3 } from '@bs-humany/frames';
+import type { Quat, Vec3 } from '@bs-humany/frames';
 import type {
   ChannelView,
   ModuleInitContext,
@@ -144,6 +144,17 @@ export class PhysicsModule implements SimModule, Stateful {
   /** Turn contact with the ground plane on or off. The ground stays where it is. */
   setGroundCollision(enabled: boolean): void {
     this.backend.setGroundCollision(enabled);
+  }
+
+  /**
+   * Turn the ground plane, after `init`.
+   *
+   * Not the same as turning the gravity, though a rotation apart: tilt the weight and the body
+   * stays square to the floor and leans against it, which is a room accelerating sideways; tilt
+   * the floor and the body stays square to the weight while the floor goes out from under it.
+   */
+  setGroundOrientation(rotation: Quat): void {
+    this.backend.setGroundOrientation(rotation);
   }
 
   /**

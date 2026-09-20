@@ -35,7 +35,6 @@ import {
   CouplingModule,
   PassiveJointModule,
   PhysicsModule,
-  SIM_GRAVITY,
   SkeletonPoseModule,
 } from '@bs-humany/modules-mechanics';
 import {
@@ -72,9 +71,9 @@ import {
   type ScenarioApi,
   type ScenarioDefinition,
   driveOutputs,
+  groundRotation,
   loadActivationClips,
   placeArticulation,
-  tiltedGravity,
   unitsNamedByClips,
 } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -199,8 +198,6 @@ export class StandRig {
   outputNames: readonly string[] = [];
   private readonly kernel: Kernel;
   private readonly physics: PhysicsModule;
-  /** The level gravity the body was compiled for; a tilt turns it. */
-  private readonly gravity: { x: number; y: number; z: number };
   private angular: Float64Array;
   private readonly nerves: NervesModule;
   private readonly drive: MuscleTestDriveModule;
@@ -280,7 +277,6 @@ export class StandRig {
     this.kernel = kernel;
     this.physics = physics;
     this.articulation = articulation;
-    this.gravity = { ...kernelGravity(kernel) };
     this.angular = kernel.channels.storage(BODY_VELOCITY).fields.angular as Float64Array;
     this.nerves = nerves;
     this.drive = drive;
@@ -327,7 +323,7 @@ export class StandRig {
         if (options.feedforward.kind === 'script') this.drive.setOverride(unit, level, 'script');
       },
       tiltWorld: (pitch, roll) =>
-        this.physics.setGravity(tiltedGravity(this.gravity, { pitch, roll })),
+        this.physics.setGroundOrientation(groundRotation({ pitch, roll })),
     };
   }
 
@@ -701,12 +697,6 @@ export class StandRig {
   dispose(): void {
     this.kernel.dispose();
   }
-}
-
-/** The gravity in force, from the channel the physics module publishes it on. */
-function kernelGravity(kernel: Kernel): { x: number; y: number; z: number } {
-  const g = kernel.channels.storage(SIM_GRAVITY).fields.gravity as Float64Array;
-  return { x: g[0] ?? 0, y: g[1] ?? -9.81, z: g[2] ?? 0 };
 }
 
 function seeded(seed: number): () => number {

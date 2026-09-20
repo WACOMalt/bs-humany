@@ -574,7 +574,7 @@ describe('the swept mesh faces', () => {
       const p = (o: number, k: number) => mesh.position[at(k) + o] as number;
       const e1 = [p(0, 1) - p(0, 0), p(1, 1) - p(1, 0), p(2, 1) - p(2, 0)] as const;
       const e2 = [p(0, 2) - p(0, 0), p(1, 2) - p(1, 0), p(2, 2) - p(2, 0)] as const;
-      const face = [
+      const face: readonly [number, number, number] = [
         e1[1] * e2[2] - e1[2] * e2[1],
         e1[2] * e2[0] - e1[0] * e2[2],
         e1[0] * e2[1] - e1[1] * e2[0],

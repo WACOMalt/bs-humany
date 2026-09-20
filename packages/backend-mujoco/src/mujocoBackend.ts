@@ -38,7 +38,7 @@ import type {
   VelocityBuffer,
 } from '@bs-humany/compiler';
 import { ROOT_NQ, ROOT_NV, emitMjcf } from '@bs-humany/compiler';
-import type { Transform, Vec3 } from '@bs-humany/frames';
+import type { Quat, Transform, Vec3 } from '@bs-humany/frames';
 import type { MainModule, MjData, MjModel } from '@mujoco/mujoco';
 import loadMujoco from '@mujoco/mujoco';
 
@@ -685,6 +685,21 @@ export class MujocoBackend implements IPhysicsBackend {
     // zeroing both takes the plane out of every pair without moving or deleting it.
     (model.geom_contype as Int32Array)[id] = enabled ? 1 : 0;
     (model.geom_conaffinity as Int32Array)[id] = enabled ? 1 : 0;
+  }
+
+  setGroundOrientation(rotation: Quat): void {
+    const mujoco = this.mujoco;
+    const model = this.mjModel;
+    if (!mujoco || !model) throw new Error('No compiled model.');
+    const id = mujoco.mj_name2id(model, OBJ_GEOM, 'ground');
+    if (id < 0) return;
+    // A plane's normal is its own +Z, and a geom on the world body is posed by `geom_quat`
+    // alone, which `mj_kinematics` reads every step. MuJoCo orders a quaternion w first.
+    const q = model.geom_quat as Float64Array;
+    q[4 * id] = rotation.w;
+    q[4 * id + 1] = rotation.x;
+    q[4 * id + 2] = rotation.y;
+    q[4 * id + 3] = rotation.z;
   }
 
   setKinematic(_segmentIndex: number, _enabled: boolean): void {

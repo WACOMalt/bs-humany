@@ -3,12 +3,12 @@
  * stood on. A body that has chosen a posture and holds it goes over at the first pulse; only one
  * that feels the tilt and answers it stays up, which is what the scenario is for.
  *
- * What actually happens is that gravity tilts, not the floor. The backends have no kinematic
- * floor to move, and for a floor that pivots about the point under the feet the two are the
- * same thing in the body's frame: a floor tilted by an angle is a gravity tilted by that angle
- * the other way, plus the pivot's own small motion. A viewer that wants to show the floor tilting
- * draws the whole world turned back by the tilt, so gravity is vertical on the screen and the
- * floor is what moves; the simulation itself does not know the difference.
+ * The floor itself turns -- the plane the body stands on, about the point under its feet -- and
+ * gravity stays where it is. Turning the gravity instead is a different experiment, a rotation
+ * away and easy to mistake for this one: under a tilted weight the body stays square to the
+ * floor and leans against it, which is a room accelerating sideways, and the contact normal
+ * never moves. Under a tilted floor the body stays square to the weight while the floor goes out
+ * from under it, and the normal it is standing on turns with the floor. Balance is the second.
  *
  * The pulses are deterministic from the seed: at each pulse a direction and a size are drawn,
  * the tilt ramps there over a tenth of a second, holds, and ramps back. Between pulses the floor
@@ -16,7 +16,6 @@
  * floor without the script keeping any state that could go stale.
  */
 
-import type { Vec3 } from '@bs-humany/frames';
 import type { ScenarioApi } from './index.js';
 
 export interface TiltingFloorSettings {
@@ -96,18 +95,16 @@ export function tiltAt(pulses: readonly Pulse[], time: number): WorldTilt {
 }
 
 /**
- * Gravity as a tilted floor feels it: the level gravity turned by the tilt the other way. A floor
- * whose far edge (+X) drops by `roll` sends gravity toward +X; one whose front (-Z) drops by
- * `pitch` sends it toward -Z.
+ * The floor's own rotation, as a quaternion: pitched about X, then rolled about Z, which is the
+ * order `tiltAt` states a tilt in and the order a plane's normal follows it.
  */
-export function tiltedGravity(level: Vec3, tilt: WorldTilt): Vec3 {
-  const g = Math.hypot(level.x, level.y, level.z);
-  const cp = Math.cos(tilt.pitch);
-  const sp = Math.sin(tilt.pitch);
-  const cr = Math.cos(tilt.roll);
-  const sr = Math.sin(tilt.roll);
-  // Down, (0, -1, 0), pitched about X then rolled about Z.
-  return { x: g * sr * cp, y: -g * cr * cp, z: -g * sp };
+export function groundRotation(tilt: WorldTilt): { x: number; y: number; z: number; w: number } {
+  const hp = tilt.pitch / 2;
+  const hr = tilt.roll / 2;
+  const [sp, cp] = [Math.sin(hp), Math.cos(hp)];
+  const [sr, cr] = [Math.sin(hr), Math.cos(hr)];
+  // q = pitch(X) * roll(Z), with w first in the arithmetic and x, y, z, w in the value.
+  return { x: sp * cr, y: sp * sr, z: cp * sr, w: cp * cr };
 }
 
 /** The script: the floor's tilt each tick, from the pulses the seed draws. */

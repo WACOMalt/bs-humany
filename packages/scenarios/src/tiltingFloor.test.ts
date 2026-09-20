@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tiltAt, tiltPulses, tiltedGravity, tiltingFloor } from './tiltingFloor.js';
+import { groundRotation, tiltAt, tiltPulses, tiltingFloor } from './tiltingFloor.js';
 
 describe('the tilting floor', () => {
   const settings = { tilt: 5, every: 0.8, hold: 0.3, seed: 7 };
@@ -35,15 +35,29 @@ describe('the tilting floor', () => {
     expect(tiltAt(pulses, 0)).toEqual({ pitch: 0, roll: 0 });
   });
 
-  it('turns gravity by the tilt and keeps its size', () => {
-    const level = { x: 0, y: -9.81, z: 0 };
-    expect(tiltedGravity(level, { pitch: 0, roll: 0 })).toEqual({ x: 0, y: -9.81, z: -0 });
-    const rolled = tiltedGravity(level, { pitch: 0, roll: 0.1 });
-    expect(rolled.x).toBeGreaterThan(0);
-    expect(Math.hypot(rolled.x, rolled.y, rolled.z)).toBeCloseTo(9.81, 9);
-    const pitched = tiltedGravity(level, { pitch: 0.1, roll: 0 });
-    expect(pitched.z).toBeLessThan(0);
-    expect(Math.hypot(pitched.x, pitched.y, pitched.z)).toBeCloseTo(9.81, 9);
+  it('turns the floor about its own origin, as a unit rotation', () => {
+    // Level is the identity, and every tilt is a rotation: the plane's normal turns with it and
+    // nothing about the plane is scaled or moved.
+    expect(groundRotation({ pitch: 0, roll: 0 })).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    for (const tilt of [
+      { pitch: 0.1, roll: 0 },
+      { pitch: 0, roll: 0.1 },
+      { pitch: -0.08, roll: 0.05 },
+    ]) {
+      const q = groundRotation(tilt);
+      expect(Math.hypot(q.x, q.y, q.z, q.w)).toBeCloseTo(1, 12);
+      // The plane's normal is its own +Y here, and it leans by the angle asked for.
+      const up = {
+        x: 2 * (q.x * q.y + q.z * q.w),
+        y: 1 - 2 * (q.x * q.x + q.z * q.z),
+        z: 2 * (q.y * q.z - q.x * q.w),
+      };
+      const lean = Math.acos(Math.min(1, up.y));
+      expect(lean).toBeCloseTo(Math.hypot(tilt.pitch, tilt.roll), 2);
+      // A pitch drops the front, a roll drops one side: each shows on its own axis.
+      if (tilt.pitch !== 0) expect(Math.sign(up.z)).toBe(-Math.sign(tilt.pitch));
+      if (tilt.roll !== 0) expect(Math.sign(up.x)).toBe(Math.sign(tilt.roll));
+    }
   });
 
   it('as a script, sets the tilt absolutely every tick', () => {

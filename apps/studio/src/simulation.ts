@@ -67,8 +67,8 @@ import {
   type ScenarioApi,
   type WorldTilt,
   driveOutputs,
+  groundRotation,
   placeArticulation,
-  tiltedGravity,
 } from '@bs-humany/scenarios';
 
 export type BackendId = 'rapier' | 'mujoco';
@@ -427,7 +427,7 @@ export class Simulation {
       tiltWorld: (pitch, roll) => {
         if (pitch === this.tilt.pitch && roll === this.tilt.roll) return;
         this.tilt = { pitch, roll };
-        this.applyGravity();
+        this.physics.setGroundOrientation(groundRotation(this.tilt));
       },
     };
     this.timeline.push({ tick: 0, snapshot: this.kernel.snapshot() });
@@ -606,16 +606,16 @@ export class Simulation {
     this.applyGravity();
   }
 
+  /** The floor's tilt, for whatever draws the floor. */
+
   /** The floor's tilt as the scenario has set it: what a viewer turns the drawn world back by. */
   get worldTilt(): WorldTilt {
     return this.tilt;
   }
 
-  /** Gravity as it stands: off, or the level gravity turned by the floor's tilt. */
+  /** Gravity as it stands: the body's own, or none. The floor's tilt is the floor's. */
   private applyGravity(): void {
-    this.physics.setGravity(
-      this.gravityOn ? tiltedGravity(this.articulation.gravity, this.tilt) : { x: 0, y: 0, z: 0 },
-    );
+    this.physics.setGravity(this.gravityOn ? this.articulation.gravity : { x: 0, y: 0, z: 0 });
   }
 
   /**

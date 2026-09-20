@@ -39,6 +39,7 @@ import type {
 } from '@bs-humany/compiler';
 import { ROOT_NQ, ROOT_NV, dofAxisInertia, forwardKinematics } from '@bs-humany/compiler';
 import {
+  type Quat,
   type Transform,
   type Vec3,
   cross,
@@ -936,6 +937,12 @@ export class RapierBackend implements IPhysicsBackend {
     if (!collider) return;
     // An empty membership takes the ground out of every pair; the collider itself stays put.
     collider.setCollisionGroups(enabled ? 0xffffffff : 0);
+  }
+  setGroundOrientation(_rotation: Quat): void {
+    throw new Error(
+      'RapierBackend cannot turn the ground plane; it is reported rather than approximated, as ' +
+        'a floor drawn tilted and simulated level is worse than one that refuses.',
+    );
   }
 
   setGravity(gravity: Vec3): void {

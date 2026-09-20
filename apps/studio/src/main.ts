@@ -178,10 +178,10 @@ scene.add(rimLight);
 
 /**
  * Everything in the simulation's frame -- the body, its overlays, the furniture, the grid --
- * under one group, so a scenario that tilts the floor is drawn with gravity vertical and the
- * floor moving: the physics tilts gravity (see `tiltingFloor.ts`), and this turns the drawn
- * world back by the same tilt. Points picked in the scene go through `world` to reach the
- * physics, and lights and the camera stay where they are.
+ * under one group, so what is drawn and what is simulated share one set of coordinates. Points
+ * picked in the scene go through `world` to reach the physics; lights and the camera stay where
+ * they are. A scenario that tilts the floor turns the grid alone, because the floor is the only
+ * thing that turns (see `tiltingFloor.ts`).
  */
 const world = new Group();
 scene.add(world);
@@ -1737,10 +1737,10 @@ function animate(): void {
   if (!simulation) vrLink?.idle();
   // The brain panel's picture: this page's policy, or the training showcase's.
   drawNerves(simulation ?? undefined);
-  // The floor's tilt, as the scenario has it: the world is turned back by it so gravity stays
-  // vertical on the screen and the floor is what is seen to move. Level when nothing runs.
+  // The floor's tilt, as the scenario has it: the grid is the plane the body stands on, so it
+  // turns with it and nothing else does. Level when nothing runs.
   const tilt = simulation?.worldTilt ?? { pitch: 0, roll: 0 };
-  world.rotation.set(-tilt.pitch, 0, -tilt.roll, 'ZXY');
+  grid.rotation.set(tilt.pitch, 0, tilt.roll, 'ZXY');
   if (bridgeFollower.active && skinned) followFrame(skinned);
   if (simulation && skinned) {
     const frameSeconds = Math.min(elapsed, 250) / 1000;

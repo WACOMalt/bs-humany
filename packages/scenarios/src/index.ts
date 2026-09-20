@@ -456,8 +456,9 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       'degrees, a fraction of a second each, a direction and a size drawn afresh every pulse ' +
       'from the seed. Nothing drives the muscles: this is a floor for a brain to be trained on, ' +
       'where a posture held still goes over at the first pulse and only a body that feels the ' +
-      'tilt and answers it stays up. The floor is gravity turning, the one thing the backend can ' +
-      'move; the studio turns the drawn world back by the tilt so the floor is what you see move.',
+      'tilt and answers it stays up. The plane the body stands on is what turns, about the point ' +
+      'under its feet, and the weight stays where it is -- which is a ramp rather than a room ' +
+      'accelerating sideways, and the difference is the contact normal turning with the floor.',
     parameters: [
       param('tilt', 'Tilt, at most', 4, 0, 15, 0.5, '\u00b0'),
       param('every', 'A pulse every', 0.8, 0.2, 3, 0.1, ' s'),

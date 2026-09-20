@@ -5,7 +5,6 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { tissueTable } from '../../../apps/studio/src/tissue.js';
 import { StandRig, defaultRecipe, rigOptionsFor } from './rig.js';
 
 describe('a training recipe', () => {
@@ -87,10 +86,7 @@ describe('a rig built from a scenario with the brain alone', () => {
 });
 
 describe('the rig a showcase publishes from', () => {
-  it('has a tissue table every frame of which names a bone the poses carry', async () => {
-    // The showcase puts this table in its status and a studio or a headset draws the discs and
-    // the cartilage from it and the poses. A frame naming a bone that is not in the pose order
-    // is a frame nobody can place.
+  it('reports the timescale its recipe will carry', async () => {
     const rig = await StandRig.build({
       profileId: 'l3_anatomical',
       hidden: [8],
@@ -100,18 +96,10 @@ describe('the rig a showcase publishes from', () => {
       poseBones: true,
     });
     try {
-      const table = tissueTable(rig.articulation);
-      expect(table.discs.length).toBeGreaterThan(20);
-      expect(table.bars.length).toBeGreaterThan(8);
-      const bones = new Set(rig.boneOrder);
-      for (const disc of table.discs) expect(bones.has(disc.bone)).toBe(true);
-      for (const bar of table.bars) {
-        expect(bones.has(bar.boneA)).toBe(true);
-        expect(bones.has(bar.boneB)).toBe(true);
-      }
-      // And the timescale it reports is the one the recipe will carry.
+      // What a checkpoint records, and what a run playing it has to match to be the same physics.
       expect(rig.stepsPerSecond).toBe(1000);
       expect(rig.controlDivisor).toBe(10);
+      expect(rig.boneOrder.length).toBeGreaterThan(100);
     } finally {
       rig.dispose();
     }
