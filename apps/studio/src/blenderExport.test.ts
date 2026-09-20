@@ -155,8 +155,11 @@ describe('the Blender export, with muscles', () => {
     const exported = buildBlenderExport(simulation, document, assets);
     const { json } = readGlb(exported.glb) as unknown as { json: Gltf };
 
-    // No skins, no ring joints, no per-unit belly objects: one mesh named for what it is.
-    expect(json.skins ?? []).toHaveLength(0);
+    // No belly skins, no ring joints, no per-unit belly objects: one mesh named for what it is.
+    // The only skins left are the costal cartilage, one bar a weld, each end bound to a bone.
+    const skinned = json.nodes.filter((n) => n.skin !== undefined);
+    expect(skinned.every((n) => n.name.startsWith('cartilage__'))).toBe(true);
+    expect(json.skins ?? []).toHaveLength(skinned.length);
     expect(json.nodes.filter((n) => /__ring\d+$/.test(n.name))).toHaveLength(0);
     const belly = json.nodes.find((n) => n.name === 'muscles');
     expect(belly?.mesh).toBeDefined();

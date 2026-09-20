@@ -86,6 +86,7 @@ import {
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
 import { createMemory } from './ui/memory.js';
+import { createResizer } from './ui/resizer.js';
 import { createTabs } from './ui/tabs.js';
 import { type VrCommand, VrLink, type VrStatus } from './vrLink.js';
 
@@ -926,6 +927,39 @@ function muscleOverlay(sim: Simulation) {
  * Nothing is stepped to get here: the recording already holds every tick, and the playhead's
  * output frame is one of them.
  */
+/** Segment poses from bone transforms: each segment's frame is its anchor bone's. */
+let segmentAnchorIndex: { sim: Simulation; anchors: Int32Array } | undefined;
+function segmentPosesFrom(
+  sim: Simulation,
+  bones: { position: Float64Array; orientation: Float64Array },
+): { position: Float64Array; orientation: Float64Array } {
+  if (segmentAnchorIndex?.sim !== sim) {
+    const order = new Map(sim.boneOrder().map((id, i) => [id, i]));
+    segmentAnchorIndex = {
+      sim,
+      anchors: Int32Array.from(sim.articulation.segments, (s) => order.get(s.anchor) ?? -1),
+    };
+  }
+  const anchors = segmentAnchorIndex.anchors;
+  const position = new Float64Array(anchors.length * 3);
+  const orientation = new Float64Array(anchors.length * 4);
+  for (let i = 0; i < anchors.length; i++) {
+    const b = anchors[i] as number;
+    if (b < 0) {
+      orientation[4 * i + 3] = 1;
+      continue;
+    }
+    position[3 * i] = bones.position[3 * b] ?? 0;
+    position[3 * i + 1] = bones.position[3 * b + 1] ?? 0;
+    position[3 * i + 2] = bones.position[3 * b + 2] ?? 0;
+    orientation[4 * i] = bones.orientation[4 * b] ?? 0;
+    orientation[4 * i + 1] = bones.orientation[4 * b + 1] ?? 0;
+    orientation[4 * i + 2] = bones.orientation[4 * b + 2] ?? 0;
+    orientation[4 * i + 3] = bones.orientation[4 * b + 3] ?? 1;
+  }
+  return { position, orientation };
+}
+
 function replayFrame(
   sim: Simulation,
 ): { position: Float64Array; orientation: Float64Array } | undefined {
@@ -1184,6 +1218,7 @@ let brain: ReturnType<typeof createBrainPanel> | undefined;
 // --- The editors' chrome: tabs, what the page remembers, the overlays popover ------------------
 const memory = createMemory();
 const tabs = createTabs(must<HTMLElement>('#tabs'), must<HTMLElement>('#panels'), memory, 'body');
+createResizer(must<HTMLElement>('#properties-resizer'), memory);
 for (const [input, key] of [
   [ui.showNotes, 'notes'],
   [ui.showGrid, 'grid'],
@@ -1692,6 +1727,10 @@ function animate(): void {
     }
     const replay = following ? undefined : replayFrame(simulation);
     const transforms = replay ?? simulation.boneTransforms();
+    // Off the live edge, the segment poses the overlays draw from are the replayed bones': a
+    // segment's frame is its anchor bone's, so the discs, the cartilage and the proxies follow
+    // the playhead the way the bones and bellies do.
+    const replayedPose = replay ? segmentPosesFrom(simulation, replay) : undefined;
     skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
     vrLink?.frame(transforms.position, transforms.orientation);
     if (overlays) {
@@ -1702,8 +1741,8 @@ function animate(): void {
         // Off the live edge the pose overlays have no history to draw, so they are hidden rather
         // than fed the newest tick's -- see `applyOverlayVisibility`. What is passed here is what
         // they would draw if they were visible.
-        position: pose.position as Float64Array,
-        orientation: pose.orientation as Float64Array,
+        position: replayedPose?.position ?? (pose.position as Float64Array),
+        orientation: replayedPose?.orientation ?? (pose.orientation as Float64Array),
         proximity: limits.proximity as Float64Array,
         contactCount: replay ? 0 : contacts.count,
         contactPoint: contacts.fields.point as Float64Array,

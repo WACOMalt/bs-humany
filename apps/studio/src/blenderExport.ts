@@ -23,6 +23,15 @@ import { type HsdlDocument, evaluate, param } from '@bs-humany/hsdl';
 import { computeWorldTransforms } from '@bs-humany/skeleton';
 import { Playback } from './playback.js';
 import type { Simulation } from './simulation.js';
+import {
+  BEAD_RADIUS,
+  DISC_HEIGHT,
+  DISC_RADIUS,
+  barMesh,
+  cylinderMesh,
+  sphereMesh,
+  tissueOf,
+} from './tissue.js';
 
 export interface BlenderExport {
   readonly glb: Uint8Array;
@@ -221,17 +230,30 @@ export function buildBlenderExport(
   // checkable against the bone it turns inside.
   const boneNode = new Map(nodes.map((n, i) => [n.id, i]));
   const model = simulation.articulation;
+  // The connective tissue: a disc or a bead is rigid in its joint's parent, so it is the joint
+  // node's own mesh and moves with the bone the node inherits from; a bar of cartilage moves
+  // with two segments, so it is a skinned mesh with one end bound to each. Same shapes the
+  // studio's overlay draws, from the same table.
+  const tissue = tissueOf(model);
+  const discAt = new Map(tissue.discs.map((d) => [d.joint, d]));
+  const discShape = cylinderMesh(DISC_RADIUS, DISC_HEIGHT);
+  const beadShape = sphereMesh(BEAD_RADIUS);
   for (const joint of model.joints) {
     const parentSegment = model.segments[joint.parentSegment];
     const host = boneNode.get(joint.parentBone);
     if (!parentSegment || host === undefined) continue;
+    const restWorld = compose(parentSegment.restWorld, joint.frameInParent);
+    const disc = discAt.get(joint.index);
     nodes.push({
       id: `joint__${joint.id}`,
       parent: host,
-      restWorld: compose(parentSegment.restWorld, joint.frameInParent),
+      restWorld,
       animated: false,
+      ...(disc ? { mesh: worldMesh(disc.kind === 'disc' ? discShape : beadShape, restWorld) } : {}),
       extras: {
-        role: 'joint centre',
+        role: disc
+          ? `joint centre; ${disc.kind === 'disc' ? 'intervertebral disc' : 'costovertebral hold'}`
+          : 'joint centre',
         joint: joint.id,
         parentBone: joint.parentBone,
         childBone: joint.childBone,
@@ -243,6 +265,43 @@ export function buildBlenderExport(
           neutral: d.neutral,
         })),
       },
+    });
+  }
+
+  // The cartilage: one skinned bar a weld, each end bound to its segment's anchor bone.
+  const tissueRoot =
+    tissue.bars.length > 0
+      ? nodes.push({
+          id: 'tissue',
+          parent: -1,
+          restWorld: IDENTITY_TRANSFORM,
+          animated: false,
+          extras: { role: 'connective tissue: the costal cartilage, one bar a weld' },
+        }) - 1
+      : -1;
+  for (const bar of tissue.bars) {
+    const segA = model.segments[bar.a];
+    const segB = model.segments[bar.b];
+    const nodeA = segA ? boneNode.get(segA.anchor) : undefined;
+    const nodeB = segB ? boneNode.get(segB.anchor) : undefined;
+    if (!segA || !segB || nodeA === undefined || nodeB === undefined) continue;
+    const sides = 6;
+    const mesh = barMesh(
+      transformPoint(segA.restWorld, bar.onA),
+      transformPoint(segB.restWorld, bar.onB),
+      undefined,
+      sides,
+    );
+    const vertexJoint = new Uint16Array(sides * 2);
+    vertexJoint.fill(1, sides);
+    nodes.push({
+      id: `cartilage__${bar.id}`,
+      parent: tissueRoot,
+      restWorld: IDENTITY_TRANSFORM,
+      animated: false,
+      mesh,
+      skin: { joints: [nodeA, nodeB], vertexJoint },
+      extras: { role: 'costal cartilage', weld: bar.id, from: segA.id, to: segB.id },
     });
   }
 

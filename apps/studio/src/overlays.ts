@@ -30,6 +30,7 @@ import {
   Vector3,
 } from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
+import { BEAD_RADIUS, DISC_HEIGHT, DISC_RADIUS, tissueOf } from './tissue.js';
 
 export interface OverlayChannels {
   readonly position: Float64Array;
@@ -236,67 +237,21 @@ export function createOverlays(
   // nearest hull points at rest, which for a rib and the sternum is the rib's front end and the
   // sternum's edge -- where the cartilage is.
   const discMaterial = new MeshBasicMaterial({ color: 0x9fe3d8, transparent: true, opacity: 0.85 });
-  const discGeometry = new CylinderGeometry(0.014, 0.014, 0.005, 16);
-  const beadGeometry = new SphereGeometry(0.006, 8, 6);
-  const heldJoints = new Map<number, number>();
-  for (const c of model.constraints) {
-    if (c.kind.type !== 'jointHold') continue;
-    const joint = model.dofs[c.kind.dof]?.joint;
-    if (joint !== undefined) heldJoints.set(joint, (heldJoints.get(joint) ?? 0) + 1);
-  }
-  const discMeshes: { joint: number; mesh: Mesh }[] = [];
-  for (const [joint, count] of heldJoints) {
-    const mesh = new Mesh(count > 1 ? discGeometry : beadGeometry, discMaterial);
+  const discGeometry = new CylinderGeometry(DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 16);
+  const beadGeometry = new SphereGeometry(BEAD_RADIUS, 8, 6);
+  const tissueOfModel = tissueOf(model);
+  const discMeshes = tissueOfModel.discs.map((disc) => {
+    const mesh = new Mesh(disc.kind === 'disc' ? discGeometry : beadGeometry, discMaterial);
     tissue.add(mesh);
-    discMeshes.push({ joint, mesh });
-  }
-  const welds = model.constraints.filter((c) => c.kind.type === 'weld');
-  const restPosition = (i: number) => {
-    const t = model.segments[i]?.restWorld.translation;
-    return new Vector3(t?.x ?? 0, t?.y ?? 0, t?.z ?? 0);
-  };
-  const restRotation = (i: number) => {
-    const r = model.segments[i]?.restWorld.rotation;
-    return new Quaternion(r?.x ?? 0, r?.y ?? 0, r?.z ?? 0, r?.w ?? 1);
-  };
-  /** The point of segment `a`'s hulls nearest segment `b`'s centre at rest, in `a`'s frame. */
-  const anchor = (a: number, b: number): Vector3 => {
-    const target = new Vector3();
-    const bSeg = model.segments[b];
-    if (bSeg) target.set(bSeg.com.x, bSeg.com.y, bSeg.com.z).applyQuaternion(restRotation(b));
-    target.add(restPosition(b)).sub(restPosition(a)).applyQuaternion(restRotation(a).invert());
-    let best: Vector3 | undefined;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    const aSeg = model.segments[a];
-    for (const index of aSeg?.proxyIndices ?? []) {
-      const proxy = model.proxies[index];
-      if (!proxy || proxy.shape.kind !== 'convexHull') continue;
-      const pr = proxy.transform.rotation;
-      const pt = proxy.transform.translation;
-      const q = new Quaternion(pr.x, pr.y, pr.z, pr.w);
-      for (const v of proxy.shape.vertices) {
-        const local = new Vector3(v.x, v.y, v.z)
-          .applyQuaternion(q)
-          .add(new Vector3(pt.x, pt.y, pt.z));
-        const d = local.distanceToSquared(target);
-        if (d < bestDistance) {
-          bestDistance = d;
-          best = local;
-        }
-      }
-    }
-    return best ?? new Vector3(aSeg?.com.x ?? 0, aSeg?.com.y ?? 0, aSeg?.com.z ?? 0);
-  };
-  const weldAnchors = welds.map((c) =>
-    c.kind.type === 'weld'
-      ? {
-          a: c.kind.segmentA,
-          b: c.kind.segmentB,
-          onA: anchor(c.kind.segmentA, c.kind.segmentB),
-          onB: anchor(c.kind.segmentB, c.kind.segmentA),
-        }
-      : undefined,
-  );
+    return { joint: disc.joint, mesh };
+  });
+  const weldAnchors = tissueOfModel.bars.map((bar) => ({
+    a: bar.a,
+    b: bar.b,
+    onA: new Vector3(bar.onA.x, bar.onA.y, bar.onA.z),
+    onB: new Vector3(bar.onB.x, bar.onB.y, bar.onB.z),
+  }));
+  const welds = weldAnchors;
   const weldPositions = new Float32Array(Math.max(1, welds.length) * 6);
   const weldGeometry = new BufferGeometry();
   weldGeometry.setAttribute('position', new BufferAttribute(weldPositions, 3));
@@ -446,7 +401,6 @@ export function createOverlays(
           );
         }
         weldAnchors.forEach((w, i) => {
-          if (!w) return;
           for (const [end, seg, local] of [
             [0, w.a, w.onA],
             [1, w.b, w.onB],

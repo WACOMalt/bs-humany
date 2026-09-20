@@ -222,11 +222,38 @@ body {
 /* --- Properties editor ------------------------------------------------------------------------ */
 
 #properties {
+  position: relative;
   display: grid;
   grid-template-columns: var(--tabs) minmax(0, 1fr);
   min-height: 0;
   background: var(--panel);
   border-left: 1px solid var(--panel-border);
+}
+
+/* The handle on the editor's inner edge: invisible until hovered, and a column cursor. */
+#properties-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  z-index: 10;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+#properties-resizer:hover,
+body.resizing #properties-resizer {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.resizing #viewport {
+  pointer-events: none;
 }
 
 #tabs {
