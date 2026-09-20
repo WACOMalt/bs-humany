@@ -24,7 +24,7 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
-import { compileArticulation } from '@bs-humany/compiler';
+import { type CompiledArticulation, compileArticulation } from '@bs-humany/compiler';
 import type { Morphology } from '@bs-humany/hsdl';
 import { Kernel, type KernelSnapshot } from '@bs-humany/kernel';
 import {
@@ -97,6 +97,17 @@ export type Feedforward =
 export interface TrainingRecipe {
   /** The checkpoint's name: the file it is saved as, and the run files' prefix. */
   readonly name: string;
+  /**
+   * The timescale it was trained at: ticks a second, and ticks between policy evaluations.
+   *
+   * Written by the trainer rather than asked for, because both follow from the profile. A run
+   * that plays the checkpoint at another step rate is not the physics it learned -- contacts
+   * and the muscles' own dynamics both change with the timestep -- and a run that evaluates it
+   * at another rate is not the controller it learned either. The studio sets itself to these
+   * when a checkpoint is chosen.
+   */
+  readonly stepsPerSecond?: number;
+  readonly controlDivisor?: number;
   readonly task: string;
   /** A scenario id from `SCENARIO_DEFINITIONS`; empty for the reference stand on the ground. */
   readonly scenario: string;
@@ -211,6 +222,8 @@ export class StandRig {
   private readonly pelvis: number;
   /** The bone order and transforms, when `poseBones` was asked for. */
   readonly boneOrder: readonly string[];
+  /** The compiled body, for whatever wants to describe it -- the tissue table, say. */
+  readonly articulation: CompiledArticulation;
   readonly restContext: unknown;
   private readonly volume: MuscleVolumeModule | undefined;
   private readonly maxForce: Float64Array;
@@ -237,6 +250,7 @@ export class StandRig {
     options: RigOptions,
     kernel: Kernel,
     physics: PhysicsModule,
+    articulation: CompiledArticulation,
     nerves: NervesModule,
     drive: MuscleTestDriveModule,
     clip: CompiledClip | undefined,
@@ -265,6 +279,7 @@ export class StandRig {
     this.options = options;
     this.kernel = kernel;
     this.physics = physics;
+    this.articulation = articulation;
     this.gravity = { ...kernelGravity(kernel) };
     this.angular = kernel.channels.storage(BODY_VELOCITY).fields.angular as Float64Array;
     this.nerves = nerves;
@@ -417,6 +432,7 @@ export class StandRig {
       options,
       kernel,
       physics,
+      articulation,
       nerves,
       drive,
       clip,
@@ -473,6 +489,16 @@ export class StandRig {
   /** Seconds a tick: the profile's solver rate. */
   get stepSeconds(): number {
     return this.dt;
+  }
+
+  /** Ticks a second: what a run has to match to be the same physics. */
+  get stepsPerSecond(): number {
+    return Math.round(1 / this.dt);
+  }
+
+  /** Ticks between policy evaluations: what a run has to match to be the same controller. */
+  get controlDivisor(): number {
+    return this.nerves.divisor;
   }
 
   get parameterCount(): number {

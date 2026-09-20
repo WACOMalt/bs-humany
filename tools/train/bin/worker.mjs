@@ -15,6 +15,8 @@ parentPort.postMessage({
   parameterCount: rig.parameterCount,
   inputNames: rig.inputNames,
   outputNames: rig.outputNames,
+  stepsPerSecond: rig.stepsPerSecond,
+  controlDivisor: rig.controlDivisor,
 });
 // One episode a message: the finest grain there is, so no thread sits idle at the end of a
 // generation waiting on another's last long episode.

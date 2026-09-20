@@ -52,6 +52,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
   join(ROOT, 'packages/assets-anatomical/src/index.ts'),
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
+const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
 const { openPoseBridge, openMuscleBridge } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
@@ -92,6 +93,9 @@ const muscleWriter = shape
       { path: `${path}-muscles` },
     )
   : undefined;
+
+// Static for the run: the body does not change while a showcase is playing it.
+const tissue = tissueTable(rig.articulation);
 
 let loadedAt = 0;
 let weights = null;
@@ -154,6 +158,9 @@ function writeStatus(episode, upFor) {
     },
     groundHeight: 0,
     staticBoxes: [],
+    // The discs, the beads and the cartilage, in bone names: what a studio or a headset needs to
+    // draw this body's connective tissue from the poses it is already reading.
+    tissue,
     training: {
       task: name,
       episode,

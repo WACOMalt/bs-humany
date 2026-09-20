@@ -68,6 +68,7 @@ import {
 import { buildBlenderExport } from './blenderExport.js';
 import { createBrainPanel } from './brain.js';
 import { BridgeFollower } from './follow.js';
+import { FollowTissue } from './followTissue.js';
 import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
 import { Playback } from './playback.js';
@@ -85,7 +86,7 @@ import {
 } from './session.js';
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
-import { tissueTable } from './tissue.js';
+import { type TissueTable, tissueTable } from './tissue.js';
 import { createMemory } from './ui/memory.js';
 import { createResizer } from './ui/resizer.js';
 import { createTabs } from './ui/tabs.js';
@@ -724,6 +725,9 @@ async function startSimulation(
       ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
       outputFramerate: Number(ui.outputFramerate.value),
       nerves: brain?.setup,
+      // A checkpoint trained with nothing under the brain has never felt a scenario's tone, so
+      // the scenario's script does everything else it does and drives no muscle.
+      scriptMuscleDrive: brain?.chosenRecipe()?.feedforward.kind !== 'none',
     });
     await sim.start();
     // A fresh backend always starts with gravity and a solid floor; both toggles are session
@@ -2276,6 +2280,9 @@ if (isTauri()) {
 
 const followButton = must<HTMLButtonElement>('#follow-bridge');
 let followTubes: RingTubes | null = null;
+/** The followed body's connective tissue, and what it was built for. */
+let followTissue: FollowTissue | null = null;
+let followTissueKey = '';
 let followLastTick = -1;
 let followLastMuscleTick = -1;
 
@@ -2285,6 +2292,7 @@ function followFrame(skin: SkinnedSkeleton): void {
     followLastTick = pose.tick;
     skin.update(pose.bones, pose.position, pose.orientation);
   }
+  followTissueFrame(pose);
   const muscles = bridgeFollower.muscles;
   if (muscles && muscles.tick !== followLastMuscleTick) {
     followLastMuscleTick = muscles.tick;
@@ -2317,8 +2325,40 @@ function followFrame(skin: SkinnedSkeleton): void {
   );
 }
 
+/**
+ * The followed body's tissue: built from the table the publisher puts in its status, rebuilt
+ * when the publisher or its body changes, and hidden with the overlay it belongs to. A
+ * publisher that says nothing of tissue -- an older one -- simply has none to draw.
+ */
+function followTissueFrame(pose: typeof bridgeFollower.pose): void {
+  const table = (bridgeFollower.status as { tissue?: TissueTable } | null)?.tissue;
+  const key =
+    pose && table ? `${pose.bones.length}:${table.discs.length}:${table.bars.length}` : '';
+  if (key !== followTissueKey) {
+    followTissueKey = key;
+    if (followTissue) {
+      world.remove(followTissue.root);
+      followTissue.dispose();
+      followTissue = null;
+    }
+    if (pose && table && (table.discs.length > 0 || table.bars.length > 0)) {
+      followTissue = new FollowTissue(table, pose.bones);
+      world.add(followTissue.root);
+    }
+  }
+  if (!followTissue || !pose) return;
+  followTissue.root.visible = ui.showTissue.checked;
+  if (followTissue.root.visible) followTissue.update(pose.position, pose.orientation);
+}
+
 function stopFollowing(): void {
   bridgeFollower.stop();
+  if (followTissue) {
+    world.remove(followTissue.root);
+    followTissue.dispose();
+    followTissue = null;
+    followTissueKey = '';
+  }
   if (followTubes) {
     scene.remove(followTubes.mesh);
     followTubes.dispose();
@@ -2385,6 +2425,22 @@ brain = createBrainPanel({
   // A checkpoint's recipe is a session's settings for the scene and the body; the rest stays.
   applyRecipe(recipe) {
     const p = recipe.morphology.proportions ?? {};
+    // The timescale it was trained at. A policy learned against one timestep behaves differently
+    // against another -- the contacts and the muscles' own dynamics both follow the step -- so
+    // this is set rather than offered, and the Sim tab shows what it was set to.
+    if (recipe.stepsPerSecond) {
+      ui.stepsPerSecond.value = String(recipe.stepsPerSecond);
+      must<HTMLOutputElement>('#stepsPerSecond-value').textContent = String(recipe.stepsPerSecond);
+      fidelityTouched = true;
+    }
+    // Trained with nothing under the brain: the sliders start where the training had them, at
+    // zero, so what the body does is the policy's doing and not the policy plus a held pose.
+    if (recipe.feedforward.kind === 'none') {
+      for (const slider of driveInputs.values()) {
+        slider.value = '0';
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
     applySettings({
       ...currentSettings(),
       sex: recipe.morphology.sex,
@@ -2400,7 +2456,10 @@ brain = createBrainPanel({
       scenarioParameters: { ...recipe.parameters },
     });
     setSimulationStatus(
-      `Scene, body and joints set from the checkpoint ${recipe.name}; they take effect on the next run.`,
+      `Set from the checkpoint ${recipe.name}: its scene, body and joints` +
+        (recipe.stepsPerSecond ? `, and its ${recipe.stepsPerSecond} steps a second` : '') +
+        (recipe.feedforward.kind === 'none' ? ', with the muscle sliders back to zero' : '') +
+        '. They take effect on the next run.',
     );
   },
   fit() {

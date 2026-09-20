@@ -111,6 +111,9 @@ console.log(
     `${seconds} s episodes on ${profileId}, ${workers} workers`,
 );
 console.log(
+  `  ${shape.stepsPerSecond} steps a second, the policy every ${shape.controlDivisor} of them`,
+);
+console.log(
   `  in ${recipe.scenario || 'the reference stand'}${
     Object.keys(recipe.parameters ?? {}).length ? ` ${JSON.stringify(recipe.parameters)}` : ''
   }, ${under} under the brain, authority ${recipe.authority}`,
@@ -131,6 +134,10 @@ for (let i = 0; i < workers; i++) {
 }
 const shapes = await Promise.all(ready);
 const shape = shapes[0];
+// The timescale the rig settled on, into the recipe the checkpoint carries: a run that plays it
+// at another step rate or evaluates it at another divisor is not what it was trained in.
+recipe.stepsPerSecond = shape.stepsPerSecond;
+recipe.controlDivisor = shape.controlDivisor;
 console.log(
   `  policy ${shape.sizes.join(' x ')}: ${shape.parameterCount} weights; ${shape.inputNames.length} senses, ${shape.outputNames.length} drives`,
 );

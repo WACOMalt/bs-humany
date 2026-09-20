@@ -38,6 +38,9 @@ export interface PolicyFile {
   readonly recipe?: {
     readonly name: string;
     readonly task: string;
+    /** Ticks a second, and ticks between policy evaluations, as it was trained. */
+    readonly stepsPerSecond?: number;
+    readonly controlDivisor?: number;
     readonly scenario: string;
     readonly parameters: Readonly<Record<string, number>>;
     readonly profile: string;

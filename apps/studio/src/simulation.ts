@@ -114,6 +114,13 @@ export interface SimulationOptions {
   readonly outputFramerate?: number | undefined;
   /** A policy in the loop, chosen from the brain panel; takes precedence over the scenario's. */
   readonly nerves?: NervesSetup | undefined;
+  /**
+   * Whether the scenario's script may drive muscles. On unless a checkpoint says otherwise: a
+   * policy trained with nothing under it has never felt a scenario's tone, and a run that adds
+   * one is not the run it learned. Everything else a script does -- the floor, a grab -- happens
+   * either way, because that is the scenario rather than the feedforward.
+   */
+  readonly scriptMuscleDrive?: boolean | undefined;
 }
 
 export interface BoneTransformsView {
@@ -196,6 +203,8 @@ export class Simulation {
   private readonly timelineCapacity = 600;
   private scriptApi: ScenarioApi | undefined;
   private tilt: WorldTilt = { pitch: 0, roll: 0 };
+  /** Whether the scenario's script may drive muscles. @see SimulationOptions.scriptMuscleDrive */
+  private readonly scriptMuscleDrive: boolean;
   private gravityOn = true;
   /** Ticks run so far, and the wall-clock cost of the last frame's ticks. */
   ticks = 0;
@@ -264,6 +273,7 @@ export class Simulation {
     this.compileReport = compiled.report;
     this.resolved = morphology;
     this.scenario = options.scenario;
+    this.scriptMuscleDrive = options.scriptMuscleDrive !== false;
     this.articulation = options.scenario
       ? placeArticulation(
           compiled.articulation,
@@ -410,7 +420,10 @@ export class Simulation {
       release: () => this.grab.release(),
       // Ignored rather than refused when the run has no muscles, so a script can ask without
       // checking first -- and so the same scenario is watchable with the muscles switched off.
-      drive: (unit, level) => this.muscleDrive?.setOverride(unit, level, 'script'),
+      drive: (unit, level) => {
+        if (!this.scriptMuscleDrive) return;
+        this.muscleDrive?.setOverride(unit, level, 'script');
+      },
       tiltWorld: (pitch, roll) => {
         if (pitch === this.tilt.pitch && roll === this.tilt.roll) return;
         this.tilt = { pitch, roll };

@@ -126,6 +126,8 @@ export interface BrainPanel {
   remoteActivity(): RemoteActivity | undefined;
   /** What the panel would put in the loop for a new run, if a policy is chosen. */
   readonly setup: NervesSetup | undefined;
+  /** What the chosen checkpoint was trained in, when its file says: the run should match it. */
+  chosenRecipe(): TrainingRecipe | undefined;
   /** The panel as the headset sees it. */
   state(): BrainState;
   /** The headset's hands on the panel: the same buttons the mouse presses. */
@@ -302,7 +304,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         policy,
         authority: Number(ui.authority.value),
         goal: 0,
-        controlDivisor: host.controlDivisor(),
+        // The checkpoint's own, when it recorded one: a policy evaluated at another rate is not
+        // the controller that was trained, however right the body around it is.
+        controlDivisor:
+          rows.find((r) => r.id === id)?.recipe?.controlDivisor ?? host.controlDivisor(),
       };
       host.handOver(setup);
       ui.release.disabled = false;
@@ -530,6 +535,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     },
     remoteActivity() {
       return activity;
+    },
+    chosenRecipe() {
+      return rows.find((r) => r.id === ui.policy.value)?.recipe ?? undefined;
     },
     state() {
       return {
