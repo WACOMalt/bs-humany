@@ -15,12 +15,14 @@
  * construction instead -- the glenohumeral centre, the bone's long axis, the elbow's flexion axis,
  * which is the humerus frame the ISB defines (Wu 2005, 2.3.4) -- and the rotation between the two
  * answers is the disagreement between two conventions and nothing else. Lengths are scaled by the
- * ratio of the two humeri, so a point a third of the way down one lands a third of the way down
+ * ratio of the two bones, so a point a third of the way down one lands a third of the way down
  * the other.
  *
  * The transforms were measured, not assumed. Bone for bone, reference against ours:
- *   arm  290.7 mm against 278.4, a scale of 0.9575
- *   leg  404.4 mm against 406.9, a scale of 1.0061
+ *   upper arm 290.7 mm against 278.4, a scale of 0.9575
+ *   forearm   258.1 mm against 257.0, a scale of 0.9957
+ *   thigh     404.4 mm against 406.9, a scale of 1.0061
+ *   shank     388.9 mm against 385.5, a scale of 0.9913
  *
  * Positions are a fraction of the subject's stature, as every other point in this package is, so
  * they scale with the morphology.
@@ -199,7 +201,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 8,
     bone: 'radius_r',
     referenceSite: 'BIClong_BIClong-P10_r',
-    local: [-0.0158859, 0.0633181, 0.0243749],
+    local: [-0.0130036, 0.0636283, 0.00646701],
   },
   {
     id: 'biceps_brachii_short_r__via_1',
@@ -239,7 +241,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 5,
     bone: 'radius_r',
     referenceSite: 'BICshort_BICshort-P6_r',
-    local: [-0.0166006, 0.0652801, 0.0247914],
+    local: [-0.0138592, 0.065649, 0.00676203],
   },
   {
     id: 'brachioradialis_r__via_1',
@@ -247,7 +249,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_r',
     referenceSite: 'BRD_BRD-P2_r',
-    local: [0.0187138, 0.0126075, 0.00726212],
+    local: [0.0168765, 0.00492588, 0.0137629],
   },
   {
     id: 'triceps_brachii_long_r__via_1',
@@ -335,7 +337,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'ulna_r',
     referenceSite: 'PT-P2_r',
-    local: [-0.00910545, 0.0317457, 0.0029857],
+    local: [-0.0133488, 0.033542, -0.00147398],
   },
   {
     id: 'pronator_teres_r__via_2',
@@ -343,7 +345,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'ulna_r',
     referenceSite: 'PT-P3_r',
-    local: [0.00143335, 0.0157412, 0.00307447],
+    local: [-0.00577569, 0.0156039, -0.00571317],
   },
   {
     id: 'pronator_teres_r__via_3',
@@ -351,7 +353,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'radius_r',
     referenceSite: 'PT-P4_r',
-    local: [0.00623434, 0.0299611, 0.0116641],
+    local: [0.00808193, 0.0256221, 0.0107073],
   },
   {
     id: 'supinator_r__via_1',
@@ -359,7 +361,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_r',
     referenceSite: 'SUP_SUP-P2_r',
-    local: [-0.0065592, 0.0516145, 0.014971],
+    local: [-0.000441068, 0.050556, 0.00948558],
   },
   {
     id: 'flexor_carpi_radialis_r__via_1',
@@ -367,7 +369,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_r',
     referenceSite: 'FCR-P2_r',
-    local: [0.0160282, -0.0404524, 0.0169689],
+    local: [0.0168768, -0.04342, -0.0148164],
   },
   {
     id: 'flexor_carpi_ulnaris_r__via_1',
@@ -375,7 +377,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'ulna_r',
     referenceSite: 'FCU-P2_r',
-    local: [0.0285533, -0.0534439, 0.0109844],
+    local: [0.00832886, -0.0602298, -0.0151646],
   },
   {
     id: 'flexor_carpi_ulnaris_r__via_2',
@@ -383,7 +385,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'ulna_r',
     referenceSite: 'FCU-P3_r',
-    local: [0.038179, -0.073996, 0.0124498],
+    local: [0.014099, -0.0828454, -0.0189743],
   },
   {
     id: 'extensor_carpi_radialis_longus_r__via_1',
@@ -391,7 +393,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_r',
     referenceSite: 'ECRL-P2_r',
-    local: [0.0217388, 0.00926871, 0.0100099],
+    local: [0.0149552, -0.0000970349, 0.014855],
   },
   {
     id: 'extensor_carpi_radialis_longus_r__via_2',
@@ -399,7 +401,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'radius_r',
     referenceSite: 'ECRL-P3_r',
-    local: [0.0389532, -0.0462937, 0.00863063],
+    local: [0.0283288, -0.0580079, 0.00352599],
   },
   {
     id: 'extensor_carpi_radialis_brevis_r__via_1',
@@ -407,7 +409,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_r',
     referenceSite: 'ECRB-P2_r',
-    local: [0.0188663, 0.0108893, 0.0112148],
+    local: [0.0131878, 0.00249577, 0.0129879],
   },
   {
     id: 'extensor_carpi_radialis_brevis_r__via_2',
@@ -415,7 +417,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'radius_r',
     referenceSite: 'ECRB-P3_r',
-    local: [0.0390785, -0.0409334, 0.0124207],
+    local: [0.0234552, -0.0540356, 0.00618845],
   },
   {
     id: 'latissimus_dorsi_thoracic_r__via_1',
@@ -535,7 +537,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'bflh-P2_r',
-    local: [0.014965, 0.0705958, 0.0219082],
+    local: [0.00888279, 0.0696822, 0.0237772],
   },
   {
     id: 'semitendinosus_r__via_1',
@@ -543,7 +545,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'semiten-P2_r',
-    local: [-0.0138329, 0.0617647, 0.022116],
+    local: [-0.0183153, 0.0609463, 0.015726],
   },
   {
     id: 'gluteus_maximus_superior_r__via_1',
@@ -599,7 +601,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'grac-P2_r',
-    local: [-0.0180379, 0.0631734, 0.0145419],
+    local: [-0.0202942, 0.0627797, 0.00750964],
   },
   {
     id: 'sartorius_r__via_1',
@@ -615,7 +617,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'tibia_r',
     referenceSite: 'sart-P3_r',
-    local: [-0.0219003, 0.0679959, 0.0183045],
+    local: [-0.0250497, 0.067292, 0.0103074],
   },
   {
     id: 'sartorius_r__via_3',
@@ -623,7 +625,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'tibia_r',
     referenceSite: 'sart-P4_r',
-    local: [-0.0163341, 0.0557475, 0.0135525],
+    local: [-0.0182828, 0.055538, 0.00660645],
   },
   {
     id: 'tibialis_anterior_r__via_1',
@@ -631,7 +633,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'tibant-P2_r',
-    local: [0.00454556, -0.02387, -0.00559786],
+    local: [0.00804926, -0.0215897, -0.0104581],
   },
   {
     id: 'tibialis_anterior_r__via_2',
@@ -639,7 +641,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'tibia_r',
     referenceSite: 'tibant-P3_r',
-    local: [-0.0128168, -0.127111, 0.00387425],
+    local: [-0.00913122, -0.123716, -0.0120742],
   },
   {
     id: 'tibialis_posterior_r__via_1',
@@ -647,7 +649,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'tibpost-P2_r',
-    local: [-0.0145211, -0.125051, 0.027409],
+    local: [-0.0170967, -0.123101, 0.0098538],
   },
   {
     id: 'tibialis_posterior_r__via_2',
@@ -655,7 +657,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'calcaneus_r',
     referenceSite: 'tibpost-P3_r',
-    local: [-0.0194292, 0.00344305, 0.0212696],
+    local: [-0.0220776, 0.00566567, 0.00149776],
   },
   {
     id: 'fibularis_longus_r__via_1',
@@ -663,7 +665,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'fibula_r',
     referenceSite: 'perlong-P2_r',
-    local: [-0.00832067, -0.112501, 0.0294926],
+    local: [-0.0144159, -0.11084, 0.017192],
   },
   {
     id: 'fibularis_longus_r__via_2',
@@ -671,7 +673,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'fibula_r',
     referenceSite: 'perlong-P3_r',
-    local: [-0.00836756, -0.119447, 0.0273393],
+    local: [-0.0137604, -0.117541, 0.0147443],
   },
   {
     id: 'fibularis_longus_r__via_3',
@@ -679,7 +681,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'calcaneus_r',
     referenceSite: 'perlong-P4_r',
-    local: [0.0104553, -0.00345546, 0.0194703],
+    local: [0.00685458, -0.00097144, 0.00743468],
   },
   {
     id: 'fibularis_longus_r__via_4',
@@ -687,15 +689,15 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'calcaneus_r',
     referenceSite: 'perlong-P5_r',
-    local: [0.0135342, -0.0119515, 0.00553725],
+    local: [0.0136606, -0.00848865, -0.00540723],
   },
   {
     id: 'fibularis_longus_r__via_5',
     unit: 'fibularis_longus_r',
     order: 5,
-    bone: 'calcaneus_r',
+    bone: 'cuboid_r',
     referenceSite: 'perlong-P6_r',
-    local: [0.00329264, -0.0146864, -0.00406799],
+    local: [-0.00313731, -0.0114952, 0.00722912],
   },
   {
     id: 'fibularis_brevis_r__via_1',
@@ -703,7 +705,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'fibula_r',
     referenceSite: 'perbrev-P2_r',
-    local: [-0.00755502, -0.112005, 0.0307372],
+    local: [-0.0140328, -0.110425, 0.0186039],
   },
   {
     id: 'fibularis_brevis_r__via_2',
@@ -711,7 +713,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'fibula_r',
     referenceSite: 'perbrev-P3_r',
-    local: [-0.00743974, -0.118817, 0.0280324],
+    local: [-0.0130779, -0.116962, 0.0156856],
   },
   {
     id: 'fibularis_brevis_r__via_3',
@@ -719,7 +721,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'calcaneus_r',
     referenceSite: 'perbrev-P4_r',
-    local: [0.0111421, -0.0012527, 0.0173156],
+    local: [0.00804487, 0.00132488, 0.00570672],
   },
   {
     id: 'extensor_digitorum_longus_r__via_1',
@@ -727,23 +729,23 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'edl-P2_r',
-    local: [0.00167489, -0.133091, 0.00791321],
+    local: [0.00362746, -0.12982, -0.00469895],
   },
   {
     id: 'extensor_digitorum_longus_r__via_2',
     unit: 'extensor_digitorum_longus_r',
     order: 2,
-    bone: 'calcaneus_r',
+    bone: 'navicular_r',
     referenceSite: 'edl-P3_r',
-    local: [-0.00303751, 0.00236457, -0.00911413],
+    local: [0.00442026, -0.00702556, 0.00384594],
   },
   {
     id: 'extensor_digitorum_longus_r__via_3',
     unit: 'extensor_digitorum_longus_r',
     order: 3,
-    bone: 'calcaneus_r',
+    bone: 'metatarsal_4_r',
     referenceSite: 'edl-P4_r',
-    local: [0.00237222, -0.0189326, -0.0491876],
+    local: [0.00138092, -0.00640471, -0.0130415],
   },
   {
     id: 'extensor_hallucis_longus_r__via_1',
@@ -751,7 +753,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'ehl-P2_r',
-    local: [0.00592018, -0.0824237, 0.00947859],
+    local: [0.00633914, -0.0800771, 0.000824307],
   },
   {
     id: 'extensor_hallucis_longus_r__via_2',
@@ -759,31 +761,31 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'tibia_r',
     referenceSite: 'ehl-P3_r',
-    local: [-0.00662214, -0.129109, 0.00576729],
+    local: [-0.00373187, -0.125786, -0.00873201],
   },
   {
     id: 'extensor_hallucis_longus_r__via_3',
     unit: 'extensor_hallucis_longus_r',
     order: 3,
-    bone: 'calcaneus_r',
+    bone: 'navicular_r',
     referenceSite: 'ehl-P4_r',
-    local: [-0.0160913, 0.0041353, -0.011816],
+    local: [-0.00725999, -0.00513963, -0.00211861],
   },
   {
     id: 'extensor_hallucis_longus_r__via_4',
     unit: 'extensor_hallucis_longus_r',
     order: 4,
-    bone: 'calcaneus_r',
+    bone: 'metatarsal_1_r',
     referenceSite: 'ehl-P5_r',
-    local: [-0.0195914, -0.00197439, -0.030455],
+    local: [-0.00384196, 0.00713783, 0.0107906],
   },
   {
     id: 'extensor_hallucis_longus_r__via_5',
     unit: 'extensor_hallucis_longus_r',
     order: 5,
-    bone: 'calcaneus_r',
+    bone: 'metatarsal_1_r',
     referenceSite: 'ehl-P6_r',
-    local: [-0.0220803, -0.0139612, -0.0557106],
+    local: [0.000785344, -0.00314183, -0.0144612],
   },
   {
     id: 'flexor_digitorum_longus_r__via_1',
@@ -791,7 +793,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'fdl-P2_r',
-    local: [-0.0114618, -0.124472, 0.0279702],
+    local: [-0.0143576, -0.122561, 0.0112404],
   },
   {
     id: 'flexor_digitorum_longus_r__via_2',
@@ -799,7 +801,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'calcaneus_r',
     referenceSite: 'fdl-P3_r',
-    local: [-0.0191354, 0.00222718, 0.0202199],
+    local: [-0.021496, 0.00453314, 0.000513881],
   },
   {
     id: 'flexor_digitorum_longus_r__via_3',
@@ -807,15 +809,15 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'calcaneus_r',
     referenceSite: 'fdl-P4_r',
-    local: [-0.018861, -0.00722554, 0.00473316],
+    local: [-0.0169148, -0.00383564, -0.0146068],
   },
   {
     id: 'flexor_digitorum_longus_r__via_4',
     unit: 'flexor_digitorum_longus_r',
     order: 4,
-    bone: 'calcaneus_r',
+    bone: 'metatarsal_4_r',
     referenceSite: 'fdl-P5_r',
-    local: [0.00129918, -0.0271435, -0.0510303],
+    local: [0.00100275, -0.014371, -0.0155436],
   },
   {
     id: 'flexor_hallucis_longus_r__via_1',
@@ -823,7 +825,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_r',
     referenceSite: 'fhl-P2_r',
-    local: [-0.0085071, -0.125777, 0.0318911],
+    local: [-0.0125856, -0.124076, 0.0156699],
   },
   {
     id: 'flexor_hallucis_longus_r__via_2',
@@ -831,23 +833,23 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'calcaneus_r',
     referenceSite: 'fhl-P3_r',
-    local: [-0.0167372, 0.000146788, 0.023981],
+    local: [-0.0201952, 0.00226506, 0.00459824],
   },
   {
     id: 'flexor_hallucis_longus_r__via_3',
     unit: 'flexor_hallucis_longus_r',
     order: 3,
-    bone: 'calcaneus_r',
+    bone: 'cuneiform_medial_r',
     referenceSite: 'fhl-P4_r',
-    local: [-0.0192667, -0.0150906, -0.0143009],
+    local: [-0.00675864, -0.0164455, 0.00550574],
   },
   {
     id: 'flexor_hallucis_longus_r__via_4',
     unit: 'flexor_hallucis_longus_r',
     order: 4,
-    bone: 'calcaneus_r',
+    bone: 'metatarsal_1_r',
     referenceSite: 'fhl-P5_r',
-    local: [-0.0216296, -0.025293, -0.0543967],
+    local: [0.00105968, -0.0143645, -0.0137456],
   },
   {
     id: 'deltoid_anterior_l__via_1',
@@ -999,7 +1001,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 8,
     bone: 'radius_l',
     referenceSite: 'BIClong_BIClong-P10_r',
-    local: [0.0158859, 0.0633181, 0.0243749],
+    local: [0.0130036, 0.0636283, 0.00646701],
   },
   {
     id: 'biceps_brachii_short_l__via_1',
@@ -1039,7 +1041,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 5,
     bone: 'radius_l',
     referenceSite: 'BICshort_BICshort-P6_r',
-    local: [0.0166006, 0.0652801, 0.0247914],
+    local: [0.0138592, 0.065649, 0.00676203],
   },
   {
     id: 'brachioradialis_l__via_1',
@@ -1047,7 +1049,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_l',
     referenceSite: 'BRD_BRD-P2_r',
-    local: [-0.0187138, 0.0126075, 0.00726212],
+    local: [-0.0168765, 0.00492588, 0.0137629],
   },
   {
     id: 'triceps_brachii_long_l__via_1',
@@ -1135,7 +1137,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'ulna_l',
     referenceSite: 'PT-P2_r',
-    local: [0.0091055, 0.0317457, 0.0029857],
+    local: [0.0133488, 0.033542, -0.00147398],
   },
   {
     id: 'pronator_teres_l__via_2',
@@ -1143,7 +1145,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'ulna_l',
     referenceSite: 'PT-P3_r',
-    local: [-0.0014333, 0.0157412, 0.00307447],
+    local: [0.00577574, 0.0156039, -0.00571317],
   },
   {
     id: 'pronator_teres_l__via_3',
@@ -1151,7 +1153,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'radius_l',
     referenceSite: 'PT-P4_r',
-    local: [-0.00623433, 0.0299611, 0.0116641],
+    local: [-0.00808192, 0.0256221, 0.0107073],
   },
   {
     id: 'supinator_l__via_1',
@@ -1159,7 +1161,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_l',
     referenceSite: 'SUP_SUP-P2_r',
-    local: [0.00655921, 0.0516145, 0.014971],
+    local: [0.000441076, 0.050556, 0.00948558],
   },
   {
     id: 'flexor_carpi_radialis_l__via_1',
@@ -1167,7 +1169,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_l',
     referenceSite: 'FCR-P2_r',
-    local: [-0.0160282, -0.0404524, 0.0169689],
+    local: [-0.0168768, -0.04342, -0.0148164],
   },
   {
     id: 'flexor_carpi_ulnaris_l__via_1',
@@ -1175,7 +1177,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'ulna_l',
     referenceSite: 'FCU-P2_r',
-    local: [-0.0285533, -0.0534439, 0.0109844],
+    local: [-0.00832881, -0.0602298, -0.0151646],
   },
   {
     id: 'flexor_carpi_ulnaris_l__via_2',
@@ -1183,7 +1185,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'ulna_l',
     referenceSite: 'FCU-P3_r',
-    local: [-0.038179, -0.073996, 0.0124498],
+    local: [-0.014099, -0.0828454, -0.0189743],
   },
   {
     id: 'extensor_carpi_radialis_longus_l__via_1',
@@ -1191,7 +1193,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_l',
     referenceSite: 'ECRL-P2_r',
-    local: [-0.0217388, 0.00926871, 0.0100099],
+    local: [-0.0149552, -0.0000970349, 0.014855],
   },
   {
     id: 'extensor_carpi_radialis_longus_l__via_2',
@@ -1199,7 +1201,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'radius_l',
     referenceSite: 'ECRL-P3_r',
-    local: [-0.0389532, -0.0462937, 0.00863063],
+    local: [-0.0283288, -0.0580079, 0.00352599],
   },
   {
     id: 'extensor_carpi_radialis_brevis_l__via_1',
@@ -1207,7 +1209,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'radius_l',
     referenceSite: 'ECRB-P2_r',
-    local: [-0.0188663, 0.0108893, 0.0112148],
+    local: [-0.0131878, 0.00249577, 0.0129879],
   },
   {
     id: 'extensor_carpi_radialis_brevis_l__via_2',
@@ -1215,7 +1217,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'radius_l',
     referenceSite: 'ECRB-P3_r',
-    local: [-0.0390785, -0.0409334, 0.0124207],
+    local: [-0.0234552, -0.0540356, 0.00618845],
   },
   {
     id: 'latissimus_dorsi_thoracic_l__via_1',
@@ -1335,7 +1337,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'bflh-P2_r',
-    local: [-0.014965, 0.0705958, 0.0219082],
+    local: [-0.00888276, 0.0696822, 0.0237772],
   },
   {
     id: 'semitendinosus_l__via_1',
@@ -1343,7 +1345,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'semiten-P2_r',
-    local: [0.0138329, 0.0617647, 0.022116],
+    local: [0.0183153, 0.0609463, 0.015726],
   },
   {
     id: 'gluteus_maximus_superior_l__via_1',
@@ -1399,7 +1401,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'grac-P2_r',
-    local: [0.0180379, 0.0631734, 0.0145419],
+    local: [0.0202942, 0.0627797, 0.00750964],
   },
   {
     id: 'sartorius_l__via_1',
@@ -1415,7 +1417,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'tibia_l',
     referenceSite: 'sart-P3_r',
-    local: [0.0219003, 0.0679959, 0.0183045],
+    local: [0.0250497, 0.067292, 0.0103074],
   },
   {
     id: 'sartorius_l__via_3',
@@ -1423,7 +1425,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'tibia_l',
     referenceSite: 'sart-P4_r',
-    local: [0.0163341, 0.0557475, 0.0135525],
+    local: [0.0182828, 0.055538, 0.00660645],
   },
   {
     id: 'tibialis_anterior_l__via_1',
@@ -1431,7 +1433,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'tibant-P2_r',
-    local: [-0.00454553, -0.02387, -0.00559786],
+    local: [-0.00804923, -0.0215897, -0.0104581],
   },
   {
     id: 'tibialis_anterior_l__via_2',
@@ -1439,7 +1441,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'tibia_l',
     referenceSite: 'tibant-P3_r',
-    local: [0.0128168, -0.127111, 0.00387425],
+    local: [0.00913125, -0.123716, -0.0120742],
   },
   {
     id: 'tibialis_posterior_l__via_1',
@@ -1447,7 +1449,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'tibpost-P2_r',
-    local: [0.0145211, -0.125051, 0.027409],
+    local: [0.0170967, -0.123101, 0.0098538],
   },
   {
     id: 'tibialis_posterior_l__via_2',
@@ -1455,7 +1457,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'calcaneus_l',
     referenceSite: 'tibpost-P3_r',
-    local: [0.0194292, 0.00344305, 0.0212696],
+    local: [0.0220776, 0.00566567, 0.00149776],
   },
   {
     id: 'fibularis_longus_l__via_1',
@@ -1463,7 +1465,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'fibula_l',
     referenceSite: 'perlong-P2_r',
-    local: [0.00832071, -0.112501, 0.0294926],
+    local: [0.0144159, -0.11084, 0.017192],
   },
   {
     id: 'fibularis_longus_l__via_2',
@@ -1471,7 +1473,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'fibula_l',
     referenceSite: 'perlong-P3_r',
-    local: [0.0083676, -0.119447, 0.0273393],
+    local: [0.0137604, -0.117541, 0.0147443],
   },
   {
     id: 'fibularis_longus_l__via_3',
@@ -1479,7 +1481,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'calcaneus_l',
     referenceSite: 'perlong-P4_r',
-    local: [-0.0104553, -0.00345546, 0.0194703],
+    local: [-0.00685453, -0.00097144, 0.00743468],
   },
   {
     id: 'fibularis_longus_l__via_4',
@@ -1487,15 +1489,15 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 4,
     bone: 'calcaneus_l',
     referenceSite: 'perlong-P5_r',
-    local: [-0.0135342, -0.0119515, 0.00553725],
+    local: [-0.0136606, -0.00848865, -0.00540723],
   },
   {
     id: 'fibularis_longus_l__via_5',
     unit: 'fibularis_longus_l',
     order: 5,
-    bone: 'calcaneus_l',
+    bone: 'cuboid_l',
     referenceSite: 'perlong-P6_r',
-    local: [-0.00329259, -0.0146864, -0.00406799],
+    local: [0.00313735, -0.0114952, 0.00722912],
   },
   {
     id: 'fibularis_brevis_l__via_1',
@@ -1503,7 +1505,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'fibula_l',
     referenceSite: 'perbrev-P2_r',
-    local: [0.00755506, -0.112005, 0.0307372],
+    local: [0.0140328, -0.110425, 0.0186039],
   },
   {
     id: 'fibularis_brevis_l__via_2',
@@ -1511,7 +1513,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'fibula_l',
     referenceSite: 'perbrev-P3_r',
-    local: [0.00743978, -0.118817, 0.0280324],
+    local: [0.0130779, -0.116962, 0.0156856],
   },
   {
     id: 'fibularis_brevis_l__via_3',
@@ -1519,7 +1521,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'calcaneus_l',
     referenceSite: 'perbrev-P4_r',
-    local: [-0.0111421, -0.0012527, 0.0173156],
+    local: [-0.00804482, 0.00132488, 0.00570672],
   },
   {
     id: 'extensor_digitorum_longus_l__via_1',
@@ -1527,23 +1529,23 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'edl-P2_r',
-    local: [-0.00167486, -0.133091, 0.00791321],
+    local: [-0.00362743, -0.12982, -0.00469895],
   },
   {
     id: 'extensor_digitorum_longus_l__via_2',
     unit: 'extensor_digitorum_longus_l',
     order: 2,
-    bone: 'calcaneus_l',
+    bone: 'navicular_l',
     referenceSite: 'edl-P3_r',
-    local: [0.00303756, 0.00236457, -0.00911413],
+    local: [-0.00442021, -0.00702556, 0.00384594],
   },
   {
     id: 'extensor_digitorum_longus_l__via_3',
     unit: 'extensor_digitorum_longus_l',
     order: 3,
-    bone: 'calcaneus_l',
+    bone: 'metatarsal_4_l',
     referenceSite: 'edl-P4_r',
-    local: [-0.00237217, -0.0189326, -0.0491876],
+    local: [-0.00138088, -0.00640471, -0.0130415],
   },
   {
     id: 'extensor_hallucis_longus_l__via_1',
@@ -1551,7 +1553,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'ehl-P2_r',
-    local: [-0.00592015, -0.0824237, 0.00947859],
+    local: [-0.00633911, -0.0800771, 0.000824307],
   },
   {
     id: 'extensor_hallucis_longus_l__via_2',
@@ -1559,31 +1561,31 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'tibia_l',
     referenceSite: 'ehl-P3_r',
-    local: [0.00662217, -0.129109, 0.00576729],
+    local: [0.0037319, -0.125786, -0.00873201],
   },
   {
     id: 'extensor_hallucis_longus_l__via_3',
     unit: 'extensor_hallucis_longus_l',
     order: 3,
-    bone: 'calcaneus_l',
+    bone: 'navicular_l',
     referenceSite: 'ehl-P4_r',
-    local: [0.0160913, 0.0041353, -0.011816],
+    local: [0.00726004, -0.00513963, -0.00211861],
   },
   {
     id: 'extensor_hallucis_longus_l__via_4',
     unit: 'extensor_hallucis_longus_l',
     order: 4,
-    bone: 'calcaneus_l',
+    bone: 'metatarsal_1_l',
     referenceSite: 'ehl-P5_r',
-    local: [0.0195914, -0.00197439, -0.030455],
+    local: [0.003842, 0.00713783, 0.0107906],
   },
   {
     id: 'extensor_hallucis_longus_l__via_5',
     unit: 'extensor_hallucis_longus_l',
     order: 5,
-    bone: 'calcaneus_l',
+    bone: 'metatarsal_1_l',
     referenceSite: 'ehl-P6_r',
-    local: [0.0220803, -0.0139612, -0.0557106],
+    local: [-0.000785304, -0.00314183, -0.0144612],
   },
   {
     id: 'flexor_digitorum_longus_l__via_1',
@@ -1591,7 +1593,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'fdl-P2_r',
-    local: [0.0114618, -0.124472, 0.0279702],
+    local: [0.0143576, -0.122561, 0.0112404],
   },
   {
     id: 'flexor_digitorum_longus_l__via_2',
@@ -1599,7 +1601,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'calcaneus_l',
     referenceSite: 'fdl-P3_r',
-    local: [0.0191354, 0.00222718, 0.0202199],
+    local: [0.021496, 0.00453314, 0.000513881],
   },
   {
     id: 'flexor_digitorum_longus_l__via_3',
@@ -1607,15 +1609,15 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 3,
     bone: 'calcaneus_l',
     referenceSite: 'fdl-P4_r',
-    local: [0.018861, -0.00722554, 0.00473316],
+    local: [0.0169148, -0.00383564, -0.0146068],
   },
   {
     id: 'flexor_digitorum_longus_l__via_4',
     unit: 'flexor_digitorum_longus_l',
     order: 4,
-    bone: 'calcaneus_l',
+    bone: 'metatarsal_4_l',
     referenceSite: 'fdl-P5_r',
-    local: [-0.00129913, -0.0271435, -0.0510303],
+    local: [-0.00100271, -0.014371, -0.0155436],
   },
   {
     id: 'flexor_hallucis_longus_l__via_1',
@@ -1623,7 +1625,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 1,
     bone: 'tibia_l',
     referenceSite: 'fhl-P2_r',
-    local: [0.00850713, -0.125777, 0.0318911],
+    local: [0.0125856, -0.124076, 0.0156699],
   },
   {
     id: 'flexor_hallucis_longus_l__via_2',
@@ -1631,23 +1633,23 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     order: 2,
     bone: 'calcaneus_l',
     referenceSite: 'fhl-P3_r',
-    local: [0.0167372, 0.000146788, 0.023981],
+    local: [0.0201952, 0.00226506, 0.00459824],
   },
   {
     id: 'flexor_hallucis_longus_l__via_3',
     unit: 'flexor_hallucis_longus_l',
     order: 3,
-    bone: 'calcaneus_l',
+    bone: 'cuneiform_medial_l',
     referenceSite: 'fhl-P4_r',
-    local: [0.0192667, -0.0150906, -0.0143009],
+    local: [0.00675869, -0.0164455, 0.00550574],
   },
   {
     id: 'flexor_hallucis_longus_l__via_4',
     unit: 'flexor_hallucis_longus_l',
     order: 4,
-    bone: 'calcaneus_l',
+    bone: 'metatarsal_1_l',
     referenceSite: 'fhl-P5_r',
-    local: [0.0216296, -0.025293, -0.0543967],
+    local: [-0.00105964, -0.0143645, -0.0137456],
   },
 ];
 

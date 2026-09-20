@@ -75,21 +75,27 @@ const ENDPOINT_CEILING_MM = 10;
 /**
  * How far a carried via point currently sits from its bone, at worst, by bone.
  *
- * Not a target. These are measurements of the frame correspondence described in
- * `tools/cli/bin/generate-muscle-via-points.mjs`, which is fitted at each limb's proximal bone and
- * drifts distally: the calcaneus and the forearm are the far ends of the two chains and it shows.
- * Every number here may fall and none may rise.
+ * Not a target. These are measurements of the frame correspondences described in
+ * `tools/cli/bin/generate-muscle-via-points.mjs`, one per bone group. What is left is what those
+ * correspondences do not reach: the scapula, a broad flat bone carried on the arm's frame and
+ * with no frame of its own, and the ordinary standoff of a tendon in its sheath. Every number
+ * here may fall and none may rise.
  */
 const VIA_CEILING_MM: Readonly<Record<string, number>> = {
-  calcaneus: 87.2,
-  ulna: 66,
-  scapula: 56.8,
-  radius: 55,
-  fibula: 39.9,
-  tibia: 31.9,
-  femur: 29.1,
-  humerus: 23.7,
-  patella: 0.2,
+  scapula: 56.7,
+  radius: 29.2,
+  femur: 29,
+  humerus: 23.6,
+  fibula: 23.5,
+  tibia: 22.4,
+  calcaneus: 20.3,
+  ulna: 17.8,
+  cuneiform_medial: 17.2,
+  metatarsal_4: 8.7,
+  cuboid: 6.9,
+  metatarsal_1: 4.8,
+  navicular: 4.5,
+  patella: 0.1,
 };
 
 const sideless = (bone: string) => bone.replace(/_[rl]$/, '');

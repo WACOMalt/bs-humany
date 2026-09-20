@@ -1,21 +1,21 @@
 {
   "arm-flail/l3_anatomical/mujoco": {
-    "hash": "2b435152dd612531",
+    "hash": "3a4289bc29da101e",
     "ticks": 8000,
     "platform": "linux-x64"
   },
   "clip-flail-arms/l3_anatomical/mujoco": {
-    "hash": "6a3f0e06a4d5e01d",
+    "hash": "21f28de339e41c8a",
     "ticks": 8000,
     "platform": "linux-x64"
   },
   "clip-quiet-standing/l3_anatomical/mujoco": {
-    "hash": "f279818336fc1dc1",
+    "hash": "5bdb0c06cedf3cb8",
     "ticks": 6000,
     "platform": "linux-x64"
   },
   "clip-walk-normal/l3_anatomical/mujoco": {
-    "hash": "57b308fa6ed4c3a2",
+    "hash": "ad229e167190ac25",
     "ticks": 6000,
     "platform": "linux-x64"
   },
@@ -45,12 +45,12 @@
     "platform": "linux-x64"
   },
   "muscle-range-of-motion/l3_anatomical/mujoco": {
-    "hash": "24b266362443baf4",
+    "hash": "c88d41fea87441c0",
     "ticks": 14000,
     "platform": "linux-x64"
   },
   "quiet-standing/l3_anatomical/mujoco": {
-    "hash": "9580671f4f1cb9dc",
+    "hash": "a20ea8f742eb89a3",
     "ticks": 3000,
     "platform": "linux-x64"
   },

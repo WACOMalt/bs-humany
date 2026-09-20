@@ -23,32 +23,53 @@
  * lifted. Instead both models are asked for the same *anatomical* construction, and the transform
  * between the two answers is what carries the points across:
  *
- *   - The origin is the glenohumeral centre. In the reference model that is the humerus body's
- *     own frame origin; here it is the fitted centre of the humeral head.
- *   - One axis runs from the elbow up to that origin: the bone's long axis. The reference model
- *     gives the elbow as the forearm body's offset; here it is the midpoint of the epicondyles.
- *   - The other is the elbow's flexion axis. The reference model states it as a joint axis; here
- *     it is the line through the epicondyles.
+ *   - The origin is the joint at the bone's proximal end -- the glenohumeral centre for the
+ *     humerus, the elbow for the forearm. In the reference model that is a body's own offset;
+ *     here it is a fitted centre or the midpoint of two landmarks.
+ *   - One axis runs from the joint at the far end up to that origin: the bone's long axis.
+ *   - The other is the far joint's axis. The reference model states it as a joint axis or marks
+ *     both its ends; here it is the line through the two landmarks that are its ends -- the
+ *     epicondyles at the elbow, the styloids at the wrist, the malleoli at the ankle.
  *
  * That is the same frame the ISB defines for the humerus (Wu 2005, 2.3.4), built twice from
  * whatever each model happens to carry. Two frames of the same bone, so the rotation between them
  * is the disagreement between two conventions and nothing else.
  *
- * Lengths are scaled by the ratio of the two humeri, so a point a third of the way down one bone
- * lands a third of the way down the other, and then divided by this subject's stature so it
- * scales with the morphology like every other point in the skeleton.
+ * Lengths are scaled by the ratio of the two bones, so a point a third of the way down one lands
+ * a third of the way down the other, and then divided by this subject's stature so it scales with
+ * the morphology like every other point in the skeleton.
  *
- * ## One frame, the whole arm
+ * ## One frame a bone group, not one a limb
  *
- * Every body in the reference model's arm is a pure translation of its parent at the neutral pose,
- * so adding the offsets down the chain puts every site in the humerus frame and the single
- * correspondence above carries points on the scapula and the forearm too. Both models put the
- * elbow at zero when extended and the forearm at zero in neutral rotation, so the two neutral
- * poses are the same pose.
+ * Every body in the reference model is a pure translation of its parent at the neutral pose, so
+ * adding the offsets down the chain puts every site in one frame. For a while that was the whole
+ * method: one correspondence fitted at the limb's proximal bone, carrying the scapula and the
+ * forearm and the foot as well as the humerus. It does not reach. A rotation fitted at the
+ * shoulder is a rotation fitted at the shoulder, and by the wrist the points were fifty
+ * millimetres off the radius -- past the bone, in mid-air -- while the foot's were ninety from
+ * the heel. The scale is a limb's too: the reference's shank is a tenth longer against its femur
+ * than ours is, so everything below the knee was stretched by that tenth.
  *
- * Lengths are scaled by the humerus ratio throughout, forearm points included. That assumes the
- * two skeletons have similar proportions; where they do not, a forearm point is out by the
- * difference between the two ratios, which is a few per cent of a bone.
+ * So each bone group has its own frame now, built the same way from whatever both models can
+ * state about *that* bone: the upper arm from the shoulder to the elbow, the forearm from the
+ * elbow to the wrist, the thigh from the hip to the knee, the shank from the knee to the ankle.
+ * Each carries the sites of its own bodies and scales by its own bone's ratio.
+ *
+ * Two of those frames are built from landmarks both models mark -- the malleoli, which the
+ * reference carries as `LMAL_r` and `MMAL_r` -- and a frame built from the same two landmarks on
+ * both sides points the same way on both, so it needs no probe. The others take a joint's own
+ * stated axis and settle its direction against a landmark, which is what `orientAxis` is for.
+ *
+ * ## The forearm turns
+ *
+ * The one place the two models are not in the same pose. The reference's neutral forearm is
+ * thumb-up: `pro_sup_r` runs from a quarter turn of supination to a quarter turn of pronation
+ * about zero. This skeleton stands in the anatomical position, fully supinated, its radial
+ * styloid forty millimetres lateral of its ulnar one. So the forearm's frame is built at the
+ * *wrist*, on the wrist's own flexion axis, which turns with pronation in both models as the
+ * styloids do. Built on the proximal radioulnar direction instead -- which does not turn, because
+ * the radial head spins where it sits -- the two forearms are carried onto each other a quarter
+ * turn out, and every extensor lands in front of the bone it should run behind.
  *
  * ## The bone a point is fixed to
  *
@@ -121,6 +142,7 @@ const SYMMETRY_TOLERANCE = 0.002;
 const PROBE_MARGIN = 0.01;
 
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
 
 /**
@@ -137,17 +159,17 @@ const LIMBS = [
     id: 'arm',
     chain: 'myoarm_r_chain.xml',
     tendon: 'myoarm_r_tendon.xml',
-    /** The bone whose frame carries the whole limb, and the joint at its far end. */
-    reference: { root: 'humerus_r', distal: 'ulna_r', axisJoint: 'elbow_flexion_r' },
     /**
      * Where each body sits in the root's frame, as offsets accumulated down the chain.
      *
      * Every body in the reference arm is a pure translation of its parent at the neutral pose, so
      * adding the offsets is enough; a body with a rotation would need more and there is none here.
+     * Bodies that carry no sites are here too when a frame needs their origin: the lunate is the
+     * wrist's child, so its accumulated offset is where the wrist is.
      */
     offsets: (bodyPos) => {
       const forearm = bodyPos('ulna_r');
-      const radius = bodyPos('radius_r');
+      const radius = add(forearm, bodyPos('radius_r'));
       const phantom = bodyPos('clavphant_r');
       return new Map([
         ['scapula_r', [0, 0, 0]],
@@ -155,7 +177,8 @@ const LIMBS = [
         // The clavicle is a body further out than the scapula, back along the phantom between.
         ['clavicle_r', [-phantom[0], -phantom[1], -phantom[2]]],
         ['ulna_r', forearm],
-        ['radius_r', [forearm[0] + radius[0], forearm[1] + radius[1], forearm[2] + radius[2]]],
+        ['radius_r', radius],
+        ['lunate_r', add(radius, bodyPos('lunate_r'))],
       ]);
     },
     bodies: [
@@ -165,19 +188,68 @@ const LIMBS = [
       { body: 'ulna_r', bone: 'ulna_r' },
       { body: 'radius_r', bone: 'radius_r' },
     ],
-    /** Ours: the same frame, from the landmarks this skeleton carries. */
-    ourFrame: (skeleton) => {
-      const gh = skeleton.refWorld(['humerus_r', 'GH']);
-      const em = skeleton.refWorld(['humerus_r', 'EM']);
-      const el = skeleton.refWorld(['humerus_r', 'EL']);
-      return { origin: gh, distal: midpoint(em, el), axis: sub(el, em) };
-    },
-    // Which way round the frame is rolled: see `orientAxis`. The olecranon is firmly behind the
-    // elbow in any convention, and far enough behind to settle the question with margin.
-    probe: {
-      site: 'TRIlong_TRIlong-P5_r',
-      ours: (skeleton) => skeleton.measuredWorld('ulna_r', 'Olecranon'),
-    },
+    /**
+     * Where the two models' neutral poses differ, and by how much.
+     *
+     * The reference's forearm is thumb-up: `pro_sup_r` runs a quarter turn either way about zero.
+     * This skeleton stands in the anatomical position, fully supinated, its radial styloid forty
+     * millimetres lateral of its ulnar one. So before the radius's sites are carried they are
+     * turned about the reference's own pronation joint, through the reference's own quarter turn,
+     * into the pose this skeleton is in. Pronation turns the radius about the line from its head
+     * to the ulna's, which is what that joint's axis is, so a point by the head barely moves and
+     * one at the wrist moves the width of the wrist -- as it should. The direction is checked
+     * rather than trusted: turned the wrong way, the extensors land in front of the bone.
+     */
+    pose: [{ body: 'radius_r', joint: 'pro_sup_r', radians: -Math.PI / 2, dorsal: 'ECRB-P3_r' }],
+    frames: [
+      {
+        id: 'upper arm',
+        bodies: ['clavicle_r', 'scapula_r', 'humerus_r'],
+        reference: {
+          origin: (c) => c.offset('humerus_r'),
+          distal: (c) => c.offset('ulna_r'),
+          axis: (c) => c.jointAxis('elbow_flexion_r'),
+        },
+        /** Ours: the same frame, from the landmarks this skeleton carries. */
+        ours: (skeleton) => {
+          const gh = skeleton.refWorld(['humerus_r', 'GH']);
+          const em = skeleton.refWorld(['humerus_r', 'EM']);
+          const el = skeleton.refWorld(['humerus_r', 'EL']);
+          return { origin: gh, distal: midpoint(em, el), axis: sub(el, em) };
+        },
+        // Which way round the frame is rolled: see `orientAxis`. The olecranon is firmly behind
+        // the elbow in any convention, and far enough behind to settle it with margin.
+        probe: {
+          site: 'TRIlong_TRIlong-P5_r',
+          ours: (skeleton) => skeleton.measuredWorld('ulna_r', 'Olecranon'),
+        },
+      },
+      {
+        /**
+         * Elbow to wrist, on the elbow's own axis -- the one the upper arm's probe has settled.
+         *
+         * Not the wrist's. The two models are not at the same pronation, and pronation is a turn
+         * of the radius about its own line, which no frame built on the forearm's midline can
+         * carry: fit at the wrist and the biceps' point by the radial head is dragged forty
+         * millimetres; fit at the elbow and the wrist arrives a quarter turn out. So the pose is
+         * put right first -- see `pose` -- and one frame carries the forearm as it does the thigh.
+         */
+        id: 'forearm',
+        bodies: ['ulna_r', 'radius_r'],
+        reference: {
+          origin: (c) => c.offset('ulna_r'),
+          distal: (c) => c.offset('lunate_r'),
+          axis: (c) => c.jointAxis('elbow_flexion_r'),
+        },
+        ours: (skeleton) => {
+          const em = skeleton.refWorld(['humerus_r', 'EM']);
+          const el = skeleton.refWorld(['humerus_r', 'EL']);
+          const ulnar = skeleton.measuredWorld('ulna_r', 'Ulnar_styloid_process');
+          const radial = skeleton.measuredWorld('radius_r', 'Radial_styloid_process');
+          return { origin: midpoint(em, el), distal: midpoint(ulnar, radial), axis: sub(el, em) };
+        },
+      },
+    ],
     /** Points the reference carries on one bone that belong on another of ours. */
     rebind: {
       // Down the ulna to the pisiform: the reference's radius body carries the hand, so its
@@ -224,25 +296,19 @@ const LIMBS = [
     id: 'leg',
     chain: 'myolegs_chain.xml',
     tendon: 'myolegs_tendon.xml',
-    reference: { root: 'femur_r', distal: 'tibia_r', axisJoint: 'knee_angle_r' },
     offsets: (bodyPos) => {
       const shank = bodyPos('tibia_r');
-      const talus = bodyPos('talus_r');
-      const heel = bodyPos('calcn_r');
+      const ankle = add(shank, bodyPos('talus_r'));
+      const heel = add(ankle, bodyPos('calcn_r'));
       return new Map([
         ['femur_r', [0, 0, 0]],
         // The patella hangs off the femur rather than the shank, which is what makes it able to
         // carry the quadriceps across the joint.
         ['patella_r', bodyPos('patella_r')],
         ['tibia_r', shank],
-        [
-          'calcn_r',
-          [
-            shank[0] + talus[0] + heel[0],
-            shank[1] + talus[1] + heel[1],
-            shank[2] + talus[2] + heel[2],
-          ],
-        ],
+        ['talus_r', ankle],
+        ['calcn_r', heel],
+        ['toes_r', add(heel, bodyPos('toes_r'))],
       ]);
     },
     bodies: [
@@ -251,21 +317,53 @@ const LIMBS = [
       { body: 'tibia_r', bone: 'tibia_r' },
       { body: 'calcn_r', bone: 'calcaneus_r' },
     ],
-    ourFrame: (skeleton) => {
-      // The hip centre is fitted from the femoral head's own articular surface rather than taken
-      // from a marker, the same as everywhere else this project needs a joint centre.
-      const hip = skeleton.measuredWorld('femur_r', 'Head_of_femur__articular_centre');
-      const em = skeleton.measuredWorld('femur_r', 'Medial_epicondyle_of_femur');
-      const el = skeleton.measuredWorld('femur_r', 'Lateral_epicondyle_of_femur');
-      return { origin: hip, distal: midpoint(em, el), axis: sub(el, em) };
-    },
-    // The tibial tuberosity: firmly in front of the knee in any convention, and the place the
-    // quadriceps arrive. See `orientAxis` -- this is the probe that caught the leg frames rolled
-    // half a turn against each other.
-    probe: {
-      site: 'recfem-P5_r',
-      ours: (skeleton) => skeleton.measuredWorld('tibia_r', 'Tibial_tuberosity'),
-    },
+    frames: [
+      {
+        id: 'thigh',
+        bodies: ['femur_r', 'patella_r'],
+        reference: {
+          origin: (c) => c.offset('femur_r'),
+          distal: (c) => c.offset('tibia_r'),
+          axis: (c) => c.jointAxis('knee_angle_r'),
+        },
+        ours: (skeleton) => {
+          // The hip centre is fitted from the femoral head's own articular surface rather than
+          // taken from a marker, as everywhere else this project needs a joint centre.
+          const hip = skeleton.measuredWorld('femur_r', 'Head_of_femur__articular_centre');
+          const em = skeleton.measuredWorld('femur_r', 'Medial_epicondyle_of_femur');
+          const el = skeleton.measuredWorld('femur_r', 'Lateral_epicondyle_of_femur');
+          return { origin: hip, distal: midpoint(em, el), axis: sub(el, em) };
+        },
+        // The tibial tuberosity: firmly in front of the knee in any convention, and where the
+        // quadriceps arrive. See `orientAxis` -- this is the probe that caught the leg frames
+        // rolled half a turn against each other.
+        probe: {
+          site: 'recfem-P5_r',
+          ours: (skeleton) => skeleton.measuredWorld('tibia_r', 'Tibial_tuberosity'),
+        },
+      },
+      {
+        // Knee to ankle, on the ankle's own axis. The malleoli are that axis's ends, and the
+        // reference marks both of them, so the frame is built from the same two landmarks on
+        // both sides and its direction needs no probe.
+        id: 'shank',
+        bodies: ['tibia_r', 'calcn_r'],
+        reference: {
+          // The knee centre the thigh's frame ends at, so the two meet at the same place.
+          origin: (c) => c.offset('tibia_r'),
+          distal: (c) => midpoint(c.site('MMAL_r'), c.site('LMAL_r')),
+          axis: (c) => sub(c.site('LMAL_r'), c.site('MMAL_r')),
+          needs: ['MMAL_r', 'LMAL_r'],
+        },
+        ours: (skeleton) => {
+          const em = skeleton.measuredWorld('femur_r', 'Medial_epicondyle_of_femur');
+          const el = skeleton.measuredWorld('femur_r', 'Lateral_epicondyle_of_femur');
+          const mm = skeleton.measuredWorld('tibia_r', 'Medial_malleolus');
+          const lm = skeleton.measuredWorld('fibula_r', 'Lateral_malleolus');
+          return { origin: midpoint(em, el), distal: midpoint(mm, lm), axis: sub(lm, mm) };
+        },
+      },
+    ],
     /**
      * Points measured from our own bone rather than carried from the reference.
      *
@@ -295,12 +393,34 @@ const LIMBS = [
         { name: 'inferior_pole', pick: 'min', axis: 'y' },
       ],
     },
+    /**
+     * The reference's `calcn` body is the whole foot, so every point forward of the ankle arrives
+     * on the heel: the long toe tendons end up bound to the calcaneus when they are lying on a
+     * metatarsal. At L3 the midfoot and the forefoot are segments of their own and the difference
+     * is a tendon that moves with the wrong bone.
+     *
+     * Each is named by the reference's own site and goes to the bone it is on, which is the bone
+     * anatomy puts it on: the long hallux tendons to the first metatarsal, the long toe tendons
+     * to the fourth, the fibularis longus to the cuboid it grooves, and the extensors' turn over
+     * the midfoot to the navicular. The points still in the tarsal tunnel -- behind the malleolus
+     * and under the sustentaculum -- stay on the heel, which is what they are nearest.
+     */
     rebind: {
       // Behind the lateral malleolus, which is the fibula's. The reference's tibia body carries
-      // the fibula, so both fibularis tendons arrive on the tibia. Their points on the foot are
-      // on the foot in both models and stay.
-      fibularis_longus_r: { tibia_r: 'fibula_r' },
+      // the fibula, so both fibularis tendons arrive on the tibia.
+      fibularis_longus_r: { tibia_r: 'fibula_r', 'perlong-P6_r': 'cuboid_r' },
       fibularis_brevis_r: { tibia_r: 'fibula_r' },
+      extensor_digitorum_longus_r: { 'edl-P3_r': 'navicular_r', 'edl-P4_r': 'metatarsal_4_r' },
+      extensor_hallucis_longus_r: {
+        'ehl-P4_r': 'navicular_r',
+        'ehl-P5_r': 'metatarsal_1_r',
+        'ehl-P6_r': 'metatarsal_1_r',
+      },
+      flexor_digitorum_longus_r: { 'fdl-P5_r': 'metatarsal_4_r' },
+      flexor_hallucis_longus_r: {
+        'fhl-P4_r': 'cuneiform_medial_r',
+        'fhl-P5_r': 'metatarsal_1_r',
+      },
     },
     units: [
       { unit: 'rectus_femoris_r', tendon: 'recfem_r', from: 'hip_r' },
@@ -380,13 +500,8 @@ function readLimb(limb) {
       new RegExp(`^<body name="${name}"[^>]*pos="([^"]+)"`),
     );
 
-  // The distal body's offset is the far joint's centre in the root body's frame, and the joint's
-  // own axis is stated on it: the two things the frame is built from.
-  const distalCentre = bodyPos(limb.reference.distal);
-  const axis = attribute(
-    xml,
-    new RegExp(`<joint axis="([^"]+)" name="${limb.reference.axisJoint}"`),
-  );
+  /** A joint's own axis, by name: one of the two things every frame is built from. */
+  const axisOf = (joint) => attribute(xml, new RegExp(`<joint axis="([^"]+)" name="${joint}"`));
 
   /**
    * Every site of the limb, in the reference model's root-bone frame, with the bone it belongs to.
@@ -396,13 +511,38 @@ function readLimb(limb) {
    * the whole limb rather than needing one per bone.
    */
   const offsets = limb.offsets(bodyPos);
+  /** A body's sites turned about one of its joints, into the pose this skeleton holds. */
+  const posed = new Map((limb.pose ?? []).map((p) => [p.body, p]));
+  const turn = (body, p) => {
+    const correction = posed.get(body);
+    if (!correction) return p;
+    const k = norm(axisOf(correction.joint));
+    const c = Math.cos(correction.radians);
+    const sn = Math.sin(correction.radians);
+    // Rodrigues, about the joint's axis through the body's own origin, which is where the
+    // reference puts the joint.
+    const kd = dot(k, p);
+    const kx = cross(k, p);
+    return [
+      p[0] * c + kx[0] * sn + k[0] * kd * (1 - c),
+      p[1] * c + kx[1] * sn + k[1] * kd * (1 - c),
+      p[2] * c + kx[2] * sn + k[2] * kd * (1 - c),
+    ];
+  };
   const sites = new Map();
-  for (const { body, bone } of limb.bodies) {
+  // Every body the limb maps, and any body a frame needs a probe from.
+  // Sites a frame names for itself -- its probe, or a landmark it builds its axis from -- are
+  // kept even when their body carries no muscle points of ours.
+  const probed = new Set(
+    limb.frames.flatMap((f) => [f.probe?.site, ...(f.reference.needs ?? [])].filter(Boolean)),
+  );
+  for (const body of offsets.keys()) {
     const at = offsets.get(body);
-    if (!at) throw new Error(`${limb.chain}: no offset for body '${body}'`);
+    const bone = limb.bodies.find((b) => b.body === body)?.bone;
     for (const m of bodyBlock(body).matchAll(/<site name="([^"]+)" pos="([^"]+)"/g)) {
-      const p = m[2].trim().split(/\s+/).map(Number);
-      sites.set(m[1], { bone, point: [at[0] + p[0], at[1] + p[1], at[2] + p[2]] });
+      if (bone === undefined && !probed.has(m[1])) continue;
+      const local = m[2].trim().split(/\s+/).map(Number);
+      sites.set(m[1], { body, bone, at, local, point: add(at, local) });
     }
   }
 
@@ -427,7 +567,7 @@ function readLimb(limb) {
   const allSites = (tendon) =>
     [...tendonBlock(tendon).matchAll(/<site site="([^"]+)"/g)].map((m) => m[1]);
 
-  return { sites, viaPoints, allSites, distalCentre, axis };
+  return { sites, viaPoints, allSites, offsets, axisOf, turn, posed };
 }
 
 // --- Frame arithmetic ------------------------------------------------------------------------
@@ -485,8 +625,10 @@ function boneFrame(proximal, distal, flexionAxis) {
  * is on, the reference's axis is negated. The arm needs no correction and the leg does, and the
  * check says which rather than either being assumed.
  */
-function orientAxis(axis, basisOf, probeInReference, probeInOurs, name) {
-  const theirs = dot(probeInReference, basisOf(axis)[0]);
+function orientAxis(axis, basisOf, probeInReference, probeInOurs, name, along = 0) {
+  // Relative to the frame's own origin: a frame whose origin is not the root's -- the forearm's,
+  // the foot's -- would otherwise be asked which side of the *root* the probe fell on.
+  const theirs = dot(probeInReference, basisOf(axis)[along]);
   // A probe close to the axis cannot settle which side of it anything is on, and a frame carried
   // on a coin toss is worse than one that refuses to build.
   if (Math.abs(theirs) < PROBE_MARGIN || Math.abs(probeInOurs) < PROBE_MARGIN) {
@@ -555,49 +697,77 @@ const direction = new Map();
 const measured = [];
 
 for (const limb of LIMBS) {
-  const { sites, viaPoints, allSites, distalCentre, axis } = readLimb(limb);
+  const { sites, viaPoints, allSites, offsets, axisOf, turn, posed } = readLimb(limb);
 
-  // The reference model's frame: the root body's own origin is the proximal joint's centre.
-  const referenceOrigin = [0, 0, 0];
+  /**
+   * One frame correspondence per bone group, built the same way: ask both models for the same
+   * anatomical frame and take the rotation and the scale between the answers.
+   */
+  const carriers = new Map();
+  /** What a frame may ask the reference model for. */
+  const ctx = {
+    offset: (body) => {
+      const at = offsets.get(body);
+      if (!at) throw new Error(`${limb.chain}: no offset for body '${body}'`);
+      return at;
+    },
+    site: (name) => {
+      const site = sites.get(name);
+      if (!site) throw new Error(`${limb.chain}: no site '${name}'`);
+      return site.point;
+    },
+    jointAxis: (joint) => axisOf(joint),
+  };
+  for (const frame of limb.frames) {
+    const referenceOrigin = frame.reference.origin(ctx);
+    const referenceDistal = frame.reference.distal(ctx);
+    const ours = frame.ours(skeleton);
+    const ourBasis = boneFrame(ours.origin, ours.distal, ours.axis);
 
-  // Ours, built from the landmarks the same way.
-  const ours = limb.ourFrame(skeleton);
-  const ourBasis = boneFrame(ours.origin, ours.distal, ours.axis);
-
-  // Settle the joint axis's direction against a landmark both models carry, before anything is
-  // carried through a frame that might be rolled half a turn.
-  const probeSite = sites.get(limb.probe.site);
-  if (!probeSite) throw new Error(`${limb.chain}: no probe site '${limb.probe.site}'`);
-  const oursProbe = dot(sub(limb.probe.ours(skeleton), ours.origin), ourBasis[0]);
-  const { axis: orientedAxis, flipped } = orientAxis(
-    axis,
-    (a) => boneFrame(referenceOrigin, distalCentre, a),
-    probeSite.point,
-    oursProbe,
-    limb.probe.site,
-  );
-  if (flipped) {
-    console.error(
-      `  ${limb.id}: the reference states its joint axis the other way round, so its frame is ` +
-        'rolled half a turn against ours. Negated, checked against ' +
-        `${limb.probe.site}.`,
+    // A frame whose axis is built from the same two landmarks on both sides points the same way
+    // on both by construction. One taken from a joint's own statement does not, and is settled
+    // against a landmark both models carry before anything is carried through it.
+    let orientedAxis = frame.reference.axis(ctx);
+    if (frame.probe) {
+      const probeSite = sites.get(frame.probe.site);
+      if (!probeSite) throw new Error(`${limb.chain}: no probe site '${frame.probe.site}'`);
+      const along = { x: 0, y: 1, z: 2 }[frame.probe.along ?? 'x'];
+      const oursProbe = dot(sub(frame.probe.ours(skeleton), ours.origin), ourBasis[along]);
+      const oriented = orientAxis(
+        orientedAxis,
+        (a) => boneFrame(referenceOrigin, referenceDistal, a),
+        sub(probeSite.point, referenceOrigin),
+        oursProbe,
+        frame.probe.site,
+        along,
+      );
+      orientedAxis = oriented.axis;
+      if (oriented.flipped) {
+        console.error(
+          `  ${limb.id}/${frame.id}: the reference states its joint axis the other way round, so ` +
+            `its frame is rolled half a turn against ours. Negated, checked against ${frame.probe.site}.`,
+        );
+      }
+    }
+    const referenceBasis = boneFrame(referenceOrigin, referenceDistal, orientedAxis);
+    const referenceLength = Math.hypot(...sub(referenceDistal, referenceOrigin));
+    const ourLength = Math.hypot(...sub(ours.origin, ours.distal));
+    const scale = ourLength / referenceLength;
+    const twist =
+      (Math.acos(Math.min(1, Math.max(-1, dot(referenceBasis[1], ourBasis[1])))) * 180) / Math.PI;
+    measured.push(
+      ` *   ${frame.id.padEnd(9)} ${(referenceLength * 1000).toFixed(1)} mm against ` +
+        `${(ourLength * 1000).toFixed(1)}, a scale of ${scale.toFixed(4)}`,
     );
+    console.error(
+      `  ${limb.id}/${frame.id}: reference ${(referenceLength * 1000).toFixed(1)} mm, ours ` +
+        `${(ourLength * 1000).toFixed(1)} mm, scale ${scale.toFixed(4)}, twist ${twist.toFixed(1)} deg`,
+    );
+    const carrier = { referenceBasis, referenceOrigin, scale, ourBasis, ourOrigin: ours.origin };
+    for (const body of frame.bodies) carriers.set(body, carrier);
   }
-  const referenceBasis = boneFrame(referenceOrigin, distalCentre, orientedAxis);
-  const referenceLength = Math.hypot(...distalCentre);
-  const ourLength = Math.hypot(...sub(ours.origin, ours.distal));
-  const scale = ourLength / referenceLength;
-  const twist =
-    (Math.acos(Math.min(1, Math.max(-1, dot(referenceBasis[1], ourBasis[1])))) * 180) / Math.PI;
-  measured.push(
-    ` *   ${limb.id.padEnd(4)} ${(referenceLength * 1000).toFixed(1)} mm against ` +
-      `${(ourLength * 1000).toFixed(1)}, a scale of ${scale.toFixed(4)}`,
-  );
-  console.error(
-    `  ${limb.id}: reference bone ${(referenceLength * 1000).toFixed(1)} mm, ours ` +
-      `${(ourLength * 1000).toFixed(1)} mm, scale ${scale.toFixed(4)}, twist ` +
-      `${twist.toFixed(1)} deg`,
-  );
+  /** The frame the thigh is carried on, which is also the one the patella is measured in. */
+  const ourBasis = carriers.get(limb.bodies[0].body).ourBasis;
 
   for (const spec of limb.units) {
     // A unit whose points are measured from our own bone takes them instead of the reference's.
@@ -661,12 +831,27 @@ for (const limb of LIMBS) {
       const site = sites.get(name);
       if (!site) throw new Error(`${limb.chain}: no site '${name}' on any body of this limb`);
       // The bone it rides: the reference's, unless this unit's tendon runs on another there.
-      const bone = limb.rebind?.[spec.unit]?.[site.bone] ?? site.bone;
+      // Named by the point when only some of a unit's points move, and by the bone they came
+      // from when all of them do.
+      const rebindOf = limb.rebind?.[spec.unit];
+      const bone = rebindOf?.[name] ?? rebindOf?.[site.bone] ?? site.bone;
       const centroid = centroids.get(bone);
       if (!centroid) throw new Error(`'${bone}' is not in the packed dataset`);
-      const inReference = intoFrame(referenceBasis, referenceOrigin, site.point);
-      const scaled = inReference.map((c) => c * scale);
-      const world = outOfFrame(ourBasis, ours.origin, scaled);
+      const carrier = carriers.get(site.body);
+      if (!carrier) {
+        throw new Error(
+          `${spec.unit}: its point '${name}' is on body '${site.body}', which no frame of the ` +
+            `${limb.id} carries. Add the body to a frame's bodies.`,
+        );
+      }
+      // Into this skeleton's pose first, if its body is one the two models hold differently --
+      // unless the point is being rebound to a bone that does not turn, in which case it was only
+      // ever on the turning body because the reference's body was the whole hand.
+      const turns = posed.has(site.body) && bone === site.bone;
+      const point = turns ? add(site.at, turn(site.body, site.local)) : site.point;
+      const inReference = intoFrame(carrier.referenceBasis, carrier.referenceOrigin, point);
+      const scaled = inReference.map((c) => c * carrier.scale);
+      const world = outOfFrame(carrier.ourBasis, carrier.ourOrigin, scaled);
       rows.push({
         id: `${spec.unit}__via_${index}`,
         unit: spec.unit,
@@ -782,7 +967,7 @@ const rendered = `/**
  * construction instead -- the glenohumeral centre, the bone's long axis, the elbow's flexion axis,
  * which is the humerus frame the ISB defines (Wu 2005, 2.3.4) -- and the rotation between the two
  * answers is the disagreement between two conventions and nothing else. Lengths are scaled by the
- * ratio of the two humeri, so a point a third of the way down one lands a third of the way down
+ * ratio of the two bones, so a point a third of the way down one lands a third of the way down
  * the other.
  *
  * The transforms were measured, not assumed. Bone for bone, reference against ours:

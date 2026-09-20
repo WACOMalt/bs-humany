@@ -339,9 +339,9 @@ from 0 to 130 degrees and puts each curve beside the reference model's own, comp
   further than the source's and here it travels less.
 - **Distal humerus and forearm wrap surfaces.** The same construction that carried the via points
   would carry these; the muscle that needs one is brachioradialis.
-- **The proportional assumption.** Forearm points are scaled by the *humerus* ratio, because one
-  frame carries the whole arm. Where the two skeletons' proportions differ, a forearm point is out
-  by the difference between the two ratios -- a few per cent of a bone.
+- **The proportional assumption, since answered.** Forearm points were scaled by the *humerus*
+  ratio, because one frame carried the whole arm, and the same for everything below the femur.
+  Each bone group has its own frame now (2026-09-20, below).
 
 **What the shaft cylinder experiment showed**, kept because it is the reason via points were the
 answer. A cylinder is a poor model of a humerus: narrow through the shaft, flared at both ends, so
@@ -355,7 +355,21 @@ surface a muscle lies *outside* rather than bears on, and a shaft cylinder must 
 rather than the whole bone -- run the length of the humerus, its top reaches the glenoid, where the
 long head of biceps originates 13.6 mm from the axis, inside the surface, where the wrap geometry
 has no answer and silently gave none.
-**Status:** open
+**Status:** open, narrowed. On 2026-09-20 a test was added that measures every attachment and via
+point against the mesh of the bone it names (`packages/skeleton/src/attachmentGeometry.test.ts`),
+which found the carry-over's far ends out by centimetres: the radius 55 mm, the calcaneus 87, with
+the wrist extensors in mid-air past the bone and the flexor carpi ulnaris' lever at the wrist a
+millimetre against a published fifteen. Three things followed. The frame correspondence is fitted
+per bone group rather than per limb -- upper arm, forearm, thigh, shank -- each from what both
+models state about that bone, the malleoli among them. The two models' neutral forearms differ,
+the reference's thumb-up and ours supinated, so the reference's radius is turned about its own
+pronation joint into our pose before it is carried; turned the wrong way the extensors land in
+front of the bone, and a frame fitted at the wrist instead drags the biceps' point by the radial
+head forty millimetres and takes its elbow lever with it. And points that ride the wrong bone --
+the flexor carpi ulnaris on the radius, the fibularis on the tibia, every foot tendon on the heel
+-- are rebound to the bone they lie on. The radius is now within 29 mm, the ulna 18, the wrist
+levers between 10 and 20 mm against published 12 to 15, and the elbow's validated arms unchanged.
+What remains is the scapula, at 57 mm, carried on the arm's frame with none of its own.
 
 ### OQ-020 — Muscle parameters state the source model's path lengths, not ours
 **Needed for:** `packages/muscle-data/src/elbow.ts`, `packages/muscle-data/src/shoulder.ts`
@@ -504,7 +518,14 @@ which is all of the toe-off in a stride. The two digitorum muscles fan to four t
 carried to the third metatarsal, the middle of the four.
 **Closes when:** the foot carries its own frame correspondence, and the toe muscles reach a marked
 phalanx or a measured one.
-**Status:** open
+**Status:** open, the frame half answered another way. On 2026-09-20 the foot was given a frame of
+its own and it was worse: the only forefoot landmark the reference marks is the fifth metatarsal's
+head, which is lateral, and a frame with a lateral long axis is ill-conditioned. What worked was
+the shank's frame, fitted knee to ankle on the malleoli both models mark, carrying the foot beyond
+its far end -- and then each foot point bound to the bone it actually lies on, which the shank's
+frame put within four to nine millimetres of: the hallucis tendons to the first metatarsal, the
+digitorum to the fourth, the fibularis longus to the cuboid it grooves, the extensors' turn to the
+navicular. The heel's worst point went from 87 mm to 20. The phalanges are as unmarked as before.
 
 ### OQ-022 — The forearm's actuators do not state their architecture
 **Needed for:** the wrist and forearm set, ticket N2.5
