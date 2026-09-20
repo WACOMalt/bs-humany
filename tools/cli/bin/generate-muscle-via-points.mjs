@@ -201,6 +201,40 @@ const LIMBS = [
      * rather than trusted: turned the wrong way, the extensors land in front of the bone.
      */
     pose: [{ body: 'radius_r', joint: 'pro_sup_r', radians: -Math.PI / 2, dorsal: 'ECRB-P3_r' }],
+    /**
+     * Points placed on this skeleton's own bone rather than carried, where the carry cannot
+     * reach: the reference's wrist is wider than ours across the forearm, and no rigid frame with
+     * one scale can narrow it, so the two radial extensors arrived twenty millimetres past the
+     * styloid's tip. In life their tendons cross the wrist in the second dorsal compartment, on
+     * the dorsal radius immediately radial of Lister's tubercle -- which this skeleton marks --
+     * so each is put on the surface between the tubercle and the styloid, the brevis nearer the
+     * tubercle. `at` is the fraction of the way from the first landmark to the second; the point
+     * is the bone's nearest vertex to that spot, so it is on the bone by construction.
+     */
+    measuredSites: {
+      'ECRB-P3_r': {
+        bone: 'radius_r',
+        between: ['Dorsal_radial_tubercle', 'Radial_styloid_process'],
+        at: 0.3,
+      },
+      'ECRL-P3_r': {
+        bone: 'radius_r',
+        between: ['Dorsal_radial_tubercle', 'Radial_styloid_process'],
+        at: 0.6,
+      },
+    },
+    /**
+     * Carried points pulled in to their bone, for the same reason. Along the shaft the two
+     * radial extensors and brachioradialis lie on the lateral radius under a few millimetres of
+     * their own bellies, and the carry left them twenty out. Each is moved along the line from
+     * the nearest point of the bone's surface to where it was carried, to `standoff` metres from
+     * that surface: the same side of the bone, the same direction, the right distance.
+     */
+    snapSites: {
+      'ECRB-P2_r': { standoff: 0.005 },
+      'ECRL-P2_r': { standoff: 0.005 },
+      'BRD_BRD-P2_r': { standoff: 0.005 },
+    },
     frames: [
       {
         id: 'upper arm',
@@ -668,6 +702,25 @@ function boneExtreme(bone, axis, pick, basis) {
   return best;
 }
 
+/** The vertex of one of our bones nearest a world point, from the packed meshes. */
+function boneNearest(bone, point) {
+  const mesh = PACKED.get(bone);
+  if (!mesh) throw new Error(`'${bone}' is not in the packed dataset`);
+  let best = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < mesh.vertexCount; i++) {
+    const at = 3 * (mesh.vertexOffset + i);
+    const v = [POSITIONS[at], POSITIONS[at + 1], POSITIONS[at + 2]];
+    const d = (v[0] - point[0]) ** 2 + (v[1] - point[1]) ** 2 + (v[2] - point[2]) ** 2;
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = v;
+    }
+  }
+  if (!best) throw new Error(`'${bone}' has no vertices`);
+  return best;
+}
+
 /** Express a point given in the parent coordinates in the frame's own. */
 const intoFrame = (basis, origin, p) => {
   const d = sub(p, origin);
@@ -851,13 +904,35 @@ for (const limb of LIMBS) {
       const point = turns ? add(site.at, turn(site.body, site.local)) : site.point;
       const inReference = intoFrame(carrier.referenceBasis, carrier.referenceOrigin, point);
       const scaled = inReference.map((c) => c * carrier.scale);
-      const world = outOfFrame(carrier.ourBasis, carrier.ourOrigin, scaled);
+      let world = outOfFrame(carrier.ourBasis, carrier.ourOrigin, scaled);
+      let provenance = name;
+      const measuredAt = limb.measuredSites?.[name];
+      if (measuredAt) {
+        const [a, b] = measuredAt.between.map((f) => skeleton.measuredWorld(measuredAt.bone, f));
+        const spot = [
+          a[0] + (b[0] - a[0]) * measuredAt.at,
+          a[1] + (b[1] - a[1]) * measuredAt.at,
+          a[2] + (b[2] - a[2]) * measuredAt.at,
+        ];
+        world = boneNearest(measuredAt.bone, spot);
+        provenance = `measured: ${measuredAt.between[0]} to ${measuredAt.between[1]} at ${measuredAt.at}`;
+      }
+      const snap = limb.snapSites?.[name];
+      if (snap) {
+        const surface = boneNearest(bone, world);
+        const out = norm(sub(world, surface));
+        world = add(
+          surface,
+          out.map((c) => c * snap.standoff),
+        );
+        provenance = `${name}, drawn in to ${(snap.standoff * 1000).toFixed(0)} mm from ${bone}`;
+      }
       rows.push({
         id: `${spec.unit}__via_${index}`,
         unit: spec.unit,
         order: index,
         bone,
-        site: name,
+        site: provenance,
         local: [
           round((world[0] - centroid[0]) / stature),
           round((world[1] - centroid[1]) / stature),

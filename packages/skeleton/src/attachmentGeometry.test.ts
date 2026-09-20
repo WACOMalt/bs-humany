@@ -83,7 +83,7 @@ const ENDPOINT_CEILING_MM = 10;
  */
 const VIA_CEILING_MM: Readonly<Record<string, number>> = {
   scapula: 56.7,
-  radius: 29.2,
+  radius: 12.5,
   femur: 29,
   humerus: 23.6,
   fibula: 23.5,
