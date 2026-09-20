@@ -687,19 +687,30 @@ export class MujocoBackend implements IPhysicsBackend {
     (model.geom_conaffinity as Int32Array)[id] = enabled ? 1 : 0;
   }
 
-  setGroundOrientation(rotation: Quat): void {
+  setStaticBoxTransform(id: string, position: Vec3, rotation: Quat): void {
     const mujoco = this.mujoco;
     const model = this.mjModel;
-    if (!mujoco || !model) throw new Error('No compiled model.');
-    const id = mujoco.mj_name2id(model, OBJ_GEOM, 'ground');
-    if (id < 0) return;
-    // A plane's normal is its own +Z, and a geom on the world body is posed by `geom_quat`
-    // alone, which `mj_kinematics` reads every step. MuJoCo orders a quaternion w first.
-    const q = model.geom_quat as Float64Array;
-    q[4 * id] = rotation.w;
-    q[4 * id + 1] = rotation.x;
-    q[4 * id + 2] = rotation.y;
-    q[4 * id + 3] = rotation.z;
+    const data = this.mjData;
+    if (!mujoco || !model || !data) throw new Error('No compiled model.');
+    const body = mujoco.mj_name2id(model, OBJ_BODY, id);
+    const mocap = body < 0 ? -1 : ((model.body_mocapid as Int32Array)[body] ?? -1);
+    if (mocap < 0) {
+      throw new Error(
+        `Static box '${id}' cannot be moved: it was not declared movable, so it is a geom on ` +
+          'the world body, whose pose MuJoCo settles at load and never reads again. Set ' +
+          '`movable` on the box.',
+      );
+    }
+    // A mocap body's pose is data, read afresh every step. MuJoCo orders a quaternion w first.
+    const p = data.mocap_pos as Float64Array;
+    p[3 * mocap] = position.x;
+    p[3 * mocap + 1] = position.y;
+    p[3 * mocap + 2] = position.z;
+    const q = data.mocap_quat as Float64Array;
+    q[4 * mocap] = rotation.w;
+    q[4 * mocap + 1] = rotation.x;
+    q[4 * mocap + 2] = rotation.y;
+    q[4 * mocap + 3] = rotation.z;
   }
 
   setKinematic(_segmentIndex: number, _enabled: boolean): void {

@@ -80,6 +80,15 @@ export interface StaticBox {
   readonly position: Vec3;
   readonly rotation?: { x: number; y: number; z: number; w: number } | undefined;
   readonly contactClass?: string | undefined;
+  /**
+   * Whether this box will be moved after `init`, which it has to say in advance.
+   *
+   * Scenery that never moves is a geom on the world body, and a backend is free to work out
+   * where it is once and never look again -- MuJoCo does exactly that. One that moves has to be
+   * declared as something the solver re-reads every step, which costs a body, so it is asked for
+   * rather than assumed.
+   */
+  readonly movable?: boolean | undefined;
 }
 
 /** SoA output buffers. All `Float64Array`, all preallocated by the caller, all written in place. */
@@ -176,14 +185,15 @@ export interface IPhysicsBackend {
    */
   setGroundCollision(enabled: boolean): void;
   /**
-   * Turn the ground plane about its own origin, after `init`.
+   * Move one of the static boxes, by the id it was declared with, after `init`.
    *
-   * A floor that tilts is not the same experiment as a gravity that tilts, though the two are a
-   * rotation apart. Tilt the gravity and the body stays square to the floor and leans against the
-   * weight, which is a room accelerating sideways. Tilt the floor and the body stays square to
-   * the weight while the floor goes out from under it, which is a ramp. Balance is the second.
+   * For a platform that tilts under the body: the box is scenery rather than a body, so it has
+   * no velocity of its own and carries nothing by friction, but its surface is where it is put
+   * and the normal the body stands on turns with it. Tilting the *ground plane* instead is not
+   * the same thing and not a good idea -- a plane is infinite, so a small turn about the world's
+   * origin sweeps its surface metres away from wherever the feet happen to be.
    */
-  setGroundOrientation(rotation: Quat): void;
+  setStaticBoxTransform(id: string, position: Vec3, rotation: Quat): void;
   setKinematic(segmentIndex: number, enabled: boolean): void;
   setPose(segmentIndex: number, transform: Transform): void;
   /**

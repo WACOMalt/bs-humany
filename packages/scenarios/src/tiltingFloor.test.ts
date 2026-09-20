@@ -62,7 +62,7 @@ describe('the tilting floor', () => {
 
   it('as a script, sets the tilt absolutely every tick', () => {
     const script = tiltingFloor(settings, 6);
-    const seen: [number, number][] = [];
+    const seen: [number, number, number][] = [];
     const api = {
       segment: () => -1,
       segmentPosition: () => ({ x: 0, y: 0, z: 0 }),
@@ -70,13 +70,16 @@ describe('the tilting floor', () => {
       moveGrab: () => {},
       release: () => {},
       drive: () => {},
-      tiltWorld: (pitch: number, roll: number) => {
-        seen.push([pitch, roll]);
+      moveStaticBox: (_id: string, position: { y: number }, rotation: { x: number; z: number }) => {
+        seen.push([position.y, rotation.x, rotation.z]);
       },
     };
     for (let i = 0; i < 600; i++) script(i * 0.01, api);
     expect(seen.length).toBe(600);
-    expect(seen.some(([p, r]) => p !== 0 || r !== 0)).toBe(true);
-    expect(seen[0]).toEqual([0, 0]);
+    // Level to begin with: the platform square, its top face where the scenario put it.
+    expect(seen[0]?.[1]).toBe(0);
+    expect(seen[0]?.[2]).toBe(0);
+    // And it turns: at some point the platform is not square any more.
+    expect(seen.some(([, x, z]) => x !== 0 || z !== 0)).toBe(true);
   });
 });

@@ -71,7 +71,6 @@ import {
   type ScenarioApi,
   type ScenarioDefinition,
   driveOutputs,
-  groundRotation,
   loadActivationClips,
   placeArticulation,
   unitsNamedByClips,
@@ -322,8 +321,8 @@ export class StandRig {
       drive: (unit, level) => {
         if (options.feedforward.kind === 'script') this.drive.setOverride(unit, level, 'script');
       },
-      tiltWorld: (pitch, roll) =>
-        this.physics.setGroundOrientation(groundRotation({ pitch, roll })),
+      moveStaticBox: (id, position, rotation) =>
+        this.physics.setStaticBoxTransform(id, position, rotation),
     };
   }
 

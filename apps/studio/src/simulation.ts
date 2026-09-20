@@ -65,9 +65,7 @@ import {
   type NervesSetup,
   type Scenario,
   type ScenarioApi,
-  type WorldTilt,
   driveOutputs,
-  groundRotation,
   placeArticulation,
 } from '@bs-humany/scenarios';
 
@@ -190,7 +188,7 @@ export class Simulation {
   readonly backendId: BackendId;
   readonly capabilities: BackendCapabilities;
   readonly scenario: Scenario | undefined;
-  readonly staticBoxes: readonly StaticBox[];
+  readonly staticBoxes: StaticBox[];
   /** Height of the ground plane the physics runs on, metres. */
   readonly groundHeight: number;
   readonly dt: number;
@@ -202,7 +200,6 @@ export class Simulation {
   private readonly timeline: { tick: number; snapshot: KernelSnapshot }[] = [];
   private readonly timelineCapacity = 600;
   private scriptApi: ScenarioApi | undefined;
-  private tilt: WorldTilt = { pitch: 0, roll: 0 };
   /** Whether the scenario's script may drive muscles. @see SimulationOptions.scriptMuscleDrive */
   private readonly scriptMuscleDrive: boolean;
   private gravityOn = true;
@@ -287,7 +284,7 @@ export class Simulation {
           options.dropHeight + restClearance(compiled.articulation, options.groundHeight),
           options.groundHeight,
         );
-    this.staticBoxes = options.scenario?.staticBoxes ?? [];
+    this.staticBoxes = [...(options.scenario?.staticBoxes ?? [])];
     this.groundHeight = options.scenario?.ground.height ?? options.groundHeight;
     // The profile's own rate unless somebody asked for another. It is fixed for the life of the
     // clock -- `dt` is immutable, which is what makes a run reproducible -- so changing it in the
@@ -424,10 +421,25 @@ export class Simulation {
         if (!this.scriptMuscleDrive) return;
         this.muscleDrive?.setOverride(unit, level, 'script');
       },
-      tiltWorld: (pitch, roll) => {
-        if (pitch === this.tilt.pitch && roll === this.tilt.roll) return;
-        this.tilt = { pitch, roll };
-        this.physics.setGroundOrientation(groundRotation(this.tilt));
+      moveStaticBox: (id, position, rotation) => {
+        const at = this.staticBoxes.findIndex((b) => b.id === id);
+        const box = this.staticBoxes[at];
+        if (!box) return;
+        if (
+          box.position.x === position.x &&
+          box.position.y === position.y &&
+          box.position.z === position.z &&
+          box.rotation?.x === rotation.x &&
+          box.rotation?.y === rotation.y &&
+          box.rotation?.z === rotation.z &&
+          box.rotation?.w === rotation.w
+        ) {
+          return;
+        }
+        // The list is what the viewport draws and what the bridge publishes, so it is kept in
+        // step with the solver rather than left where the scenery started.
+        this.staticBoxes[at] = { ...box, position: { ...position }, rotation: { ...rotation } };
+        this.physics.setStaticBoxTransform(id, position, rotation);
       },
     };
     this.timeline.push({ tick: 0, snapshot: this.kernel.snapshot() });
@@ -604,13 +616,6 @@ export class Simulation {
   setGravity(on: boolean): void {
     this.gravityOn = on;
     this.applyGravity();
-  }
-
-  /** The floor's tilt, for whatever draws the floor. */
-
-  /** The floor's tilt as the scenario has set it: what a viewer turns the drawn world back by. */
-  get worldTilt(): WorldTilt {
-    return this.tilt;
   }
 
   /** Gravity as it stands: the body's own, or none. The floor's tilt is the floor's. */

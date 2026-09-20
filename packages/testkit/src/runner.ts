@@ -57,7 +57,6 @@ import {
   type Scenario,
   type ScenarioApi,
   driveOutputs,
-  groundRotation,
   placeArticulation,
 } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -199,7 +198,8 @@ export async function runScenario(
     moveGrab: (target) => grab.moveTo(target),
     release: () => grab.release(),
     drive: (unit, level) => muscleDrive?.setOverride(unit, level),
-    tiltWorld: (pitch, roll) => physics.setGroundOrientation(groundRotation({ pitch, roll })),
+    moveStaticBox: (id, position, rotation) =>
+      physics.setStaticBoxTransform(id, position, rotation),
   };
 
   const every = Math.max(1, options.sampleEveryTicks ?? Math.round(rate / 50));

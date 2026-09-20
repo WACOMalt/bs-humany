@@ -147,14 +147,13 @@ export class PhysicsModule implements SimModule, Stateful {
   }
 
   /**
-   * Turn the ground plane, after `init`.
+   * Move one of the scenery's boxes, by its id, after `init`.
    *
-   * Not the same as turning the gravity, though a rotation apart: tilt the weight and the body
-   * stays square to the floor and leans against it, which is a room accelerating sideways; tilt
-   * the floor and the body stays square to the weight while the floor goes out from under it.
+   * What a tilting platform is made of. The box is scenery: it has no velocity, so it carries
+   * nothing along by friction, but the surface and the normal are where they are put.
    */
-  setGroundOrientation(rotation: Quat): void {
-    this.backend.setGroundOrientation(rotation);
+  setStaticBoxTransform(id: string, position: Vec3, rotation: Quat): void {
+    this.backend.setStaticBoxTransform(id, position, rotation);
   }
 
   /**

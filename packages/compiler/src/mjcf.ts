@@ -147,10 +147,26 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
   for (const box of options.staticBoxes ?? []) {
     const cls = box.contactClass ?? model.proxies[0]?.contactClass;
     const rot = box.rotation ?? { x: 0, y: 0, z: 0, w: 1 };
+    const size = v3(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z);
+    const klass = cls ? ` class="${esc(cls)}"` : '';
+    if (box.movable) {
+      // A mocap body: no degrees of freedom, so it costs the solver nothing and falls nowhere,
+      // and its pose is `mocap_pos`/`mocap_quat`, which MuJoCo reads every step. A geom on the
+      // world body would not do -- those are placed once at load and never looked at again, so
+      // a box moved that way moves on paper and nowhere else.
+      push(
+        2,
+        `<body name="${esc(box.id)}" mocap="true" pos="${v3(box.position.x, box.position.y, box.position.z)}" ` +
+          `quat="${q4(rot)}">`,
+      );
+      push(3, `<geom name="${esc(box.id)}" type="box" size="${size}"${klass}/>`);
+      push(2, '</body>');
+      continue;
+    }
     push(
       2,
-      `<geom name="${esc(box.id)}" type="box" size="${v3(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z)}" ` +
-        `pos="${v3(box.position.x, box.position.y, box.position.z)}" quat="${q4(rot)}"${cls ? ` class="${esc(cls)}"` : ''}/>`,
+      `<geom name="${esc(box.id)}" type="box" size="${size}" ` +
+        `pos="${v3(box.position.x, box.position.y, box.position.z)}" quat="${q4(rot)}"${klass}/>`,
     );
   }
 

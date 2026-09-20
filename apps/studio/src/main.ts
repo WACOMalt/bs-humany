@@ -667,6 +667,25 @@ function applySettings(settings: SessionSettings): void {
   rebuild();
 }
 
+/**
+ * Keep the drawn scenery where the solver has it.
+ *
+ * Most scenery never moves and this costs nothing; a tilting platform moves every tick, and a
+ * box drawn where it started while the body stands on where it is now is the kind of picture
+ * that makes a real force look like a trick of the rendering.
+ */
+function followFurniture(sim: Simulation): void {
+  if (!furniture) return;
+  sim.staticBoxes.forEach((box, at) => {
+    const mesh = furniture?.children[at];
+    if (!mesh) return;
+    mesh.position.set(box.position.x, box.position.y, box.position.z);
+    if (box.rotation) {
+      mesh.quaternion.set(box.rotation.x, box.rotation.y, box.rotation.z, box.rotation.w);
+    }
+  });
+}
+
 /** Draw a scenario's static boxes so the body has something visible to land on. */
 function showFurniture(sim: Simulation): void {
   if (sim.staticBoxes.length === 0) return;
@@ -1737,10 +1756,8 @@ function animate(): void {
   if (!simulation) vrLink?.idle();
   // The brain panel's picture: this page's policy, or the training showcase's.
   drawNerves(simulation ?? undefined);
-  // The floor's tilt, as the scenario has it: the grid is the plane the body stands on, so it
-  // turns with it and nothing else does. Level when nothing runs.
-  const tilt = simulation?.worldTilt ?? { pitch: 0, roll: 0 };
-  grid.rotation.set(tilt.pitch, 0, tilt.roll, 'ZXY');
+  // Scenery that moves -- a platform tilting under the body -- drawn where the solver has it.
+  if (simulation) followFurniture(simulation);
   if (bridgeFollower.active && skinned) followFrame(skinned);
   if (simulation && skinned) {
     const frameSeconds = Math.min(elapsed, 250) / 1000;

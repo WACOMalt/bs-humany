@@ -938,10 +938,11 @@ export class RapierBackend implements IPhysicsBackend {
     // An empty membership takes the ground out of every pair; the collider itself stays put.
     collider.setCollisionGroups(enabled ? 0xffffffff : 0);
   }
-  setGroundOrientation(_rotation: Quat): void {
+  setStaticBoxTransform(_id: string, _position: Vec3, _rotation: Quat): void {
     throw new Error(
-      'RapierBackend cannot turn the ground plane; it is reported rather than approximated, as ' +
-        'a floor drawn tilted and simulated level is worse than one that refuses.',
+      'RapierBackend cannot move a static box after init; it is reported rather than ' +
+        'approximated, since a platform drawn tilting and simulated level is worse than one ' +
+        'that says it cannot.',
     );
   }
 

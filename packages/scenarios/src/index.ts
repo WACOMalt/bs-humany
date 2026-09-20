@@ -33,11 +33,13 @@ export interface ScenarioApi {
    */
   drive(unit: string, level: number): void;
   /**
-   * Tilt the floor under the body: pitch about the world's X and roll about its Z, radians,
-   * absolute -- zero is level. Gravity is what actually turns (see `tiltingFloor.ts`); a run
-   * without the means ignores it.
+   * Put one of the scenery's boxes somewhere, by the id it was declared with.
+   *
+   * For a platform that tilts under the body. The box is scenery: it has no velocity of its own
+   * and carries nothing along by friction, but its surface is where it is put and the normal the
+   * body stands on turns with it. A run without the means to move one ignores this.
    */
-  tiltWorld(pitch: number, roll: number): void;
+  moveStaticBox(id: string, position: Vec3, rotation: Quat): void;
 }
 
 export interface Scenario {
@@ -212,7 +214,7 @@ import type { PolicyFile } from '@bs-humany/modules-nerves';
 import standPolicy from '@bs-humany/modules-nerves/policies/stand.json' with { type: 'json' };
 import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
 import type { NervesSetup } from './nerves.js';
-import { tiltingFloor } from './tiltingFloor.js';
+import { PLATFORM_TOP, platformBox, tiltingFloor } from './tiltingFloor.js';
 export { GOAL_SIZE, GOALS, driveOutputs, type NervesSetup } from './nerves.js';
 
 /**
@@ -456,9 +458,9 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       'degrees, a fraction of a second each, a direction and a size drawn afresh every pulse ' +
       'from the seed. Nothing drives the muscles: this is a floor for a brain to be trained on, ' +
       'where a posture held still goes over at the first pulse and only a body that feels the ' +
-      'tilt and answers it stays up. The plane the body stands on is what turns, about the point ' +
-      'under its feet, and the weight stays where it is -- which is a ramp rather than a room ' +
-      'accelerating sideways, and the difference is the contact normal turning with the floor.',
+      'tilt and answers it stays up. What turns is a low platform the body stands on, about the ' +
+      'middle of its own top face so the face stays put and only its angle changes; the floor is ' +
+      'below it, for a body that comes off.',
     parameters: [
       param('tilt', 'Tilt, at most', 4, 0, 15, 0.5, '\u00b0'),
       param('every', 'A pulse every', 0.8, 0.2, 3, 0.1, ' s'),
@@ -470,10 +472,12 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       morphology: REFERENCE,
       muscles: true,
       durationSeconds: 6,
-      clearance: 0,
+      // On the platform's top face, with the floor below it.
+      clearance: PLATFORM_TOP,
       ground: { height: 0 },
+      staticBoxes: [platformBox()],
       passiveJoints: true,
-      // The floor pumps energy in, and the run changes with the policy on it: no golden.
+      // The platform pumps energy in, and the run changes with the policy on it: no golden.
       passiveSystem: false,
       golden: false,
       script: tiltingFloor({
