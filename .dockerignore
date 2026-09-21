@@ -7,3 +7,5 @@ node_modules
 tools/ingest/.venv
 docs
 *.log
+target
+**/target
