@@ -14,8 +14,9 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
  * arguments checked here, and one run at a time.
  */
 import { createServer } from 'node:http';
-import { join, normalize } from 'node:path';
+import { join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dataHome, runsDir as runsHome, seedFromRepository } from './home.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const dir = join(ROOT, 'tools/train');
@@ -26,8 +27,10 @@ const types = {
   '.jsonl': 'text/plain',
 };
 const BRIDGE = '/dev/shm/bs-humany-pose';
-const POLICIES = join(ROOT, 'packages/modules-nerves/policies');
-const RUNS = join(ROOT, 'tools/train/runs');
+// The same directory the trainer and the studio binary use, so all three see one set of
+// checkpoints rather than three. The repository's own are copied in once on a fresh machine.
+const POLICIES = seedFromRepository(join(ROOT, 'packages/modules-nerves/policies'));
+const RUNS = runsHome();
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' };
 
 /** Every saved policy and every run's record and centre, with what their files say of them. */
@@ -38,7 +41,9 @@ function listPolicies() {
       const file = JSON.parse(readFileSync(path, 'utf8'));
       if (file.format !== 'bs-humany.policy/1') return;
       out.push({
-        id: path.slice(ROOT.length),
+        // Relative to the data directory, which is where both of these live now. It used to be
+        // relative to the repository, which is no longer above them.
+        id: relative(dataHome(), path),
         name: `${path.slice(path.lastIndexOf('/') + 1)}${kind ? ` (${kind})` : ''}`,
         task: file.task,
         profile: file.profile ?? null,
@@ -317,7 +322,7 @@ createServer((request, response) => {
   if (url.pathname.startsWith('/policies/')) {
     // One policy file, by the id the list gave.
     const rel = decodeURIComponent(url.pathname.slice('/policies/'.length));
-    const full = join(ROOT, normalize(rel));
+    const full = join(dataHome(), normalize(rel));
     const allowed = full.startsWith(POLICIES) || full.startsWith(RUNS);
     if (!allowed || !existsSync(full) || !full.endsWith('.json'))
       return json(404, { error: 'no such policy' });

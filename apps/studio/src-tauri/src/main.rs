@@ -240,26 +240,55 @@ fn bridge_text(suffix: String, text: String) -> Result<(), String> {
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-/// Where a checkpoint trained in the window is kept.
+/// Where bs-humany keeps what a person makes with it.
 ///
-/// A browser has to put one in IndexedDB, where nothing else can reach it. A binary need not:
-/// it writes the same JSON the terminal trainer writes, in the same layout, so a run started in
-/// the studio can be resumed from a terminal and a checkpoint trained in a terminal shows up in
-/// the studio's list. That is what "self contained" has to mean -- the same files, one process
-/// -- rather than a second private store nobody else can read.
-fn checkpoint_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    use tauri::Manager;
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("policies");
+/// The directory the operating system means for this, named for the project rather than for the
+/// bundle identifier, because somebody who wants to copy a policy to another machine, or keep
+/// one, or delete one, has to be able to find it. Tauri would have given
+/// `~/.local/share/bsums.xyz.bs-humany.studio`, which nobody is going to type.
+///
+///   Linux    $XDG_DATA_HOME/bs-humany, or ~/.local/share/bs-humany
+///   macOS    ~/Library/Application Support/bs-humany
+///   Windows  %APPDATA%\bs-humany
+///
+/// `tools/train/bin/home.mjs` computes the same path, so the command-line trainer, the dashboard
+/// and this binary all read and write one set of checkpoints rather than three. A test holds
+/// them in step. `BS_HUMANY_HOME` overrides all of it.
+fn data_home() -> Result<std::path::PathBuf, String> {
+    if let Ok(over) = std::env::var("BS_HUMANY_HOME") {
+        if !over.is_empty() {
+            return Ok(std::path::PathBuf::from(over));
+        }
+    }
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "no home directory on this machine".to_string())?;
+    let home = std::path::PathBuf::from(home);
+    if cfg!(target_os = "macos") {
+        Ok(home.join("Library").join("Application Support").join("bs-humany"))
+    } else if cfg!(target_os = "windows") {
+        let base = std::env::var("APPDATA")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| home.join("AppData").join("Roaming"));
+        Ok(base.join("bs-humany"))
+    } else {
+        let base = std::env::var("XDG_DATA_HOME")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| home.join(".local").join("share"));
+        Ok(base.join("bs-humany"))
+    }
+}
+
+fn checkpoint_dir() -> Result<std::path::PathBuf, String> {
+    let dir = data_home()?.join("policies");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }
 
 /// A checkpoint's file name. The name is checked rather than trusted: it becomes a path.
-fn checkpoint_path(app: &tauri::AppHandle, name: &str, kind: &str) -> Result<std::path::PathBuf, String> {
+fn checkpoint_path(name: &str, kind: &str) -> Result<std::path::PathBuf, String> {
     if name.is_empty()
         || name.len() > 40
         || !name
@@ -274,17 +303,12 @@ fn checkpoint_path(app: &tauri::AppHandle, name: &str, kind: &str) -> Result<std
         "latest" => "-latest.json",
         _ => return Err(format!("no checkpoint part is called '{kind}'")),
     };
-    Ok(checkpoint_dir(app)?.join(format!("{name}{suffix}")))
+    Ok(checkpoint_dir()?.join(format!("{name}{suffix}")))
 }
 
 #[tauri::command]
-fn checkpoint_write(
-    app: tauri::AppHandle,
-    name: String,
-    kind: String,
-    text: String,
-) -> Result<(), String> {
-    let path = checkpoint_path(&app, &name, &kind)?;
+fn checkpoint_write(name: String, kind: String, text: String) -> Result<(), String> {
+    let path = checkpoint_path(&name, &kind)?;
     // Through a temporary and a rename, so a reader never sees half a policy: the trainer
     // rewrites the centre every generation and the studio may be listing them at the time.
     let tmp = path.with_extension("tmp");
@@ -293,12 +317,8 @@ fn checkpoint_write(
 }
 
 #[tauri::command]
-fn checkpoint_read(
-    app: tauri::AppHandle,
-    name: String,
-    kind: String,
-) -> Result<Option<String>, String> {
-    let path = checkpoint_path(&app, &name, &kind)?;
+fn checkpoint_read(name: String, kind: String) -> Result<Option<String>, String> {
+    let path = checkpoint_path(&name, &kind)?;
     match std::fs::read_to_string(&path) {
         Ok(text) => Ok(Some(text)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -308,8 +328,8 @@ fn checkpoint_read(
 
 /// Every checkpoint in the directory, by name: the ones with a policy file of their own.
 #[tauri::command]
-fn checkpoint_list(app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    let dir = checkpoint_dir(&app)?;
+fn checkpoint_list() -> Result<Vec<String>, String> {
+    let dir = checkpoint_dir()?;
     let mut names = Vec::new();
     for entry in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
         let file = entry.file_name();

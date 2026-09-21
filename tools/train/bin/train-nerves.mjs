@@ -21,8 +21,9 @@
  *
  * Evolution strategies over the policy's weights, every candidate scored on its own copy of the
  * simulation in a worker thread. The best policy so far is written to
- * `packages/modules-nerves/policies/<name>.json` whenever it improves, and a line a generation
- * goes to `tools/train/runs/<name>-<started>.jsonl`.
+ * the data directory -- `~/.local/share/bs-humany/policies/<name>.json` on Linux, and the
+ * equivalent elsewhere -- whenever it improves, and a line a generation goes to
+ * `<data>/runs/<name>-<started>.jsonl`. `pnpm train:where` prints the paths.
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -31,6 +32,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { createJiti } from 'jiti';
+import { runsDir as runsHome, seedFromRepository } from './home.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const jiti = createJiti(import.meta.url);
@@ -100,9 +102,12 @@ const learningRate = Number(flag('lr', 0.005));
 const hidden = flag('hidden', '32,32').split(',').map(Number);
 const profileId = recipe.profile;
 const resume = args.includes('--resume');
-const out = flag('out', join(ROOT, 'packages/modules-nerves/policies', `${name}.json`));
-const runsDir = join(ROOT, 'tools/train/runs');
-mkdirSync(runsDir, { recursive: true });
+// The data directory the operating system means for this, shared with the studio binary, so a
+// checkpoint trained here is one the studio can hand over and the other way about. The ones
+// that ship with the repository are copied in once, on a machine that has none of its own.
+const POLICIES = seedFromRepository(join(ROOT, 'packages/modules-nerves/policies'));
+const out = flag('out', join(POLICIES, `${name}.json`));
+const runsDir = runsHome();
 const started = new Date();
 const log = join(runsDir, `${name}-${started.toISOString().replace(/[:.]/g, '-')}.jsonl`);
 // What the dashboard draws: every generation so far, and where things stand.

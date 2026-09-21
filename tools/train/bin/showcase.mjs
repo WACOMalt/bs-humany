@@ -2,14 +2,14 @@
 /**
  * Show the learner: the best policy so far, standing in a body the headset can watch.
  *
- *   pnpm train:showcase            # follows packages/modules-nerves/policies/stand.json as it changes
+ *   pnpm train:showcase            # follows <data>/policies/stand.json as it changes
  *   pnpm train:showcase --recipe tools/train/runs/my-stand-recipe.json   # a named checkpoint, in its scenario
  *
  * A rig like the trainer's, but paced to the wall clock and publishing its bones to the pose
  * bridge every output frame, so `bs-humany-xr-viewer view --follow` shows the current best
  * attempt. When the body falls the episode restarts; when the policy file changes, the next
  * episode uses it. The status file names the generation, so the panel says what is being
- * watched, and the policy's layers go to `tools/train/runs/<task>-activity.json` ten times a
+ * watched, and the policy's layers go to `<data>/runs/<task>-activity.json` ten times a
  * second for the dashboard's picture of the brain.
  */
 
@@ -17,6 +17,7 @@ import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync }
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { policiesDir as policiesHome, runsDir as runsHome } from './home.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const jiti = createJiti(import.meta.url);
@@ -41,9 +42,9 @@ const recipe = recipePath
     );
 const task = recipe.task;
 const name = recipe.name;
-const policyPath = flag('policy', join(ROOT, 'packages/modules-nerves/policies', `${name}.json`));
-const activityPath = join(ROOT, 'tools/train/runs', `${name}-activity.json`);
-const posePath = join(ROOT, 'tools/train/runs', `${name}-pose.json`);
+const policyPath = flag('policy', join(policiesHome(), `${name}.json`));
+const activityPath = join(runsHome(), `${name}-activity.json`);
+const posePath = join(runsHome(), `${name}-pose.json`);
 const { MlpPolicy } = await jiti.import(join(ROOT, 'packages/modules-nerves/src/index.ts'));
 const { computeWorldTransforms, buildDocument } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/index.ts'),

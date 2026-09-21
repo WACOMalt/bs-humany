@@ -45,7 +45,8 @@
     "desktop:sidecar": "cargo build --release --manifest-path apps/xr-viewer/Cargo.toml && mkdir -p apps/studio/src-tauri/binaries && cp apps/xr-viewer/target/release/bs-humany-xr-viewer apps/studio/src-tauri/binaries/bs-humany-xr-viewer-x86_64-unknown-linux-gnu",
     "train:nerves": "node tools/train/bin/train-nerves.mjs",
     "train:showcase": "node tools/train/bin/showcase.mjs",
-    "train:dashboard": "node tools/train/bin/dashboard.mjs"
+    "train:dashboard": "node tools/train/bin/dashboard.mjs",
+    "train:where": "node tools/train/bin/where.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

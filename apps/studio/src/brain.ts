@@ -14,6 +14,8 @@
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
 import { type LocalRun, startLocalTraining, suggestedWorkers } from './training/localTraining.js';
+import { shippedCheckpoint, shippedCheckpoints } from './training/shipped.js';
+import { listLocalCheckpoints, readLocalCheckpoint } from './training/store.js';
 
 export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
 
@@ -422,11 +424,18 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     if (!id) return;
     ui.handover.disabled = true;
     try {
-      const response = await fetch(`${dashboard}/policies/${encodeURIComponent(id)}`, {
-        cache: 'no-store',
-      });
-      if (!response.ok) throw new Error(`${response.status}`);
-      const policy = (await response.json()) as NervesSetup['policy'];
+      let policy: NervesSetup['policy'];
+      if (serverUp) {
+        const response = await fetch(`${dashboard}/policies/${encodeURIComponent(id)}`, {
+          cache: 'no-store',
+        });
+        if (!response.ok) throw new Error(`${response.status}`);
+        policy = (await response.json()) as NervesSetup['policy'];
+      } else {
+        const held = (await readLocalCheckpoint(id)) ?? (await shippedCheckpoint(id));
+        if (!held) throw new Error(`this studio has no checkpoint called '${id}'`);
+        policy = held as NervesSetup['policy'];
+      }
       setup = {
         policy,
         authority: Number(ui.authority.value),
@@ -732,6 +741,27 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   };
   window.setInterval(() => void pollActivity(), 100);
 
+  /** The checkpoints this studio holds itself, in the shape the list draws. */
+  async function localRows(): Promise<CheckpointRow[]> {
+    // What this studio trained itself, and what it shipped with. A name trained here wins: a
+    // person who has retrained `stand` means the one they retrained.
+    const held = await listLocalCheckpoints();
+    const mine = new Set(held.map((row) => row.name));
+    const shipped = (await shippedCheckpoints()).filter((row) => !mine.has(row.name));
+    return [...held, ...shipped].map(({ name, file }) => {
+      const policy = file as PolicyFile;
+      return {
+        id: name,
+        name,
+        task: policy.task ?? 'stand',
+        profile: policy.profile ?? null,
+        sizes: policy.sizes ?? [],
+        trained: policy.trained ?? null,
+        recipe: (policy.recipe as TrainingRecipe | undefined) ?? null,
+      };
+    });
+  }
+
   async function poll(): Promise<void> {
     try {
       const [policies, status] = await Promise.all([
@@ -762,8 +792,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         publishedName = undefined;
       }
     } catch {
+      // No server. The studio still has whatever it trained itself -- files in the binary, this
+      // browser's own store in a tab -- and those are checkpoints like any other, so they go in
+      // the list rather than the list going empty.
       serverUp = false;
-      rows = [];
+      rows = await localRows();
       showRows();
       showStatus(undefined);
     }

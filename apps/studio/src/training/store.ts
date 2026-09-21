@@ -113,6 +113,22 @@ export function createBrowserStore(name: string): CheckpointStore {
   };
 }
 
+/**
+ * One checkpoint's policy file, whichever store this studio uses. The panel needs this to hand
+ * a checkpoint over when there is no server to fetch it from.
+ */
+export async function readLocalCheckpoint(name: string): Promise<unknown | undefined> {
+  if (inTauri()) {
+    try {
+      const text = await invoke<string | null>('checkpoint_read', { name, kind: 'policy' });
+      return text ? JSON.parse(text) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return createBrowserStore(name).read('policy');
+}
+
 /** Every checkpoint this studio holds of its own, for the panel's list. */
 export async function listLocalCheckpoints(): Promise<
   readonly { readonly name: string; readonly file: unknown }[]
