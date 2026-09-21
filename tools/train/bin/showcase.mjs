@@ -162,8 +162,18 @@ function writeStatus(episode, upFor) {
       contacts: 0,
       costMs: 0,
     },
-    groundHeight: 0,
-    staticBoxes: [],
+    groundHeight: rig.groundHeight,
+    // The scenario's scenery, where the solver has it this tick. It used to be published empty,
+    // which told every viewer there was nothing to stand on: a body balancing on a tilting
+    // platform appeared to be balancing on nothing, and the thing the run is about was the one
+    // thing not on screen.
+    staticBoxes: rig.scenery.map((box) => ({
+      halfExtents: [box.halfExtents.x, box.halfExtents.y, box.halfExtents.z],
+      position: [box.position.x, box.position.y, box.position.z],
+      rotation: box.rotation
+        ? [box.rotation.x, box.rotation.y, box.rotation.z, box.rotation.w]
+        : [0, 0, 0, 1],
+    })),
     // The discs, the beads and the cartilage, in bone names: what a studio or a headset needs to
     // draw this body's connective tissue from the poses it is already reading.
     tissue,

@@ -30,7 +30,11 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
-import { type CompiledArticulation, compileArticulation } from '@bs-humany/compiler';
+import {
+  type CompiledArticulation,
+  type StaticBox,
+  compileArticulation,
+} from '@bs-humany/compiler';
 import type { Morphology } from '@bs-humany/hsdl';
 import { Kernel, type KernelSnapshot } from '@bs-humany/kernel';
 import {
@@ -466,8 +470,18 @@ export class StandRig {
       drive: (unit, level) => {
         if (options.feedforward.kind === 'script') this.drive.setOverride(unit, level, 'script');
       },
-      moveStaticBox: (id, position, rotation) =>
-        this.physics.setStaticBoxTransform(id, position, rotation),
+      moveStaticBox: (id, position, rotation) => {
+        // The list is what a showcase publishes, so it is kept in step with the solver rather
+        // than left where the scenery started. A tilting platform moves every tick, and a
+        // viewer drawing it where it began while the body stands on where it is now makes a
+        // real force look like a trick of the rendering.
+        const at = this.scenery.findIndex((b) => b.id === id);
+        const box = this.scenery[at];
+        if (box) {
+          this.scenery[at] = { ...box, position: { ...position }, rotation: { ...rotation } };
+        }
+        this.physics.setStaticBoxTransform(id, position, rotation);
+      },
     };
   }
 
@@ -614,6 +628,8 @@ export class StandRig {
       tremor,
     );
     built.spine = spine;
+    built.scenery = [...(scenario?.staticBoxes ?? [])];
+    built.groundHeight = groundHeight;
     return built;
   }
 
@@ -735,6 +751,14 @@ export class StandRig {
 
   /** The cord in this rig, for a probe or a panel that wants to see what the reflexes do. */
   spine: SpinalModule | undefined;
+
+  /**
+   * The scenario's scenery, where the solver has it now: what a showcase publishes so a viewer
+   * following this run draws the floor the body is actually standing on.
+   */
+  scenery: StaticBox[] = [];
+  /** Where the ground plane sits, which a scenario may lower or raise. */
+  groundHeight = 0;
 
   /** The excitation on every muscle as it stands, for measuring what the cord contributes. */
   get excitation(): Float64Array {

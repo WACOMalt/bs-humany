@@ -552,11 +552,8 @@ function stopSimulation(): void {
   simulation = null;
   overlays?.dispose();
   overlays = null;
-  if (furniture) {
-    furniture.removeFromParent();
-    for (const child of furniture.children) if (child instanceof Mesh) child.geometry.dispose();
-    furniture = null;
-  }
+  clearFurniture();
+  followFurnitureKey = '';
   must<HTMLElement>('#diagnostics').hidden = true;
   must<HTMLElement>('#timeline-control').hidden = true;
   skinned?.rest();
@@ -686,12 +683,22 @@ function followFurniture(sim: Simulation): void {
   });
 }
 
+/**
+ * A box to draw, however it arrived: from a run of this studio's own, or from the status a
+ * publisher on the bridge writes. The two say the same thing in different shapes.
+ */
+interface DrawnBox {
+  readonly halfExtents: { x: number; y: number; z: number };
+  readonly position: { x: number; y: number; z: number };
+  readonly rotation?: { x: number; y: number; z: number; w: number } | undefined;
+}
+
 /** Draw a scenario's static boxes so the body has something visible to land on. */
-function showFurniture(sim: Simulation): void {
-  if (sim.staticBoxes.length === 0) return;
+function showFurniture(boxes: readonly DrawnBox[]): void {
+  if (boxes.length === 0) return;
   furniture = new Group();
   const material = new MeshStandardMaterial({ color: 0x4a5566, roughness: 0.9 });
-  for (const box of sim.staticBoxes) {
+  for (const box of boxes) {
     const mesh = new Mesh(
       new BoxGeometry(2 * box.halfExtents.x, 2 * box.halfExtents.y, 2 * box.halfExtents.z),
       material,
@@ -702,6 +709,66 @@ function showFurniture(sim: Simulation): void {
     furniture.add(mesh);
   }
   world.add(furniture);
+}
+
+/** Take the furniture down, whoever put it up. */
+function clearFurniture(): void {
+  if (!furniture) return;
+  furniture.removeFromParent();
+  for (const child of furniture.children) if (child instanceof Mesh) child.geometry.dispose();
+  furniture = null;
+}
+
+/**
+ * The scenery a publisher on the bridge is standing its body on.
+ *
+ * Followed runs used to have none: the studio drew furniture from its own simulation, and while
+ * following there is no simulation. So a body balancing on a tilting platform appeared to be
+ * balancing on nothing, and the thing a balance run is about was the one thing not on screen.
+ *
+ * The status carries the boxes where the publisher's solver has them, ten times a second. The
+ * meshes are rebuilt only when the shapes change -- a tilting platform keeps its size and moves
+ * every frame -- so the common case is moving what is already there.
+ */
+let followFurnitureKey = '';
+function followedFurniture(): void {
+  const status = bridgeFollower.status as {
+    staticBoxes?: readonly {
+      halfExtents: readonly number[];
+      position: readonly number[];
+      rotation?: readonly number[];
+    }[];
+  } | null;
+  const boxes = (status?.staticBoxes ?? []).map((b) => ({
+    halfExtents: { x: b.halfExtents[0] ?? 0, y: b.halfExtents[1] ?? 0, z: b.halfExtents[2] ?? 0 },
+    position: { x: b.position[0] ?? 0, y: b.position[1] ?? 0, z: b.position[2] ?? 0 },
+    rotation: b.rotation
+      ? {
+          x: b.rotation[0] ?? 0,
+          y: b.rotation[1] ?? 0,
+          z: b.rotation[2] ?? 0,
+          w: b.rotation[3] ?? 1,
+        }
+      : undefined,
+  }));
+  const key = boxes
+    .map((b) => `${b.halfExtents.x},${b.halfExtents.y},${b.halfExtents.z}`)
+    .join('|');
+  if (key !== followFurnitureKey) {
+    clearFurniture();
+    followFurnitureKey = key;
+    showFurniture(boxes);
+    return;
+  }
+  if (!furniture) return;
+  boxes.forEach((box, at) => {
+    const mesh = furniture?.children[at];
+    if (!mesh) return;
+    mesh.position.set(box.position.x, box.position.y, box.position.z);
+    if (box.rotation) {
+      mesh.quaternion.set(box.rotation.x, box.rotation.y, box.rotation.z, box.rotation.w);
+    }
+  });
 }
 
 /** Capabilities as a definition list (spec section 9.3). */
@@ -773,7 +840,7 @@ async function startSimulation(
     });
     world.add(overlays.root);
     applyOverlayVisibility();
-    showFurniture(sim);
+    showFurniture(sim.staticBoxes);
     showCapabilities(sim);
     must<HTMLElement>('#diagnostics').hidden = false;
     must<HTMLElement>('#timeline-control').hidden = false;
@@ -2327,6 +2394,7 @@ function followFrame(skin: SkinnedSkeleton): void {
     followTubes.update(muscles.position, muscles.orientation, muscles.radius);
   }
   if (followTubes && bridgeFollower.tension) followTubes.tint(bridgeFollower.tension);
+  followedFurniture();
   const status = bridgeFollower.status as {
     scenario?: { title?: string };
     training?: { generation?: number; episode?: number };
@@ -2379,6 +2447,9 @@ function stopFollowing(): void {
   }
   followLastTick = -1;
   followLastMuscleTick = -1;
+  // The publisher's scenery was theirs, not this studio's: it goes with them.
+  clearFurniture();
+  followFurnitureKey = '';
   skinned?.rest();
   followButton.textContent = 'Follow bridge';
   // Back to whatever this page's own run is doing, which with nothing running is nothing.
