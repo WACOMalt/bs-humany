@@ -398,6 +398,25 @@ createServer((request, response) => {
     response.end(readFileSync(`${BRIDGE}${suffix}`));
     return;
   }
+  // The run files -- the activity the studio draws the brain from, the pose, the history --
+  // live in the data directory now, not under the repository. This used to serve them from
+  // `tools/train/runs`, which after the move held only what was there before it: a live run
+  // 404ed, and a run whose name matched an old one served a picture of a brain from weeks ago.
+  if (url.pathname.startsWith('/runs/')) {
+    const name = normalize(url.pathname.slice('/runs/'.length)).replace(/^[/.]+/, '');
+    const full = join(RUNS, name);
+    if (!full.startsWith(RUNS) || !name.endsWith('.json') || !existsSync(full)) {
+      response.writeHead(404, CORS).end('not here');
+      return;
+    }
+    response.writeHead(200, {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      ...CORS,
+    });
+    response.end(readFileSync(full));
+    return;
+  }
   const file =
     url.pathname === '/' ? 'dashboard.html' : normalize(url.pathname).replace(/^\/+/, '');
   const full = join(dir, file);
