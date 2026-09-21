@@ -231,6 +231,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let localRun: LocalRun | undefined;
   let localSeries: [number, number, number, number][] = [];
   let localStatus = '';
+  /** Asked to stop, and not stopped yet: a generation has to finish first. */
+  let localStopping = false;
   /** When the activity last actually changed: a file nobody is writing any more goes stale. */
   let activityChangedAt = 0;
   /** The last payload seen, whether or not it was shown: what "changed" is measured against. */
@@ -475,7 +477,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   const setButtons = (): void => {
     if (serverUp && !localRun) return;
     ui.start.disabled = localRun !== undefined;
-    ui.stop.disabled = localRun === undefined;
+    ui.stop.disabled = localRun === undefined || localStopping;
   };
 
   const drawSeries = (series: readonly (readonly [number, number, number, number])[]) => {
@@ -658,17 +660,24 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           `Training ${recipe.task} here: generation ${report.generation}, ` +
           `mean ${report.mean.toFixed(3)}, top ${report.top.toFixed(3)} ` +
           `(${report.topAlive.toFixed(2)} s up)${report.note}`;
-        ui.status.textContent = localStatus;
+        // Once Stop has been asked for, say so and keep saying it. A generation takes seconds
+        // and the line that replaced the acknowledgement made the button look like it had done
+        // nothing, which is the one thing a Stop button must never look like.
+        ui.status.textContent = localStopping
+          ? `${localStatus} — stopping after this generation.`
+          : localStatus;
         drawSeries(localSeries);
       },
       onDone: (summary) => {
         localRun = undefined;
+        localStopping = false;
         localStatus = summary;
         ui.status.textContent = summary;
         setButtons();
       },
       onError: (message) => {
         localRun = undefined;
+        localStopping = false;
         localStatus = `Could not train here: ${message}`;
         ui.status.textContent = localStatus;
         setButtons();
@@ -680,7 +689,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   async function stopTraining(): Promise<void> {
     if (localRun) {
       localRun.stop();
-      ui.status.textContent = 'Stopping after this generation...';
+      localStopping = true;
+      ui.status.textContent = `${localStatus} — stopping after this generation.`;
+      ui.stop.disabled = true;
       return;
     }
     ui.stop.disabled = true;

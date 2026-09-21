@@ -77,12 +77,25 @@ const isPid = (p) => {
     return false;
   }
 };
+/**
+ * Whether a child process has gone, for any reason.
+ *
+ * Not `exitCode === null`, which is what this asked before and is a trap: Node leaves `exitCode`
+ * null when a child is killed by a signal and puts the signal in `signalCode` instead. Stop
+ * kills by signal. So a stopped run reported itself as still running for ever, the studio went
+ * on offering a Stop button, and pressing it signalled a process that was already dead -- which
+ * looks exactly like a button that does nothing.
+ */
+const gone = (child) => child === null || child.exitCode !== null || child.signalCode !== null;
+
 function trainStatus() {
-  const running = training !== null && training.trainer.exitCode === null;
+  const running = training !== null && !gone(training.trainer);
   // The showcase plays the run on the bridge and outlives the trainer, so it is said separately:
   // while it is up there is still something for Stop to stop.
-  const showcase =
-    training !== null && (training.showcase === null || training.showcase.exitCode === null);
+  // The showcase plays the run on the bridge and outlives the trainer, so it is said
+  // separately: while it is up there is still something for Stop to stop. `null` means it has
+  // been asked for and not yet spawned, which counts as up.
+  const showcase = training !== null && (training.showcase === null || !gone(training.showcase));
   let latest = null;
   try {
     latest = JSON.parse(
@@ -98,7 +111,11 @@ function trainStatus() {
     startedAt: training?.startedAt ?? null,
     task: training?.task ?? null,
     name: training?.name ?? null,
-    exit: training && !running ? training.trainer.exitCode : null,
+    // What it exited with, or the signal that took it: either answers "why is it not running".
+    exit:
+      training && !running
+        ? (training.trainer.exitCode ?? training.trainer.signalCode ?? null)
+        : null,
     latest: latest
       ? {
           updated: latest.updated,
@@ -205,7 +222,10 @@ function recipeFrom(body) {
   };
 }
 function trainStart(body) {
-  if (training && training.trainer.exitCode === null) return { error: 'a run is already going' };
+  // The same trap as everywhere else, and the one that bit hardest: a run stopped by a signal
+  // left `exitCode` null, so this refused every later Start with "a run is already going" while
+  // Stop refused to stop the thing that was not there. Both symptoms, one wrong question.
+  if (training && !gone(training.trainer)) return { error: 'a run is already going' };
   if (trainerElsewhere())
     return { error: 'a trainer is already running on this machine, started from a terminal' };
   const recipe = recipeFrom(body);
@@ -245,21 +265,21 @@ function trainStart(body) {
   // writing. The bridge refuses a second publisher anyway, so overlapping them just means the
   // new one refuses to start.
   const previous = training?.showcase;
-  if (previous && previous.exitCode === null) previous.kill('SIGINT');
+  if (previous && !gone(previous)) previous.kill('SIGINT');
   const showcase = () =>
     spawn(process.execPath, [join(ROOT, 'tools/train/bin/showcase.mjs'), '--recipe', recipePath], {
       cwd: ROOT,
       stdio: ['ignore', 'inherit', 'inherit'],
     });
   const started =
-    previous && previous.exitCode === null
+    previous && !gone(previous)
       ? new Promise((resolve) => {
           const go = () => resolve(showcase());
           previous.once('exit', go);
           // It is being asked to save what it has; a showcase that will not go is killed outright
           // rather than left to fight the new one for the bridge.
           setTimeout(() => {
-            if (previous.exitCode === null) previous.kill('SIGKILL');
+            if (!gone(previous)) previous.kill('SIGKILL');
           }, 3000).unref?.();
         })
       : Promise.resolve(showcase());
@@ -284,14 +304,23 @@ function trainStop() {
   // whether or not the trainer is still up: it is what keeps publishing, and what a studio that
   // is following the bridge is following.
   let stopped = false;
-  if (training.trainer.exitCode === null) {
-    training.trainer.kill('SIGINT');
+  const ask = (child) => {
+    if (gone(child)) return;
+    child.kill('SIGINT');
     stopped = true;
-  }
-  if (training.showcase && training.showcase.exitCode === null) {
-    training.showcase.kill('SIGINT');
-    stopped = true;
-  }
+    // Three lines, softest first. The first interrupt asks the trainer to finish the generation
+    // it is in and write its centre, which is seconds. The second tells it to go now, losing
+    // that generation but still leaving on its own terms. The third is for a process that has
+    // wedged: a run nobody can stop is worse than a run that lost its last generation.
+    setTimeout(() => {
+      if (!gone(child)) child.kill('SIGINT');
+    }, 8000).unref?.();
+    setTimeout(() => {
+      if (!gone(child)) child.kill('SIGKILL');
+    }, 15000).unref?.();
+  };
+  ask(training.trainer);
+  if (training.showcase) ask(training.showcase);
   return { stopped };
 }
 process.on('exit', () => {

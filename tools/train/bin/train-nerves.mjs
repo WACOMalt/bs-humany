@@ -239,9 +239,19 @@ const store = {
   },
 };
 
+// The first interrupt asks the search to stop at the end of the generation it is in, so the
+// centre and the record are written and the run is resumable. A generation is seconds, which is
+// a long time to watch a button do nothing, so the second interrupt goes at once -- and the
+// dashboard's own escalation is the third line, for a trainer that has wedged.
 let stopping = false;
 process.on('SIGINT', () => {
+  if (stopping) {
+    console.log('\nstopping now; the generation in progress is lost');
+    pool.dispose();
+    process.exit(130);
+  }
   stopping = true;
+  console.log('\nstopping at the end of this generation; interrupt again to stop now');
 });
 
 const result = await train({
