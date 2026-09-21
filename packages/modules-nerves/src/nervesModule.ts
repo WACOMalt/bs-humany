@@ -17,6 +17,24 @@
  * because that is the dimension a controller can be trained in and the dimension a person
  * reasons in. Each output is a signed correction in [-authority, +authority], spread over the
  * group's units by their weights.
+ *
+ * ## Memory
+ *
+ * A network with no state answers the instant it is shown and nothing else. It cannot tell a
+ * body leaning from a body that has leant and come back, cannot average a noisy sense over time,
+ * and cannot predict -- which is what a real nervous system does with the hundred milliseconds
+ * it spends waiting for its own afferents. Grain on the senses makes this worse, not better:
+ * the one thing that makes a noisy sense usable is integrating it, and a feed-forward network
+ * has nowhere to integrate.
+ *
+ * So the policy may be given `memory` context units. They are extra inputs it reads and extra
+ * outputs it writes, fed from its own last answer: whatever it puts in them at one control step
+ * it sees at the next. The network itself stays exactly what it was -- a plain perceptron, no
+ * gates, no special case in `MlpPolicy` -- because the loop is closed out here. They are named
+ * like any other sense, so a checkpoint trained without memory fits a body that has it, with
+ * the context starting from nothing, and one trained with it fits a body that does not.
+ *
+ * The context is bounded by the output layer's own tanh, so a recurrent state cannot run away.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
@@ -86,6 +104,11 @@ export interface NervesOptions {
    * digit differently. Grain makes it read the signal instead.
    */
   readonly senseNoise?: number;
+  /**
+   * Context units: state the policy carries from one control step to the next. 0 is the
+   * memoryless policy the first checkpoints were trained as.
+   */
+  readonly memory?: number;
 }
 
 export class NervesModule implements SimModule {
@@ -110,6 +133,9 @@ export class NervesModule implements SimModule {
   private unreadable = 0;
   private senseNoiseLevel: number;
   private senseNormal: () => number;
+  private readonly memorySize: number;
+  /** What the policy put in its context units last step, and reads back this one. */
+  private readonly context: Float64Array;
 
   constructor(
     articulation: CompiledArticulation,
@@ -131,6 +157,8 @@ export class NervesModule implements SimModule {
     this.authority = options.authority ?? 0.5;
     this.controlDivisor = Math.max(1, Math.round(options.controlDivisor ?? 5));
     this.senseNoiseLevel = Math.max(0, options.senseNoise ?? 0);
+    this.memorySize = Math.max(0, Math.round(options.memory ?? 0));
+    this.context = new Float64Array(this.memorySize);
     this.senseNormal = seededNormal(1);
     this.goal = options.goal;
     this.observation = new ObservationBuilder(
@@ -188,24 +216,43 @@ export class NervesModule implements SimModule {
     });
     this.excitation = ctx.accumulate(EFFERENT_ALPHA_MOTOR).fields.excitation as Float64Array;
     // The observation's size is known once the joints are: the policy is checked, or made, now.
-    const inputs = this.observation.size;
+    const names = this.policyNames;
+    const inputs = names.inputs.length;
+    const wanted = names.outputs.length;
     if (!this.policyInUse) {
-      const policy = this.makePolicy(inputs, this.outputs.length, {
-        inputs: this.observation.names,
-        outputs: this.outputs.map((o) => o.id),
-      });
+      const policy = this.makePolicy(inputs, wanted, names);
       const sizes = policy.sizes;
       if (sizes[0] !== inputs) {
         throw new Error(`The policy takes ${sizes[0]} inputs and this body observes ${inputs}.`);
       }
-      if (sizes[sizes.length - 1] !== this.outputs.length) {
+      if (sizes[sizes.length - 1] !== wanted) {
         throw new Error(
-          `The policy has ${sizes[sizes.length - 1]} outputs and ${this.outputs.length} drives were given.`,
+          `The policy has ${sizes[sizes.length - 1]} outputs and ${wanted} drives were given.`,
         );
       }
       this.policyInUse = policy;
       this.obs = new Float64Array(inputs);
     }
+  }
+
+  /**
+   * The senses the policy reads: the body's, then its own context units. And the drives it
+   * writes: the muscle groups, then the context again. Named so that `MlpPolicy.fit` carries a
+   * checkpoint across a change of memory the same way it carries one across a change of body.
+   */
+  get policyNames(): PolicyNames {
+    const inputs = [...this.observation.names];
+    const outputs = this.outputs.map((o) => o.id);
+    for (let i = 0; i < this.memorySize; i++) {
+      inputs.push(`context[${i}]`);
+      outputs.push(`context[${i}]`);
+    }
+    return { inputs, outputs };
+  }
+
+  /** Context units the policy carries between control steps; 0 is a memoryless policy. */
+  get memory(): number {
+    return this.memorySize;
   }
 
   /** Ticks between evaluations, as settled. */
@@ -248,11 +295,8 @@ export class NervesModule implements SimModule {
   adopt(file: PolicyFile): { inputs: number; outputs: number } {
     const inUse = this.policyInUse;
     if (!inUse) throw new Error('NervesModule.adopt before init.');
-    const fitted = MlpPolicy.fit(
-      file,
-      this.observation.names,
-      this.outputs.map((o) => o.id),
-    );
+    const names = this.policyNames;
+    const fitted = MlpPolicy.fit(file, names.inputs, names.outputs);
     this.policyInUse = fitted.policy;
     this.carried = fitted.carried;
     this.forget();
@@ -278,6 +322,7 @@ export class NervesModule implements SimModule {
   /** Drop the held command, as at the start of an episode. */
   forget(): void {
     this.command.fill(0);
+    this.context.fill(0);
     this.sinceEvaluation = this.controlDivisor;
     this.evaluations = 0;
   }
@@ -298,14 +343,22 @@ export class NervesModule implements SimModule {
         }
       }
       // The grain, after the finiteness check so a sense that has gone wrong still reads as
-      // nothing rather than as noise, and before the policy, which is the point of it.
+      // nothing rather than as noise, and before the policy, which is the point of it. Only the
+      // senses take it: the context units are not senses, and drawing for them too would make
+      // the noise stream depend on how much memory a policy happens to have.
+      const base = this.obs.length - this.memorySize;
       if (this.senseNoiseLevel > 0) {
-        for (let i = 0; i < this.obs.length; i++) {
+        for (let i = 0; i < base; i++) {
           this.obs[i] = (this.obs[i] as number) + this.senseNoiseLevel * this.senseNormal();
         }
       }
+      // The context: the policy's own state, fed back from its last answer.
+      for (let i = 0; i < this.memorySize; i++) this.obs[base + i] = this.context[i] as number;
       const out = this.policy.act(this.obs);
-      for (let o = 0; o < out.length; o++) this.command[o] = out[o] as number;
+      for (let o = 0; o < this.command.length; o++) this.command[o] = out[o] as number;
+      for (let i = 0; i < this.memorySize; i++) {
+        this.context[i] = out[this.command.length + i] as number;
+      }
     }
     this.sinceEvaluation += 1;
     for (let o = 0; o < this.command.length; o++) {

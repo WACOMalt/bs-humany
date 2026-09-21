@@ -70,8 +70,9 @@ describe('NervesModule', () => {
     const inputs = nerves.observation.size;
     const nq = (kernel.channels.storage(BODY_JOINT_STATE).fields.q as Float64Array).length;
     const nv = (kernel.channels.storage(BODY_JOINT_STATE).fields.qdot as Float64Array).length;
-    // Joints, the pelvis, the feet, a sense a group of activation and of stretch, the goal.
-    expect(inputs).toBe(nq - 7 + (nv - 6) + 11 + 4 + 2 * 2 + 2);
+    // Joints, the pelvis, the head's vestibular six, the feet, four senses a group --
+    // activation, stretch, shortening and load -- and the goal.
+    expect(inputs).toBe(nq - 7 + (nv - 6) + 11 + 6 + 4 + 4 * 2 + 2);
     kernel.run(100);
     // Twenty evaluations in a hundred ticks at a divisor of five.
     expect(nerves.evaluationsSoFar).toBe(20);
@@ -109,5 +110,63 @@ describe('NervesModule', () => {
     kernel.run(5);
     expect(nerves.lastCommand[0]).toBe(0);
     kernel.dispose();
+  });
+});
+
+describe('NervesModule memory', () => {
+  it('gives the policy context units it reads back from its own last answer', async () => {
+    const kernel = new Kernel({ rateHz: 500, seed: 1 });
+    kernel.register(
+      new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }),
+    );
+    kernel.register(new PassiveJointModule(articulation));
+    kernel.register(
+      new MuscleTestDriveModule(muscles, [
+        { units: 'all', pattern: { kind: 'constant', level: 0.1 } },
+      ]),
+    );
+    kernel.register(new MusclePathModule(articulation, muscles));
+    kernel.register(new MuscleDynamicsModule(articulation, muscles));
+    const soleus = {
+      id: 'soleus',
+      units: muscles.units.filter((u) => /soleus/.test(u.id)).map((u) => ({ id: u.id, weight: 1 })),
+    };
+    const memory = 4;
+    const nerves = new NervesModule(articulation, muscles, {
+      policy: (inputs, outputs) => MlpPolicy.random([inputs, 8, outputs], () => 0.5),
+      outputs: [soleus],
+      goalSize: 0,
+      memory,
+    });
+    kernel.register(nerves);
+    await kernel.init();
+    // The senses the body has, plus one input and one output per context unit.
+    const names = nerves.policyNames;
+    expect(names.inputs.length).toBe(nerves.observation.size + memory);
+    expect(names.outputs.length).toBe(1 + memory);
+    expect(names.inputs.at(-1)).toBe(`context[${memory - 1}]`);
+    expect(nerves.policy.sizes[0]).toBe(nerves.observation.size + memory);
+    expect(nerves.policy.sizes.at(-1)).toBe(1 + memory);
+    kernel.run(20);
+    // The command is the drive alone; the context is held out of it.
+    expect(nerves.lastCommand.length).toBe(1);
+  });
+
+  it('carries a memoryless checkpoint into a body that has memory', async () => {
+    const file = MlpPolicy.random([3, 4, 2], () => 0.5).toFile({
+      task: 'stand',
+      inputs: ['a', 'b', 'c'],
+      outputs: ['soleusDrive', 'tibialisDrive'],
+    });
+    // The same file fitted to a body with two context units: the senses it knows keep their
+    // weights and the context starts from nothing.
+    const fitted = MlpPolicy.fit(
+      file,
+      ['a', 'b', 'c', 'context[0]', 'context[1]'],
+      ['soleusDrive', 'tibialisDrive', 'context[0]', 'context[1]'],
+    );
+    expect(fitted.carried.inputs).toBe(3);
+    expect(fitted.carried.outputs).toBe(2);
+    expect(fitted.policy.sizes).toEqual([5, 4, 4]);
   });
 });

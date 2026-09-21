@@ -195,8 +195,10 @@ const ELBOW_EXTENSORS_L = ELBOW_EXTENSORS_R.map((id) => id.replace(/_r$/, '_l'))
 
 /** The groups the range-of-motion scenario takes through their range, in order. */
 export {
+  ANTAGONISTS,
   MUSCLE_GROUPS,
   driveForSlider,
+  reflexGroups,
   type DriveGroup,
   type DriveSection,
 } from './muscleGroups.js';

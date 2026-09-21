@@ -20,3 +20,11 @@ export {
   type NervesOptions,
   type PolicyNames,
 } from './nervesModule.js';
+export {
+  DEFAULT_SPINAL_GAINS,
+  type ReflexGroup,
+  SPINAL_MODULE_ID,
+  SpinalModule,
+  type SpinalGains,
+  type SpinalOptions,
+} from './spinalModule.js';

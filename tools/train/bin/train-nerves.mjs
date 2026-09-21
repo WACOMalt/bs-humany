@@ -36,7 +36,9 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const jiti = createJiti(import.meta.url);
 const { OpenAiEs } = await jiti.import(join(ROOT, 'tools/train/src/es.ts'));
 const { MlpPolicy } = await jiti.import(join(ROOT, 'packages/modules-nerves/src/index.ts'));
-const { rigOptionsFor, defaultRecipe } = await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
+const { rigOptionsFor, defaultRecipe, DEFAULT_REFLEX } = await jiti.import(
+  join(ROOT, 'tools/train/src/rig.ts'),
+);
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -61,6 +63,31 @@ if (flag('noise', undefined) !== undefined || flag('sense-noise', undefined) !==
     tau: Number(flag('noise-tau', recipe.noise?.tau ?? 0.25)),
   };
 }
+// The cord under the brain and the memory in it, overridable the same way. `--reflex 0` is the
+// body every checkpoint before the spinal module was trained in: no stretch reflex at all.
+if (
+  flag('reflex', undefined) !== undefined ||
+  flag('reflex-velocity', undefined) !== undefined ||
+  flag('reflex-delay', undefined) !== undefined ||
+  flag('reflex-inhibition', undefined) !== undefined ||
+  flag('reflex-setpoint', undefined) !== undefined
+) {
+  const base = recipe.reflex ?? DEFAULT_REFLEX;
+  recipe.reflex = {
+    stretch: Number(flag('reflex', base.stretch)),
+    velocity: Number(flag('reflex-velocity', base.velocity)),
+    setPoint: Number(flag('reflex-setpoint', base.setPoint)),
+    inhibition: Number(flag('reflex-inhibition', base.inhibition)),
+    forceCeiling: Number(flag('reflex-ceiling', base.forceCeiling)),
+    forceInhibition: Number(flag('reflex-force-inhibition', base.forceInhibition)),
+    delaySeconds: Number(flag('reflex-delay', base.delaySeconds)),
+  };
+}
+if (flag('memory', undefined) !== undefined) recipe.memory = Number(flag('memory', 0));
+if (flag('authority', undefined) !== undefined) {
+  recipe.authority = Number(flag('authority', recipe.authority));
+}
+
 const task = recipe.task;
 const name = recipe.name;
 const generations = Number(flag('generations', 300));
@@ -127,6 +154,19 @@ console.log(
 console.log(
   `  noise: tremor ${(recipe.noise?.motor ?? 0.05).toFixed(3)} over ${(recipe.noise?.tau ?? 0.25).toFixed(2)}s, ` +
     `senses ${(recipe.noise?.sense ?? 0.01).toFixed(3)}`,
+);
+const cord = recipe.reflex;
+console.log(
+  cord && cord.stretch > 0
+    ? `  cord: stretch ${cord.stretch.toFixed(2)}, damping ${cord.velocity.toFixed(2)}, ` +
+        `set point ${cord.setPoint.toFixed(2)}, inhibition ${cord.inhibition.toFixed(2)}, ` +
+        `${(cord.delaySeconds * 1000).toFixed(0)} ms down and back`
+    : '  cord: no reflexes; the brain is the only thing holding the body up',
+);
+console.log(
+  recipe.memory
+    ? `  memory: ${recipe.memory} context units carried between control steps`
+    : '  memory: none; the policy answers the instant it is shown and nothing else',
 );
 const pool = [];
 const ready = [];

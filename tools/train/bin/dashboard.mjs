@@ -182,6 +182,21 @@ function recipeFrom(body) {
       sense: Math.min(0.5, Math.max(0, finite(r.noise?.sense, 0.01))),
       tau: Math.min(5, Math.max(0.01, finite(r.noise?.tau, 0.25))),
     },
+    // The cord under the brain. A stretch gain of zero is the body every checkpoint before the
+    // spinal module was trained in, so it stays reachable; the delay is capped at a fifth of a
+    // second because past that the loop is not a reflex arc, it is a correspondence.
+    reflex: {
+      stretch: Math.min(5, Math.max(0, finite(r.reflex?.stretch, 0))),
+      velocity: Math.min(2, Math.max(0, finite(r.reflex?.velocity, 0.15))),
+      setPoint: Math.min(0.5, Math.max(-0.5, finite(r.reflex?.setPoint, -0.05))),
+      inhibition: Math.min(1, Math.max(0, finite(r.reflex?.inhibition, 0.3))),
+      forceCeiling: Math.min(5, Math.max(0, finite(r.reflex?.forceCeiling, 1.2))),
+      forceInhibition: Math.min(5, Math.max(0, finite(r.reflex?.forceInhibition, 0.5))),
+      delaySeconds: Math.min(0.2, Math.max(0, finite(r.reflex?.delaySeconds, 0.03))),
+    },
+    // Context units. Capped because every one of them is a row and a column of new weights, and
+    // the search's cost grows with the length of the vector it is searching.
+    memory: Math.min(64, Math.max(0, Math.round(finite(r.memory, 0)))),
   };
 }
 function trainStart(body) {

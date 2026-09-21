@@ -55,7 +55,13 @@ import {
   extractMuscleRings,
   ringBuffers,
 } from '@bs-humany/modules-muscle';
-import { MlpPolicy, MotorNoiseModule, NervesModule, feetOf } from '@bs-humany/modules-nerves';
+import {
+  MlpPolicy,
+  MotorNoiseModule,
+  NervesModule,
+  SpinalModule,
+  feetOf,
+} from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -79,6 +85,7 @@ import {
   driveOutputs,
   loadActivationClips,
   placeArticulation,
+  reflexGroups,
   unitsNamedByClips,
 } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -116,6 +123,43 @@ export interface NoiseLevels {
 export const DEFAULT_NOISE: NoiseLevels = { motor: 0.05, sense: 0.01, tau: 0.25 };
 
 /**
+ * The cord under the brain: how hard the stretch reflex answers, how much its antagonist is
+ * inhibited, and how long the loop takes. `stretch` at 0 is a body with no reflexes at all,
+ * which is what every checkpoint before this was trained in.
+ */
+export interface ReflexLevels {
+  readonly stretch: number;
+  readonly velocity: number;
+  readonly setPoint: number;
+  readonly inhibition: number;
+  readonly forceCeiling: number;
+  readonly forceInhibition: number;
+  readonly delaySeconds: number;
+}
+
+/**
+ * A cord that holds the body up without help.
+ *
+ * The stretch gain is the loop's spring and the velocity gain its damper; the ratio between
+ * them is what decides whether a leaning body is caught or set ringing. Thirty milliseconds is
+ * the conduction time of a monosynaptic loop in a human leg. The set point sits a little under
+ * the optimal fibre length so that a muscle at rest is already answering slightly, which is
+ * what postural tone is.
+ */
+export const DEFAULT_REFLEX: ReflexLevels = {
+  stretch: 0.8,
+  velocity: 0.15,
+  setPoint: -0.05,
+  inhibition: 0.3,
+  forceCeiling: 1.2,
+  forceInhibition: 0.5,
+  delaySeconds: 0.03,
+};
+
+/** A body with the cord switched off: what the checkpoints before the reflexes were trained in. */
+export const NO_REFLEX: ReflexLevels = { ...DEFAULT_REFLEX, stretch: 0, velocity: 0 };
+
+/**
  * What a checkpoint was trained in, saved with it so the studio can set itself up the same way
  * before handing over: the scenario and its parameter values, the body, and what played under
  * the brain.
@@ -146,6 +190,10 @@ export interface TrainingRecipe {
   readonly authority: number;
   /** The tremor and the grain it was brought up in; `DEFAULT_NOISE` when a recipe omits them. */
   readonly noise?: NoiseLevels;
+  /** The cord it was brought up over; `NO_REFLEX` when a recipe omits it, as the old ones do. */
+  readonly reflex?: ReflexLevels;
+  /** Context units the policy carried between control steps; 0 when a recipe omits it. */
+  readonly memory?: number;
 }
 
 export interface RigOptions {
@@ -173,6 +221,10 @@ export interface RigOptions {
   readonly poseBones?: boolean;
   /** The tremor on the muscles and the grain on the senses; `DEFAULT_NOISE` when not given. */
   readonly noise?: NoiseLevels;
+  /** The reflex gains of the cord under the brain; `NO_REFLEX` when not given. */
+  readonly reflex?: ReflexLevels;
+  /** Context units the policy carries between control steps; none when not given. */
+  readonly memory?: number;
 }
 
 /** The rig options a recipe asks for. */
@@ -193,6 +245,8 @@ export function rigOptionsFor(
     morphology: recipe.morphology,
     passiveJoints: recipe.passive,
     noise: recipe.noise ?? DEFAULT_NOISE,
+    reflex: recipe.reflex ?? NO_REFLEX,
+    memory: recipe.memory ?? 0,
     ...(rest.poseBones ? { poseBones: true } : {}),
   };
 }
@@ -211,6 +265,8 @@ export function defaultRecipe(task: string, profile: string, authority: number):
     feedforward: { kind: 'clip', clip: task === 'walk' ? 'walk-normal' : 'quiet-standing' },
     authority,
     noise: DEFAULT_NOISE,
+    reflex: DEFAULT_REFLEX,
+    memory: 0,
   };
 }
 
@@ -219,6 +275,17 @@ const HEAD_BELOW = 0.1;
 const HEAD_ABOVE = 0.05;
 /** How long the feet may all be off the ground before the episode ends, in seconds. */
 const AIRBORNE_GRACE = 0.05;
+/**
+ * How long the head may be outside its band before the episode ends.
+ *
+ * It used to end on the first step out, which made a stumble and a fall the same event and
+ * ended most episodes at about the same moment -- so a generation's scores differed by almost
+ * nothing and the rank transform ranked noise. A body that dips and comes back is the behaviour
+ * worth rewarding, and it cannot be rewarded if the episode is already over. Nothing is scored
+ * while the head is out, so this buys a recovery the chance to happen without paying for the
+ * time spent recovering, and a body that stays out is still ended.
+ */
+const RECOVERY_GRACE = 0.25;
 /** The twitch: how hard one group is pushed, and for how long. */
 const TWITCH_LEVEL = 0.25;
 const TWITCH_SECONDS = 0.15;
@@ -274,11 +341,17 @@ export class StandRig {
   private startZ = 0;
   /** Seconds in a row with no foot on the ground. */
   private airborne = 0;
+  /** How long the head has been outside its band, for the recovery grace. */
+  private outOfBand = 0;
   /** The head's height at rest, the middle of the band it must stay in. */
   private readonly restHead: number;
   private readonly leftFeet: Int32Array;
   private readonly rightFeet: Int32Array;
   private readonly contacts: { count: number; pair: Int32Array; impulse: Float64Array };
+  /** The body's mass distribution, for the centre of mass the support reward is measured from. */
+  private readonly segmentMass: Float64Array;
+  private readonly segmentCom: Float64Array;
+  private readonly totalMass: number;
   private position: Float64Array;
   private orientation: Float64Array;
   private linear: Float64Array;
@@ -333,8 +406,11 @@ export class StandRig {
     this.pelvis = pelvis;
     this.dt = 1 / rate;
     this.sizes = nerves.policy.sizes;
-    this.inputNames = nerves.observation.names;
-    this.outputNames = nerves.outputs.map((o) => o.id);
+    // The policy's own names, not the body's: with memory these carry the context units too,
+    // and a checkpoint saved without them would not fit back onto the body that made it.
+    const names = nerves.policyNames;
+    this.inputNames = names.inputs;
+    this.outputNames = names.outputs;
     this.position = kernel.channels.storage(BODY_POSE).fields.position as Float64Array;
     this.orientation = kernel.channels.storage(BODY_POSE).fields.orientation as Float64Array;
     this.linear = kernel.channels.storage(BODY_VELOCITY).fields.linear as Float64Array;
@@ -347,6 +423,17 @@ export class StandRig {
       pair: contacts.fields.pair as Int32Array,
       impulse: contacts.fields.impulse as Float64Array,
     };
+    // Segment masses and their local centres, for the whole body's centre of mass: the quantity
+    // balance is actually about, and the one the reward needs if it is to tell a body leaning
+    // from a body already gone.
+    this.segmentMass = Float64Array.from(articulation.segments, (seg) => seg.mass);
+    this.segmentCom = new Float64Array(3 * articulation.segments.length);
+    for (const seg of articulation.segments) {
+      this.segmentCom[3 * seg.index] = seg.com.x;
+      this.segmentCom[3 * seg.index + 1] = seg.com.y;
+      this.segmentCom[3 * seg.index + 2] = seg.com.z;
+    }
+    this.totalMass = this.segmentMass.reduce((a, b) => a + b, 0) || 1;
     this.restHead = this.position[3 * this.head + 1] as number;
     this.snapshot = kernel.snapshot();
     // What a scenario's script may do here: drive muscles. A grab has no hand in a training rig.
@@ -446,7 +533,16 @@ export class StandRig {
     const goal = new Float64Array(GOAL_SIZE);
     goal[0] = 1;
     const noise = options.noise ?? DEFAULT_NOISE;
+    const reflex = options.reflex ?? NO_REFLEX;
     const divisor = options.controlDivisor ?? Math.max(1, Math.round(rate / 100));
+    // The cord first: it is the layer the brain corrects, so it goes into the accumulator
+    // before the brain does. Its gains at zero leave the excitation exactly as it was.
+    const spine = new SpinalModule(muscles, {
+      groups: reflexGroups(),
+      gains: reflex,
+      stepSeconds: 1 / rate,
+    });
+    kernel.register(spine);
     const nerves = new NervesModule(articulation, muscles, {
       policy: (inputs, outs) => new MlpPolicy([inputs, ...options.hidden, outs]),
       outputs,
@@ -455,6 +551,7 @@ export class StandRig {
       controlDivisor: divisor,
       authority: options.authority,
       senseNoise: noise.sense,
+      memory: options.memory ?? 0,
     });
     kernel.register(nerves);
     // After the nerves, so the tremor lands on top of the policy's correction and the clamp to
@@ -508,6 +605,67 @@ export class StandRig {
    * Whether the body is standing as of now: the head within its band of the resting height,
    * and a foot on the ground -- or the feet only just off it.
    */
+  /**
+   * How well the body is over its own feet, from 0 to 1.
+   *
+   * The centre of mass is what balance is about, and the base of support is where it has to
+   * stay: a body whose mass has left the ground under its feet is falling, however level its
+   * head still looks and however long the head stays inside its band. The reward needs this
+   * because without it every candidate in a generation dies at about the same moment and the
+   * rank transform is ranking noise -- there is nothing in the score that says one of them
+   * nearly stood and the other went straight over.
+   *
+   * The support point is the mean of whichever foot segments are actually carrying load, so a
+   * body up on one foot is measured against that foot rather than against the pair. The margin
+   * is scaled by a quarter of a metre, which is about a foot's length: at the edge of the base
+   * the term is near zero, and well inside it is near one.
+   */
+  private overFeet(): number {
+    let mx = 0;
+    let mz = 0;
+    for (let i = 0; i < this.segmentMass.length; i++) {
+      const m = this.segmentMass[i] as number;
+      if (m <= 0) continue;
+      // The segment's own centre, turned into the world by its orientation.
+      const qx = this.orientation[4 * i] as number;
+      const qy = this.orientation[4 * i + 1] as number;
+      const qz = this.orientation[4 * i + 2] as number;
+      const qw = this.orientation[4 * i + 3] as number;
+      const cx = this.segmentCom[3 * i] as number;
+      const cy = this.segmentCom[3 * i + 1] as number;
+      const cz = this.segmentCom[3 * i + 2] as number;
+      const ix = qw * cx + qy * cz - qz * cy;
+      const iy = qw * cy + qz * cx - qx * cz;
+      const iz = qw * cz + qx * cy - qy * cx;
+      const iw = -qx * cx - qy * cy - qz * cz;
+      const wx = ix * qw - iw * qx - iy * qz + iz * qy;
+      const wz = iz * qw - iw * qz - ix * qy + iy * qx;
+      mx += m * ((this.position[3 * i] as number) + wx);
+      mz += m * ((this.position[3 * i + 2] as number) + wz);
+    }
+    const comX = mx / this.totalMass;
+    const comZ = mz / this.totalMass;
+
+    // The base: the feet that are bearing something, or both feet when nothing reads as loaded.
+    let sx = 0;
+    let sz = 0;
+    let count = 0;
+    const loaded = (list: Int32Array): void => {
+      for (let k = 0; k < list.length; k++) {
+        const i = list[k] as number;
+        sx += this.position[3 * i] as number;
+        sz += this.position[3 * i + 2] as number;
+        count += 1;
+      }
+    };
+    loaded(this.leftFeet);
+    loaded(this.rightFeet);
+    if (count === 0) return 0;
+    const dx = comX - sx / count;
+    const dz = comZ - sz / count;
+    return 1 - Math.min(1, Math.sqrt(dx * dx + dz * dz) / 0.25);
+  }
+
   private standing(sinceLast: number): {
     headHeight: number;
     inBand: boolean;
@@ -530,7 +688,13 @@ export class StandRig {
       grounded = foot && (c.impulse[i] as number) > 0;
     }
     this.airborne = grounded ? 0 : this.airborne + sinceLast;
-    return { headHeight, inBand, grounded, up: inBand && this.airborne <= AIRBORNE_GRACE };
+    this.outOfBand = inBand ? 0 : this.outOfBand + sinceLast;
+    return {
+      headHeight,
+      inBand,
+      grounded,
+      up: this.outOfBand <= RECOVERY_GRACE && this.airborne <= AIRBORNE_GRACE,
+    };
   }
 
   /** The fidelity profile this body was built from. */
@@ -704,6 +868,7 @@ export class StandRig {
     this.startX = this.position[3 * this.pelvis] as number;
     this.startZ = this.position[3 * this.pelvis + 2] as number;
     this.airborne = 0;
+    this.outOfBand = 0;
     const every = this.nerves.divisor;
     const stepSeconds = every * this.dt;
     let fitness = 0;
@@ -740,6 +905,8 @@ export class StandRig {
         const px = this.position[3 * p] as number;
         const pz = this.position[3 * p + 2] as number;
         const drift = Math.sqrt((px - this.startX) ** 2 + (pz - this.startZ) ** 2);
+        // Where the mass sits over the feet. Added to both tasks, because both are standing.
+        const support = this.overFeet();
         if (this.task === 'balance') {
           // The head: how fast it moves and turns, and how level it is. A point a step for
           // being up, most of it lost to a head that is thrown about, a little to effort, so a
@@ -762,7 +929,8 @@ export class StandRig {
           fitness +=
             stepSeconds *
             (1 +
-              0.5 * Math.max(0, headUp) -
+              0.5 * Math.max(0, headUp) +
+              0.5 * support -
               Math.min(1, hv / 0.5) -
               Math.min(1, hw / 2) -
               0.25 * effort);
@@ -771,6 +939,7 @@ export class StandRig {
             stepSeconds *
             (1 +
               0.5 * Math.max(0, upY) +
+              0.5 * support +
               0.5 * (1 - Math.min(1, drift / 0.25)) -
               0.5 * Math.min(1, speed) -
               vertical -

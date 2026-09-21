@@ -270,3 +270,56 @@ export function driveForSlider(position: number): number {
   const fraction = position / 100;
   return fraction * fraction;
 }
+
+/**
+ * What opposes what, for the cord's reciprocal inhibition.
+ *
+ * A stretched muscle's Ia afferent excites it and, through an interneuron, inhibits its
+ * opposite; without the second half a pair co-contract and the joint stiffens instead of
+ * moving. The table is symmetric and it is written once here, beside the groups themselves, so
+ * the studio, the headset and the trainer all inhibit the same pairs.
+ *
+ * Three groups have no entry and want none. The hip's external rotators have no single
+ * antagonist in this table -- the internal rotators are spread through the adductors -- the
+ * intercostals oppose the breath rather than a muscle, and the girdle's elevators are opposed by
+ * gravity and the weight of the arm.
+ */
+const OPPOSED: readonly (readonly [string, string])[] = [
+  ['shoulderFlexorDrive', 'shoulderExtensorDrive'],
+  ['shoulderAbductorDrive', 'armAdductorDrive'],
+  ['shoulderExternalRotatorDrive', 'shoulderInternalRotatorDrive'],
+  ['flexorDrive', 'extensorDrive'],
+  ['wristFlexorDrive', 'wristExtensorDrive'],
+  ['pronatorDrive', 'supinatorDrive'],
+  ['hipFlexorDrive', 'hipExtensorDrive'],
+  ['hipAbductorDrive', 'hipAdductorDrive'],
+  ['kneeFlexorDrive', 'kneeExtensorDrive'],
+  ['anklePlantarflexorDrive', 'ankleDorsiflexorDrive'],
+  ['trunkFlexorDrive', 'trunkExtensorDrive'],
+  ['neckFlexorDrive', 'neckExtensorDrive'],
+  ['girdleRetractorDrive', 'girdleProtractorDrive'],
+];
+
+/** Every group's antagonist, both ways round, by group id. */
+export const ANTAGONISTS: ReadonlyMap<string, string> = new Map(
+  OPPOSED.flatMap(([a, b]) => [
+    [a, b],
+    [b, a],
+  ]),
+);
+
+/**
+ * The groups as the cord wants them: units by name, and the group each one opposes. The shape
+ * `SpinalModule` takes, built here because the group table and the pairing both live here.
+ */
+export function reflexGroups(): readonly {
+  readonly id: string;
+  readonly units: readonly string[];
+  readonly antagonist: string | undefined;
+}[] {
+  return MUSCLE_GROUPS.map((g) => ({
+    id: g.id,
+    units: g.units,
+    antagonist: ANTAGONISTS.get(g.id),
+  }));
+}

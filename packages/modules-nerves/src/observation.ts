@@ -4,10 +4,19 @@
  *
  * Nothing here is invented for the controller; every number is one the simulation carries
  * anyway. Joint angles and rates are proprioception. The pelvis's sense of down and of its own
- * motion is what the otoliths and canals give, taken from the pelvis rather than the head so
- * that standing has a stable reference. The feet's contact is the sole. The muscles' activation
- * and fibre length are the spindles and Golgi organs, roughly. And the goal -- what the person
- * wants the body doing -- is appended, so one policy can be told to stand or to walk.
+ * motion is the body's stable reference for standing, and the head's is the vestibular one --
+ * the otoliths and the canals sit in the skull, and the balance task is scored on the head, so
+ * the controller is given the quantity it is graded on. The feet's contact is the sole.
+ *
+ * The muscles give the three afferents section 14.1 of the specification names. Fibre length
+ * past optimal is the spindle's group II, length-sensitive. Fibre velocity is its group Ia,
+ * velocity-sensitive, and it is the damping term a feedback law needs: without it a controller
+ * can know it is leaning but not how fast. Tendon force is the Golgi organ's Ib, the sense of
+ * load, which is how a body knows it is bearing weight. Activation is not an afferent at all --
+ * it is efference copy, what was last asked of the muscle.
+ *
+ * And the goal -- what the person wants the body doing -- is appended, so one policy can be
+ * told to stand or to walk.
  *
  * Everything is scaled to land within a few units of zero, because a network is trained more
  * easily when its inputs are.
@@ -82,6 +91,8 @@ export class ObservationBuilder {
   private readonly groupUnits: Int32Array[];
   private readonly groupIds: readonly string[];
   private readonly optimal: Float64Array;
+  /** Per unit: the force at which the tendon reads 1, and the speed at which velocity reads 1. */
+  private readonly maxForce: Float64Array;
   /** Every joint degree of freedom by name, in slot order: `<joint>:<axis>`. */
   private readonly dofNames: readonly string[];
 
@@ -110,6 +121,7 @@ export class ObservationBuilder {
       Int32Array.from(g.units.map((u) => unitIndex.get(u.id) ?? -1).filter((i) => i >= 0)),
     );
     this.optimal = Float64Array.from(muscles.units, (u) => u.parameters.optimalFiberLength || 0.1);
+    this.maxForce = Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce || 1);
   }
 
   bind(channels: ObservationChannels): void {
@@ -128,9 +140,15 @@ export class ObservationBuilder {
     names.push('pelvis.spin.x', 'pelvis.spin.y', 'pelvis.spin.z');
     names.push('pelvis.velocity.x', 'pelvis.velocity.y', 'pelvis.velocity.z');
     names.push('pelvis.height', 'head.height');
+    // The vestibular sense proper, in the head's own frame: where down is, and how the skull
+    // turns. The canals report rotation and the otoliths the pull of gravity; both are here.
+    names.push('head.down.x', 'head.down.y', 'head.down.z');
+    names.push('head.spin.x', 'head.spin.y', 'head.spin.z');
     names.push('foot.left.contacts', 'foot.left.load', 'foot.right.contacts', 'foot.right.load');
     for (const id of this.groupIds) names.push(`activation:${id}`);
     for (const id of this.groupIds) names.push(`stretch:${id}`);
+    for (const id of this.groupIds) names.push(`shorten:${id}`);
+    for (const id of this.groupIds) names.push(`load:${id}`);
     for (let g = 0; g < this.goalSize; g++) names.push(`goal[${g}]`);
     this.names = names;
     this.size = names.length;
@@ -191,6 +209,36 @@ export class ObservationBuilder {
     out[at++] = position[3 * p + 1] as number;
     out[at++] = position[3 * this.head + 1] as number;
 
+    // The vestibular sense: down and spin in the head's frame, by the head's own quaternion.
+    const h0 = this.head;
+    const hqx = orientation[4 * h0] as number;
+    const hqy = orientation[4 * h0 + 1] as number;
+    const hqz = orientation[4 * h0 + 2] as number;
+    const hqw = orientation[4 * h0 + 3] as number;
+    const intoHead = (vx: number, vy: number, vz: number): [number, number, number] => {
+      const ix = hqw * vx - hqy * vz + hqz * vy;
+      const iy = hqw * vy - hqz * vx + hqx * vz;
+      const iz = hqw * vz - hqx * vy + hqy * vx;
+      const iw = hqx * vx + hqy * vy + hqz * vz;
+      return [
+        ix * hqw + iw * hqx - iy * hqz + iz * hqy,
+        iy * hqw + iw * hqy - iz * hqx + ix * hqz,
+        iz * hqw + iw * hqz - ix * hqy + iy * hqx,
+      ];
+    };
+    const headDown = intoHead(0, -1, 0);
+    const headSpin = intoHead(
+      angular[3 * h0] as number,
+      angular[3 * h0 + 1] as number,
+      angular[3 * h0 + 2] as number,
+    );
+    out[at++] = headDown[0];
+    out[at++] = headDown[1];
+    out[at++] = headDown[2];
+    out[at++] = 0.2 * headSpin[0];
+    out[at++] = 0.2 * headSpin[1];
+    out[at++] = 0.2 * headSpin[2];
+
     // The feet: how many contacts each has, and the impulse they carry, scaled.
     const pair = c.contacts.fields.pair as Int32Array;
     const impulse = c.contacts.fields.impulse as Float64Array;
@@ -238,6 +286,33 @@ export class ObservationBuilder {
         sum += (fibre[u] as number) / (this.optimal[u] as number) - 1;
       }
       out[at++] = units.length ? Math.max(-1, Math.min(2, sum / units.length)) : 0;
+    }
+    // Ia: how fast the fibres are changing length, already in optimal lengths a second over the
+    // maximum contraction velocity, so it lands near [-1, 1]. Negative is shortening.
+    const speed = c.muscles.fields.fiberVelocity as Float64Array | undefined;
+    for (const units of this.groupUnits) {
+      let sum = 0;
+      if (speed) {
+        for (let k = 0; k < units.length; k++) {
+          const raw = speed[units[k] as number] as number;
+          sum += Number.isFinite(raw) ? raw : 0;
+        }
+      }
+      out[at++] = units.length ? Math.max(-2, Math.min(2, sum / units.length)) : 0;
+    }
+    // Ib: the load the tendon carries, as a share of what the unit makes fully activated at its
+    // optimal length. Past 1 is a tendon pulled harder than the fibres could pull it.
+    const pull = c.muscles.fields.tendonForce as Float64Array | undefined;
+    for (const units of this.groupUnits) {
+      let sum = 0;
+      if (pull) {
+        for (let k = 0; k < units.length; k++) {
+          const u = units[k] as number;
+          const raw = (pull[u] as number) / (this.maxForce[u] as number);
+          sum += Number.isFinite(raw) ? raw : 0;
+        }
+      }
+      out[at++] = units.length ? Math.max(-1, Math.min(3, sum / units.length)) : 0;
     }
     for (let g = 0; g < this.goalSize; g++) out[at++] = goal[g] ?? 0;
   }
