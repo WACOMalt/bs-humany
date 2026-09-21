@@ -233,6 +233,15 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let localStatus = '';
   /** Asked to stop, and not stopped yet: a generation has to finish first. */
   let localStopping = false;
+  /**
+   * Why the last Start did not start, until something is done about it.
+   *
+   * It used to be written into the status line and then wiped a moment later by the poll that
+   * follows every Start, so a refused run -- a name that already exists, most often -- looked
+   * exactly like a button that does nothing. It stays until the name, the resume tick or the
+   * server's own state changes, which are the three things that could make it untrue.
+   */
+  let refusal = '';
   /** When the activity last actually changed: a file nobody is writing any more goes stale. */
   let activityChangedAt = 0;
   /** The last payload seen, whether or not it was shown: what "changed" is measured against. */
@@ -355,10 +364,18 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       ? 'A name is lower-case letters, digits, dashes and underscores.'
       : `${exists ? (ui.resume.checked ? 'Continues' : 'Refused: exists. Tick Resume to continue') : 'Starts'} ${name}: the brain ${under}, in ${scenarioTitle(input.scenario)} on ${where} (${body}), scored on ${scored}.`;
   };
-  ui.name.addEventListener('input', showRecipe);
-  ui.feedforward.addEventListener('change', showRecipe);
-  ui.task.addEventListener('change', showRecipe);
-  ui.resume.addEventListener('change', showRecipe);
+  /** Changing what Start would do makes any refusal of the last attempt stale. */
+  const reconsider = (): void => {
+    if (refusal) {
+      refusal = '';
+      ui.status.textContent = '';
+    }
+    showRecipe();
+  };
+  ui.name.addEventListener('input', reconsider);
+  ui.feedforward.addEventListener('change', reconsider);
+  ui.task.addEventListener('change', reconsider);
+  ui.resume.addEventListener('change', reconsider);
 
   const showRows = () => {
     const chosen = ui.policy.value;
@@ -529,6 +546,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     // A run in this window overrides all of that: it needs no server, and only it can stop it.
     if (localRun || !serverUp) setButtons();
     if (!status) {
+      if (refusal) {
+        ui.status.textContent = refusal;
+        return;
+      }
       // Without a server the panel trains here instead, so it says that rather than refusing.
       ui.status.textContent = serverUp
         ? ''
@@ -541,6 +562,13 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       return;
     }
     const latest = status.latest;
+    // A refusal is news about the button just pressed; the run's own status is not, and must
+    // not paint over it.
+    if (refusal) {
+      ui.status.textContent = refusal;
+      drawChart(status);
+      return;
+    }
     const record = latest?.best
       ? `record ${latest.best.fitness.toFixed(2)} (${latest.best.alive.toFixed(2)} s up) at generation ${latest.best.generation}`
       : 'no record yet';
@@ -566,7 +594,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     // dashboard is still better from a terminal -- every core, and real files -- so it wins
     // when it is there.
     if (!serverUp) {
-      startTrainingHere();
+      await startTrainingHere();
       return;
     }
     try {
@@ -603,21 +631,38 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         }),
       });
       const result = (await response.json()) as { error?: string };
-      if (result.error) ui.status.textContent = `Could not start: ${result.error}`;
-      else if (!host.following()) host.startFollowing();
+      if (result.error) {
+        refusal = `Could not start: ${result.error}`;
+      } else {
+        refusal = '';
+        if (!host.following()) host.startFollowing();
+      }
     } catch (error) {
-      ui.status.textContent = `Could not start: ${String(error)}`;
+      refusal = `Could not start: ${String(error)}`;
     }
     await poll();
   }
 
   /** Train in this window: no fetch, no server, nothing spawned. */
-  function startTrainingHere(): void {
+  async function startTrainingHere(): Promise<void> {
     if (localRun) return;
+    const wanted = ui.name.value.trim() || ui.task.value;
+    // The same rule the server keeps, kept here too: a name that exists is refused unless Resume
+    // is ticked. Without this a second run under an old name would overwrite the checkpoint it
+    // took an afternoon to train, and say nothing about it.
+    if (!ui.resume.checked && (await readLocalCheckpoint(wanted))) {
+      refusal =
+        `Could not start: a checkpoint named ${wanted} exists; ` +
+        'tick Resume to continue it, or choose another name.';
+      ui.status.textContent = refusal;
+      setButtons();
+      return;
+    }
+    refusal = '';
     localSeries = [];
     const recipe: TrainingRecipe = {
       ...host.recipe(),
-      name: ui.name.value.trim() || ui.task.value,
+      name: wanted,
       task: ui.task.value,
       feedforward:
         ui.feedforward.value === 'script'
