@@ -80,6 +80,9 @@ importers:
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../../packages/skeleton
+      '@bs-humany/train':
+        specifier: workspace:*
+        version: link:../../tools/train
       '@tauri-apps/api':
         specifier: ^2.9.0
         version: 2.11.1

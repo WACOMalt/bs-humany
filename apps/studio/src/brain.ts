@@ -1,7 +1,9 @@
 /**
  * The brain panel: a trained policy put in charge of the body, and training started from here.
  *
- * Both go through the dashboard server on this machine (`pnpm train:dashboard`): it lists the
+ * Both go through the dashboard server on this machine (`pnpm train:dashboard`) when one is
+ * running, and through web workers in this very window when one is not, so a studio with no
+ * terminal behind it can still train. The server lists the
  * saved checkpoints, serves any one of them, and starts and stops a training run the way a
  * terminal would. A checkpoint is fitted to whatever body is running by the names of its senses
  * and drives, so a policy trained on one profile drives another, and the panel says how much of
@@ -11,6 +13,7 @@
 
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
+import { type LocalRun, startLocalTraining, suggestedWorkers } from './training/localTraining.js';
 
 export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
 
@@ -222,6 +225,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   /** The checkpoint whoever is on the bridge is playing, when it is not this server's run. */
   let publishedName: string | undefined;
   let activity: RemoteActivity | undefined;
+  /** A run going in this window, with no server: its handle, and what it has said so far. */
+  let localRun: LocalRun | undefined;
+  let localSeries: [number, number, number, number][] = [];
+  let localStatus = '';
   /** When the activity last actually changed: a file nobody is writing any more goes stale. */
   let activityChangedAt = 0;
   /** The last payload seen, whether or not it was shown: what "changed" is measured against. */
@@ -365,7 +372,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     if (rows.some((r) => r.id === chosen)) ui.policy.value = chosen;
     ui.policyNote.textContent = serverUp
       ? `${rows.length} checkpoint${rows.length === 1 ? '' : 's'} on this machine.`
-      : 'No dashboard server: run pnpm train:dashboard to list checkpoints and train from here.';
+      : 'No dashboard server: checkpoints trained here are kept in this browser. Run pnpm train:dashboard to list the ones on disk.';
     ui.handover.disabled = !serverUp || ui.policy.value === '';
   };
   /**
@@ -452,8 +459,17 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     }
   });
 
-  const drawChart = (status: TrainingStatus) => {
-    const series = status.latest?.series ?? [];
+  /**
+   * Start and Stop, when the run is this window's. Without a server Start is always offered --
+   * there is nothing to ask permission of -- and Stop only while a run is going.
+   */
+  const setButtons = (): void => {
+    if (serverUp && !localRun) return;
+    ui.start.disabled = localRun !== undefined;
+    ui.stop.disabled = localRun === undefined;
+  };
+
+  const drawSeries = (series: readonly (readonly [number, number, number, number])[]) => {
     ui.chart.hidden = series.length < 2;
     if (ui.chart.hidden) return;
     const context = ui.chart.getContext('2d');
@@ -487,6 +503,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     context.fillText(`top ${top.toFixed(2)}`, 4, 11);
   };
 
+  const drawChart = (status: TrainingStatus) => {
+    drawSeries(status.latest?.series ?? []);
+  };
+
   const showStatus = (status: TrainingStatus | undefined) => {
     trainingRunning = status?.running === true;
     trainingName = status?.name ?? undefined;
@@ -495,8 +515,17 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     trainingStoppable = trainingRunning || status?.showcase === true;
     ui.start.disabled = !serverUp || trainingRunning || status?.elsewhere === true;
     ui.stop.disabled = !serverUp || !trainingStoppable;
+    // A run in this window overrides all of that: it needs no server, and only it can stop it.
+    if (localRun || !serverUp) setButtons();
     if (!status) {
-      ui.status.textContent = serverUp ? '' : 'Training needs the dashboard server.';
+      // Without a server the panel trains here instead, so it says that rather than refusing.
+      ui.status.textContent = serverUp
+        ? ''
+        : localRun
+          ? localStatus
+          : localStatus ||
+            `No dashboard server: Start trains in this window, in ${suggestedWorkers()} workers, ` +
+              'saving to this browser. A terminal server is faster and writes real files.';
       ui.chart.hidden = true;
       return;
     }
@@ -522,6 +551,13 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    */
   async function startTraining(): Promise<void> {
     ui.start.disabled = true;
+    // No server: the search runs here, in web workers, saving to this window's own store. The
+    // dashboard is still better from a terminal -- every core, and real files -- so it wins
+    // when it is there.
+    if (!serverUp) {
+      startTrainingHere();
+      return;
+    }
     try {
       const feedforward: TrainingRecipe['feedforward'] =
         ui.feedforward.value === 'script'
@@ -564,7 +600,80 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     await poll();
   }
 
+  /** Train in this window: no fetch, no server, nothing spawned. */
+  function startTrainingHere(): void {
+    if (localRun) return;
+    localSeries = [];
+    const recipe: TrainingRecipe = {
+      ...host.recipe(),
+      name: ui.name.value.trim() || ui.task.value,
+      task: ui.task.value,
+      feedforward:
+        ui.feedforward.value === 'script'
+          ? { kind: 'script' }
+          : ui.feedforward.value === 'clip'
+            ? { kind: 'clip', clip: 'quiet-standing' }
+            : { kind: 'none' },
+      authority: Number(ui.authority.value),
+      noise: {
+        motor: Number(ui.noiseMotor.value),
+        sense: Number(ui.noiseSense.value),
+        tau: 0.25,
+      },
+      reflex: reflexFromUi(),
+      memory: Number(ui.memory.value),
+    };
+    const workers = Math.min(Number(ui.workers.value), suggestedWorkers());
+    localStatus = `Building ${workers} bodies in this window...`;
+    ui.status.textContent = localStatus;
+    localRun = startLocalTraining({
+      recipe,
+      generations: Number(ui.generations.value),
+      population: Number(ui.population.value),
+      seconds: Number(ui.seconds.value),
+      workers,
+      seeds: 2,
+      resume: ui.resume.checked,
+      onNote: (text) => {
+        localStatus = text.trim();
+        ui.status.textContent = localStatus;
+      },
+      onGeneration: (report) => {
+        localSeries.push([
+          report.generation,
+          Number(report.mean.toFixed(4)),
+          Number(report.top.toFixed(4)),
+          Number(report.topAlive.toFixed(3)),
+        ]);
+        localStatus =
+          `Training ${recipe.task} here: generation ${report.generation}, ` +
+          `mean ${report.mean.toFixed(3)}, top ${report.top.toFixed(3)} ` +
+          `(${report.topAlive.toFixed(2)} s up)${report.note}`;
+        ui.status.textContent = localStatus;
+        drawSeries(localSeries);
+      },
+      onDone: (summary) => {
+        localRun = undefined;
+        localStatus = summary;
+        ui.status.textContent = summary;
+        setButtons();
+      },
+      onError: (message) => {
+        localRun = undefined;
+        localStatus = `Could not train here: ${message}`;
+        ui.status.textContent = localStatus;
+        setButtons();
+      },
+    });
+    setButtons();
+  }
+
   async function stopTraining(): Promise<void> {
+    if (localRun) {
+      localRun.stop();
+      ui.status.textContent = 'Stopping after this generation...';
+      return;
+    }
     ui.stop.disabled = true;
     try {
       await fetch(`${dashboard}/train/stop`, { method: 'POST' });

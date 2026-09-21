@@ -18,5 +18,19 @@
     "@bs-humany/scenarios": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
     "jiti": "^2.4.2"
+  },
+  "exports": {
+    "./rig": {
+      "types": "./src/rig.ts",
+      "default": "./src/rig.ts"
+    },
+    "./trainer": {
+      "types": "./src/trainer.ts",
+      "default": "./src/trainer.ts"
+    },
+    "./es": {
+      "types": "./src/es.ts",
+      "default": "./src/es.ts"
+    }
   }
 }

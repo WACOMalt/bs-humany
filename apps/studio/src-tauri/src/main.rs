@@ -240,6 +240,90 @@ fn bridge_text(suffix: String, text: String) -> Result<(), String> {
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
+/// Where a checkpoint trained in the window is kept.
+///
+/// A browser has to put one in IndexedDB, where nothing else can reach it. A binary need not:
+/// it writes the same JSON the terminal trainer writes, in the same layout, so a run started in
+/// the studio can be resumed from a terminal and a checkpoint trained in a terminal shows up in
+/// the studio's list. That is what "self contained" has to mean -- the same files, one process
+/// -- rather than a second private store nobody else can read.
+fn checkpoint_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("policies");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+/// A checkpoint's file name. The name is checked rather than trusted: it becomes a path.
+fn checkpoint_path(app: &tauri::AppHandle, name: &str, kind: &str) -> Result<std::path::PathBuf, String> {
+    if name.is_empty()
+        || name.len() > 40
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(format!("'{name}' is not a checkpoint name"));
+    }
+    let suffix = match kind {
+        "policy" => ".json",
+        "centre" => "-centre.json",
+        "latest" => "-latest.json",
+        _ => return Err(format!("no checkpoint part is called '{kind}'")),
+    };
+    Ok(checkpoint_dir(app)?.join(format!("{name}{suffix}")))
+}
+
+#[tauri::command]
+fn checkpoint_write(
+    app: tauri::AppHandle,
+    name: String,
+    kind: String,
+    text: String,
+) -> Result<(), String> {
+    let path = checkpoint_path(&app, &name, &kind)?;
+    // Through a temporary and a rename, so a reader never sees half a policy: the trainer
+    // rewrites the centre every generation and the studio may be listing them at the time.
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn checkpoint_read(
+    app: tauri::AppHandle,
+    name: String,
+    kind: String,
+) -> Result<Option<String>, String> {
+    let path = checkpoint_path(&app, &name, &kind)?;
+    match std::fs::read_to_string(&path) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Every checkpoint in the directory, by name: the ones with a policy file of their own.
+#[tauri::command]
+fn checkpoint_list(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let dir = checkpoint_dir(&app)?;
+    let mut names = Vec::new();
+    for entry in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+        let file = entry.file_name();
+        let Some(file) = file.to_str() else { continue };
+        let Some(stem) = file.strip_suffix(".json") else { continue };
+        if stem.ends_with("-centre") || stem.ends_with("-latest") {
+            continue;
+        }
+        names.push(stem.to_string());
+    }
+    names.sort();
+    Ok(names)
+}
+
 /// The whole of a small bridge file -- the grab channel -- read twice, back to back, the two
 /// copies one after the other in the response. A seqlock needs the sequence read before and
 /// after the body, and two reads taken through the page's event loop land a frame apart, which
@@ -454,6 +538,9 @@ fn main() {
             bridge_commands,
             bridge_close,
             bridge_clear,
+            checkpoint_write,
+            checkpoint_read,
+            checkpoint_list,
             xr_viewer_launch,
             xr_viewer_running,
             xr_viewer_stop,

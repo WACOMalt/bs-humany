@@ -23,14 +23,15 @@
     "@bs-humany/kernel": "workspace:*",
     "@bs-humany/modules-mechanics": "workspace:*",
     "@bs-humany/modules-muscle": "workspace:*",
+    "@bs-humany/modules-nerves": "workspace:*",
     "@bs-humany/muscle-data": "workspace:*",
     "@bs-humany/pose-bridge": "workspace:*",
     "@bs-humany/render-three": "workspace:*",
     "@bs-humany/scenarios": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
+    "@bs-humany/train": "workspace:*",
     "@tauri-apps/api": "^2.9.0",
-    "three": "^0.186.0",
-    "@bs-humany/modules-nerves": "workspace:*"
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
