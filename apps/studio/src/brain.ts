@@ -289,12 +289,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   });
 
   const showSpine = () => {
-    must<HTMLOutputElement>('#spine-stretch-value').textContent = Number(
-      ui.spineStretch.value,
-    ).toFixed(2);
+    const stretch = Number(ui.spineStretch.value);
+    must<HTMLOutputElement>('#spine-stretch-value').textContent =
+      stretch === 0 ? 'off' : stretch.toFixed(3);
     must<HTMLOutputElement>('#spine-velocity-value').textContent = Number(
       ui.spineVelocity.value,
-    ).toFixed(2);
+    ).toFixed(1);
     must<HTMLOutputElement>('#spine-setpoint-value').textContent = Number(
       ui.spineSetPoint.value,
     ).toFixed(2);

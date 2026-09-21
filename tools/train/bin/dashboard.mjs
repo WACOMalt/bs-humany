@@ -186,9 +186,9 @@ function recipeFrom(body) {
     // spinal module was trained in, so it stays reachable; the delay is capped at a fifth of a
     // second because past that the loop is not a reflex arc, it is a correspondence.
     reflex: {
-      stretch: Math.min(5, Math.max(0, finite(r.reflex?.stretch, 0))),
-      velocity: Math.min(2, Math.max(0, finite(r.reflex?.velocity, 0.15))),
-      setPoint: Math.min(0.5, Math.max(-0.5, finite(r.reflex?.setPoint, -0.05))),
+      stretch: Math.min(0.2, Math.max(0, finite(r.reflex?.stretch, 0))),
+      velocity: Math.min(10, Math.max(0, finite(r.reflex?.velocity, 1))),
+      setPoint: Math.min(0.5, Math.max(-0.5, finite(r.reflex?.setPoint, -0.1))),
       inhibition: Math.min(1, Math.max(0, finite(r.reflex?.inhibition, 0.3))),
       forceCeiling: Math.min(5, Math.max(0, finite(r.reflex?.forceCeiling, 1.2))),
       forceInhibition: Math.min(5, Math.max(0, finite(r.reflex?.forceInhibition, 0.5))),

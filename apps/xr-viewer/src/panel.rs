@@ -926,10 +926,10 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     heading(ui, "Spine");
     note(ui, "The reflexes: a muscle pulled past its set point excites itself and inhibits its opposite. Needs no training, and it is most of what holds a body up. Stretch at zero is a body with no reflexes at all.");
     let r = &b.reflex;
-    if let Some(v) = slider(ui, editing, "spine.stretch", "stretch", r.stretch as f32, 0.0..=3.0, 2, false) {
+    if let Some(v) = slider(ui, editing, "spine.stretch", "stretch", r.stretch as f32, 0.0..=0.04, 3, false) {
         commands.push(Command::Brain { action: "reflexStretch", id: None, value: Some(v as f64) });
     }
-    if let Some(v) = slider(ui, editing, "spine.velocity", "damping", r.velocity as f32, 0.0..=1.0, 2, false) {
+    if let Some(v) = slider(ui, editing, "spine.velocity", "damping", r.velocity as f32, 0.0..=4.0, 1, false) {
         commands.push(Command::Brain { action: "reflexVelocity", id: None, value: Some(v as f64) });
     }
     if let Some(v) = slider(ui, editing, "spine.setPoint", "set point", r.set_point as f32, -0.3..=0.3, 2, false) {
@@ -941,7 +941,7 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     if let Some(v) = slider(ui, editing, "spine.delay", "conduction s", r.delay_seconds as f32, 0.0..=0.12, 3, false) {
         commands.push(Command::Brain { action: "reflexDelay", id: None, value: Some(v as f64) });
     }
-    note(ui, "Damping stops a length-only loop ringing. Conduction is the time to the cord and back: about thirty milliseconds in a leg, and a reflex arc modelled without it oscillates.");
+    note(ui, "Stretch and damping are scaled differently because the signals are. Measured with no brain at all: slack 0.33 s, stretch 0.005 gets 0.67 s, the damper at 1 gets 0.87 s. Past 0.02 every muscle sits at the ceiling and the brain above goes deaf.");
 
     heading(ui, "Training");
     note(ui, "Generations, population, episode seconds and workers are as set on the desktop.");

@@ -44,6 +44,7 @@ import {
   SkeletonPoseModule,
 } from '@bs-humany/modules-mechanics';
 import {
+  EFFERENT_ALPHA_MOTOR,
   MUSCLE_STATE,
   MuscleDynamicsModule,
   MusclePathModule,
@@ -138,18 +139,31 @@ export interface ReflexLevels {
 }
 
 /**
- * A cord that holds the body up without help.
+ * The cord, tuned on the reference body standing with no brain at all.
  *
- * The stretch gain is the loop's spring and the velocity gain its damper; the ratio between
- * them is what decides whether a leaning body is caught or set ringing. Thirty milliseconds is
- * the conduction time of a monosynaptic loop in a human leg. The set point sits a little under
- * the optimal fibre length so that a muscle at rest is already answering slightly, which is
- * what postural tone is.
+ * The stretch gain is the loop's spring and the velocity gain its damper. They are scaled very
+ * differently because the signals are: fibre stretch is measured in whole optimal lengths and
+ * fibre velocity in optimal lengths a second, which is a much smaller number. Measured with
+ * `tools/train/runs/cordlevel.mjs` and `cordsweep.mjs` on the reference body, zero policy, zero
+ * authority, so what stands is the body and the cord and nothing else:
+ *
+ * - no cord at all: 0.33 s before the head leaves its band;
+ * - stretch 0.005 alone: 0.67 s, at about five percent excitation with nothing saturated;
+ * - the damper at 1 as well: 0.87 s, which is two and a half times the slack body;
+ * - stretch anywhere near 1: the muscles sit at the ceiling, the body is a rigid statue, and
+ *   the brain above it has nothing left to say, because its correction is added to an
+ *   excitation already clamped and the clamp eats it. That trains worse than no cord at all.
+ *
+ * Reciprocal inhibition has a sharp optimum rather than a broad one: 0.3 gives 0.76 s where 0
+ * gives 0.35 and 1.0 gives 0.11. A pair that cannot inhibit each other co-contract and the
+ * joint stiffens; a pair that inhibit each other completely cancel and the joint goes slack.
+ *
+ * Thirty milliseconds is the conduction time of a monosynaptic loop in a human leg.
  */
 export const DEFAULT_REFLEX: ReflexLevels = {
-  stretch: 0.8,
-  velocity: 0.15,
-  setPoint: -0.05,
+  stretch: 0.005,
+  velocity: 1,
+  setPoint: -0.1,
   inhibition: 0.3,
   forceCeiling: 1.2,
   forceInhibition: 0.5,
@@ -576,7 +590,7 @@ export class StandRig {
       left: Int32Array.from(soles.left, (id) => index.get(id) ?? -1).filter((i) => i >= 0),
       right: Int32Array.from(soles.right, (id) => index.get(id) ?? -1).filter((i) => i >= 0),
     };
-    return new StandRig(
+    const built = new StandRig(
       options,
       kernel,
       physics,
@@ -599,6 +613,8 @@ export class StandRig {
       feet,
       tremor,
     );
+    built.spine = spine;
+    return built;
   }
 
   /**
@@ -715,6 +731,14 @@ export class StandRig {
   /** Ticks between policy evaluations: what a run has to match to be the same controller. */
   get controlDivisor(): number {
     return this.nerves.divisor;
+  }
+
+  /** The cord in this rig, for a probe or a panel that wants to see what the reflexes do. */
+  spine: SpinalModule | undefined;
+
+  /** The excitation on every muscle as it stands, for measuring what the cord contributes. */
+  get excitation(): Float64Array {
+    return this.kernel.channels.storage(EFFERENT_ALPHA_MOTOR).fields.excitation as Float64Array;
   }
 
   get parameterCount(): number {

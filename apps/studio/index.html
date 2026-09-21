@@ -326,23 +326,28 @@
               the cord, and the brain only decides where to put the set points. Stretch at zero
               is the body every checkpoint before this was trained in.</p>
               <div class="control grid2">
-                <label for="spine-stretch">Stretch <output id="spine-stretch-value">0.00</output></label>
-                <input type="range" id="spine-stretch" min="0" max="3" step="0.05" value="0" />
-                <label for="spine-velocity">Damping <output id="spine-velocity-value">0.15</output></label>
-                <input type="range" id="spine-velocity" min="0" max="1" step="0.01" value="0.15" />
-                <label for="spine-setpoint">Set point <output id="spine-setpoint-value">-0.05</output></label>
-                <input type="range" id="spine-setpoint" min="-0.3" max="0.3" step="0.01" value="-0.05" />
+                <label for="spine-stretch">Stretch <output id="spine-stretch-value">off</output></label>
+                <input type="range" id="spine-stretch" min="0" max="0.04" step="0.001" value="0" />
+                <label for="spine-velocity">Damping <output id="spine-velocity-value">1.0</output></label>
+                <input type="range" id="spine-velocity" min="0" max="4" step="0.1" value="1" />
+                <label for="spine-setpoint">Set point <output id="spine-setpoint-value">-0.10</output></label>
+                <input type="range" id="spine-setpoint" min="-0.3" max="0.3" step="0.01" value="-0.1" />
                 <label for="spine-inhibition">Reciprocal <output id="spine-inhibition-value">0.30</output></label>
                 <input type="range" id="spine-inhibition" min="0" max="1" step="0.05" value="0.3" />
                 <label for="spine-delay">Conduction <output id="spine-delay-value">30 ms</output></label>
                 <input type="range" id="spine-delay" min="0" max="0.12" step="0.005" value="0.03" />
               </div>
-              <p class="note">Damping is what stops a length-only loop ringing: without it a
-              stretched muscle pulls, overshoots, and is stretched the other way. The set point
-              is the fibre length the loop holds, a little under optimal so a resting muscle is
-              already answering, which is what postural tone is. Conduction is how long the
-              signal takes to the cord and back -- about thirty milliseconds in a human leg, and
-              the specification is blunt that a reflex arc modelled without it will oscillate.</p>
+              <p class="note">The two gains are scaled very differently because the signals are:
+              stretch is measured in whole optimal fibre lengths and speed in lengths a second,
+              which is a much smaller number. Measured on the reference body with no brain at
+              all, a slack body keeps its head in band for 0.33 s; stretch at 0.005 gets 0.67 s
+              at about five percent excitation; adding the damper at 1 gets 0.87 s. Push stretch
+              much past 0.02 and every muscle sits at the ceiling: the body survives a little
+              longer as a rigid statue and the brain above it goes deaf, because its correction
+              is added to an excitation already clamped and the clamp eats it. Reciprocal has a
+              sharp best at 0.3 -- none and the pair co-contract, all of it and they cancel.
+              Conduction is the time to the cord and back, about thirty milliseconds in a leg,
+              and the specification is blunt that an arc modelled without it will oscillate.</p>
               <div id="spine-activity-wrap" hidden>
                 <canvas id="spine-activity" width="320" height="40"></canvas>
                 <p class="note live" id="spine-note"></p>

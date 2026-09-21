@@ -67,9 +67,26 @@ export interface ReflexGroup {
 }
 
 export interface SpinalGains {
-  /** Group II, length: excitation a unit of stretch past the set point. 0 is no reflex. */
+  /**
+   * Group II, length: excitation a unit of stretch past the set point. 0 is no reflex.
+   *
+   * Small, and it has to be. Fibre stretch is measured in whole optimal lengths, so a gain near
+   * one drives every muscle to the excitation ceiling within a tick and the body becomes a
+   * rigid statue -- which survives a little longer than a slack one and is useless, because the
+   * brain above adds its correction to an excitation already clamped at 1 and the clamp eats it.
+   * A reflex that silences the policy is worse than no reflex. Measured on the reference body:
+   * 0.005 puts about five percent excitation on a resting muscle with nothing at the ceiling,
+   * and 0.04 begins to saturate. See `tools/train/runs/cordlevel.mjs`.
+   */
   readonly stretch: number;
-  /** Group Ia, velocity: excitation a unit of lengthening speed. The damping term. */
+  /**
+   * Group Ia, velocity: excitation a unit of lengthening speed. The damping term.
+   *
+   * Scaled quite differently from `stretch`, because fibre velocity in optimal lengths a second
+   * is a much smaller number than fibre stretch in optimal lengths. It does nothing below about
+   * 0.1 and saturates past about 3; at 1 it is worth roughly a third more time upright than the
+   * length term alone, which is what a damping term is supposed to be worth.
+   */
   readonly velocity: number;
   /**
    * The fibre length the loop holds, as a share of optimal past 1. 0 holds the fibre at its
@@ -89,7 +106,7 @@ export interface SpinalGains {
 export const DEFAULT_SPINAL_GAINS: SpinalGains = {
   stretch: 0,
   velocity: 0,
-  setPoint: 0,
+  setPoint: -0.1,
   inhibition: 0.3,
   forceCeiling: 1.2,
   forceInhibition: 0.5,

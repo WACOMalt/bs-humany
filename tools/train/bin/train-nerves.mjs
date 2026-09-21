@@ -134,7 +134,7 @@ console.log(
 const cord = recipe.reflex;
 console.log(
   cord && cord.stretch > 0
-    ? `  cord: stretch ${cord.stretch.toFixed(2)}, damping ${cord.velocity.toFixed(2)}, ` +
+    ? `  cord: stretch ${cord.stretch.toFixed(3)}, damping ${cord.velocity.toFixed(2)}, ` +
         `set point ${cord.setPoint.toFixed(2)}, inhibition ${cord.inhibition.toFixed(2)}, ` +
         `${(cord.delaySeconds * 1000).toFixed(0)} ms down and back`
     : '  cord: no reflexes; the brain is the only thing holding the body up',
