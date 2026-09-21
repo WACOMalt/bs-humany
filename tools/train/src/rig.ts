@@ -17,9 +17,15 @@
  * it was, a little off for moving and for effort, and more off for moving up or down. The
  * episode ends when the head leaves its band -- a fall, a crouch, or a jump -- or when the feet
  * have been off the ground for more than a moment, and nothing is scored while they are, so
- * leaving the ground can never be the way to stay up. A seed changes the episode only through
- * a twitch: a random group given a burst of excitation at a random moment, so a policy that
- * stands is one that stands through a nudge.
+ * leaving the ground can never be the way to stay up.
+ *
+ * A seed is the episode's whole disturbance, and there is a lot of it, because a silent body
+ * trains a policy with nothing to answer -- one that picks a posture, holds it, and is never
+ * shown a reason to do otherwise. The seed draws the floor where the scenario has one to draw,
+ * a twitch (a random group given a burst at a random moment), a tremor that wanders over every
+ * muscle group all episode long, and the grain on the senses the policy reads. A policy that
+ * stands is then one that stands through all of it, and two candidates that differ a little in
+ * their weights differ visibly in where they end up, which is what lets the search rank them.
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
@@ -49,7 +55,7 @@ import {
   extractMuscleRings,
   ringBuffers,
 } from '@bs-humany/modules-muscle';
-import { MlpPolicy, NervesModule, feetOf } from '@bs-humany/modules-nerves';
+import { MlpPolicy, MotorNoiseModule, NervesModule, feetOf } from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -88,6 +94,28 @@ export type Feedforward =
   | { readonly kind: 'none' };
 
 /**
+ * How noisy the loop is: the tremor on the muscles, the grain on the senses, and how long one
+ * push of the tremor lasts.
+ *
+ * Both ends, because a silent loop trains a policy that has nothing to answer. Saved with the
+ * checkpoint like everything else in the recipe, so a run can be repeated and a studio can say
+ * what the brain was brought up in.
+ */
+export interface NoiseLevels {
+  /** Standard deviation of the wander on each drive output, in excitation. */
+  readonly motor: number;
+  /** Standard deviation of the grain on each observation, in the observation's own units. */
+  readonly sense: number;
+  /** Correlation time of the wander, in seconds. */
+  readonly tau: number;
+}
+
+/** What a body is brought up in when a recipe says nothing: a tremor it must ride, and a sense
+ * it cannot fully trust. Small enough that a policy can still stand, large enough that no two
+ * episodes are the same and no two candidates score the same by accident. */
+export const DEFAULT_NOISE: NoiseLevels = { motor: 0.05, sense: 0.01, tau: 0.25 };
+
+/**
  * What a checkpoint was trained in, saved with it so the studio can set itself up the same way
  * before handing over: the scenario and its parameter values, the body, and what played under
  * the brain.
@@ -116,6 +144,8 @@ export interface TrainingRecipe {
   readonly redistribute: boolean;
   readonly feedforward: Feedforward;
   readonly authority: number;
+  /** The tremor and the grain it was brought up in; `DEFAULT_NOISE` when a recipe omits them. */
+  readonly noise?: NoiseLevels;
 }
 
 export interface RigOptions {
@@ -141,6 +171,8 @@ export interface RigOptions {
   readonly passiveJoints?: boolean;
   /** Also pose the skeleton's bones each tick, for a rig that publishes what it does. */
   readonly poseBones?: boolean;
+  /** The tremor on the muscles and the grain on the senses; `DEFAULT_NOISE` when not given. */
+  readonly noise?: NoiseLevels;
 }
 
 /** The rig options a recipe asks for. */
@@ -160,6 +192,7 @@ export function rigOptionsFor(
       : {}),
     morphology: recipe.morphology,
     passiveJoints: recipe.passive,
+    noise: recipe.noise ?? DEFAULT_NOISE,
     ...(rest.poseBones ? { poseBones: true } : {}),
   };
 }
@@ -177,6 +210,7 @@ export function defaultRecipe(task: string, profile: string, authority: number):
     redistribute: true,
     feedforward: { kind: 'clip', clip: task === 'walk' ? 'walk-normal' : 'quiet-standing' },
     authority,
+    noise: DEFAULT_NOISE,
   };
 }
 
@@ -185,6 +219,9 @@ const HEAD_BELOW = 0.1;
 const HEAD_ABOVE = 0.05;
 /** How long the feet may all be off the ground before the episode ends, in seconds. */
 const AIRBORNE_GRACE = 0.05;
+/** The twitch: how hard one group is pushed, and for how long. */
+const TWITCH_LEVEL = 0.25;
+const TWITCH_SECONDS = 0.15;
 
 export interface EpisodeResult {
   readonly fitness: number;
@@ -199,6 +236,8 @@ export class StandRig {
   private readonly physics: PhysicsModule;
   private angular: Float64Array;
   private readonly nerves: NervesModule;
+  /** The tremor on the muscles, reseeded every episode. */
+  private readonly tremor: MotorNoiseModule;
   private readonly drive: MuscleTestDriveModule;
   /** The clip under the brain, when the feedforward is one. */
   private readonly clip: CompiledClip | undefined;
@@ -228,6 +267,9 @@ export class StandRig {
   private readonly parents: readonly number[];
   private readonly segmentIds: readonly string[];
   private live = 0;
+  /** This episode's twitch: which output, and when. Armed by `arm`, from the seed. */
+  private twitchOutput = 0;
+  private twitchAt = Number.POSITIVE_INFINITY;
   private startX = 0;
   private startZ = 0;
   /** Seconds in a row with no foot on the ground. */
@@ -263,7 +305,9 @@ export class StandRig {
     volume: MuscleVolumeModule | undefined,
     maxForce: Float64Array,
     feet: { left: Int32Array; right: Int32Array },
+    tremor: MotorNoiseModule,
   ) {
+    this.tremor = tremor;
     this.leftFeet = feet.left;
     this.rightFeet = feet.right;
     this.volume = volume;
@@ -401,15 +445,27 @@ export class StandRig {
     const outputs = driveOutputs();
     const goal = new Float64Array(GOAL_SIZE);
     goal[0] = 1;
+    const noise = options.noise ?? DEFAULT_NOISE;
+    const divisor = options.controlDivisor ?? Math.max(1, Math.round(rate / 100));
     const nerves = new NervesModule(articulation, muscles, {
       policy: (inputs, outs) => new MlpPolicy([inputs, ...options.hidden, outs]),
       outputs,
       goalSize: GOAL_SIZE,
       goal: () => goal,
-      controlDivisor: options.controlDivisor ?? Math.max(1, Math.round(rate / 100)),
+      controlDivisor: divisor,
       authority: options.authority,
+      senseNoise: noise.sense,
     });
     kernel.register(nerves);
+    // After the nerves, so the tremor lands on top of the policy's correction and the clamp to
+    // [0, 1] is the last thing done to a unit's excitation.
+    const tremor = new MotorNoiseModule(muscles, {
+      outputs,
+      level: noise.motor,
+      tau: noise.tau,
+      divisor,
+    });
+    kernel.register(tremor);
     await kernel.init();
 
     let clip: CompiledClip | undefined;
@@ -444,6 +500,7 @@ export class StandRig {
       volume,
       Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce),
       feet,
+      tremor,
     );
   }
 
@@ -562,9 +619,39 @@ export class StandRig {
     this.kernel.restore(this.snapshot);
     this.nerves.forget();
     for (const unit of this.units) this.drive.setOverride(unit, null, 'script');
-    this.reseedScenario(seed);
+    this.arm(seed);
     this.live = 0;
     this.airborne = 0;
+  }
+
+  /**
+   * Arm this episode's disturbance from its seed: the floor it runs on, the twitch it gets, the
+   * tremor on its muscles and the grain on its senses.
+   *
+   * One place, called by `begin` and by `episode` alike, because a showcase that plays an
+   * episode tick by tick must play the episode the trainer scored. It did not before -- the
+   * twitch was set up inside the scoring loop and nowhere else -- so what was on screen was a
+   * quieter, easier run than the number beside it.
+   *
+   * Every stream is a function of the seed and nothing else. The two halves of a mirrored pair
+   * share a seed, so they meet the same floor, the same twitch, the same tremor and the same
+   * lying senses, and the difference in their scores is the difference in their weights.
+   */
+  private arm(seed: number): void {
+    const random = seeded(seed);
+    this.reseedScenario(seed);
+    this.twitchOutput = Math.floor(random() * this.nerves.outputs.length);
+    this.twitchAt = 0.5 + random() * Math.max(0.1, this.options.seconds - 1.5);
+    // Distinct constants, so the tremor and the senses are never the same stream as each other
+    // or as the twitch, and never the same stream twice for two different seeds.
+    this.tremor.reseed(0x9e3779b9 ^ (seed >>> 0));
+    this.nerves.reseedSenses(0x85ebca6b ^ (seed >>> 0));
+  }
+
+  /** The twitch, on or off as the moment says: a burst on one group, added to the muscles. */
+  private disturb(time: number): void {
+    const on = time >= this.twitchAt && time < this.twitchAt + TWITCH_SECONDS;
+    this.tremor.bias[this.twitchOutput] = on ? TWITCH_LEVEL : 0;
   }
 
   /**
@@ -597,6 +684,7 @@ export class StandRig {
   tick(): { time: number; up: boolean; headHeight: number } {
     const time = this.live * this.dt;
     this.feed(time);
+    this.disturb(time);
     this.kernel.step();
     this.live += 1;
     const { headHeight, up } = this.standing(this.dt);
@@ -610,14 +698,7 @@ export class StandRig {
     this.kernel.restore(this.snapshot);
     this.nerves.forget();
     for (const unit of this.units) this.drive.setOverride(unit, null, 'script');
-    // The twitch: a group, a moment, a burst -- from the seed, so a candidate's seeds are the
-    // same nudges for every candidate that gets them.
-    const random = seeded(seed);
-    this.reseedScenario(seed);
-    const twitchOutput = Math.floor(random() * this.nerves.outputs.length);
-    const twitchAt = 0.5 + random() * Math.max(0.1, this.options.seconds - 1.5);
-    const twitchUnits = this.nerves.outputs[twitchOutput]?.units.map((u) => u.id) ?? [];
-    const twitchLevel = 0.25;
+    this.arm(seed);
 
     const ticks = Math.round(this.options.seconds / this.dt);
     this.startX = this.position[3 * this.pelvis] as number;
@@ -629,12 +710,9 @@ export class StandRig {
     let alive = 0;
     for (let tick = 0; tick < ticks; tick++) {
       const time = tick * this.dt;
-      // Feedforward, if any, into the script layer, with the twitch on top of it.
+      // Feedforward, if any, into the script layer; the twitch and the tremor onto the muscles.
       this.feed(time);
-      const twitching = time >= twitchAt && time < twitchAt + 0.15;
-      if (twitching) {
-        for (const unit of twitchUnits) this.drive.setOverride(unit, twitchLevel, 'script');
-      }
+      this.disturb(time);
       this.kernel.step();
       if (tick % every === 0) {
         const { inBand, grounded, up } = this.standing(stepSeconds);

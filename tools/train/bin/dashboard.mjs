@@ -174,6 +174,14 @@ function recipeFrom(body) {
     redistribute: r.redistribute !== false,
     feedforward,
     authority: Math.min(1, Math.max(0, finite(body.authority, 0.3))),
+    // The tremor on the muscles and the grain on the senses. Capped well below the authority a
+    // policy has, because noise that drowns the controller is not a disturbance to ride, it is
+    // a body that cannot be controlled at all.
+    noise: {
+      motor: Math.min(0.5, Math.max(0, finite(r.noise?.motor, 0.05))),
+      sense: Math.min(0.5, Math.max(0, finite(r.noise?.sense, 0.01))),
+      tau: Math.min(5, Math.max(0.01, finite(r.noise?.tau, 0.25))),
+    },
   };
 }
 function trainStart(body) {

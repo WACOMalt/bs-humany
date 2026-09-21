@@ -57,6 +57,12 @@ export interface PolicyFile {
       | { readonly kind: 'script' }
       | { readonly kind: 'none' };
     readonly authority: number;
+    /** The tremor on its muscles and the grain on its senses while it was learning. */
+    readonly noise?: {
+      readonly motor: number;
+      readonly sense: number;
+      readonly tau: number;
+    };
   };
 }
 

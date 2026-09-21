@@ -52,6 +52,15 @@ const recipe = recipePath
       flag('profile', 'l3_anatomical'),
       Number(flag('authority', 0.3)),
     );
+// The noise, overridable from the command line whichever way the recipe arrived: a run that
+// wants a silent body for a comparison says `--noise 0 --sense-noise 0`.
+if (flag('noise', undefined) !== undefined || flag('sense-noise', undefined) !== undefined) {
+  recipe.noise = {
+    motor: Number(flag('noise', recipe.noise?.motor ?? 0.05)),
+    sense: Number(flag('sense-noise', recipe.noise?.sense ?? 0.01)),
+    tau: Number(flag('noise-tau', recipe.noise?.tau ?? 0.25)),
+  };
+}
 const task = recipe.task;
 const name = recipe.name;
 const generations = Number(flag('generations', 300));
@@ -114,6 +123,10 @@ console.log(
   `  in ${recipe.scenario || 'the reference stand'}${
     Object.keys(recipe.parameters ?? {}).length ? ` ${JSON.stringify(recipe.parameters)}` : ''
   }, ${under} under the brain, authority ${recipe.authority}`,
+);
+console.log(
+  `  noise: tremor ${(recipe.noise?.motor ?? 0.05).toFixed(3)} over ${(recipe.noise?.tau ?? 0.25).toFixed(2)}s, ` +
+    `senses ${(recipe.noise?.sense ?? 0.01).toFixed(3)}`,
 );
 const pool = [];
 const ready = [];

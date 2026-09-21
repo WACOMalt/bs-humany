@@ -351,7 +351,12 @@
                 <input type="range" id="train-seconds" min="2" max="20" step="1" value="6" />
                 <label for="train-workers">Workers <output id="train-workers-value">16</output></label>
                 <input type="range" id="train-workers" min="1" max="64" step="1" value="16" />
+                <label for="train-noise-motor">Muscle tremor <output id="train-noise-motor-value">0.05</output></label>
+                <input type="range" id="train-noise-motor" min="0" max="0.3" step="0.01" value="0.05" />
+                <label for="train-noise-sense">Sense grain <output id="train-noise-sense-value">0.01</output></label>
+                <input type="range" id="train-noise-sense" min="0" max="0.1" step="0.005" value="0.01" />
               </div>
+              <p class="note">A silent body trains a brain with nothing to answer: it picks a posture, holds it, and every episode runs the same, so two candidates score the same and the search cannot rank them. The tremor is a slow random wander on every muscle group, the grain is the error on every sense. Both are drawn from the episode's seed, so a mirrored pair meets the same disturbance and the difference in their scores is the difference in their brains. Zero on both makes a run repeatable.</p>
               <label class="checkbox"><input type="checkbox" id="train-resume" /> Resume the named checkpoint where it stopped</label>
               <div class="buttons">
                 <button type="button" id="train-start" disabled title="Start a training run on this machine and follow it here">Start training</button>

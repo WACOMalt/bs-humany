@@ -39,6 +39,7 @@ import {
   MUSCLE_CHANNEL_VERSION,
   MUSCLE_STATE,
 } from '@bs-humany/modules-muscle';
+import { seededNormal } from './noise.js';
 import { type Feet, ObservationBuilder } from './observation.js';
 import { MlpPolicy, type PolicyFile } from './policy.js';
 
@@ -75,6 +76,16 @@ export interface NervesOptions {
   readonly controlDivisor?: number;
   /** The most a single output may add to or take from a unit's excitation. */
   readonly authority?: number;
+  /**
+   * Grain on the senses: the standard deviation of the noise added to every observation before
+   * the policy reads it, in the observation's own units, which are all scaled to a few of
+   * themselves. 0 is a perfect sense, which no body has.
+   *
+   * A policy trained on exact numbers can key on a digit that means nothing -- the fourth
+   * decimal of a contact impulse -- and fall apart when the body it is put in reports that
+   * digit differently. Grain makes it read the signal instead.
+   */
+  readonly senseNoise?: number;
 }
 
 export class NervesModule implements SimModule {
@@ -97,6 +108,8 @@ export class NervesModule implements SimModule {
   private sinceEvaluation = 0;
   private evaluations = 0;
   private unreadable = 0;
+  private senseNoiseLevel: number;
+  private senseNormal: () => number;
 
   constructor(
     articulation: CompiledArticulation,
@@ -117,6 +130,8 @@ export class NervesModule implements SimModule {
     this.outputs = options.outputs;
     this.authority = options.authority ?? 0.5;
     this.controlDivisor = Math.max(1, Math.round(options.controlDivisor ?? 5));
+    this.senseNoiseLevel = Math.max(0, options.senseNoise ?? 0);
+    this.senseNormal = seededNormal(1);
     this.goal = options.goal;
     this.observation = new ObservationBuilder(
       articulation,
@@ -207,6 +222,24 @@ export class NervesModule implements SimModule {
     this.authority = Math.max(0, Math.min(1, value));
   }
 
+  /** The grain on the senses, as a standard deviation; 0 is a perfect sense. */
+  get senseNoise(): number {
+    return this.senseNoiseLevel;
+  }
+
+  set senseNoise(value: number) {
+    this.senseNoiseLevel = Math.max(0, value);
+  }
+
+  /**
+   * Start a new episode's grain: the stream this seed names. Seeded rather than free-running
+   * because the trainer scores the two halves of a mirrored pair against the same senses, and
+   * a pair told different lies answers with the difference between the lies.
+   */
+  reseedSenses(seed: number): void {
+    this.senseNormal = seededNormal(seed);
+  }
+
   /**
    * Put a policy file in charge of this body, live: fitted by the names of its senses and
    * drives, so any checkpoint fits, and swapped in between one control step and the next with
@@ -262,6 +295,13 @@ export class NervesModule implements SimModule {
         if (!Number.isFinite(this.obs[i] as number)) {
           this.obs[i] = 0;
           this.unreadable += 1;
+        }
+      }
+      // The grain, after the finiteness check so a sense that has gone wrong still reads as
+      // nothing rather than as noise, and before the policy, which is the point of it.
+      if (this.senseNoiseLevel > 0) {
+        for (let i = 0; i < this.obs.length; i++) {
+          this.obs[i] = (this.obs[i] as number) + this.senseNoiseLevel * this.senseNormal();
         }
       }
       const out = this.policy.act(this.obs);

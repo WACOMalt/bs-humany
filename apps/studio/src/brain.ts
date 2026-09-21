@@ -158,6 +158,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     population: must<HTMLInputElement>('#train-population'),
     seconds: must<HTMLInputElement>('#train-seconds'),
     workers: must<HTMLInputElement>('#train-workers'),
+    noiseMotor: must<HTMLInputElement>('#train-noise-motor'),
+    noiseSense: must<HTMLInputElement>('#train-noise-sense'),
     resume: must<HTMLInputElement>('#train-resume'),
     name: must<HTMLInputElement>('#train-name'),
     task: must<HTMLSelectElement>('#train-task'),
@@ -193,6 +195,20 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const out = must<HTMLOutputElement>(selector);
     const show = () => {
       out.textContent = input.value;
+    };
+    input.addEventListener('input', show);
+    show();
+  }
+  // The noise sliders read in hundredths, so they want their own places rather than the
+  // whole numbers the counts above are shown in.
+  for (const [input, selector] of [
+    [ui.noiseMotor, '#train-noise-motor-value'],
+    [ui.noiseSense, '#train-noise-sense-value'],
+  ] as [HTMLInputElement, string][]) {
+    const out = must<HTMLOutputElement>(selector);
+    const show = () => {
+      const value = Number(input.value);
+      out.textContent = value === 0 ? 'off' : value.toFixed(3);
     };
     input.addEventListener('input', show);
     show();
@@ -272,6 +288,15 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       ui.name.value = row.recipe.name;
       ui.feedforward.value = row.recipe.feedforward.kind;
       ui.task.value = row.recipe.task === 'balance' ? 'balance' : 'stand';
+      // The noise it was brought up in, so continuing a checkpoint continues the conditions
+      // rather than quietly training the next generations in a different body's world. A
+      // checkpoint saved before there was any noise says nothing, and gets the default.
+      const noise = row.recipe.noise;
+      ui.noiseMotor.value = String(noise?.motor ?? 0.05);
+      ui.noiseSense.value = String(noise?.sense ?? 0.01);
+      for (const input of [ui.noiseMotor, ui.noiseSense]) {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       ui.policyNote.textContent = `Scene, body and joints set from ${row.recipe.name}; they take effect on the next run.`;
     }
     showRecipe();
@@ -417,7 +442,15 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         body: JSON.stringify({
           task: ui.task.value,
           name: ui.name.value.trim(),
-          recipe: { ...host.recipe(), feedforward },
+          recipe: {
+            ...host.recipe(),
+            feedforward,
+            noise: {
+              motor: Number(ui.noiseMotor.value),
+              sense: Number(ui.noiseSense.value),
+              tau: 0.25,
+            },
+          },
           generations: Number(ui.generations.value),
           population: Number(ui.population.value),
           seconds: Number(ui.seconds.value),

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { StandRig, defaultRecipe, rigOptionsFor } from './rig.js';
+import { DEFAULT_NOISE, StandRig, defaultRecipe, rigOptionsFor } from './rig.js';
 
 describe('a training recipe', () => {
   it('turns into rig options, and the old flags into the reference recipe', () => {
@@ -66,6 +66,11 @@ describe('a rig built from a scenario with the brain alone', () => {
         authority: 0.3,
         feedforward: kind === 'script' ? { kind: 'script' } : { kind: 'none' },
         scenario: { id: 'quiet-standing', parameters: { settle: 0 } },
+        // Silent, because what is measured here is the script gate and nothing else. A body
+        // with its tremor on is not slack: a muscle cannot be pushed below rest, so a zero-mean
+        // wander on a resting muscle comes out as a small tone. That is the muscles, not a bug,
+        // and it is measured where it belongs, over in the noise tests.
+        noise: { motor: 0, sense: 0, tau: 0.25 },
       });
       r.begin(new Float32Array(r.parameterCount));
       for (let i = 0; i < 100; i++) r.tick();
@@ -141,4 +146,68 @@ describe('a scenario with a seed of its own', () => {
       rig.dispose();
     }
   }, 180_000);
+});
+
+describe('the noise in the loop', () => {
+  /** Where the pelvis has got to after a second, which is what a disturbance changes. */
+  const runFor = async (
+    rig: Awaited<ReturnType<typeof StandRig.build>>,
+    seed: number,
+  ): Promise<[number, number, number]> => {
+    rig.begin(new Float32Array(rig.parameterCount), seed);
+    for (let i = 0; i < 200; i++) rig.tick();
+    const { position } = rig.segments();
+    const p = rig.segments().ids.indexOf('pelvis');
+    return [
+      position[3 * p] as number,
+      position[3 * p + 1] as number,
+      position[3 * p + 2] as number,
+    ];
+  };
+
+  it('puts the same body in a different place for every seed, and the same place twice for one', async () => {
+    const rig = await StandRig.build({
+      profileId: 'l1_standard',
+      hidden: [8],
+      seconds: 1,
+      authority: 0.3,
+      feedforward: { kind: 'none' },
+    });
+    try {
+      const first = await runFor(rig, 1);
+      const again = await runFor(rig, 1);
+      const other = await runFor(rig, 2);
+      // A seed is the whole disturbance: the same one is the same run, to the last digit.
+      expect(again).toEqual(first);
+      // A different one is a different run, by more than a rounding -- which is what lets the
+      // search tell two candidates apart instead of scoring them the same.
+      const apart = Math.hypot(other[0] - first[0], other[1] - first[1], other[2] - first[2]);
+      expect(apart).toBeGreaterThan(1e-4);
+    } finally {
+      rig.dispose();
+    }
+  }, 120_000);
+
+  it('is silent when a recipe asks for silence, so a run can be made deterministic again', async () => {
+    const rig = await StandRig.build({
+      profileId: 'l1_standard',
+      hidden: [8],
+      seconds: 1,
+      authority: 0.3,
+      feedforward: { kind: 'none' },
+      noise: { motor: 0, sense: 0, tau: DEFAULT_NOISE.tau },
+    });
+    try {
+      // The twitch lands after half a second and is aimed by the seed; before it, a silent loop
+      // is the same run whatever the seed.
+      rig.begin(new Float32Array(rig.parameterCount), 1);
+      for (let i = 0; i < 80; i++) rig.tick();
+      const quiet = rig.segments().position.slice(0, 3);
+      rig.begin(new Float32Array(rig.parameterCount), 99);
+      for (let i = 0; i < 80; i++) rig.tick();
+      expect(Array.from(rig.segments().position.slice(0, 3))).toEqual(Array.from(quiet));
+    } finally {
+      rig.dispose();
+    }
+  }, 120_000);
 });
