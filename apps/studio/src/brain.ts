@@ -100,6 +100,19 @@ export interface BrainHost {
   controlDivisor(): number;
   /** Whether the run is currently following the bridge rather than its own. */
   following(): boolean;
+  /**
+   * Set the cord's reflex gains on the running body. Optional: a host with no muscles has no
+   * cord to set, and the panel is drawn either way.
+   */
+  setReflex?(gains: {
+    stretch: number;
+    velocity: number;
+    setPoint: number;
+    inhibition: number;
+    forceCeiling: number;
+    forceInhibition: number;
+    delaySeconds: number;
+  }): void;
 }
 
 export interface BrainState {
@@ -114,6 +127,16 @@ export interface BrainState {
   /** Whether Stop would do anything: the trainer, or the showcase that outlives it. */
   readonly trainingStoppable: boolean;
   readonly following: boolean;
+  /** The cord's gains, so the headset's Spine panel shows what the desktop has. */
+  readonly reflex: {
+    readonly stretch: number;
+    readonly velocity: number;
+    readonly setPoint: number;
+    readonly inhibition: number;
+    readonly delaySeconds: number;
+  };
+  /** Context units the next run will train with. */
+  readonly memory: number;
 }
 
 export interface BrainPanel {
@@ -132,7 +155,20 @@ export interface BrainPanel {
   state(): BrainState;
   /** The headset's hands on the panel: the same buttons the mouse presses. */
   act(
-    action: 'select' | 'handover' | 'release' | 'authority' | 'trainStart' | 'trainStop' | 'follow',
+    action:
+      | 'select'
+      | 'handover'
+      | 'release'
+      | 'authority'
+      | 'trainStart'
+      | 'trainStop'
+      | 'follow'
+      | 'reflexStretch'
+      | 'reflexVelocity'
+      | 'reflexSetPoint'
+      | 'reflexInhibition'
+      | 'reflexDelay'
+      | 'memory',
     id?: string,
     value?: number,
   ): void;
@@ -160,6 +196,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     workers: must<HTMLInputElement>('#train-workers'),
     noiseMotor: must<HTMLInputElement>('#train-noise-motor'),
     noiseSense: must<HTMLInputElement>('#train-noise-sense'),
+    memory: must<HTMLInputElement>('#train-memory'),
+    spineStretch: must<HTMLInputElement>('#spine-stretch'),
+    spineVelocity: must<HTMLInputElement>('#spine-velocity'),
+    spineSetPoint: must<HTMLInputElement>('#spine-setpoint'),
+    spineInhibition: must<HTMLInputElement>('#spine-inhibition'),
+    spineDelay: must<HTMLInputElement>('#spine-delay'),
     resume: must<HTMLInputElement>('#train-resume'),
     name: must<HTMLInputElement>('#train-name'),
     task: must<HTMLSelectElement>('#train-task'),
@@ -218,6 +260,57 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   };
   ui.authority.addEventListener('input', showAuthority);
   showAuthority();
+
+  // Memory reads as a count, and "none" at zero, because 0 context units is a different kind of
+  // policy rather than a small amount of one.
+  const showMemory = () => {
+    const n = Number(ui.memory.value);
+    must<HTMLOutputElement>('#train-memory-value').textContent = n === 0 ? 'none' : String(n);
+  };
+  ui.memory.addEventListener('input', showMemory);
+  showMemory();
+
+  /** What the cord's sliders say, in the shape the recipe and the module both take. */
+  const reflexFromUi = () => ({
+    stretch: Number(ui.spineStretch.value),
+    velocity: Number(ui.spineVelocity.value),
+    setPoint: Number(ui.spineSetPoint.value),
+    inhibition: Number(ui.spineInhibition.value),
+    forceCeiling: 1.2,
+    forceInhibition: 0.5,
+    delaySeconds: Number(ui.spineDelay.value),
+  });
+
+  const showSpine = () => {
+    must<HTMLOutputElement>('#spine-stretch-value').textContent = Number(
+      ui.spineStretch.value,
+    ).toFixed(2);
+    must<HTMLOutputElement>('#spine-velocity-value').textContent = Number(
+      ui.spineVelocity.value,
+    ).toFixed(2);
+    must<HTMLOutputElement>('#spine-setpoint-value').textContent = Number(
+      ui.spineSetPoint.value,
+    ).toFixed(2);
+    must<HTMLOutputElement>('#spine-inhibition-value').textContent = Number(
+      ui.spineInhibition.value,
+    ).toFixed(2);
+    must<HTMLOutputElement>('#spine-delay-value').textContent = `${Math.round(
+      Number(ui.spineDelay.value) * 1000,
+    )} ms`;
+    // The running body takes the gains at once: the cord is the body's, not the policy's, and
+    // turning the reflexes up is something to watch happen rather than to restart for.
+    host.setReflex?.(reflexFromUi());
+  };
+  for (const input of [
+    ui.spineStretch,
+    ui.spineVelocity,
+    ui.spineSetPoint,
+    ui.spineInhibition,
+    ui.spineDelay,
+  ]) {
+    input.addEventListener('input', showSpine);
+  }
+  showSpine();
 
   const scenarioTitle = (id: string) =>
     id === ''
@@ -450,6 +543,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
               sense: Number(ui.noiseSense.value),
               tau: 0.25,
             },
+            reflex: reflexFromUi(),
+            memory: Number(ui.memory.value),
           },
           generations: Number(ui.generations.value),
           population: Number(ui.population.value),
@@ -590,6 +685,14 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         trainingRunning,
         trainingStoppable,
         following: host.following(),
+        reflex: {
+          stretch: Number(ui.spineStretch.value),
+          velocity: Number(ui.spineVelocity.value),
+          setPoint: Number(ui.spineSetPoint.value),
+          inhibition: Number(ui.spineInhibition.value),
+          delaySeconds: Number(ui.spineDelay.value),
+        },
+        memory: Number(ui.memory.value),
       };
     },
     act(action, id, value) {
@@ -622,6 +725,27 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         case 'follow':
           host.toggleFollowing();
           break;
+        // The cord and the memory: the headset moves the desktop's own sliders, so there is one
+        // place the value lives and both panels read it back the same way.
+        case 'reflexStretch':
+        case 'reflexVelocity':
+        case 'reflexSetPoint':
+        case 'reflexInhibition':
+        case 'reflexDelay':
+        case 'memory': {
+          const input = {
+            reflexStretch: ui.spineStretch,
+            reflexVelocity: ui.spineVelocity,
+            reflexSetPoint: ui.spineSetPoint,
+            reflexInhibition: ui.spineInhibition,
+            reflexDelay: ui.spineDelay,
+            memory: ui.memory,
+          }[action];
+          if (value !== undefined) input.value = String(value);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        }
         default:
           break;
       }

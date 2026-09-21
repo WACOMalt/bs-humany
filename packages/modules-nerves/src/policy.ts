@@ -63,6 +63,21 @@ export interface PolicyFile {
       readonly sense: number;
       readonly tau: number;
     };
+    /**
+     * The cord it was trained over. A policy brought up on a body that answered its own stretch
+     * is not the same controller on a body that does not, so the gains travel with it.
+     */
+    readonly reflex?: {
+      readonly stretch: number;
+      readonly velocity: number;
+      readonly setPoint: number;
+      readonly inhibition: number;
+      readonly forceCeiling: number;
+      readonly forceInhibition: number;
+      readonly delaySeconds: number;
+    };
+    /** Context units it carried between control steps; also readable from its drive names. */
+    readonly memory?: number;
   };
 }
 

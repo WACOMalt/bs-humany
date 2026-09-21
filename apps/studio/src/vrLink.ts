@@ -42,6 +42,12 @@ export type VrCommand =
         | 'handover'
         | 'release'
         | 'authority'
+        | 'reflexStretch'
+        | 'reflexVelocity'
+        | 'reflexSetPoint'
+        | 'reflexInhibition'
+        | 'reflexDelay'
+        | 'memory'
         | 'trainStart'
         | 'trainStop'
         | 'follow';

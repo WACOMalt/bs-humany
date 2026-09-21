@@ -920,8 +920,39 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     }
     heading(ui, "Activity");
     note(ui, if b.active { "The policy is in the loop; its activity bitmap is on the desktop." } else { "No policy in the loop." });
+
+    // The cord, under whatever the brain is doing. The same five gains the desktop offers, with
+    // the same keys, because a person in the headset is setting the same body up.
+    heading(ui, "Spine");
+    note(ui, "The reflexes: a muscle pulled past its set point excites itself and inhibits its opposite. Needs no training, and it is most of what holds a body up. Stretch at zero is a body with no reflexes at all.");
+    let r = &b.reflex;
+    if let Some(v) = slider(ui, editing, "spine.stretch", "stretch", r.stretch as f32, 0.0..=3.0, 2, false) {
+        commands.push(Command::Brain { action: "reflexStretch", id: None, value: Some(v as f64) });
+    }
+    if let Some(v) = slider(ui, editing, "spine.velocity", "damping", r.velocity as f32, 0.0..=1.0, 2, false) {
+        commands.push(Command::Brain { action: "reflexVelocity", id: None, value: Some(v as f64) });
+    }
+    if let Some(v) = slider(ui, editing, "spine.setPoint", "set point", r.set_point as f32, -0.3..=0.3, 2, false) {
+        commands.push(Command::Brain { action: "reflexSetPoint", id: None, value: Some(v as f64) });
+    }
+    if let Some(v) = slider(ui, editing, "spine.inhibition", "reciprocal", r.inhibition as f32, 0.0..=1.0, 2, false) {
+        commands.push(Command::Brain { action: "reflexInhibition", id: None, value: Some(v as f64) });
+    }
+    if let Some(v) = slider(ui, editing, "spine.delay", "conduction s", r.delay_seconds as f32, 0.0..=0.12, 3, false) {
+        commands.push(Command::Brain { action: "reflexDelay", id: None, value: Some(v as f64) });
+    }
+    note(ui, "Damping stops a length-only loop ringing. Conduction is the time to the cord and back: about thirty milliseconds in a leg, and a reflex arc modelled without it oscillates.");
+
     heading(ui, "Training");
     note(ui, "Generations, population, episode seconds and workers are as set on the desktop.");
+    if let Some(v) = slider(ui, editing, "train.memory", "memory", b.memory as f32, 0.0..=32.0, 0, false) {
+        commands.push(Command::Brain { action: "memory", id: None, value: Some((v as f64 / 4.0).round() * 4.0) });
+    }
+    note(ui, if b.memory == 0 {
+        "No memory: the policy answers the instant it is shown and nothing else."
+    } else {
+        "Context the policy carries from one control step to the next, fed back from its own last answer."
+    });
     ui.horizontal_wrapped(|ui| {
         if ui.add_enabled(b.server_up && !b.training_running, egui::Button::new("Start training")).clicked() {
             commands.push(Command::Brain { action: "trainStart", id: None, value: None });

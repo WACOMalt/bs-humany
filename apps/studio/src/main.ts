@@ -2414,10 +2414,15 @@ brain = createBrainPanel({
       return;
     }
     try {
-      simulation.handOver(setup.policy, setup.authority);
+      // The cord the checkpoint was trained over travels with it: a policy brought up on a body
+      // that answered its own stretch is not the same controller on a body that does not.
+      simulation.handOver(setup.policy, setup.authority, setup.policy.recipe?.reflex);
     } catch (error) {
       setSimulationStatus(String(error), true);
     }
+  },
+  setReflex(gains) {
+    simulation?.setReflex(gains);
   },
   startFollowing() {
     if (!bridgeFollower.active) followButton.click();
@@ -2447,6 +2452,27 @@ brain = createBrainPanel({
       ui.stepsPerSecond.value = String(recipe.stepsPerSecond);
       must<HTMLOutputElement>('#stepsPerSecond-value').textContent = String(recipe.stepsPerSecond);
       fidelityTouched = true;
+    }
+    // The cord and the memory it was brought up with, onto their sliders, so the panel says
+    // what this checkpoint knows rather than what the last one did.
+    const cord = recipe.reflex;
+    if (cord) {
+      const put = (selector: string, value: number): void => {
+        const input = document.querySelector<HTMLInputElement>(selector);
+        if (!input) return;
+        input.value = String(value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      put('#spine-stretch', cord.stretch);
+      put('#spine-velocity', cord.velocity);
+      put('#spine-setpoint', cord.setPoint);
+      put('#spine-inhibition', cord.inhibition);
+      put('#spine-delay', cord.delaySeconds);
+    }
+    const memory = document.querySelector<HTMLInputElement>('#train-memory');
+    if (memory && recipe.memory !== undefined) {
+      memory.value = String(recipe.memory);
+      memory.dispatchEvent(new Event('input', { bubbles: true }));
     }
     // Trained with nothing under the brain: the sliders start where the training had them, at
     // zero, so what the body does is the policy's doing and not the policy plus a held pose.

@@ -642,6 +642,28 @@ pub struct Brain {
     pub training_stoppable: bool,
     #[serde(default)]
     pub following: bool,
+    /// The cord's gains, as the desktop's Spine panel has them.
+    #[serde(default)]
+    pub reflex: Reflex,
+    /// Context units the policy carries between control steps; 0 is a memoryless policy.
+    #[serde(default)]
+    pub memory: u32,
+}
+
+/// The spinal reflex gains: what the cord does under the brain.
+#[derive(serde::Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Reflex {
+    #[serde(default)]
+    pub stretch: f64,
+    #[serde(default)]
+    pub velocity: f64,
+    #[serde(default)]
+    pub set_point: f64,
+    #[serde(default)]
+    pub inhibition: f64,
+    #[serde(default)]
+    pub delay_seconds: f64,
 }
 
 /// A checkpoint the dashboard lists, as the studio's brain panel names it.

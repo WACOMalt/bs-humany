@@ -133,9 +133,9 @@ export class NervesModule implements SimModule {
   private unreadable = 0;
   private senseNoiseLevel: number;
   private senseNormal: () => number;
-  private readonly memorySize: number;
+  private memorySize: number;
   /** What the policy put in its context units last step, and reads back this one. */
-  private readonly context: Float64Array;
+  private context: Float64Array;
 
   constructor(
     articulation: CompiledArticulation,
@@ -295,7 +295,16 @@ export class NervesModule implements SimModule {
   adopt(file: PolicyFile): { inputs: number; outputs: number } {
     const inUse = this.policyInUse;
     if (!inUse) throw new Error('NervesModule.adopt before init.');
+    // A policy file says how much memory it has, in its own drive names: a checkpoint trained
+    // with context units carries them here, and the body takes that shape rather than the one
+    // it happened to be built with. Otherwise handing a remembering policy to a forgetful body
+    // would quietly drop the context and hand back a controller that is not the one trained.
+    this.memorySize = file.outputs.filter((name) => /^context\[\d+\]$/.test(name)).length;
+    if (this.context.length !== this.memorySize) this.context = new Float64Array(this.memorySize);
     const names = this.policyNames;
+    if (this.obs.length !== names.inputs.length) {
+      this.obs = new Float64Array(names.inputs.length);
+    }
     const fitted = MlpPolicy.fit(file, names.inputs, names.outputs);
     this.policyInUse = fitted.policy;
     this.carried = fitted.carried;

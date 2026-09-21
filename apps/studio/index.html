@@ -318,6 +318,38 @@
               <p class="note live" id="brain-idle-note">No policy in the loop.</p>
             </details>
             <details class="panel" open>
+              <summary>Spine</summary>
+              <p class="note">The reflexes, under whatever the brain is doing. A muscle pulled
+              past its set point excites itself in proportion to how far and how fast -- the
+              spindle's group II and Ia -- and inhibits its opposite through an interneuron. It
+              needs no training and it is most of what holds a body up: a real person stands on
+              the cord, and the brain only decides where to put the set points. Stretch at zero
+              is the body every checkpoint before this was trained in.</p>
+              <div class="control grid2">
+                <label for="spine-stretch">Stretch <output id="spine-stretch-value">0.00</output></label>
+                <input type="range" id="spine-stretch" min="0" max="3" step="0.05" value="0" />
+                <label for="spine-velocity">Damping <output id="spine-velocity-value">0.15</output></label>
+                <input type="range" id="spine-velocity" min="0" max="1" step="0.01" value="0.15" />
+                <label for="spine-setpoint">Set point <output id="spine-setpoint-value">-0.05</output></label>
+                <input type="range" id="spine-setpoint" min="-0.3" max="0.3" step="0.01" value="-0.05" />
+                <label for="spine-inhibition">Reciprocal <output id="spine-inhibition-value">0.30</output></label>
+                <input type="range" id="spine-inhibition" min="0" max="1" step="0.05" value="0.3" />
+                <label for="spine-delay">Conduction <output id="spine-delay-value">30 ms</output></label>
+                <input type="range" id="spine-delay" min="0" max="0.12" step="0.005" value="0.03" />
+              </div>
+              <p class="note">Damping is what stops a length-only loop ringing: without it a
+              stretched muscle pulls, overshoots, and is stretched the other way. The set point
+              is the fibre length the loop holds, a little under optimal so a resting muscle is
+              already answering, which is what postural tone is. Conduction is how long the
+              signal takes to the cord and back -- about thirty milliseconds in a human leg, and
+              the specification is blunt that a reflex arc modelled without it will oscillate.</p>
+              <div id="spine-activity-wrap" hidden>
+                <canvas id="spine-activity" width="320" height="40"></canvas>
+                <p class="note live" id="spine-note"></p>
+              </div>
+            </details>
+
+            <details class="panel" open>
               <summary>Training</summary>
               <div class="control">
                 <label for="train-name">Checkpoint name</label>
@@ -355,7 +387,16 @@
                 <input type="range" id="train-noise-motor" min="0" max="0.3" step="0.01" value="0.05" />
                 <label for="train-noise-sense">Sense grain <output id="train-noise-sense-value">0.01</output></label>
                 <input type="range" id="train-noise-sense" min="0" max="0.1" step="0.005" value="0.01" />
+                <label for="train-memory">Memory <output id="train-memory-value">none</output></label>
+                <input type="range" id="train-memory" min="0" max="32" step="4" value="0" />
               </div>
+              <p class="note">Memory is context the policy carries from one control step to the
+              next: extra senses it reads and extra drives it writes, fed back from its own last
+              answer. Without it the network answers the instant it is shown and nothing else --
+              it cannot tell a body leaning from one that has leant and come back, cannot average
+              a noisy sense over time, and cannot predict, which is what a nervous system does
+              with the time it spends waiting for its own afferents. Every unit costs a row and a
+              column of weights, and the search's cost grows with the vector it searches.</p>
               <p class="note">A silent body trains a brain with nothing to answer: it picks a posture, holds it, and every episode runs the same, so two candidates score the same and the search cannot rank them. The tremor is a slow random wander on every muscle group, the grain is the error on every sense. Both are drawn from the episode's seed, so a mirrored pair meets the same disturbance and the difference in their scores is the difference in their brains. Zero on both makes a run repeatable.</p>
               <label class="checkbox"><input type="checkbox" id="train-resume" /> Resume the named checkpoint where it stopped</label>
               <div class="buttons">

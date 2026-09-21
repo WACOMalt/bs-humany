@@ -46,7 +46,13 @@ import {
   compileMuscleSet,
   extractMuscleRings,
 } from '@bs-humany/modules-muscle';
-import { MlpPolicy, NervesModule, type PolicyFile } from '@bs-humany/modules-nerves';
+import {
+  MlpPolicy,
+  NervesModule,
+  type PolicyFile,
+  type SpinalGains,
+  SpinalModule,
+} from '@bs-humany/modules-nerves';
 import {
   ANKLE_MUSCLES,
   ELBOW_MUSCLES,
@@ -67,6 +73,7 @@ import {
   type ScenarioApi,
   driveOutputs,
   placeArticulation,
+  reflexGroups,
 } from '@bs-humany/scenarios';
 
 export type BackendId = 'rapier' | 'mujoco';
@@ -182,6 +189,8 @@ export class Simulation {
   readonly muscleVolume: MuscleVolumeModule | undefined;
   /** The nerves: in every muscle run, dormant until a policy is handed to them. */
   readonly nerves: NervesModule | undefined;
+  /** The cord under the brain: the reflexes, whose gains a panel sets and a recipe restores. */
+  readonly spine: SpinalModule | undefined;
   /** Whether a policy is in charge, rather than the nerves lying dormant. */
   brainActive = false;
   readonly scenarioNerves: NervesSetup | undefined;
@@ -370,6 +379,15 @@ export class Simulation {
       // restarted and the recording unbroken.
       const setup = options.nerves ?? options.scenario?.nerves;
       this.scenarioNerves = setup;
+      // The cord goes in before the brain, as in the trainer: it is the layer the brain
+      // corrects. Its gains start at zero, so a run with no policy behaves exactly as it did
+      // before the reflexes existed, and a checkpoint's recipe turns them up to what it knew.
+      this.spine = new SpinalModule(this.muscles, {
+        groups: reflexGroups(),
+        gains: { stretch: 0, velocity: 0 },
+        stepSeconds: 1 / rate,
+      });
+      this.kernel.register(this.spine);
       const goal = new Float64Array(GOAL_SIZE);
       goal[Math.max(0, Math.min(GOAL_SIZE - 1, setup?.goal ?? 0))] = 1;
       this.nerves = new NervesModule(this.articulation, this.muscles, {
@@ -786,18 +804,33 @@ export class Simulation {
    * Put a policy in charge of the running body, live: fitted to it by name, swapped into the
    * nerves between one control step and the next. Returns what the body could use of it.
    */
-  handOver(policy: PolicyFile, authority: number): { inputs: number; outputs: number } {
+  handOver(
+    policy: PolicyFile,
+    authority: number,
+    reflex?: Partial<SpinalGains>,
+  ): { inputs: number; outputs: number } {
     const nerves = this.nerves;
     if (!nerves) throw new Error('This run has no muscles, so nothing for a policy to drive.');
     const carried = nerves.adopt(policy);
     nerves.authorityLevel = authority;
+    // The cord the policy was trained over, from its own recipe. A controller brought up on a
+    // body that answered its own stretch is not the same controller on a body that does not,
+    // so handing one over without its reflexes hands over something that never existed.
+    if (reflex) this.spine?.adjust(reflex);
     this.brainActive = true;
     return carried;
+  }
+
+  /** Set the cord's gains live, for a panel that offers them. */
+  setReflex(gains: Partial<SpinalGains>): void {
+    this.spine?.adjust(gains);
   }
 
   /** Take the policy out of the loop; the run carries on under the clip and the sliders. */
   releaseBrain(): void {
     this.nerves?.release();
+    // The cord stays as it was: it is the body's own, not the policy's, and a person who turned
+    // the reflexes up to watch them did not ask for them to go away with the brain.
     this.brainActive = false;
   }
 
