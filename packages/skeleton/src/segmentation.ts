@@ -391,7 +391,8 @@ export const L2_BIOMECHANICAL: SegmentationDef = {
 
 /**
  * `L3-anatomical`: every vertebra, every rib, every phalanx, the patellae, separate talus and
- * calcaneus. About 110 rigid bodies. The reference profile for measurement runs, not for
+ * calcaneus, and each toe phalanx its own body. About 135 rigid bodies. The reference profile
+ * for measurement runs, not for
  * interaction; the benchmark table says what it costs.
  */
 export const L3_ANATOMICAL: SegmentationDef = {
@@ -539,12 +540,22 @@ export const L3_ANATOMICAL: SegmentationDef = {
         anchor: `metatarsal_2_${s}`,
         bones: sided(FOOT, s).filter((id) => id.startsWith('metatarsal_')),
       },
-      {
-        id: `toes_${s}`,
-        displayName: `${label(s)} toes`,
-        anchor: `phalanx_pedis_proximal_1_${s}`,
-        bones: sided(FOOT, s).filter((id) => id.startsWith('phalanx_pedis_')),
-      },
+      // Each toe phalanx a body of its own, the way each finger phalanx already is. Below this
+      // profile all five toes are one lump turning about a single axis through the metatarsal
+      // heads, which cannot grip, cannot roll over the ball of the foot, and leaves the long
+      // flexors and extensors with no joint of theirs to cross.
+      ...sided(FOOT, s)
+        .filter((id) => id.startsWith('phalanx_pedis_'))
+        .map((id) => ({
+          id,
+          displayName: `${label(s)} ${id.replace(
+            /phalanx_pedis_(\w+)_(\d)_[lr]/,
+            (_full, part: string, toe: string) =>
+              `${toe === '1' ? 'hallux' : `toe ${toe}`} ${part} phalanx`,
+          )}`,
+          anchor: id,
+          bones: [id],
+        })),
     ]),
   ],
 };

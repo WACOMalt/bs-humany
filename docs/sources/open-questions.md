@@ -164,10 +164,14 @@ are derived, not transcribed.
 (White & Panjabi's tables are the usual one), or the torso and head models grow the levels.
 **Status:** open
 
-### OQ-011 — Costovertebral, midtarsal and tarsometatarsal ranges
+### OQ-011 — Costovertebral, midtarsal, tarsometatarsal and toe ranges
 **Needed for:** `packages/skeleton/src/jointsL3.ts`
 **Provisional value:** ribs get a pump-handle hinge of ±0.1 rad at the rib head; the midtarsal
-and tarsometatarsal joints are rigid. The sternum is rigid with the first rib, so the rib cage
+and tarsometatarsal joints are rigid. The toes, articulated per ray at L3, take the source's one
+`mtp_angle` range for metatarsophalangeal extension -- the only cited statement about toe motion
+there is -- and anatomical guesses for what it says nothing about: about ten degrees of spread at
+the metatarsophalangeal joint, thirty-five of flexion at the proximal interphalangeal, thirty at
+the distal, and sixty at the hallux's single interphalangeal joint. The sternum is rigid with the first rib, so the rib cage
 does not breathe.
 **Closes when:** cited ranges exist for each, or a Phase 2 respiration module needs them.
 **Also provisional here:** the costal cartilage. The first seven ribs are welded rigidly to the

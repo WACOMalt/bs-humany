@@ -97,6 +97,7 @@ async function session(pattern: DrivePattern = { kind: 'constant', level: 0 }) {
     insertionBody: pathFields.insertionBody as Int32Array,
     originPoint: f64(pathFields, 'originPoint'),
     insertionPoint: f64(pathFields, 'insertionPoint'),
+    originDirection: f64(pathFields, 'originDirection'),
     activation: f64(stateFields, 'activation'),
     fiberLength: f64(stateFields, 'fiberLength'),
     tendonForce: f64(stateFields, 'tendonForce'),
@@ -408,15 +409,25 @@ describe('MuscleDynamicsModule', () => {
     s.kernel.dispose();
   });
 
-  it('pulls the two ends toward each other, not apart', async () => {
-    // The sign, stated as what it means: the force on the origin points at the insertion.
+  it('pulls along its own tendon, not against it', async () => {
+    // The sign, stated as what it means: the force on the origin pulls along the tendon, in the
+    // direction the tendon actually leaves the origin.
+    //
+    // Against the straight line to the insertion, which is what this asked before, the claim is
+    // only true of a muscle that does not wrap: a wrapped tendon leaves its origin along the
+    // first segment of its path, which can point well away from the far end. It passed for as
+    // long as the body happened to land with this one unwrapped -- and the note at the top of
+    // this file says plainly that these readings are taken from wherever the body lands, and
+    // that it had to be stripped of its discs once already to keep that landing still. The
+    // published origin direction is the quantity the claim is actually about and does not care
+    // where the body landed.
     const s = await driven(1);
     s.kernel.run(200);
     const i = LOADED;
     const toward = [
-      (s.insertionPoint[3 * i] as number) - (s.originPoint[3 * i] as number),
-      (s.insertionPoint[3 * i + 1] as number) - (s.originPoint[3 * i + 1] as number),
-      (s.insertionPoint[3 * i + 2] as number) - (s.originPoint[3 * i + 2] as number),
+      s.originDirection[3 * i] as number,
+      s.originDirection[3 * i + 1] as number,
+      s.originDirection[3 * i + 2] as number,
     ];
     const body = s.originBody[i] as number;
     const applied = [

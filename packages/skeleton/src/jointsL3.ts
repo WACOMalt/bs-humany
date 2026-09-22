@@ -18,6 +18,7 @@ import {
   HEAD,
   type JointSpec,
   LEG,
+  MTP_AXIS,
   SUBTALAR_AXIS,
   type Side,
   TORSO,
@@ -581,8 +582,136 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       dofs: [],
       limitations: ['Rigid: no cited tarsometatarsal range yet (OQ-011).'],
     },
+    ...toeJoints(s),
   ];
   return specs.map((spec) => ({ ...spec, side: s }));
+}
+
+/**
+ * The toes, one ray at a time.
+ *
+ * Below L3 all five toes are one body turning about a single oblique axis through the metatarsal
+ * heads -- which is what `mtp_${s}` in `joints.ts` is, and its own limitation says so. That is a
+ * fair simplification for a body that only has to stand, and useless for a foot: it cannot
+ * grip, it cannot roll over the ball, and the long flexors and extensors that ought to work the
+ * toes have no joint of theirs to cross. Measured against the model our muscle parameters come
+ * from, the four worst-matched muscles in the whole body are all toe muscles, for exactly this
+ * reason.
+ *
+ * So L3 gives each ray its own joints, the same way it already gives each finger its own. The
+ * shape is the hand's, because a foot is built the same way: a metatarsophalangeal joint that
+ * flexes and spreads, then interphalangeal hinges -- two for the lesser toes, one for the
+ * hallux, which like the thumb has no middle phalanx.
+ *
+ * ## What is cited and what is not
+ *
+ * The source model states one range for the whole forefoot, `mtp_angle`, so that is what the
+ * metatarsophalangeal flexion carries -- it is a statement about toe motion and the only one in
+ * hand. Nothing in it says anything about spreading the toes or about the interphalangeal
+ * joints, and inventing a citation for those would be worse than admitting they are provisional.
+ * They are marked against OQ-011, which already covers the foot joints whose ranges are not
+ * sourced, with anatomical values: about ten degrees of spread at the metatarsophalangeal joint,
+ * and interphalangeal flexion that goes one way only, as a toe does.
+ */
+function toeJoints(s: Side): JointSpec[] {
+  const side = sideName(s);
+  const TOE_NAMES = ['Hallux', 'Second toe', 'Third toe', 'Fourth toe', 'Fifth toe'];
+  const out: JointSpec[] = [];
+  for (const n of [1, 2, 3, 4, 5]) {
+    const name = TOE_NAMES[n - 1];
+    const proximal = `phalanx_pedis_proximal_${n}_${s}`;
+    // Spreading is away from the second toe, which is the foot's own midline: the hallux goes
+    // one way and the lesser toes the other.
+    const spread: [number, number, number] = n <= 2 ? [-1, 0, 0] : [1, 0, 0];
+    out.push({
+      id: `mtp_${n}_${s}`,
+      displayName: `${name} metatarsophalangeal, ${side}`,
+      parentBone: `metatarsal_${n}_${s}`,
+      childBone: proximal,
+      type: 'universal',
+      centre: { boundary: [`metatarsal_${n}_${s}`, proximal, 1] },
+      centreSource: dataset(`bounds boundary of metatarsal_${n}_${s} and ${proximal}`),
+      reportingOrder: 'zxy',
+      dofs: [
+        {
+          axis: 'extension',
+          vector: MTP_AXIS,
+          range: [-0.523599, 0.523599],
+          romSource: myo(LEG, `mtp_angle_${s}`),
+        },
+        {
+          axis: 'abduction',
+          vector: spread,
+          range: [-0.174533, 0.174533],
+          romSource: OQ011('Toes spread about ten degrees; the source states no such axis.'),
+        },
+      ],
+      limitations: [
+        'Extension carries the range the source states for all five toes together, which is the ' +
+          'only cited statement about toe motion there is.',
+      ],
+    });
+    if (n === 1) {
+      // The hallux has two phalanges, as the thumb does, so one interphalangeal joint.
+      out.push({
+        id: `ip_pedis_${n}_${s}`,
+        displayName: `${name} interphalangeal, ${side}`,
+        parentBone: proximal,
+        childBone: `phalanx_pedis_distal_${n}_${s}`,
+        type: 'revolute',
+        centre: { boundary: [proximal, `phalanx_pedis_distal_${n}_${s}`, 1] },
+        centreSource: dataset(`bounds boundary of ${proximal} and phalanx_pedis_distal_${n}_${s}`),
+        dofs: [
+          {
+            axis: 'flexion',
+            vector: [0, 0, 1],
+            range: [0, 1.0472],
+            romSource: OQ011('The hallux curls about sixty degrees; no cited range is in hand.'),
+          },
+        ],
+      });
+      continue;
+    }
+    const middle = `phalanx_pedis_middle_${n}_${s}`;
+    const distal = `phalanx_pedis_distal_${n}_${s}`;
+    out.push(
+      {
+        id: `pip_pedis_${n}_${s}`,
+        displayName: `${name} proximal interphalangeal, ${side}`,
+        parentBone: proximal,
+        childBone: middle,
+        type: 'revolute',
+        centre: { boundary: [proximal, middle, 1] },
+        centreSource: dataset(`bounds boundary of ${proximal} and ${middle}`),
+        dofs: [
+          {
+            axis: 'flexion',
+            vector: [0, 0, 1],
+            range: [0, 0.610865],
+            romSource: OQ011('A lesser toe curls about thirty-five degrees here.'),
+          },
+        ],
+      },
+      {
+        id: `dip_pedis_${n}_${s}`,
+        displayName: `${name} distal interphalangeal, ${side}`,
+        parentBone: middle,
+        childBone: distal,
+        type: 'revolute',
+        centre: { boundary: [middle, distal, 1] },
+        centreSource: dataset(`bounds boundary of ${middle} and ${distal}`),
+        dofs: [
+          {
+            axis: 'flexion',
+            vector: [0, 0, 1],
+            range: [0, 0.523599],
+            romSource: OQ011('The tip curls about thirty degrees; no cited range is in hand.'),
+          },
+        ],
+      },
+    );
+  }
+  return out.map((spec) => ({ ...spec, side: s }));
 }
 
 export const L3_JOINT_SPECS: readonly JointSpec[] = [
@@ -601,6 +730,13 @@ export const L2_EXTRA_JOINTS: readonly string[] = (['r', 'l'] as const).flatMap(
   ...[1, 2, 3, 4, 5].map((n) => `mcp_${n}_${s}`),
   `midtarsal_${s}`,
   `tarsometatarsal_${s}`,
+]);
+
+/** The per-ray toe joints L3 activates in place of the one lumped `mtp_<side>`. */
+export const L3_TOE_JOINTS: readonly string[] = (['r', 'l'] as const).flatMap((s) => [
+  ...[1, 2, 3, 4, 5].map((n) => `mtp_${n}_${s}`),
+  `ip_pedis_1_${s}`,
+  ...[2, 3, 4, 5].flatMap((n) => [`pip_pedis_${n}_${s}`, `dip_pedis_${n}_${s}`]),
 ]);
 
 /** Spine levels, ribs and the sternum, activated only by L3. */

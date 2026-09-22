@@ -58,8 +58,8 @@ Two separate faults, and the first is documented rather than accidental.
       shoulder were already fixed for exactly this. Every other spinal disc is at 0.0000.
 
 ### 3 — Separate the toes at L3
-- [ ] 3.1 Five digital rays as their own segments, rather than one welded `toes_*`
-- [ ] 3.2 Colliders generated per ray rather than one hull over the group
+- [x] 3.1 Five digital rays as their own segments, rather than one welded `toes_*`
+- [x] 3.2 Colliders generated per ray rather than one hull over the group
 - [ ] 3.3 Re-map every connection that was attached to the grouped joint, to the ray it belongs to
 - [ ] 3.4 Confirm against the gap measurement: the four worst muscles are all toe muscles
 

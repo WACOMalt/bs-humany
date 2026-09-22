@@ -83,7 +83,7 @@ import {
   wu2002,
   wu2005,
 } from './jointHelpers.js';
-import { L2_EXTRA_JOINTS, L3_JOINT_SPECS, L3_ONLY_JOINTS } from './jointsL3.js';
+import { L2_EXTRA_JOINTS, L3_JOINT_SPECS, L3_ONLY_JOINTS, L3_TOE_JOINTS } from './jointsL3.js';
 import { computeWorldTransforms } from './pose.js';
 
 function limbJoints(s: Side): JointSpec[] {
@@ -726,8 +726,9 @@ export const L3_JOINTS: readonly string[] = [
     `subtalar_${s}`,
     `midtarsal_${s}`,
     `tarsometatarsal_${s}`,
-    `mtp_${s}`,
   ]),
+  // Per ray, in place of the one lumped `mtp_<side>` the lower profiles use.
+  ...L3_TOE_JOINTS,
 ];
 
 // ---------------------------------------------------------------------------------------------

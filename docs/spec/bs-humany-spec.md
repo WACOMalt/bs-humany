@@ -699,7 +699,7 @@ The user-facing accuracy/performance control. Each profile is a named HSDL `segm
 | `L0-ragdoll` | ~15 | ~40 | 206 (followers + redistribution) | Rapier | 60 fps, mobile-capable |
 | `L1-standard` | ~25 | ~65 | 206 | Rapier | 60 fps desktop |
 | `L2-biomechanical` | ~50 | ~110 | 206 | Rapier or MuJoCo | 60 fps desktop, MuJoCo ~30 fps |
-| `L3-anatomical` | ~110 | ~200+ | 206 | MuJoCo | Non-real-time acceptable |
+| `L3-anatomical` | ~135 | ~220+ | 206 | MuJoCo | Non-real-time acceptable |
 
 Independently adjustable beyond profile selection: physics rate (240 / 500 / 1000 Hz), solver iterations or substeps, self-collision granularity, constraint softness, and equality-constraint enforcement on/off.
 
