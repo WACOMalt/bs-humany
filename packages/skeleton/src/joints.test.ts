@@ -24,7 +24,7 @@ import {
   L2_JOINTS,
   mirrorVector,
 } from './joints.js';
-import { isbLandmarkWorld, markerWorld } from './landmarks.js';
+import { isbLandmarkWorld, markerWorld, measuredWorld } from './landmarks.js';
 import { computeWorldTransforms } from './pose.js';
 import { L0_RAGDOLL, L1_STANDARD, L2_BIOMECHANICAL } from './segmentation.js';
 
@@ -154,10 +154,28 @@ describe('joint centres', () => {
     near(t('glenohumeral_r'), isbLandmarkWorld('humerus_r', 'GH'));
     near(t('sternoclavicular_l'), isbLandmarkWorld('clavicle_l', 'SC'));
     near(t('radioulnar_r'), markerWorld('radius_r', 'Head_of_radius'));
-    near(t('neck_region_upper'), markerWorld('occipital', 'Occipital_condyle'));
+    // Between the two occipital condyles, and not on one of them. This assertion used to name the
+    // marker, which is one condyle of a pair, so it held the head hinged 23 mm to the right and
+    // called that correct.
+    near(t('neck_region_upper'), measuredWorld('occipital', 'Condylar_midpoint'));
     const midFe = VIRTUAL_LANDMARKS.find((v) => v.id === 'femur_r__mid_fe');
     if (!midFe) throw new Error('missing virtual landmark');
     near(t('knee_r'), virtualLandmarkWorld(midFe));
+  });
+
+  it('put every spinal joint on the midline', () => {
+    // The lumbosacral joint sat 17 mm to the right and the atlanto-occipital 23 mm, each having
+    // taken a single marker of a symmetric pair as its centre. Nothing in the rules that replaced
+    // them mentions the midline -- the endplates and the condyles are measured from the bones --
+    // so landing on it is the check that they are measuring the right thing.
+    for (const id of [
+      'lumbar_region_lower',
+      'lumbar_region_upper',
+      'neck_region_lower',
+      'neck_region_upper',
+    ]) {
+      expect(Math.abs(jointWorld(id).translation.x), id).toBeLessThan(1e-4);
+    }
   });
 
   it('scale with stature, so a taller body keeps its joints on its bones', () => {

@@ -79,7 +79,6 @@ which is a statement about the attachments rather than about the muscle.
 | adductor_brevis_l **(capped)** | 71 mm | 68 mm | 1.04 | 103 mm | 88 mm | 110 mm | 0.72 .. 1.38 |
 | vastus_medialis_l | 68 mm | 66 mm | 1.03 | 97 mm | 100 mm | 267 mm | 0.73 .. 1.41 |
 | vastus_medialis_r | 68 mm | 66 mm | 1.03 | 97 mm | 100 mm | 267 mm | 0.73 .. 1.41 |
-| psoas_major_r | 67 mm | 66 mm | 1.01 | 117 mm | 118 mm | 290 mm | 0.59 .. 1.16 |
 | vastus_lateralis_l | 67 mm | 67 mm | 1.00 | 173 mm | 173 mm | 329 mm | 0.75 .. 1.14 |
 | vastus_lateralis_r | 67 mm | 67 mm | 1.00 | 173 mm | 173 mm | 329 mm | 0.75 .. 1.14 |
 | vastus_intermedius_l | 68 mm | 69 mm | 0.99 | 173 mm | 173 mm | 284 mm | 0.80 .. 1.20 |
@@ -88,7 +87,6 @@ which is a statement about the attachments rather than about the muscle.
 | tensor_fasciae_latae_r | 164 mm | 167 mm | 0.99 | 158 mm | 158 mm | 593 mm | 0.28 .. 1.33 |
 | gastrocnemius_lateral_l | 60 mm | 61 mm | 0.98 | 70 mm | 70 mm | 464 mm | 0.72 .. 1.59 |
 | gastrocnemius_lateral_r | 60 mm | 61 mm | 0.98 | 70 mm | 70 mm | 464 mm | 0.72 .. 1.59 |
-| psoas_major_l | 65 mm | 66 mm | 0.97 | 117 mm | 117 mm | 277 mm | 0.59 .. 1.16 |
 | gastrocnemius_medial_r | 63 mm | 65 mm | 0.97 | 75 mm | 75 mm | 461 mm | 0.71 .. 1.58 |
 | gastrocnemius_medial_l | 63 mm | 65 mm | 0.97 | 75 mm | 75 mm | 461 mm | 0.71 .. 1.58 |
 | biceps_femoris_short_l | 73 mm | 76 mm | 0.97 | 110 mm | 110 mm | 260 mm | 0.51 .. 1.20 |
@@ -101,6 +99,8 @@ which is a statement about the attachments rather than about the muscle.
 | semimembranosus_r | 167 mm | 183 mm | 0.91 | 121 mm | 121 mm | 408 mm | 0.26 .. 1.78 |
 | semitendinosus_r | 202 mm | 221 mm | 0.91 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
 | semitendinosus_l | 202 mm | 221 mm | 0.91 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
+| psoas_major_l | 58 mm | 66 mm | 0.87 | 117 mm | 117 mm | 277 mm | 0.59 .. 1.16 |
+| psoas_major_r | 57 mm | 66 mm | 0.86 | 117 mm | 117 mm | 290 mm | 0.59 .. 1.16 |
 | supraspinatus_l **(capped)** | 25 mm | 29 mm | 0.85 | 90 mm | 81 mm | 101 mm | 0.99 .. 1.32 |
 | supraspinatus_r **(capped)** | 25 mm | 29 mm | 0.85 | 90 mm | 81 mm | 101 mm | 0.99 .. 1.32 |
 | rectus_femoris_l | 157 mm | 190 mm | 0.83 | 171 mm | 171 mm | 505 mm | 0.62 .. 1.73 |

@@ -446,8 +446,8 @@ const OQ007 = (rationale: string) =>
   provisional('caggiano2022', 'OQ-007', rationale, `${TORSO}, mean of joints L1_L2 .. L4_L5`);
 
 const SPINE_CENTRE_LIMITATION =
-  'The joint centre is midway between the two vertebral centroids, which sit a little posterior ' +
-  'to the intervertebral disc because a centroid includes the posterior arch.';
+  'The joint centre is midway between the two vertebral bodies’ facing endplates, each measured ' +
+  'from its own bone. The endplate is tilted and the centre is taken flat across it.';
 
 function spineDofs(
   ranges: {
@@ -488,9 +488,14 @@ const SPINE_JOINTS: JointSpec[] = [
     parentBone: 'sacrum',
     childBone: 'vertebra_l5',
     type: 'spherical',
-    centre: { marker: ['sacrum', 'Base_of_sacrum'] },
+    centre: {
+      between: [
+        ['sacrum', 'Superior_endplate'],
+        ['vertebra_l5', 'Inferior_endplate'],
+      ],
+    },
     centreSource: dataset(
-      'marker Base_of_sacrum: the superior surface of S1, where the L5/S1 disc sits',
+      'midway between the endplates either side of the L5/S1 disc, each measured from its bone',
     ),
     reportingOrder: 'zxy',
     dofs: spineDofs(
@@ -509,8 +514,15 @@ const SPINE_JOINTS: JointSpec[] = [
     parentBone: 'vertebra_l1',
     childBone: 'vertebra_t12',
     type: 'spherical',
-    centre: { centroidMid: ['vertebra_l1', 'vertebra_t12'] },
-    centreSource: dataset('centroids of vertebra_l1 and vertebra_t12'),
+    centre: {
+      between: [
+        ['vertebra_l1', 'Superior_endplate'],
+        ['vertebra_t12', 'Inferior_endplate'],
+      ],
+    },
+    centreSource: dataset(
+      'midway between the endplates either side of the disc, each measured from its bone',
+    ),
     reportingOrder: 'zxy',
     dofs: spineDofs(
       {
@@ -528,9 +540,14 @@ const SPINE_JOINTS: JointSpec[] = [
     parentBone: 'sacrum',
     childBone: 'vertebra_l5',
     type: 'spherical',
-    centre: { marker: ['sacrum', 'Base_of_sacrum'] },
+    centre: {
+      between: [
+        ['sacrum', 'Superior_endplate'],
+        ['vertebra_l5', 'Inferior_endplate'],
+      ],
+    },
     centreSource: dataset(
-      'marker Base_of_sacrum: the superior surface of S1, where the L5/S1 disc sits',
+      'midway between the endplates either side of the L5/S1 disc, each measured from its bone',
     ),
     reportingOrder: 'zxy',
     dofs: spineDofs(
@@ -550,8 +567,16 @@ const SPINE_JOINTS: JointSpec[] = [
       parentBone: level.lower,
       childBone: level.upper,
       type: 'spherical',
-      centre: { centroidMid: [level.lower, level.upper] },
-      centreSource: dataset(`centroids of ${level.lower} and ${level.upper}`),
+      centre: {
+        between: [
+          [level.lower, 'Superior_endplate'],
+          [level.upper, 'Inferior_endplate'],
+        ],
+      },
+      centreSource: dataset(
+        `midway between the endplates either side of the ${level.id} disc, each measured from ` +
+          'its bone',
+      ),
       reportingOrder: 'zxy',
       dofs: spineDofs(level, (dof) => myo(TORSO, `${level.sourceJoint}_${dof}`)),
       limitations: ['Per-level joint for the L2 profile.', SPINE_CENTRE_LIMITATION],
@@ -563,8 +588,15 @@ const SPINE_JOINTS: JointSpec[] = [
     parentBone: 'vertebra_l1',
     childBone: 'vertebra_t12',
     type: 'spherical',
-    centre: { centroidMid: ['vertebra_l1', 'vertebra_t12'] },
-    centreSource: dataset('centroids of vertebra_l1 and vertebra_t12'),
+    centre: {
+      between: [
+        ['vertebra_l1', 'Superior_endplate'],
+        ['vertebra_t12', 'Inferior_endplate'],
+      ],
+    },
+    centreSource: dataset(
+      'midway between the endplates either side of the disc, each measured from its bone',
+    ),
     reportingOrder: 'zxy',
     dofs: spineDofs(
       {
@@ -619,8 +651,15 @@ const NECK_JOINTS: JointSpec[] = [
     parentBone: 'vertebra_t1',
     childBone: 'vertebra_c7',
     type: 'universal',
-    centre: { centroidMid: ['vertebra_t1', 'vertebra_c7'] },
-    centreSource: dataset('centroids of vertebra_t1 and vertebra_c7'),
+    centre: {
+      between: [
+        ['vertebra_t1', 'Superior_endplate'],
+        ['vertebra_c7', 'Inferior_endplate'],
+      ],
+    },
+    centreSource: dataset(
+      'midway between the endplates either side of the disc, each measured from its bone',
+    ),
     reportingOrder: 'zxy',
     dofs: neckDofs(),
     limitations: [...NECK_LIMITATIONS, SPINE_CENTRE_LIMITATION],
@@ -631,8 +670,11 @@ const NECK_JOINTS: JointSpec[] = [
     parentBone: 'vertebra_c1',
     childBone: 'occipital',
     type: 'universal',
-    centre: { marker: ['occipital', 'Occipital_condyle'] },
-    centreSource: dataset('marker Occipital_condyle'),
+    centre: { measured: ['occipital', 'Condylar_midpoint'] },
+    centreSource: dataset(
+      'midway between the two occipital condyles, measured from the bone: the export marks one ' +
+        'of the pair, and taking it hinged the head 23 mm off the midline',
+    ),
     reportingOrder: 'zxy',
     dofs: neckDofs(),
     limitations: NECK_LIMITATIONS,

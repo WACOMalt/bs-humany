@@ -287,6 +287,151 @@ function halfThicknessInBand(
   return best;
 }
 
+/** How much of a vertebra, from the front, is its body rather than its arch. */
+const VERTEBRAL_BODY = 0.4;
+/** How much of the body's height, at either end, is its endplate. */
+const ENDPLATE = 0.15;
+
+/**
+ * The centre of a vertebral body's superior (`+1`) or inferior (`-1`) endplate.
+ *
+ * Where a disc is. The joint between two vertebrae used to be midway between their two *centroids*
+ * -- and a vertebra's centroid is not in its body. It is dragged back by the arch, the transverse
+ * processes and the spinous process, which for a lumbar vertebra is most of the bone: L3's
+ * centroid sits 30 mm behind its own body on a body 35 mm deep, so every lumbar disc was drawn
+ * and articulated a whole vertebral body behind where it is. `jointHelpers.ts` recorded that as a
+ * limitation -- "a little posterior to the disc" -- which understated it by an order of magnitude.
+ *
+ * The body is the anterior two-fifths of the bone; behind that are the pedicles and everything
+ * they carry. Within the body, the endplate is the outer sixth of its height. The centre of an
+ * endplate is taken as the middle of its extent across and front-to-back rather than the mean of
+ * its vertices, because the export meshes the detailed parts more finely than the plain ones and a
+ * vertex mean would be pulled toward whichever edge is busier.
+ *
+ * It comes out on the midline -- 0.0 mm at every level of the spine, the sacrum included -- which
+ * is the check, since nothing in the rule mentions the midline.
+ */
+function endplateCentre(mesh: WorldMesh, sign: 1 | -1, body: number): Vec3 {
+  const p = mesh.positions;
+  const n = mesh.vertexCount;
+  let zLow = Number.POSITIVE_INFINITY;
+  let zHigh = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < n; i++) {
+    const z = p[i * 3 + 2] ?? 0;
+    if (z < zLow) zLow = z;
+    if (z > zHigh) zHigh = z;
+  }
+  // +Z is posterior, so the body is the low-Z end.
+  const behindTheBody = zLow + (zHigh - zLow) * body;
+  let yLow = Number.POSITIVE_INFINITY;
+  let yHigh = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < n; i++) {
+    if ((p[i * 3 + 2] ?? 0) > behindTheBody) continue;
+    const y = p[i * 3 + 1] ?? 0;
+    if (y < yLow) yLow = y;
+    if (y > yHigh) yHigh = y;
+  }
+  const plate = sign > 0 ? yHigh - (yHigh - yLow) * ENDPLATE : yLow + (yHigh - yLow) * ENDPLATE;
+  let xLow = Number.POSITIVE_INFINITY;
+  let xHigh = Number.NEGATIVE_INFINITY;
+  let zNear = Number.POSITIVE_INFINITY;
+  let zFar = Number.NEGATIVE_INFINITY;
+  let ySum = 0;
+  let taken = 0;
+  for (let i = 0; i < n; i++) {
+    const z = p[i * 3 + 2] ?? 0;
+    if (z > behindTheBody) continue;
+    const y = p[i * 3 + 1] ?? 0;
+    if (sign > 0 ? y < plate : y > plate) continue;
+    const x = p[i * 3] ?? 0;
+    if (x < xLow) xLow = x;
+    if (x > xHigh) xHigh = x;
+    if (z < zNear) zNear = z;
+    if (z > zFar) zFar = z;
+    ySum += y;
+    taken += 1;
+  }
+  if (taken === 0) return [0, 0, 0];
+  return [(xLow + xHigh) / 2, ySum / taken, (zNear + zFar) / 2];
+}
+
+/**
+ * The dens of the axis: the peg the atlas turns on.
+ *
+ * The atlanto-axial joint has no disc and the atlas has no body, so neither the endplate rule nor
+ * the old centroid one means anything there. Rotation of the head on the neck happens about the
+ * dens, which is the axis's superior midline projection: the top sixth of C2, whose extent across
+ * comes out 9.3 mm -- a dens is about that -- and whose centre is on the midline.
+ */
+function densCentre(mesh: WorldMesh): Vec3 {
+  const p = mesh.positions;
+  const n = mesh.vertexCount;
+  let yLow = Number.POSITIVE_INFINITY;
+  let yHigh = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < n; i++) {
+    const y = p[i * 3 + 1] ?? 0;
+    if (y < yLow) yLow = y;
+    if (y > yHigh) yHigh = y;
+  }
+  const cut = yHigh - (yHigh - yLow) * 0.15;
+  let xLow = Number.POSITIVE_INFINITY;
+  let xHigh = Number.NEGATIVE_INFINITY;
+  let zNear = Number.POSITIVE_INFINITY;
+  let zFar = Number.NEGATIVE_INFINITY;
+  let ySum = 0;
+  let taken = 0;
+  for (let i = 0; i < n; i++) {
+    const y = p[i * 3 + 1] ?? 0;
+    if (y < cut) continue;
+    const x = p[i * 3] ?? 0;
+    const z = p[i * 3 + 2] ?? 0;
+    if (x < xLow) xLow = x;
+    if (x > xHigh) xHigh = x;
+    if (z < zNear) zNear = z;
+    if (z > zFar) zFar = z;
+    ySum += y;
+    taken += 1;
+  }
+  if (taken === 0) return [0, 0, 0];
+  return [(xLow + xHigh) / 2, ySum / taken, (zNear + zFar) / 2];
+}
+
+/**
+ * Midway between the two occipital condyles: where the skull sits on the atlas.
+ *
+ * The export marks `Occipital_condyle` once, on one side, and the atlanto-occipital joint took it
+ * as its centre -- so the head was hinged 23 mm off the midline, on the right. There are two
+ * condyles and the joint is between them. Each is the lowest point of the occipital bone on its
+ * own side of the midline, and the two come out at the same height and depth to a tenth of a
+ * millimetre, which is the check.
+ */
+function condylarMidpoint(mesh: WorldMesh): Vec3 {
+  const p = mesh.positions;
+  const n = mesh.vertexCount;
+  const lowest = ([-1, 1] as const).map((side) => {
+    let best = Number.POSITIVE_INFINITY;
+    let at = -1;
+    for (let i = 0; i < n; i++) {
+      const x = p[i * 3] ?? 0;
+      // Clear of the midline, so the basilar part between the condyles cannot win.
+      if (Math.sign(x) !== side || Math.abs(x) < 0.004) continue;
+      const y = p[i * 3 + 1] ?? 0;
+      if (y < best) {
+        best = y;
+        at = i;
+      }
+    }
+    return at;
+  });
+  const [left, right] = lowest;
+  if (left === undefined || right === undefined || left < 0 || right < 0) return [0, 0, 0];
+  return [
+    ((p[left * 3] ?? 0) + (p[right * 3] ?? 0)) / 2,
+    ((p[left * 3 + 1] ?? 0) + (p[right * 3 + 1] ?? 0)) / 2,
+    ((p[left * 3 + 2] ?? 0) + (p[right * 3 + 2] ?? 0)) / 2,
+  ];
+}
+
 /** How much of a bone's length the end band takes in: an eighth, which is the articular end. */
 const END_BAND = 0.125;
 
@@ -571,7 +716,78 @@ const DIGIT_BONES: readonly {
   ),
 );
 
+/**
+ * Every bone in the spine that has a vertebral body, from the sacrum up to the axis.
+ *
+ * The atlas is not here: it is a ring with no body at all, which is why the atlanto-axial joint
+ * is located at the dens instead.
+ */
+const VERTEBRAL_BODIES: readonly { readonly bone: string; readonly body: number }[] = [
+  // The sacrum is not a vertebra. It is five fused ones with a wing on each side, and it is long
+  // top-to-bottom and shallow front-to-back, so two-fifths of its depth reaches back far enough to
+  // take in its superior articular processes -- which stand higher than the S1 endplate does and
+  // so won the height band, putting the lumbosacral joint 28 mm above and 32 mm behind the disc.
+  // A fifth stops in front of them, and leaves a plate 52 mm across, which is what an S1 endplate
+  // measures. The check is the marked promontory, the anterior lip of that same plate: it surfaces
+  // at Y 939 on the midline, and the plate's centre comes out 7 mm above it and 11 mm behind, as
+  // a plate tilted like that one's should.
+  { bone: 'sacrum', body: 0.2 },
+  ...([5, 4, 3, 2, 1] as const).map((n) => ({ bone: `vertebra_l${n}`, body: VERTEBRAL_BODY })),
+  ...Array.from({ length: 12 }, (_, i) => ({
+    bone: `vertebra_t${12 - i}`,
+    body: VERTEBRAL_BODY,
+  })),
+  ...([7, 6, 5, 4, 3, 2] as const).map((n) => ({
+    bone: `vertebra_c${n}`,
+    body: VERTEBRAL_BODY,
+  })),
+];
+
 export const DERIVED_RULES: readonly DerivedRule[] = [
+  /**
+   * The spine's joints, measured where the joints are.
+   *
+   * Every vertebra with a body gets both endplates, the axis gets its dens, and the occipital
+   * bone gets the point midway between its two condyles. Between them they locate every joint
+   * from the lumbosacral to the atlanto-occipital: see `endplateCentre` for what was wrong with
+   * taking two vertebral centroids, and `condylarMidpoint` for what was wrong with taking one
+   * marker of a pair.
+   *
+   * The atlas is left out and wants to be: it has no body and no endplates, being a ring. The
+   * sacrum gets only a superior endplate, which is S1's, and is the only one anything asks it for.
+   */
+  ...VERTEBRAL_BODIES.flatMap(({ bone, body }) =>
+    (['superior', 'inferior'] as const)
+      // The sacrum's inferior end is its apex, and nothing articulates there. The axis's superior
+      // end is the dens, which is below and is not an endplate.
+      .filter((end) => (bone === 'sacrum' ? end === 'superior' : true))
+      .filter((end) => (bone === 'vertebra_c2' ? end === 'inferior' : true))
+      .map(
+        (end): DerivedRule => ({
+          bone,
+          feature: end === 'superior' ? 'Superior_endplate' : 'Inferior_endplate',
+          rule:
+            `centre of the ${end} endplate of the vertebral body: the anterior ` +
+            `${body} of the bone by depth, then the outer sixth of that by height, then the ` +
+            'middle of its extent across and front-to-back',
+          pick: (m) => endplateCentre(m, end === 'superior' ? 1 : -1, body),
+        }),
+      ),
+  ),
+  {
+    bone: 'vertebra_c2',
+    feature: 'Dens',
+    rule: 'centre of the top sixth of the axis: its superior midline projection',
+    pick: (m) => densCentre(m),
+  },
+  {
+    bone: 'occipital',
+    feature: 'Condylar_midpoint',
+    rule:
+      'midway between the lowest point of the occipital bone on each side of the midline: the ' +
+      'two condyles',
+    pick: (m) => condylarMidpoint(m),
+  },
   {
     bone: 'vertebra_c7',
     feature: 'Spinous_process_tip',

@@ -45,16 +45,19 @@ export const dataset = (locator: string) => cite('kervyn2021', locator);
  *   - `measured`: a centre measured from the meshes -- a fitted articular sphere or the contact
  *     between two bones (see `articularCentres.ts`). A marker marks a surface feature and is a
  *     poor stand-in for a rotation centre, so a joint that needs one says so here.
- *   - `centroidMid`: midway between two bones' centroids. Used only for spine joints whose disc
- *     has no marker; the vertebral centroid includes the posterior arch, so the point sits a
- *     little posterior to the disc. Recorded as a limitation on each such joint.
+ *
+ * There was a `centroidMid` -- midway between two bones' centroids -- and every spinal joint used
+ * it. A vertebra's centroid is not in its body: the arch, the transverse processes and the spinous
+ * process drag it back, 30 mm for a lumbar vertebra whose body is 35 mm deep. The kind carried
+ * that as a limitation, "a little posterior to the disc", which understated it by an order of
+ * magnitude and let it stand for as long as it did. Every one of those joints takes `between` now,
+ * across the two endplates, and the kind is gone so it cannot be reached for again.
  */
 export type Centre =
   | { readonly isb: readonly [bone: string, abbreviation: string] }
   | { readonly virtual: string }
   | { readonly marker: readonly [bone: string, feature: string] }
   | { readonly measured: readonly [bone: string, feature: string] }
-  | { readonly centroidMid: readonly [string, string] }
   /**
    * Where two bones' bounds meet along an axis: the proximal bone's far extreme and the distal
    * bone's near extreme averaged, at the distal bone's centroid on the other axes.
@@ -112,17 +115,13 @@ export function centreWorld(c: Centre): P3 {
     const [a, b] = c.between.map(([bone, feature]) => measuredWorld(bone, feature)) as [P3, P3];
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
   }
-  if ('nearest' in c) {
-    const bone = packed(c.nearest[0]);
-    const toward = packed(c.nearest[1]).centroid;
-    return [
-      Math.min(Math.max(toward[0], bone.min[0]), bone.max[0]),
-      Math.min(Math.max(toward[1], bone.min[1]), bone.max[1]),
-      Math.min(Math.max(toward[2], bone.min[2]), bone.max[2]),
-    ];
-  }
-  const [a, b] = c.centroidMid.map((id) => packed(id).centroid) as [P3, P3];
-  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+  const bone = packed(c.nearest[0]);
+  const toward = packed(c.nearest[1]).centroid;
+  return [
+    Math.min(Math.max(toward[0], bone.min[0]), bone.max[0]),
+    Math.min(Math.max(toward[1], bone.min[1]), bone.max[1]),
+    Math.min(Math.max(toward[2], bone.min[2]), bone.max[2]),
+  ];
 }
 
 /** How the centre was located, for the provenance extension. */
@@ -142,8 +141,7 @@ export function centreLocator(c: Centre): string {
       `midway between landmarks ${landmarkId(...c.between[0])} and ` +
       `${landmarkId(...c.between[1])}`
     );
-  if ('nearest' in c) return `point of ${c.nearest[0]} bounds nearest ${c.nearest[1]}`;
-  return `midpoint of centroids ${c.centroidMid[0]} and ${c.centroidMid[1]}`;
+  return `point of ${c.nearest[0]} bounds nearest ${c.nearest[1]}`;
 }
 
 // ---------------------------------------------------------------------------------------------

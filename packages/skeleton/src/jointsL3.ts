@@ -120,8 +120,9 @@ function spineDofs(
   ];
 }
 
-const CENTROID_LIMITATION =
-  'The joint centre is midway between the two vertebral centroids, a little posterior to the disc.';
+const ENDPLATE_LIMITATION =
+  'The joint centre is midway between the two vertebral bodies’ facing endplates, each measured ' +
+  'from its own bone; the endplate is tilted and the centre is taken flat across it.';
 
 function spineLevel(
   id: string,
@@ -138,13 +139,20 @@ function spineLevel(
     parentBone: lower,
     childBone: upper,
     type: 'spherical',
-    centre: { centroidMid: [lower, upper] },
-    centreSource: dataset(`centroids of ${lower} and ${upper}`),
+    centre: {
+      between: [
+        [lower, 'Superior_endplate'],
+        [upper, 'Inferior_endplate'],
+      ],
+    },
+    centreSource: dataset(
+      `midway between the endplates either side of the ${id} disc, each measured from its bone`,
+    ),
     reportingOrder: 'zxy',
     dofs: spineDofs(ranges, rationale, file),
     limitations: [
       'Per-level joint for the L3 profile. Range is provisional; see OQ-010.',
-      CENTROID_LIMITATION,
+      ENDPLATE_LIMITATION,
     ],
   };
 }
@@ -190,23 +198,37 @@ const CERVICAL_LEVELS: JointSpec[] = [
       HEAD,
     ),
   ),
-  spineLevel(
-    'c1_c2',
-    'Atlanto-axial C1/C2',
-    'vertebra_c2',
-    'vertebra_c1',
-    C1_C2,
-    CERVICAL_RATIONALE,
-    HEAD,
-  ),
+  {
+    // Not a disc, and not a `spineLevel`. The atlas is a ring with no body, so it has no endplate
+    // to meet the axis's across, and there is no disc between the two. What the head turns on is
+    // the dens -- the axis's own superior peg, standing up inside the atlas's ring -- so that is
+    // where the joint is. Taking two centroids put it 10 mm behind the dens and 8 mm behind the
+    // C2/C3 disc below it, which drew the top of the neck stepping backwards.
+    id: 'c1_c2',
+    displayName: 'Atlanto-axial C1/C2',
+    parentBone: 'vertebra_c2',
+    childBone: 'vertebra_c1',
+    type: 'spherical',
+    centre: { measured: ['vertebra_c2', 'Dens'] },
+    centreSource: dataset('the dens of the axis, measured from the bone'),
+    reportingOrder: 'zxy',
+    dofs: spineDofs(C1_C2, CERVICAL_RATIONALE, HEAD),
+    limitations: [
+      'Per-level joint for the L3 profile. Range is provisional; see OQ-010.',
+      'The centre is the dens rather than a disc, this joint having none.',
+    ],
+  },
   {
     id: 'c0_c1',
     displayName: 'Atlanto-occipital',
     parentBone: 'vertebra_c1',
     childBone: 'occipital',
     type: 'spherical',
-    centre: { marker: ['occipital', 'Occipital_condyle'] },
-    centreSource: dataset('marker Occipital_condyle'),
+    centre: { measured: ['occipital', 'Condylar_midpoint'] },
+    centreSource: dataset(
+      'midway between the two occipital condyles, measured from the bone: the export marks one ' +
+        'of the pair, and taking it hinged the head 23 mm off the midline',
+    ),
     reportingOrder: 'zxy',
     dofs: spineDofs(C0_C1, CERVICAL_RATIONALE, HEAD),
     limitations: ['Per-level joint for the L3 profile. Range is provisional; see OQ-010.'],

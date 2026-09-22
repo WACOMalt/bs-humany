@@ -2,10 +2,14 @@
  "vertebra_c7": {
   "Spinous_process_tip": "most posterior vertex of the C7 mesh (max Z, world frame)",
   "Transverse_process_tip_l": "most lateral vertex of the C7 mesh on the left (min X)",
-  "Transverse_process_tip_r": "most lateral vertex of the C7 mesh on the right (max X)"
+  "Transverse_process_tip_r": "most lateral vertex of the C7 mesh on the right (max X)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t8": {
-  "Spinous_process_tip": "most posterior vertex of the T8 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T8 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "sternum": {
   "Jugular_notch": "most superior vertex of the fused sternum within 8 mm of the midline (max Y, |X| < 0.008)",
@@ -145,61 +149,87 @@
  },
  "vertebra_c2": {
   "Transverse_process_tip_l": "most lateral vertex of the C2 mesh on the left (min X)",
-  "Transverse_process_tip_r": "most lateral vertex of the C2 mesh on the right (max X)"
+  "Transverse_process_tip_r": "most lateral vertex of the C2 mesh on the right (max X)",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Dens": "centre of the top sixth of the axis: its superior midline projection"
  },
  "vertebra_c3": {
   "Transverse_process_tip_l": "most lateral vertex of the C3 mesh on the left (min X)",
-  "Transverse_process_tip_r": "most lateral vertex of the C3 mesh on the right (max X)"
+  "Transverse_process_tip_r": "most lateral vertex of the C3 mesh on the right (max X)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_c4": {
   "Transverse_process_tip_l": "most lateral vertex of the C4 mesh on the left (min X)",
-  "Transverse_process_tip_r": "most lateral vertex of the C4 mesh on the right (max X)"
+  "Transverse_process_tip_r": "most lateral vertex of the C4 mesh on the right (max X)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_c5": {
   "Transverse_process_tip_l": "most lateral vertex of the C5 mesh on the left (min X)",
   "Transverse_process_tip_r": "most lateral vertex of the C5 mesh on the right (max X)",
-  "Anterior_surface_of_body": "most anterior vertex of the C5 mesh within 8 mm of the midline (min Z, |X| < 0.008)"
+  "Anterior_surface_of_body": "most anterior vertex of the C5 mesh within 8 mm of the midline (min Z, |X| < 0.008)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_c6": {
   "Transverse_process_tip_l": "most lateral vertex of the C6 mesh on the left (min X)",
-  "Transverse_process_tip_r": "most lateral vertex of the C6 mesh on the right (max X)"
+  "Transverse_process_tip_r": "most lateral vertex of the C6 mesh on the right (max X)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t1": {
   "Transverse_process_tip_l": "most lateral vertex of the T1 mesh on the left (min X)",
   "Transverse_process_tip_r": "most lateral vertex of the T1 mesh on the right (max X)",
-  "Spinous_process_tip": "most posterior vertex of the T1 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T1 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t2": {
   "Transverse_process_tip_l": "most lateral vertex of the T2 mesh on the left (min X)",
   "Transverse_process_tip_r": "most lateral vertex of the T2 mesh on the right (max X)",
   "Spinous_process_tip": "most posterior vertex of the T2 mesh (max Z, world frame)",
-  "Anterior_surface_of_body": "most anterior vertex of the T2 mesh within 8 mm of the midline (min Z, |X| < 0.008)"
+  "Anterior_surface_of_body": "most anterior vertex of the T2 mesh within 8 mm of the midline (min Z, |X| < 0.008)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t3": {
   "Transverse_process_tip_l": "most lateral vertex of the T3 mesh on the left (min X)",
   "Transverse_process_tip_r": "most lateral vertex of the T3 mesh on the right (max X)",
-  "Spinous_process_tip": "most posterior vertex of the T3 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T3 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t4": {
   "Transverse_process_tip_l": "most lateral vertex of the T4 mesh on the left (min X)",
   "Transverse_process_tip_r": "most lateral vertex of the T4 mesh on the right (max X)",
-  "Spinous_process_tip": "most posterior vertex of the T4 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T4 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t5": {
   "Transverse_process_tip_l": "most lateral vertex of the T5 mesh on the left (min X)",
   "Transverse_process_tip_r": "most lateral vertex of the T5 mesh on the right (max X)",
-  "Spinous_process_tip": "most posterior vertex of the T5 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T5 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t6": {
   "Transverse_process_tip_l": "most lateral vertex of the T6 mesh on the left (min X)",
   "Transverse_process_tip_r": "most lateral vertex of the T6 mesh on the right (max X)",
-  "Spinous_process_tip": "most posterior vertex of the T6 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T6 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t10": {
-  "Spinous_process_tip": "most posterior vertex of the T10 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T10 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "vertebra_t12": {
-  "Spinous_process_tip": "most posterior vertex of the T12 mesh (max Z, world frame)"
+  "Spinous_process_tip": "most posterior vertex of the T12 mesh (max Z, world frame)",
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  },
  "hip_l": {
   "Iliac_crest_highest": "most superior vertex of the hip bone mesh (max Y): the top of the iliac crest"
@@ -403,7 +433,8 @@
   "Superior_nuchal_line_l": "the occipital vertex nearest the 'Superior_nuchal_line' marker",
   "Superior_nuchal_line_r": "the occipital vertex nearest the 'Superior_nuchal_line' marker mirrored across the midline (X negated)",
   "Inferior_nuchal_line_l": "the occipital vertex nearest the 'Inferior_nuchal_line' marker",
-  "Inferior_nuchal_line_r": "the occipital vertex nearest the 'Inferior_nuchal_line' marker mirrored across the midline (X negated)"
+  "Inferior_nuchal_line_r": "the occipital vertex nearest the 'Inferior_nuchal_line' marker mirrored across the midline (X negated)",
+  "Condylar_midpoint": "midway between the lowest point of the occipital bone on each side of the midline: the two condyles"
  },
  "phalanx_pedis_proximal_1_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_1_l",
@@ -1064,5 +1095,40 @@
   "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
   "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
   "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
+ },
+ "sacrum": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.2 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_l5": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_l4": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_l3": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_l2": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_l1": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_t11": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_t9": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
+ },
+ "vertebra_t7": {
+  "Superior_endplate": "centre of the superior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back",
+  "Inferior_endplate": "centre of the inferior endplate of the vertebral body: the anterior 0.4 of the bone by depth, then the outer sixth of that by height, then the middle of its extent across and front-to-back"
  }
 }
