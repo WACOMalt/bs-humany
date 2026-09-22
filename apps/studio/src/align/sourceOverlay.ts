@@ -400,26 +400,40 @@ export class SourceOverlay {
    */
   retargetBones(
     fits: ReadonlyMap<string, { position: Vector3; rotation: Quaternion; scale: number }>,
+    bodies: readonly SourceBody[],
   ): void {
+    const pose = new Map(bodies.map((b) => [b.name, b]));
     for (const mesh of this.meshes) {
       const fit = fits.get(mesh.name);
       const wear = this.wearing.get(mesh);
-      if (!fit || !wear) {
+      const them = pose.get(mesh.name);
+      if (!fit || !wear || !them) {
         mesh.visible = false;
         continue;
       }
       mesh.visible = true;
+      // Where the mesh sits in *their* world: its body's pose, then the geom's offset inside it.
+      // A fit maps their world to ours, so that world pose is what goes through it -- the geom's
+      // offset alone is a body-local quantity and means nothing to a world map.
+      const bodySpin = new Quaternion(
+        them.quat[1] ?? 0,
+        them.quat[2] ?? 0,
+        them.quat[3] ?? 0,
+        them.quat[0] ?? 1,
+      );
       const geomSpin = new Quaternion(
         wear.quat[1] ?? 0,
         wear.quat[2] ?? 0,
         wear.quat[3] ?? 0,
         wear.quat[0] ?? 1,
       );
-      // The geom's offset is stated in its body's frame, so the geom's own turn survives the
-      // change of body and our segment's rotation replaces theirs.
-      mesh.quaternion.copy(fit.rotation).multiply(geomSpin);
+      const worldSpin = bodySpin.clone().multiply(geomSpin);
+      const worldAt = new Vector3(wear.pos[0] ?? 0, wear.pos[1] ?? 0, wear.pos[2] ?? 0)
+        .applyQuaternion(bodySpin)
+        .add(new Vector3(them.pos[0] ?? 0, them.pos[1] ?? 0, them.pos[2] ?? 0));
+      mesh.quaternion.copy(fit.rotation).multiply(worldSpin);
       mesh.position
-        .set(wear.pos[0] ?? 0, wear.pos[1] ?? 0, wear.pos[2] ?? 0)
+        .copy(worldAt)
         .multiplyScalar(fit.scale)
         .applyQuaternion(fit.rotation)
         .add(fit.position);

@@ -557,14 +557,14 @@ export function createAlignPanel(
     const paths = new Map<string, readonly number[]>();
     let dropped = 0;
     for (const muscle of model.muscles) {
-      const moved = retargetPath(muscle.path, muscle.on, model.bodies, fits);
+      const moved = retargetPath(muscle.path, muscle.on, fits);
       if (moved) paths.set(muscle.name, moved);
       else dropped += 1;
     }
     overlay.showRetargeted(paths);
     // Their bones go through the same fits, or the muscles end up floating beside a skeleton
     // they no longer belong to.
-    overlay.retargetBones(fits);
+    overlay.retargetBones(fits, model.bodies);
     // Everything is in our space now, so the model transform must not move it again. The
     // sliders follow, rather than silently disagreeing with what is on screen.
     applyPlacement({ ...NEUTRAL_PLACEMENT });

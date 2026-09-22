@@ -36,6 +36,7 @@ export type FitKind =
   | 'kabsch'
   | 'axis and hinge roll'
   | 'axis and inherited roll'
+  | 'axis and inherited scale'
   | 'inherited'
   | 'model';
 
@@ -118,6 +119,21 @@ const quatFrom = (m: Matrix3): Quaternion => {
   return q.normalize();
 };
 
+/**
+ * How long a bone has to be before the ratio of its length to theirs means anything.
+ *
+ * A scale is a ratio of two lengths and is only as good as the shorter one. The two models place
+ * a joint centre a few millimetres apart as a matter of course, so over a femur's four hundred
+ * that is a per cent and over a talus's twenty it is most of the answer. The talus is the case
+ * that showed it: their subtalar joint sits 65 mm from the ankle and ours sits about 18, so the
+ * ratio comes out at 0.28 and the whole foot is drawn at a quarter size. The arithmetic is
+ * right; the question was bad.
+ *
+ * A bone shorter than this keeps its place -- which the matched joints give exactly -- and takes
+ * its size from the bone above, which is a guess but an honest one.
+ */
+const RELIABLE_SPAN = 0.15;
+
 const centroid = (points: readonly Vector3[]): Vector3 =>
   points
     .reduce((sum, p) => sum.add(p), new Vector3())
@@ -143,9 +159,13 @@ export function fitOne(
   const inheritedScale = parent?.scale ?? fallbackScale;
 
   if (n === 0) {
+    // The parent's placement entire, not the world origin. A bone with nothing matched still
+    // hangs off the one above it, and putting it at the origin flings it -- and every muscle
+    // that runs over it -- out of the body altogether. That is what the strays under the feet
+    // were: the toes, whose joint our foot does not carry under the name theirs expects.
     return {
       rotation: inheritedRotation,
-      position: new Vector3(),
+      position: parent?.position.clone() ?? new Vector3(),
       scale: inheritedScale,
       kind: 'model',
       matched: 0,
@@ -188,7 +208,10 @@ export function fitOne(
         residual: null,
       };
     }
-    const scale = ourLength / theirLength;
+    // Only over a long enough bone; otherwise the parent's, since a ratio taken across twenty
+    // millimetres is measuring where the two models disagree rather than how big the bone is.
+    const measurable = theirLength > RELIABLE_SPAN && ourLength > RELIABLE_SPAN;
+    const scale = measurable ? ourLength / theirLength : inheritedScale;
     // Start from the parent's orientation, then turn by the least that carries their axis onto
     // ours. Whatever roll the parent had about the shared direction survives that.
     const along = ourAxis.clone().normalize();
@@ -239,7 +262,7 @@ export function fitOne(
         .clone()
         .sub(theirMid.clone().multiplyScalar(scale).applyQuaternion(rotation)),
       scale,
-      kind,
+      kind: measurable ? kind : 'axis and inherited scale',
       matched: n,
       residual: null,
     };
@@ -332,7 +355,11 @@ export function fitOne(
   // Scale from the spreads rather than from one pair of points, so a stray joint moves it less.
   let ourSpread = 0;
   for (let i = 0; i < n; i++) ourSpread += (ours[i] as Vector3).clone().sub(ourMid).lengthSq();
-  const scale = Math.sqrt(ourSpread / theirSpread);
+  // The same guard as the two-point case: a spread of a couple of centimetres is not a length
+  // the two models can be compared over.
+  const measurableSpread =
+    Math.sqrt(theirSpread / n) > RELIABLE_SPAN && Math.sqrt(ourSpread / n) > RELIABLE_SPAN;
+  const scale = measurableSpread ? Math.sqrt(ourSpread / theirSpread) : inheritedScale;
   const position = ourMid
     .clone()
     .sub(theirMid.clone().multiplyScalar(scale).applyQuaternion(rotation));

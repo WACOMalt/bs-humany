@@ -27,9 +27,9 @@
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
-import { Quaternion, Vector3 } from 'three';
+import { type Quaternion, Vector3 } from 'three';
 import { type FitKind, type Fitted, fitOne } from './fit.js';
-import type { SourceBody, SourceModel } from './sourceOverlay.js';
+import type { SourceModel } from './sourceOverlay.js';
 
 export interface BodyPair {
   /** Their body, by the name their model gives it. */
@@ -54,8 +54,6 @@ export interface BodyFit {
 }
 
 const vec = (a: readonly number[]) => new Vector3(a[0] ?? 0, a[1] ?? 0, a[2] ?? 0);
-/** MuJoCo writes quaternions w-first; three wants them w-last. */
-const quat = (a: readonly number[]) => new Quaternion(a[1] ?? 0, a[2] ?? 0, a[3] ?? 0, a[0] ?? 1);
 
 /**
  * Suggest body pairings by name, which for the legs is nearly complete already: their `femur_r`
@@ -223,27 +221,22 @@ export function fitBodies(
 export function retargetPath(
   path: readonly number[],
   on: readonly string[],
-  theirBodies: readonly SourceBody[],
   fits: ReadonlyMap<string, BodyFit>,
 ): number[] | undefined {
-  const pose = new Map(theirBodies.map((b) => [b.name, b]));
   const out: number[] = [];
   const point = new Vector3();
-  const inverse = new Quaternion();
   for (let i = 0; i < on.length; i++) {
-    const body = on[i] as string;
-    const fit = fits.get(body);
-    const them = pose.get(body);
-    if (!fit || !them) return undefined;
-    point.set(path[3 * i] as number, path[3 * i + 1] as number, path[3 * i + 2] as number);
-    // Into their body's frame.
-    point.sub(vec(them.pos));
-    inverse.copy(quat(them.quat)).invert();
-    point.applyQuaternion(inverse);
-    // Sized to our bone, then out through our segment's frame.
-    point.multiplyScalar(fit.scale);
-    point.applyQuaternion(fit.rotation);
-    point.add(fit.position);
+    const fit = fits.get(on[i] as string);
+    if (!fit) return undefined;
+    // A fit carries a point of their world straight to ours -- it was built from world points on
+    // both sides -- so the path point, which is already in their world, goes through it as it
+    // stands. Taking it into its body's frame first and then applying a world map to the result,
+    // which is what this did, is two different coordinate systems in one expression.
+    point
+      .set(path[3 * i] as number, path[3 * i + 1] as number, path[3 * i + 2] as number)
+      .multiplyScalar(fit.scale)
+      .applyQuaternion(fit.rotation)
+      .add(fit.position);
     out.push(point.x, point.y, point.z);
   }
   return out.length >= 6 ? out : undefined;
