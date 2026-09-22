@@ -159,10 +159,17 @@ const camera = new PerspectiveCamera(
  */
 camera.position.set(1.5, 1.1, -2.6);
 
-/** True while the Align tab's gizmo is being dragged, so the camera holds still for it. */
+/**
+ * True while the Align tab's gizmo is being dragged, so the camera holds still for it.
+ *
+ * The flag alone is not enough to claim the press that *starts* a drag: three sets its own
+ * `dragging` inside its pointerdown handler, which runs after the orbit controls have already
+ * been offered the same press. So the claim asks the panel whether the pointer is over a handle,
+ * which is known from hover, and the flag only keeps the camera still for the rest of the drag.
+ */
 let gizmoDragging = false;
 const controls = createOrbitControls(camera, renderer.domElement, new Vector3(0, 0.9, 0), {
-  claimPointer: (event) => gizmoDragging || beginGrab(event),
+  claimPointer: (event) => gizmoDragging || align?.overGizmo() === true || beginGrab(event),
 });
 
 scene.add(new HemisphereLight(0xb8c6e0, 0x2a2118, 0.55));

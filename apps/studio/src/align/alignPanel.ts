@@ -63,6 +63,15 @@ const must = <T extends Element>(selector: string): T => {
 };
 
 export interface AlignPanel {
+  /**
+   * Whether the pointer is over a gizmo handle right now.
+   *
+   * Asked by the orbit controls before they take a press. It has to be the *hover* state and not
+   * the dragging one: three sets `dragging` inside its own pointerdown, which runs after the
+   * camera has already been offered the same press, so a drag that has started is too late to
+   * ask about. `axis` is set on hover and is the question that can be answered in time.
+   */
+  overGizmo(): boolean;
   /** Add the overlay and the handles to a scene graph. */
   attach(world: Object3D): void;
   /** Take the reference sites once they have been fetched. */
@@ -349,7 +358,9 @@ export function createAlignPanel(
   const ray = new Raycaster();
   const pointer = new Vector2();
   renderer.domElement.addEventListener('pointerdown', (event) => {
-    if (!handles.visible || gizmo.dragging) return;
+    // Over a gizmo handle the press belongs to the gizmo, not to picking a new point -- and
+    // `dragging` is still false at this moment, so the hovered axis is what must be asked.
+    if (!handles.visible || gizmo.axis !== null || gizmo.dragging) return;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -555,6 +566,9 @@ export function createAlignPanel(
   writeSliders(placement);
 
   return {
+    overGizmo(): boolean {
+      return gizmo.object !== undefined && gizmo.axis !== null;
+    },
     attach(world: Object3D): void {
       world.add(overlay.group);
       world.add(handles.group);
