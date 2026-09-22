@@ -42,6 +42,10 @@ import {
   WORLD,
   conjugate,
   conversionMatrix,
+  cross,
+  dot,
+  fromAxisAngle,
+  multiplyQuat,
   normalize,
   quatFromMat3,
   relativeTo,
@@ -497,6 +501,8 @@ const SPINE_JOINTS: JointSpec[] = [
     centreSource: dataset(
       'midway between the endplates either side of the L5/S1 disc, each measured from its bone',
     ),
+    // The bottom of the chain: nothing below to lean away from, so it names itself.
+    upAxis: ['l5_s1', 'l4_l5'],
     reportingOrder: 'zxy',
     dofs: spineDofs(
       {
@@ -520,6 +526,7 @@ const SPINE_JOINTS: JointSpec[] = [
         ['vertebra_t12', 'Inferior_endplate'],
       ],
     },
+    upAxis: ['l1_l2', 't11_t12'],
     centreSource: dataset(
       'midway between the endplates either side of the disc, each measured from its bone',
     ),
@@ -549,6 +556,8 @@ const SPINE_JOINTS: JointSpec[] = [
     centreSource: dataset(
       'midway between the endplates either side of the L5/S1 disc, each measured from its bone',
     ),
+    // The bottom of the chain: nothing below to lean away from, so it names itself.
+    upAxis: ['l5_s1', 'l4_l5'],
     reportingOrder: 'zxy',
     dofs: spineDofs(
       {
@@ -560,8 +569,10 @@ const SPINE_JOINTS: JointSpec[] = [
     ),
     limitations: ['Per-level joint for the L2 profile. Range is provisional; see OQ-007.'],
   },
+  // The lumbar chain runs l5_s1, l4_l5, l3_l4, l2_l3, l1_l2, t12_l1, so each level's neighbours
+  // are its own position in that order.
   ...LUMBAR_LEVELS.map(
-    (level): JointSpec => ({
+    (level, at): JointSpec => ({
       id: level.id,
       displayName: `Intervertebral ${level.sourceJoint.replace('_', '/')}`,
       parentBone: level.lower,
@@ -573,6 +584,7 @@ const SPINE_JOINTS: JointSpec[] = [
           [level.upper, 'Inferior_endplate'],
         ],
       },
+      upAxis: [LUMBAR_LEVELS[at - 1]?.id ?? 'l5_s1', LUMBAR_LEVELS[at + 1]?.id ?? 't12_l1'],
       centreSource: dataset(
         `midway between the endplates either side of the ${level.id} disc, each measured from ` +
           'its bone',
@@ -594,6 +606,7 @@ const SPINE_JOINTS: JointSpec[] = [
         ['vertebra_t12', 'Inferior_endplate'],
       ],
     },
+    upAxis: ['l1_l2', 't11_t12'],
     centreSource: dataset(
       'midway between the endplates either side of the disc, each measured from its bone',
     ),
@@ -657,6 +670,7 @@ const NECK_JOINTS: JointSpec[] = [
         ['vertebra_c7', 'Inferior_endplate'],
       ],
     },
+    upAxis: ['t1_t2', 'c6_c7'],
     centreSource: dataset(
       'midway between the endplates either side of the disc, each measured from its bone',
     ),
@@ -671,6 +685,11 @@ const NECK_JOINTS: JointSpec[] = [
     childBone: 'occipital',
     type: 'universal',
     centre: { measured: ['occipital', 'Condylar_midpoint'] },
+    // Not through the condyles. They carry the skull from *behind* the dens -- 13 mm behind it
+    // and barely 2 mm above -- so a line drawn to them leans the head back through eighty degrees
+    // and has nothing to do with which way the neck runs. The skull's frame follows the top of the
+    // cervical column instead, from the C2/C3 disc up to the dens.
+    upAxis: ['c2_c3', 'c1_c2'],
     centreSource: dataset(
       'midway between the two occipital condyles, measured from the bone: the export marks one ' +
         'of the pair, and taking it hinged the head 23 mm off the midline',
@@ -818,6 +837,28 @@ function datasetContext(): ExprContext {
  * then expressed in the parent bone's frame as a fraction of stature, like every other position
  * in the document.
  */
+
+/**
+ * A joint's frame turned so its up-axis lies along the line from `from` to `to`.
+ *
+ * The shortest rotation that does it, applied on top of the frame the joint would otherwise have,
+ * so every DoF vector keeps the convention it is already written in and only the frame moves. See
+ * `JointSpec.upAxis` for which two points a spinal joint names and why those.
+ */
+type P3 = readonly [number, number, number];
+
+function alongAxis(base: Quat, from: P3, to: P3): Quat {
+  const wanted = normalize(vec3(to[0] - from[0], to[1] - from[1], to[2] - from[2]));
+  // Where the frame's own up-axis points before the turn.
+  const up = rotate(base, rotate(conjugate(ISB_CANONICAL), vec3(0, 1, 0)));
+  const axis = cross(up, wanted);
+  const sin = Math.hypot(axis.x, axis.y, axis.z);
+  // Already along it, or exactly against it -- neither happens on a spine, and both are left
+  // alone rather than turned through an arbitrary half circle.
+  if (sin < 1e-9) return base;
+  return multiplyQuat(fromAxisAngle(normalize(axis), Math.atan2(sin, dot(up, wanted))), base);
+}
+
 export function buildJoints(document: Pick<HsdlDocument, 'bones' | 'landmarks'>): JointDef[] {
   const context = datasetContext();
   const world = computeWorldTransforms(document, context);
@@ -849,22 +890,34 @@ export function buildJoints(document: Pick<HsdlDocument, 'bones' | 'landmarks'>)
     return rotate(conjugate(target), rotate(from.rotation, axis));
   };
 
+  // Every joint's centre, so a joint that leans with the chain can ask for its neighbours'.
+  // A centre is a pure function of the landmarks, so this needs no ordering.
+  const jointCentres = new Map<string, P3>(JOINT_SPECS.map((s) => [s.id, centreWorld(s.centre)]));
+
   return JOINT_SPECS.map((spec): JointDef => {
     const parentWorld = world.get(spec.parentBone);
     if (!parentWorld)
       throw new Error(`Joint '${spec.id}' parent '${spec.parentBone}' has no pose.`);
     const parentFrame = frames.get(spec.parentBone);
     const centre = centreWorld(spec.centre);
+    const base = parentFrame ? parentFrame.rotation : ISB_CANONICAL;
+    const lean = spec.upAxis;
     const jointWorld: Transform = {
       translation: vec3(centre[0], centre[1], centre[2]),
-      rotation: parentFrame ? parentFrame.rotation : ISB_CANONICAL,
+      rotation: lean
+        ? alongAxis(base, jointCentres.get(lean[0]) ?? centre, jointCentres.get(lean[1]) ?? centre)
+        : base,
     };
     const local = relativeTo(jointWorld, parentWorld);
     const mirrored = spec.side === 'l';
 
     const provenance: JointProvenance = {
       centre: centreLocator(spec.centre),
-      orientation: parentFrame ? `isb-frame:${spec.parentBone}` : 'isb-canonical',
+      orientation: lean
+        ? `up along the line from joint ${lean[0]} to joint ${lean[1]}`
+        : parentFrame
+          ? `isb-frame:${spec.parentBone}`
+          : 'isb-canonical',
       mirrored,
     };
 

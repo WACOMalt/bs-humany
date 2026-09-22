@@ -183,6 +183,33 @@ export interface JointSpec {
   readonly dofs: readonly DofSpec[];
   readonly reportingOrder?: JointDef['reportingOrder'];
   readonly limitations?: readonly string[];
+  /**
+   * The joint below this one and the joint above, when the frame should lean with the chain.
+   *
+   * A joint's frame is its parent bone's ISB frame, and a vertebra has none, so every joint in the
+   * spine fell back on the canonical world frame. That is a defensible convention for reporting
+   * three rotations and a poor description of a spine: a disc at the bottom of the thoracic
+   * kyphosis is tilted fifteen degrees out of the horizontal and one at the top twenty-three the
+   * other way, and a frame that ignores it reports axial rotation about the vertical rather than
+   * about the spine, and draws every disc flat.
+   *
+   * Given these, the frame is turned by the shortest rotation until its up-axis lies along the
+   * line from the joint below to the joint above -- the spine's own direction there. Nothing else
+   * changes: the local axes keep the convention every DoF vector is written in, and the turn goes
+   * on top. Naming itself as one end gives a one-sided difference, which is what the two ends of
+   * the chain have to take.
+   *
+   * Why the chain and not the bone. The obvious answer is the vertebral body's own axis, or the
+   * chord across the two bodies the disc lies between, and both were measured and are noise: the
+   * two-body chord runs 1.9, 0.4, -1.5, -2.9, -1.9, -1.5, 0.9, 0.8, 5.5 degrees up the lumbar and
+   * lower thoracic spine, wandering either side of zero with no pattern, because a single
+   * endplate's centre is only located to a millimetre or two and differencing two of them 25 mm
+   * apart makes an angle out of that error. A joint centre is the midpoint of two endplates and
+   * averages half of it away; the line between two joint centres spans 60 mm and averages the
+   * rest. It comes out smooth and it comes out right -- lordosis, kyphosis, lordosis, with the
+   * turning points where a spine's are.
+   */
+  readonly upAxis?: readonly [below: string, above: string];
   /** Which side's sign policy applies; midline joints have none. */
   readonly side?: Side;
 }

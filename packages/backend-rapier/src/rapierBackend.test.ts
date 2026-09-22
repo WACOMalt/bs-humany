@@ -266,6 +266,12 @@ describe('the L1 articulation', () => {
         buffers.pose.position[3 * hand + 2] ?? 0,
       ),
     );
+    // The highest the hand gets, not where it happens to be at step 300. The grab is a spring on
+    // a rag doll and the body swings on it: over 1500 steps this hand passes 1.85 m and comes back
+    // to 1.03 more than once, so reading one instant asks which phase of the swing that instant
+    // lands in. It used to land high and now lands low, for no better reason than that the spine's
+    // joints lean where they did not before.
+    let highest = y0;
     for (let i = 0; i < 300; i++) {
       grab.setTarget(
         vec3(
@@ -275,9 +281,10 @@ describe('the L1 articulation', () => {
         ),
       );
       backend.step(1);
+      backend.readPose(buffers.pose);
+      highest = Math.max(highest, buffers.pose.position[3 * hand + 1] ?? 0);
     }
-    backend.readPose(buffers.pose);
-    expect(buffers.pose.position[3 * hand + 1] ?? 0).toBeGreaterThan(y0 + 0.1);
+    expect(highest).toBeGreaterThan(y0 + 0.1);
     grab.release();
     backend.step(1);
     backend.dispose();

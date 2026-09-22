@@ -100,7 +100,7 @@ which is a statement about the attachments rather than about the muscle.
 | semitendinosus_r | 202 mm | 221 mm | 0.91 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
 | semitendinosus_l | 202 mm | 221 mm | 0.91 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
 | psoas_major_l | 58 mm | 66 mm | 0.87 | 117 mm | 117 mm | 277 mm | 0.59 .. 1.16 |
-| psoas_major_r | 57 mm | 66 mm | 0.86 | 117 mm | 117 mm | 290 mm | 0.59 .. 1.16 |
+| psoas_major_r | 58 mm | 66 mm | 0.87 | 117 mm | 117 mm | 290 mm | 0.59 .. 1.16 |
 | supraspinatus_l **(capped)** | 25 mm | 29 mm | 0.85 | 90 mm | 81 mm | 101 mm | 0.99 .. 1.32 |
 | supraspinatus_r **(capped)** | 25 mm | 29 mm | 0.85 | 90 mm | 81 mm | 101 mm | 0.99 .. 1.32 |
 | rectus_femoris_l | 157 mm | 190 mm | 0.83 | 171 mm | 171 mm | 505 mm | 0.62 .. 1.73 |

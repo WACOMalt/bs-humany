@@ -132,6 +132,9 @@ function spineLevel(
   ranges: Parameters<typeof spineDofs>[0],
   rationale: string,
   file: string,
+  /** The levels either side, whose centres the frame leans along. */
+  below: string,
+  above: string,
 ): JointSpec {
   return {
     id,
@@ -145,6 +148,9 @@ function spineLevel(
         [upper, 'Inferior_endplate'],
       ],
     },
+    // The frame leans with the spine, which tilts the drawn disc with the lordosis and the
+    // kyphosis and makes axial rotation a rotation about the spine rather than about the vertical.
+    upAxis: [below, above],
     centreSource: dataset(
       `midway between the endplates either side of the ${id} disc, each measured from its bone`,
     ),
@@ -174,6 +180,10 @@ const THORACIC_LEVELS: JointSpec[] = Array.from({ length: 11 }, (_, i) => {
     THORACIC_LEVEL,
     THORACIC_RATIONALE,
     TORSO,
+    // Below: the next level down, and at the bottom of the run the thoracolumbar joint.
+    upper === 11 ? 't12_l1' : `t${upper + 1}_t${upper + 2}`,
+    // Above: the next level up, and at the top the cervicothoracic one.
+    upper === 1 ? 'c7_t1' : `t${upper - 1}_t${upper}`,
   );
 });
 
@@ -186,6 +196,8 @@ const CERVICAL_LEVELS: JointSpec[] = [
     SUBAXIAL,
     CERVICAL_RATIONALE,
     HEAD,
+    't1_t2',
+    'c6_c7',
   ),
   ...[6, 5, 4, 3, 2].map((upper) =>
     spineLevel(
@@ -196,6 +208,8 @@ const CERVICAL_LEVELS: JointSpec[] = [
       SUBAXIAL,
       CERVICAL_RATIONALE,
       HEAD,
+      upper === 6 ? 'c7_t1' : `c${upper + 1}_c${upper + 2}`,
+      upper === 2 ? 'c1_c2' : `c${upper - 1}_c${upper}`,
     ),
   ),
   {
@@ -210,6 +224,8 @@ const CERVICAL_LEVELS: JointSpec[] = [
     childBone: 'vertebra_c1',
     type: 'spherical',
     centre: { measured: ['vertebra_c2', 'Dens'] },
+    // As for the atlanto-occipital above it: up the column, not out to the condyles.
+    upAxis: ['c2_c3', 'c1_c2'],
     centreSource: dataset('the dens of the axis, measured from the bone'),
     reportingOrder: 'zxy',
     dofs: spineDofs(C1_C2, CERVICAL_RATIONALE, HEAD),
@@ -225,6 +241,11 @@ const CERVICAL_LEVELS: JointSpec[] = [
     childBone: 'occipital',
     type: 'spherical',
     centre: { measured: ['occipital', 'Condylar_midpoint'] },
+    // Not through the condyles. They carry the skull from *behind* the dens -- 13 mm behind it
+    // and barely 2 mm above -- so a line drawn to them leans the head back through eighty degrees
+    // and has nothing to do with which way the neck runs. The skull's frame follows the top of the
+    // cervical column instead, from the C2/C3 disc up to the dens.
+    upAxis: ['c2_c3', 'c1_c2'],
     centreSource: dataset(
       'midway between the two occipital condyles, measured from the bone: the export marks one ' +
         'of the pair, and taking it hinged the head 23 mm off the midline',

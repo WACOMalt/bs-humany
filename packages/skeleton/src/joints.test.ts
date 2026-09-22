@@ -135,11 +135,14 @@ describe('joint definitions', () => {
     expect(p?.centre).toBe('landmark femur_r__head_of_femur__articular_centre');
     expect(p?.orientation).toBe('isb-frame:hip_r');
     expect(p?.mirrored).toBe(false);
-    // The sacrum carries the ISB pelvis frame; a lumbar vertebra has no frame yet.
+    // A spinal joint leans with the chain, whatever frame its parent bone would have given it.
+    // Both of these used to take the frame of the bone below -- the sacrum's for the one, nothing
+    // at all for the other -- which drew every disc flat and reported axial rotation about the
+    // vertical rather than about the spine.
     const l5 = joints.get('lumbar_region_lower')?.ext?.[JOINT_NS] as JointProvenance | undefined;
-    expect(l5?.orientation).toBe('isb-frame:sacrum');
+    expect(l5?.orientation).toBe('up along the line from joint l5_s1 to joint l4_l5');
     const t12 = joints.get('lumbar_region_upper')?.ext?.[JOINT_NS] as JointProvenance | undefined;
-    expect(t12?.orientation).toBe('isb-canonical');
+    expect(t12?.orientation).toBe('up along the line from joint l1_l2 to joint t11_t12');
   });
 });
 
@@ -175,6 +178,61 @@ describe('joint centres', () => {
       'neck_region_upper',
     ]) {
       expect(Math.abs(jointWorld(id).translation.x), id).toBeLessThan(1e-4);
+    }
+  });
+
+  it('lean each disc with the spine, and keep every one of them in the sagittal plane', () => {
+    // The curve, level by level: the discs lean forward at the base of the lumbar spine, back
+    // through the lordosis and the lower thoracic, level again at T4/T5, and forward once more
+    // through the upper thoracic and the neck. What is asserted is the shape rather than the
+    // numbers -- one sign change going up the lumbar spine and one coming back down the thoracic
+    // -- because the numbers are a measurement and the shape is what a spine has.
+    const lean = (id: string) => {
+      const up = rotate(jointWorld(id).rotation, vec3(0, 1, 0));
+      return Math.atan2(-up.z, up.y) * (180 / Math.PI);
+    };
+    const chain = [
+      'l5_s1',
+      'l4_l5',
+      'l3_l4',
+      'l2_l3',
+      'l1_l2',
+      't12_l1',
+      't11_t12',
+      't10_t11',
+      't9_t10',
+      't8_t9',
+      't7_t8',
+      't6_t7',
+      't5_t6',
+      't4_t5',
+      't3_t4',
+      't2_t3',
+      't1_t2',
+      'c7_t1',
+      'c6_c7',
+      'c5_c6',
+      'c4_c5',
+    ];
+    const leans = chain.map(lean);
+    // Forward at the bottom, back through the thoracolumbar junction, forward again at the top.
+    expect(leans[0], 'l5_s1').toBeGreaterThan(2);
+    expect(Math.min(...leans), 'the back of the kyphosis').toBeLessThan(-12);
+    expect(Math.max(...leans.slice(-5)), 'the top of the kyphosis').toBeGreaterThan(15);
+    // And it is smooth: no level leans more than 15 degrees differently from the one below it.
+    // This is the assertion the rule that came before would have failed. Taking the chord across
+    // the two vertebral bodies either side of each disc gave 1.9, 0.4, -1.5, -2.9, -1.9, -1.5,
+    // 0.9, 0.8, 5.5, -0.4, 1.6, -9.9, -11.0 up the spine -- a zigzag, because a single endplate
+    // centre is located to a millimetre or two and differencing two of them 25 mm apart turns
+    // that into an angle.
+    for (let i = 1; i < leans.length; i++) {
+      const step = Math.abs((leans[i] as number) - (leans[i - 1] as number));
+      expect(step, `${chain[i - 1]} to ${chain[i]}`).toBeLessThan(15);
+    }
+    // Nothing tips sideways: the rules never mention the midline, so this is a check on them.
+    for (const id of chain) {
+      const up = rotate(jointWorld(id).rotation, vec3(0, 1, 0));
+      expect(Math.abs(Math.atan2(up.x, up.y)) * (180 / Math.PI), id).toBeLessThan(0.5);
     }
   });
 
