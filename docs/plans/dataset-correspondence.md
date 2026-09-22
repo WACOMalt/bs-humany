@@ -35,14 +35,14 @@ Attachment points stay ours (ADR-011). The source is a cross-check and never a s
 ## The work, in the order it will be done
 
 ### 1 — The alignment tool  *(one deliverable, three panes)*
-- [ ] 1.1 Parse the vendored MJCF into muscle -> path sites -> world positions, for torso, arm and legs
-- [ ] 1.2 Their sites drawn in the viewport as a reference overlay, plainly marked as the other
+- [x] 1.1 Parse the vendored MJCF into muscle -> path sites -> world positions, for torso, arm and legs
+- [x] 1.2 Their sites drawn in the viewport as a reference overlay, plainly marked as the other
       body, never a snap target
-- [ ] 1.3 Correspondence picker: their muscles beside ours, click to pair, many-to-one allowed,
+- [x] 1.3 Correspondence picker: their muscles beside ours, click to pair, many-to-one allowed,
       with automatic suggestions where a name or a path plainly matches
-- [ ] 1.4 Point inspector: our joint centres and attachment sites as pickable handles
-- [ ] 1.5 A transform gizmo, XYZ, snapping off by default
-- [ ] 1.6 Write both outputs with provenance: the correspondence mapping, and an override file
+- [x] 1.4 Point inspector: our joint centres and attachment sites as pickable handles
+- [x] 1.5 A transform gizmo, XYZ, snapping off by default
+- [x] 1.6 Write both outputs with provenance: the correspondence mapping, and an override file
       recording each moved point, how far it moved, and a required note
 - [ ] 1.7 Extend `measure:source-travel` to use the mapping and measure the 106 unmeasured units
 

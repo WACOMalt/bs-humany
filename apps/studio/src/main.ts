@@ -26,6 +26,7 @@ import {
   captureCeilingBytes,
   defaultCaptureBudgetBytes,
 } from '@bs-humany/export-gltf';
+import { transformPoint } from '@bs-humany/frames';
 import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
 import {
   QUALITY_HIGH,
@@ -65,6 +66,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three';
+import { type AlignPanel, createAlignPanel, loadSourceSites } from './align/alignPanel.js';
 import { buildBlenderExport } from './blenderExport.js';
 import { createBrainPanel } from './brain.js';
 import { BridgeFollower } from './follow.js';
@@ -157,8 +159,10 @@ const camera = new PerspectiveCamera(
  */
 camera.position.set(1.5, 1.1, -2.6);
 
+/** True while the Align tab's gizmo is being dragged, so the camera holds still for it. */
+let gizmoDragging = false;
 const controls = createOrbitControls(camera, renderer.domElement, new Vector3(0, 0.9, 0), {
-  claimPointer: (event) => beginGrab(event),
+  claimPointer: (event) => gizmoDragging || beginGrab(event),
 });
 
 scene.add(new HemisphereLight(0xb8c6e0, 0x2a2118, 0.55));
@@ -841,6 +845,9 @@ async function startSimulation(
     world.add(overlays.root);
     applyOverlayVisibility();
     showFurniture(sim.staticBoxes);
+    // The Align tab draws our own joints and attachments, which are this body's: when the body
+    // is rebuilt they are a different body's and have to be read again.
+    align?.refresh();
     showCapabilities(sim);
     must<HTMLElement>('#diagnostics').hidden = false;
     must<HTMLElement>('#timeline-control').hidden = false;
@@ -1324,6 +1331,7 @@ ui.muscles.addEventListener('change', () => {
 // The brain panel is made once the follow code below exists; runs read its setup when they start.
 // biome-ignore lint/style/useConst: assigned once, but below the code that reads it, so a `const` there would be in its dead zone for the handlers above.
 let brain: ReturnType<typeof createBrainPanel> | undefined;
+let align: AlignPanel | undefined;
 
 // --- The editors' chrome: tabs, what the page remembers, the overlays popover ------------------
 const memory = createMemory();
@@ -2474,6 +2482,51 @@ followButton.addEventListener('click', () => {
 // ---------------------------------------------------------------------------------------------
 // The brain panel: a policy in charge, and training from here.
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * The Align tab: the reference models beside ours, and the points of ours that need moving.
+ *
+ * Built once and given the scene, because it draws into the same world the body is in. Its
+ * reference data is fetched rather than bundled, so a studio nobody aligns anything in never
+ * pays for it.
+ */
+align = createAlignPanel(
+  {
+    articulation: () => simulation?.articulation,
+    units: () => simulation?.muscles?.units.map((u) => u.id) ?? [],
+    sites: () => {
+      const sim = simulation;
+      if (!sim?.muscles) return [];
+      const at = new Map(sim.articulation.segments.map((seg) => [seg.id, seg]));
+      const out: { id: string; bone: string; world: { x: number; y: number; z: number } }[] = [];
+      for (const path of sim.muscles.paths) {
+        for (const [end, where] of [
+          ['origin', path.origin],
+          ['insertion', path.insertion],
+        ] as const) {
+          const seg = at.get(where.bone);
+          if (!seg) continue;
+          out.push({
+            id: `${path.id}:${end}`,
+            bone: where.bone,
+            world: transformPoint(seg.restWorld, where.point),
+          });
+        }
+      }
+      return out;
+    },
+    save: (name, text) => void download(name, text, 'application/json'),
+    setGizmoDragging: (dragging) => {
+      gizmoDragging = dragging;
+    },
+  },
+  camera,
+  renderer,
+);
+align.attach(world);
+void loadSourceSites().then((data) => {
+  if (data) align?.adopt(data);
+});
 
 brain = createBrainPanel({
   handOver(setup) {

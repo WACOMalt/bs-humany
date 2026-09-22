@@ -88,6 +88,7 @@
           <button type="button" data-tab="scenario" title="Scenario: what happens">Scene</button>
           <button type="button" data-tab="muscles" title="Muscles: drive the body by hand">Muscles</button>
           <button type="button" data-tab="brain" title="Brain: a trained policy in charge, and training">Brain</button>
+          <button type="button" data-tab="align" title="Align: the reference models beside ours, and the points that need moving">Align</button>
           <button type="button" data-tab="export" title="Export: recordings, Blender, sessions">Export</button>
           <button type="button" data-tab="health" title="Health: whether the numbers are right">Health</button>
         </nav>
@@ -414,6 +415,109 @@
             </details>
           </section>
 
+
+          <!-- Align -->
+          <section data-panel="align" hidden>
+            <details class="panel" open>
+              <summary>Reference model</summary>
+              <p class="note">The muscles of the model our parameters came from, drawn as paths.
+              Their meshes are not vendored, so there are no bones on that side. It is a reference
+              and never a target: attachment points here are measured from the Z-Anatomy meshes and
+              stay ours.</p>
+              <div class="control">
+                <label for="align-model">Which model</label>
+                <select id="align-model">
+                  <option value="">None</option>
+                </select>
+              </div>
+              <label class="checkbox"><input type="checkbox" id="align-show" /> Show their muscles</label>
+              <p class="note live" id="align-model-note"></p>
+              <div class="control grid2">
+                <label for="align-x">Across <output id="align-x-value">0.00</output></label>
+                <input type="range" id="align-x" min="-1" max="1" step="0.005" value="0" />
+                <label for="align-y">Up <output id="align-y-value">0.00</output></label>
+                <input type="range" id="align-y" min="-1" max="2" step="0.005" value="0" />
+                <label for="align-z">Forward <output id="align-z-value">0.00</output></label>
+                <input type="range" id="align-z" min="-1" max="1" step="0.005" value="0" />
+                <label for="align-rx">Pitch <output id="align-rx-value">-90</output></label>
+                <input type="range" id="align-rx" min="-180" max="180" step="1" value="-90" />
+                <label for="align-ry">Yaw <output id="align-ry-value">0</output></label>
+                <input type="range" id="align-ry" min="-180" max="180" step="1" value="0" />
+                <label for="align-rz">Roll <output id="align-rz-value">0</output></label>
+                <input type="range" id="align-rz" min="-180" max="180" step="1" value="0" />
+                <label for="align-scale">Scale <output id="align-scale-value">1.00</output></label>
+                <input type="range" id="align-scale" min="0.5" max="1.6" step="0.005" value="1" />
+              </div>
+              <p class="note">Their models are Z-up and ours is Y-up, which is the pitch of -90 and
+              the one part of the registration that is a fact rather than a judgement. The rest is
+              yours to set by eye. Drag the gizmo in the viewport, or use these.</p>
+              <div class="buttons">
+                <button type="button" id="align-grab">Grab with gizmo</button>
+                <button type="button" id="align-reset">Reset placement</button>
+              </div>
+            </details>
+
+            <details class="panel" open>
+              <summary>Correspondence</summary>
+              <p class="note">Which of their muscles is which of ours. Many of theirs may map to
+              one of ours -- their six external oblique strips are our one external oblique -- so
+              pair as many as belong together. This is what unblocks measuring the hundred and six
+              units that have never been compared against anything.</p>
+              <div class="control grid2">
+                <label for="align-theirs">Theirs <output id="align-theirs-count"></output></label>
+                <input type="search" id="align-theirs-find" placeholder="filter" spellcheck="false" />
+                <label for="align-ours">Ours <output id="align-ours-count"></output></label>
+                <input type="search" id="align-ours-find" placeholder="filter" spellcheck="false" />
+              </div>
+              <div class="control grid2">
+                <select id="align-theirs" size="10"></select>
+                <select id="align-ours" size="10"></select>
+              </div>
+              <div class="buttons">
+                <button type="button" id="align-pair" disabled>Pair these</button>
+                <button type="button" id="align-unpair" disabled>Unpair</button>
+              </div>
+              <p class="note live" id="align-pair-note"></p>
+              <div class="control">
+                <label for="align-pairs">Paired so far <output id="align-pairs-count">0</output></label>
+                <select id="align-pairs" size="8"></select>
+              </div>
+              <div class="buttons">
+                <button type="button" id="align-save-pairs">Save correspondence</button>
+              </div>
+            </details>
+
+            <details class="panel" open>
+              <summary>Our points</summary>
+              <p class="note">Joint centres and attachment sites on our own skeleton, as handles.
+              The truth here is our mesh, not their model: a point is moved because it is wrong
+              against the bone it sits on. Every move is recorded with the distance and a note.</p>
+              <div class="control">
+                <label for="align-points">What to show</label>
+                <select id="align-points">
+                  <option value="">Nothing</option>
+                  <option value="joints">Joint centres</option>
+                  <option value="sites">Attachment sites</option>
+                </select>
+              </div>
+              <p class="note live" id="align-point-note">No point picked.</p>
+              <div class="control">
+                <label for="align-reason">Why it moved</label>
+                <input type="text" id="align-reason" maxlength="140" placeholder="e.g. the marker is a label anchor, not the joint centre" spellcheck="false" />
+              </div>
+              <div class="buttons">
+                <button type="button" id="align-keep" disabled>Keep this move</button>
+                <button type="button" id="align-revert" disabled>Put it back</button>
+              </div>
+              <div class="control">
+                <label for="align-moves">Moved so far <output id="align-moves-count">0</output></label>
+                <select id="align-moves" size="6"></select>
+              </div>
+              <div class="buttons">
+                <button type="button" id="align-save-moves">Save overrides</button>
+              </div>
+            </details>
+          </section>
           <!-- Export -->
           <section data-panel="export" hidden>
             <details class="panel" open>

@@ -30,7 +30,8 @@ import { MODELS, referenceArmXml } from '../../validate-external/src/referenceAr
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
-const OUT = join(ROOT, 'apps/studio/src/align/sourceSites.json');
+// Served rather than bundled: only the Align tab reads it, and it is a hundred kilobytes.
+const OUT = join(ROOT, 'apps/studio/public/sourceSites.json');
 
 /**
  * The torso, which `referenceArm.mjs` does not list because nothing needed it until now. It is
