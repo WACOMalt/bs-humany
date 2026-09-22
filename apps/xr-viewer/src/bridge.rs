@@ -741,7 +741,7 @@ pub struct Settings {
 pub struct DriveGroup {
     pub title: String,
     pub level: f64,
-    /// Arm, Leg, Trunk or Neck: the desktop's collapsed sections.
+    /// Arm, Hand, Leg, Trunk or Neck: the desktop's collapsed sections.
     #[serde(default)]
     pub section: String,
 }

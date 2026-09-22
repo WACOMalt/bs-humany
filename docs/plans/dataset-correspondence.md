@@ -64,6 +64,35 @@ Two separate faults, and the first is documented rather than accidental.
 - [x] 3.4 Confirm against the gap measurement: the four worst muscles are all toe muscles
 
 ### 4 — The hand, and muscles for both ends
-- [ ] 4.1 Articulate the hand: 31 segments exist and carry no joints at all
-- [ ] 4.2 Toe and finger muscles, with drive groups of their own
-- [ ] 4.3 Carry them through every render path, the trainer, and both panels
+- [x] 4.1 Articulate the hand. It already was: 30 joints and 40 degrees of freedom, which an
+      earlier probe missed because it searched for joints named `finger` or `metacarp` and they
+      are named `cmc_1_r`, `mcp_2_r`, `pip_2_r`. What the hand had no trace of was muscles.
+- [x] 4.2 Toe and finger muscles, with drive groups of their own. 38 units: the extrinsics of the
+      hand, plus extensor carpi ulnaris which the forearm set had to leave out. Six new drive
+      groups -- finger and thumb flexors and extensors, and the toes taken out of the ankle's
+      groups into two of their own. 272 units, 70 policy outputs for 35 groups a side.
+- [x] 4.3 Carried through: the studio's sliders, the headset's panel and the trainer all read
+      `MUSCLE_GROUPS` and pick the new groups up as data, and the whole-body muscle list is now
+      written once in `wholeBody.ts` rather than copied into five places -- one of which,
+      `measure:muscle-ranges`, had already drifted and would have measured a body with no hands.
+
+**What works, measured.** Driving the finger flexors takes every joint of every finger through
+53 to 90 degrees -- a fist -- and the thumb flexors bend the thumb's metacarpophalangeal 83
+degrees. Swept end to end, 29 of 32 muscle-joint pairs across the hand and both feet hold one
+sign through their whole range; the three that do not are flexors in the last third of a range a
+finger rarely reaches, and a wrap surface at each bone's head is the fix.
+
+**What does not, and why.** The toe extensor drive moves nothing, because a silent body's
+metatarsophalangeal joints already rest against their extension stop -- the long extensors' own
+passive tension. OQ-030 has the measurements and the suspect, which is extensor digitorum
+longus's fiber length: the worst unit in the body for travel at 2.93 times the reference's, so
+its fiber length is a stand-in and where a fiber sits on its force-length curve at rest is
+exactly what decides its passive tension.
+
+### 5 — Left over
+- [ ] 5.1 Wrap surfaces at the digit heads, for the three flexors that reverse at deep flexion
+- [ ] 5.2 The hand's intrinsics: lumbricals, interossei, thenar and hypothenar. All of them
+      insert into the dorsal expansion or arise from the flexor retinaculum, neither of which the
+      dataset carries. The reference model has all sixteen.
+- [ ] 5.3 Split the two digitorum muscles into their four real slips each in the foot, as the
+      hand's now are (the rest of OQ-021)

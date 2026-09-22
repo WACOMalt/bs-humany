@@ -927,3 +927,25 @@ elastic-zone data, or the bushing stiffnesses of a published thoracolumbar model
 settling time, and the costovertebral ligaments get their own.
 **Status:** open.
 
+
+### OQ-030 — The toes rest at their extension limit
+**Needed for:** `packages/muscle-data/src/ankle.ts`, `tools/cli/bin/generate-ankle-muscles.mjs`
+**Provisional value:** with the toes articulated and the four long tendons reaching them, a body
+with every muscle silent settles with both metatarsophalangeal joints against their +30 degree
+extension stop. Nothing is driving them there: it is the long extensors' passive tension winning
+against the long flexors' at the neutral pose, through a 7 mm moment arm. The joints themselves
+work -- driving the toe flexors takes the same joint from +30 to -30 and curls every
+interphalangeal with it, and the hallux's interphalangeal extends 36 degrees under the extensors
+-- but the toe extensor drive has nowhere left to go, so it reads as a control that does nothing.
+
+The suspect is extensor digitorum longus's fiber length. It is the worst unit in the body for
+travel, 2.93 times the reference's, so the cap in `measure:source-travel` sets its optimal fiber
+length from a stand-in rather than from the source, and where a fiber sits on its own
+force-length curve at rest is exactly what decides its passive tension. Extensor hallucis longus
+is second at 1.82.
+
+**Closes when:** the anterior compartment's fiber lengths come from a source that states an
+operating range (the same want as OQ-022), or the foot gets a frame correspondence of its own so
+the travel these muscles are measured over is the travel they really have (OQ-021). Either would
+be checked the same way: a silent body's toes should rest near neutral, not on a stop.
+**Status:** open.
