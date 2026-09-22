@@ -293,19 +293,7 @@ const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
 const { articulation } = compileArticulation(document, 'l3_anatomical', morphology);
 const compiled = modules.compileMuscleSet(
-  [
-    ...muscleData.ELBOW_MUSCLES,
-    ...muscleData.SHOULDER_MUSCLES,
-    ...muscleData.KNEE_MUSCLES,
-    ...muscleData.HIP_MUSCLES,
-    ...muscleData.ANKLE_MUSCLES,
-    ...muscleData.TRUNK_MUSCLES,
-    ...muscleData.FOREARM_MUSCLES,
-    ...muscleData.TORSO_MUSCLES,
-    ...muscleData.NECK_MUSCLES,
-    ...muscleData.GIRDLE_MUSCLES,
-    ...muscleData.THORAX_MUSCLES,
-  ],
+  [...muscleData.ALL_MUSCLES],
   document.attachmentSites,
   articulation,
   morphology.context,

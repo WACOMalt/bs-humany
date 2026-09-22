@@ -304,8 +304,15 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       parentBone: `metacarpal_1_${s}`,
       childBone: `phalanx_proximal_1_${s}`,
       type: 'revolute',
-      centre: { boundary: [`metacarpal_1_${s}`, `phalanx_proximal_1_${s}`, 1] },
-      centreSource: dataset(`bounds boundary of metacarpal_1_${s} and phalanx_proximal_1_${s}`),
+      centre: {
+        between: [
+          [`metacarpal_1_${s}`, 'Head_of_digit_bone'],
+          [`phalanx_proximal_1_${s}`, 'Base_of_digit_bone'],
+        ],
+      },
+      centreSource: dataset(
+        `midway between the head of metacarpal_1_${s} and the base of phalanx_proximal_1_${s}`,
+      ),
       dofs: [
         {
           axis: 'flexion',
@@ -321,8 +328,15 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       parentBone: `phalanx_proximal_1_${s}`,
       childBone: `phalanx_distal_1_${s}`,
       type: 'revolute',
-      centre: { boundary: [`phalanx_proximal_1_${s}`, `phalanx_distal_1_${s}`, 1] },
-      centreSource: dataset(`bounds boundary of phalanx_proximal_1_${s} and phalanx_distal_1_${s}`),
+      centre: {
+        between: [
+          [`phalanx_proximal_1_${s}`, 'Head_of_digit_bone'],
+          [`phalanx_distal_1_${s}`, 'Base_of_digit_bone'],
+        ],
+      },
+      centreSource: dataset(
+        `midway between the head of phalanx_proximal_1_${s} and the base of phalanx_distal_1_${s}`,
+      ),
       dofs: [
         {
           axis: 'flexion',
@@ -374,9 +388,14 @@ function girdleAndLimbs(s: Side): JointSpec[] {
         parentBone: `metacarpal_${n}_${s}`,
         childBone: `phalanx_proximal_${n}_${s}`,
         type: 'universal',
-        centre: { boundary: [`metacarpal_${n}_${s}`, `phalanx_proximal_${n}_${s}`, 1] },
+        centre: {
+          between: [
+            [`metacarpal_${n}_${s}`, 'Head_of_digit_bone'],
+            [`phalanx_proximal_${n}_${s}`, 'Base_of_digit_bone'],
+          ],
+        },
         centreSource: dataset(
-          `bounds boundary of metacarpal_${n}_${s} and phalanx_proximal_${n}_${s}`,
+          `midway between the head of metacarpal_${n}_${s} and the base of phalanx_proximal_${n}_${s}`,
         ),
         reportingOrder: 'zxy',
         dofs: [
@@ -403,9 +422,14 @@ function girdleAndLimbs(s: Side): JointSpec[] {
         parentBone: `phalanx_proximal_${n}_${s}`,
         childBone: `phalanx_middle_${n}_${s}`,
         type: 'revolute',
-        centre: { boundary: [`phalanx_proximal_${n}_${s}`, `phalanx_middle_${n}_${s}`, 1] },
+        centre: {
+          between: [
+            [`phalanx_proximal_${n}_${s}`, 'Head_of_digit_bone'],
+            [`phalanx_middle_${n}_${s}`, 'Base_of_digit_bone'],
+          ],
+        },
         centreSource: dataset(
-          `bounds boundary of phalanx_proximal_${n}_${s} and phalanx_middle_${n}_${s}`,
+          `midway between the head of phalanx_proximal_${n}_${s} and the base of phalanx_middle_${n}_${s}`,
         ),
         dofs: [
           {
@@ -422,9 +446,14 @@ function girdleAndLimbs(s: Side): JointSpec[] {
         parentBone: `phalanx_middle_${n}_${s}`,
         childBone: `phalanx_distal_${n}_${s}`,
         type: 'revolute',
-        centre: { boundary: [`phalanx_middle_${n}_${s}`, `phalanx_distal_${n}_${s}`, 1] },
+        centre: {
+          between: [
+            [`phalanx_middle_${n}_${s}`, 'Head_of_digit_bone'],
+            [`phalanx_distal_${n}_${s}`, 'Base_of_digit_bone'],
+          ],
+        },
         centreSource: dataset(
-          `bounds boundary of phalanx_middle_${n}_${s} and phalanx_distal_${n}_${s}`,
+          `midway between the head of phalanx_middle_${n}_${s} and the base of phalanx_distal_${n}_${s}`,
         ),
         dofs: [
           {
@@ -629,8 +658,15 @@ function toeJoints(s: Side): JointSpec[] {
       parentBone: `metatarsal_${n}_${s}`,
       childBone: proximal,
       type: 'universal',
-      centre: { boundary: [`metatarsal_${n}_${s}`, proximal, 1] },
-      centreSource: dataset(`bounds boundary of metatarsal_${n}_${s} and ${proximal}`),
+      centre: {
+        between: [
+          [`metatarsal_${n}_${s}`, 'Head_of_digit_bone'],
+          [proximal, 'Base_of_digit_bone'],
+        ],
+      },
+      centreSource: dataset(
+        `midway between the head of metatarsal_${n}_${s} and the base of ${proximal}`,
+      ),
       reportingOrder: 'zxy',
       dofs: [
         {
@@ -659,12 +695,24 @@ function toeJoints(s: Side): JointSpec[] {
         parentBone: proximal,
         childBone: `phalanx_pedis_distal_${n}_${s}`,
         type: 'revolute',
-        centre: { boundary: [proximal, `phalanx_pedis_distal_${n}_${s}`, 1] },
-        centreSource: dataset(`bounds boundary of ${proximal} and phalanx_pedis_distal_${n}_${s}`),
+        centre: {
+          between: [
+            [proximal, 'Head_of_digit_bone'],
+            [`phalanx_pedis_distal_${n}_${s}`, 'Base_of_digit_bone'],
+          ],
+        },
+        centreSource: dataset(
+          `midway between the head of ${proximal} and the base of phalanx_pedis_distal_${n}_${s}`,
+        ),
         dofs: [
           {
             axis: 'flexion',
-            vector: [0, 0, 1],
+            // Down, not up. The finger's interphalangeals take [0, 0, 1] and curl the
+            // fingertip toward the palm; the toe's frames come out the other way round, and with
+            // [0, 0, 1] a positive "flexion" lifted the toe tip 9 mm instead of curling it -- so
+            // the coordinate was extension under a flexor's name, its range ran the wrong way out
+            // of neutral, and flexor digitorum longus pulled against its own limit.
+            vector: [0, 0, -1],
             range: [0, 1.0472],
             romSource: OQ011('The hallux curls about sixty degrees; no cited range is in hand.'),
           },
@@ -681,12 +729,22 @@ function toeJoints(s: Side): JointSpec[] {
         parentBone: proximal,
         childBone: middle,
         type: 'revolute',
-        centre: { boundary: [proximal, middle, 1] },
-        centreSource: dataset(`bounds boundary of ${proximal} and ${middle}`),
+        centre: {
+          between: [
+            [proximal, 'Head_of_digit_bone'],
+            [middle, 'Base_of_digit_bone'],
+          ],
+        },
+        centreSource: dataset(`midway between the head of ${proximal} and the base of ${middle}`),
         dofs: [
           {
             axis: 'flexion',
-            vector: [0, 0, 1],
+            // Down, not up. The finger's interphalangeals take [0, 0, 1] and curl the
+            // fingertip toward the palm; the toe's frames come out the other way round, and with
+            // [0, 0, 1] a positive "flexion" lifted the toe tip 9 mm instead of curling it -- so
+            // the coordinate was extension under a flexor's name, its range ran the wrong way out
+            // of neutral, and flexor digitorum longus pulled against its own limit.
+            vector: [0, 0, -1],
             range: [0, 0.610865],
             romSource: OQ011('A lesser toe curls about thirty-five degrees here.'),
           },
@@ -698,12 +756,22 @@ function toeJoints(s: Side): JointSpec[] {
         parentBone: middle,
         childBone: distal,
         type: 'revolute',
-        centre: { boundary: [middle, distal, 1] },
-        centreSource: dataset(`bounds boundary of ${middle} and ${distal}`),
+        centre: {
+          between: [
+            [middle, 'Head_of_digit_bone'],
+            [distal, 'Base_of_digit_bone'],
+          ],
+        },
+        centreSource: dataset(`midway between the head of ${middle} and the base of ${distal}`),
         dofs: [
           {
             axis: 'flexion',
-            vector: [0, 0, 1],
+            // Down, not up. The finger's interphalangeals take [0, 0, 1] and curl the
+            // fingertip toward the palm; the toe's frames come out the other way round, and with
+            // [0, 0, 1] a positive "flexion" lifted the toe tip 9 mm instead of curling it -- so
+            // the coordinate was extension under a flexor's name, its range ran the wrong way out
+            // of neutral, and flexor digitorum longus pulled against its own limit.
+            vector: [0, 0, -1],
             range: [0, 0.523599],
             romSource: OQ011('The tip curls about thirty degrees; no cited range is in hand.'),
           },

@@ -136,7 +136,8 @@ const UNITS = [
     id: 'flexor_carpi_radialis_$',
     name: 'Flexor carpi radialis',
     origin: 'flexor_carpi_radialis_origin_$_medial_epicondyle_of_humerus',
-    insertion: 'flexor_carpi_radialis_insertion_$_tubercle_of_scaphoid_bone',
+    insertion: 'flexor_carpi_radialis_insertion_$_base_of_digit_bone',
+    via: ['flexor_carpi_radialis_path_$_scaphoid_tubercle_of_scaphoid_bone'],
   },
   {
     actuator: 'FCU',
@@ -158,7 +159,8 @@ const UNITS = [
     id: 'extensor_carpi_radialis_longus_$',
     name: 'Extensor carpi radialis longus',
     origin: 'extensor_carpi_radialis_longus_origin_$_lateral_supracondylar_ridge',
-    insertion: 'extensor_carpi_radialis_longus_insertion_$_metacarpal_base',
+    insertion: 'extensor_carpi_radialis_longus_insertion_$_base_of_digit_bone',
+    via: ['extensor_carpi_radialis_longus_path_$_radius_radial_styloid_process'],
   },
   {
     actuator: 'ECRB',

@@ -53,19 +53,7 @@ import {
   type SpinalGains,
   SpinalModule,
 } from '@bs-humany/modules-nerves';
-import {
-  ANKLE_MUSCLES,
-  ELBOW_MUSCLES,
-  FOREARM_MUSCLES,
-  GIRDLE_MUSCLES,
-  HIP_MUSCLES,
-  KNEE_MUSCLES,
-  NECK_MUSCLES,
-  SHOULDER_MUSCLES,
-  THORAX_MUSCLES,
-  TORSO_MUSCLES,
-  TRUNK_MUSCLES,
-} from '@bs-humany/muscle-data';
+import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
   GOAL_SIZE,
   type NervesSetup,
@@ -98,7 +86,7 @@ export interface SimulationOptions {
    * is used for has nothing to do with muscles -- though the studio now asks for them by default,
    * because a muscle module should open showing muscles. What is wired up is the whole set: the
    * elbow, shoulder, forearm, hip, knee, ankle, trunk, torso, neck, shoulder girdle and thorax,
-   * two hundred and thirty-four units.
+   * two hundred and seventy-two units.
    * The hand has none yet.
    */
   readonly muscles?: boolean | undefined;
@@ -331,19 +319,7 @@ export class Simulation {
       // The muscle set is resolved against this articulation, so it follows the fidelity profile
       // and the morphology without being re-authored: bone ids are the stable interface.
       this.muscles = compileMuscleSet(
-        [
-          ...ELBOW_MUSCLES,
-          ...SHOULDER_MUSCLES,
-          ...KNEE_MUSCLES,
-          ...HIP_MUSCLES,
-          ...ANKLE_MUSCLES,
-          ...TRUNK_MUSCLES,
-          ...FOREARM_MUSCLES,
-          ...TORSO_MUSCLES,
-          ...NECK_MUSCLES,
-          ...GIRDLE_MUSCLES,
-          ...THORAX_MUSCLES,
-        ],
+        [...ALL_MUSCLES],
         document.attachmentSites,
         this.articulation,
         morphology.context,

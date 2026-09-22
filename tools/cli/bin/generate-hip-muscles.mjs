@@ -153,7 +153,7 @@ const UNITS = [
     // through, so the bend is stated from our own anatomy instead -- see `path` in
     // `attachments.ts`. Without it the path is a chord that passes behind the hip centre in
     // extension and the flexor reads as an extensor.
-    via: ['iliacus_path_$_iliopubic_eminence'],
+    via: ['iliacus_path_$_hip_iliopubic_eminence'],
     insertion: 'iliacus_insertion_$_lesser_trochanter',
   },
   {
@@ -163,7 +163,7 @@ const UNITS = [
     name: 'Psoas major',
     origin: 'psoas_major_origin_$_vertebral_body',
     // The same brim as iliacus, and for the same reason.
-    via: ['psoas_major_path_$_iliopubic_eminence'],
+    via: ['psoas_major_path_$_hip_iliopubic_eminence'],
     insertion: 'psoas_major_insertion_$_lesser_trochanter',
   },
   {

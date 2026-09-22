@@ -57,10 +57,25 @@ export type Centre =
   | { readonly centroidMid: readonly [string, string] }
   /**
    * Where two bones' bounds meet along an axis: the proximal bone's far extreme and the distal
-   * bone's near extreme averaged, at the distal bone's centroid on the other axes. For the
-   * finger and toe joints, whose bones carry no markers.
+   * bone's near extreme averaged, at the distal bone's centroid on the other axes.
+   *
+   * Only as good as that last clause, which is the whole trouble with it: on the two axes it does
+   * not choose, the joint lands at the middle of the *distal bone*. For a bone that runs along the
+   * chosen axis that is nearly right. For a finger, which points down and forward at once, it is
+   * not: the third metacarpophalangeal came out 13 mm palmar and 4 mm lateral of the metacarpal's
+   * head, which put the joint on the palmar side of its own flexor tendons and made them
+   * extensors. Prefer `between`, which needs no axis and no centroid.
    */
   | { readonly boundary: readonly [proximal: string, distal: string, axis: 0 | 1 | 2] }
+  /**
+   * Midway between two measured landmarks: a joint whose two bones each say where they meet.
+   *
+   * What the digits use. Every bone in every finger and toe carries a measured base and head
+   * (`tools/ingest/src/derived.ts`), and a joint is between the proximal bone's head and the
+   * distal bone's base -- which come out 1.2 to 7.6 mm apart down every digit, a joint space. No
+   * axis to choose and no centroid to fall back on.
+   */
+  | { readonly between: readonly [readonly [string, string], readonly [string, string]] }
   /** The point of one bone's bounds nearest another bone's centroid: a rib head at its vertebra. */
   | { readonly nearest: readonly [bone: string, toward: string] }
   | { readonly centroid: string };
@@ -93,6 +108,10 @@ export function centreWorld(c: Centre): P3 {
     out[axis] = (proximalFar + distalNear) / 2;
     return out;
   }
+  if ('between' in c) {
+    const [a, b] = c.between.map(([bone, feature]) => measuredWorld(bone, feature)) as [P3, P3];
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+  }
   if ('nearest' in c) {
     const bone = packed(c.nearest[0]);
     const toward = packed(c.nearest[1]).centroid;
@@ -118,6 +137,11 @@ export function centreLocator(c: Centre): string {
   if ('centroid' in c) return `centroid of ${c.centroid}`;
   if ('boundary' in c)
     return `bounds boundary of ${c.boundary[0]} and ${c.boundary[1]} along ${'xyz'[c.boundary[2]]}`;
+  if ('between' in c)
+    return (
+      `midway between landmarks ${landmarkId(...c.between[0])} and ` +
+      `${landmarkId(...c.between[1])}`
+    );
   if ('nearest' in c) return `point of ${c.nearest[0]} bounds nearest ${c.nearest[1]}`;
   return `midpoint of centroids ${c.centroidMid[0]} and ${c.centroidMid[1]}`;
 }

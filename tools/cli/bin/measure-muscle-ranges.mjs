@@ -77,19 +77,7 @@ const modules = await jiti.import(join(ROOT, 'packages/modules-muscle/src/index.
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
 const { articulation } = compileArticulation(document, 'l3_anatomical', morphology);
-const groups = [
-  ...muscleData.ELBOW_MUSCLES,
-  ...muscleData.SHOULDER_MUSCLES,
-  ...muscleData.KNEE_MUSCLES,
-  ...muscleData.HIP_MUSCLES,
-  ...muscleData.ANKLE_MUSCLES,
-  ...muscleData.TRUNK_MUSCLES,
-  ...muscleData.FOREARM_MUSCLES,
-  ...muscleData.TORSO_MUSCLES,
-  ...muscleData.NECK_MUSCLES,
-  ...muscleData.GIRDLE_MUSCLES,
-  ...muscleData.THORAX_MUSCLES,
-];
+const groups = [...muscleData.ALL_MUSCLES];
 const muscles = modules.compileMuscleSet(
   groups,
   document.attachmentSites,

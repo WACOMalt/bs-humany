@@ -292,6 +292,7 @@ export function sided(units) {
         insertion: put(unit.insertion),
         wrap: put(unit.wrap),
         ...(unit.via === undefined ? {} : { via: unit.via.map((id) => put(id)) }),
+        ...(unit.viaAfter === undefined ? {} : { viaAfter: unit.viaAfter.map((id) => put(id)) }),
         name: `${unit.name}, ${word}`,
         ...(unit.groupName === undefined ? {} : { groupName: `${unit.groupName}, ${word}` }),
         side_: s,
@@ -326,6 +327,9 @@ function quoted(name, value) {
   return single.length <= LINE_WIDTH ? single : `        ${name}:\n          '${value}',`;
 }
 
+/** The formatter's line width, from biome.json: past it, it breaks an object across lines. */
+const FORMATTER_WIDTH = 100;
+
 export function renderGroups(units, viaPointsFor, direction, model = ARM) {
   const groups = new Map();
   for (const unit of units) {
@@ -355,10 +359,23 @@ export function renderGroups(units, viaPointsFor, direction, model = ARM) {
       const elements = [
         ...(unit.via ?? []).map((id) => ({ kind: 'site', id })),
         ...pathElements(unit, viaPointsFor, direction, unit.model ?? model),
+        // And points of its own *after* them, for a muscle whose own points are the distal ones.
+        // The long toe tendons are the case: the reference holds them at the ankle and this
+        // package holds them along the toe, and a toe point ahead of an ankle point sends the
+        // tendon down to the toe, back to the ankle and out to the toe again.
+        ...(unit.viaAfter ?? []).map((id) => ({ kind: 'site', id })),
       ]
         .map((e) =>
           e.kind === 'site'
-            ? `          { kind: 'site', site: '${e.id}' },\n`
+            ? // The formatter breaks a line past a hundred columns, and a finger tendon's site
+              // ids are long enough to reach it. A generator whose output has to be reformatted
+              // cannot check its own output, so it writes the broken form itself.
+              `          { kind: 'site', site: '${e.id}' },\n`.length - 1 > FORMATTER_WIDTH
+              ? `          {
+            kind: 'site',
+            site: '${e.id}',
+          },\n`
+              : `          { kind: 'site', site: '${e.id}' },\n`
             : `          {
             kind: 'wrap',
             surface: '${unit.wrap}',
@@ -374,11 +391,14 @@ export function renderGroups(units, viaPointsFor, direction, model = ARM) {
       // output. A unit with no path at all is a straight line from origin to insertion, which
       // several of the knee flexors are.
       const lines = elements.split('\n').filter((line) => line.length > 0);
+      const oneLine = `[${elements.trim().replace(/,$/, '')}]`;
       const path =
         lines.length === 0
           ? '[]'
-          : lines.length === 1
-            ? `[${elements.trim().replace(/,$/, '')}]`
+          : // A single point goes on one line unless that line would run past the formatter's
+            // width, which one long site id is enough to do.
+            lines.length === 1 && `        path: ${oneLine},`.length <= FORMATTER_WIDTH
+            ? oneLine
             : `[\n${elements}        ]`;
       body.push(`      {
         id: '${unit.id}',

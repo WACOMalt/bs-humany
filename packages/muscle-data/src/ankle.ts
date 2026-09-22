@@ -197,8 +197,17 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_digitorum_longus_r',
         displayName: 'Extensor digitorum longus, right',
         origin: 'extensor_digitorum_longus_origin_r_footprint',
-        insertion: 'extensor_digitorum_longus_insertion_r_base_of_digit_bone',
-        path: [],
+        insertion: 'extensor_digitorum_longus_insertion_r_extensor_side_of_shaft',
+        path: [
+          {
+            kind: 'site',
+            site: 'extensor_digitorum_longus_path_r_metatarsal_3_extensor_side_of_head',
+          },
+          {
+            kind: 'site',
+            site: 'extensor_digitorum_longus_path_r_phalanx_pedis_proximal_3_extensor_side_of_head',
+          },
+        ],
         parameters: {
           maxIsometricForce: 553.241,
           optimalFiberLength: 0.0693006,
@@ -221,8 +230,17 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_hallucis_longus_r',
         displayName: 'Extensor hallucis longus, right',
         origin: 'extensor_hallucis_longus_origin_r_anteromedial_surface_of_fibula',
-        insertion: 'extensor_hallucis_longus_insertion_r_base_of_digit_bone',
-        path: [],
+        insertion: 'extensor_hallucis_longus_insertion_r_extensor_side_of_shaft',
+        path: [
+          {
+            kind: 'site',
+            site: 'extensor_hallucis_longus_path_r_metatarsal_1_extensor_side_of_head',
+          },
+          {
+            kind: 'site',
+            site: 'extensor_hallucis_longus_path_r_phalanx_pedis_proximal_1_extensor_side_of_head',
+          },
+        ],
         parameters: {
           maxIsometricForce: 265.537,
           optimalFiberLength: 0.0748004,
@@ -245,12 +263,21 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_digitorum_longus_r',
         displayName: 'Flexor digitorum longus, right',
         origin: 'flexor_digitorum_longus_origin_r_posterior_surface_of_tibia',
-        insertion: 'flexor_digitorum_longus_insertion_r_base_of_digit_bone',
+        insertion: 'flexor_digitorum_longus_insertion_r_flexor_side_of_shaft',
         path: [
           { kind: 'site', site: 'flexor_digitorum_longus_r__via_1' },
           { kind: 'site', site: 'flexor_digitorum_longus_r__via_2' },
           { kind: 'site', site: 'flexor_digitorum_longus_r__via_3' },
           { kind: 'site', site: 'flexor_digitorum_longus_r__via_4' },
+          { kind: 'site', site: 'flexor_digitorum_longus_path_r_metatarsal_3_flexor_side_of_head' },
+          {
+            kind: 'site',
+            site: 'flexor_digitorum_longus_path_r_phalanx_pedis_proximal_3_flexor_side_of_head',
+          },
+          {
+            kind: 'site',
+            site: 'flexor_digitorum_longus_path_r_phalanx_pedis_middle_3_flexor_side_of_head',
+          },
         ],
         parameters: {
           maxIsometricForce: 332.13,
@@ -274,12 +301,17 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_hallucis_longus_r',
         displayName: 'Flexor hallucis longus, right',
         origin: 'flexor_hallucis_longus_origin_r_posterior_surface_of_fibula',
-        insertion: 'flexor_hallucis_longus_insertion_r_base_of_digit_bone',
+        insertion: 'flexor_hallucis_longus_insertion_r_flexor_side_of_shaft',
         path: [
           { kind: 'site', site: 'flexor_hallucis_longus_r__via_1' },
           { kind: 'site', site: 'flexor_hallucis_longus_r__via_2' },
           { kind: 'site', site: 'flexor_hallucis_longus_r__via_3' },
           { kind: 'site', site: 'flexor_hallucis_longus_r__via_4' },
+          { kind: 'site', site: 'flexor_hallucis_longus_path_r_metatarsal_1_flexor_side_of_head' },
+          {
+            kind: 'site',
+            site: 'flexor_hallucis_longus_path_r_phalanx_pedis_proximal_1_flexor_side_of_head',
+          },
         ],
         parameters: {
           maxIsometricForce: 749.779,
@@ -436,8 +468,17 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_digitorum_longus_l',
         displayName: 'Extensor digitorum longus, left',
         origin: 'extensor_digitorum_longus_origin_l_footprint',
-        insertion: 'extensor_digitorum_longus_insertion_l_base_of_digit_bone',
-        path: [],
+        insertion: 'extensor_digitorum_longus_insertion_l_extensor_side_of_shaft',
+        path: [
+          {
+            kind: 'site',
+            site: 'extensor_digitorum_longus_path_l_metatarsal_3_extensor_side_of_head',
+          },
+          {
+            kind: 'site',
+            site: 'extensor_digitorum_longus_path_l_phalanx_pedis_proximal_3_extensor_side_of_head',
+          },
+        ],
         parameters: {
           maxIsometricForce: 553.241,
           optimalFiberLength: 0.0693006,
@@ -460,8 +501,17 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_hallucis_longus_l',
         displayName: 'Extensor hallucis longus, left',
         origin: 'extensor_hallucis_longus_origin_l_anteromedial_surface_of_fibula',
-        insertion: 'extensor_hallucis_longus_insertion_l_base_of_digit_bone',
-        path: [],
+        insertion: 'extensor_hallucis_longus_insertion_l_extensor_side_of_shaft',
+        path: [
+          {
+            kind: 'site',
+            site: 'extensor_hallucis_longus_path_l_metatarsal_1_extensor_side_of_head',
+          },
+          {
+            kind: 'site',
+            site: 'extensor_hallucis_longus_path_l_phalanx_pedis_proximal_1_extensor_side_of_head',
+          },
+        ],
         parameters: {
           maxIsometricForce: 265.537,
           optimalFiberLength: 0.0748004,
@@ -484,12 +534,21 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_digitorum_longus_l',
         displayName: 'Flexor digitorum longus, left',
         origin: 'flexor_digitorum_longus_origin_l_posterior_surface_of_tibia',
-        insertion: 'flexor_digitorum_longus_insertion_l_base_of_digit_bone',
+        insertion: 'flexor_digitorum_longus_insertion_l_flexor_side_of_shaft',
         path: [
           { kind: 'site', site: 'flexor_digitorum_longus_l__via_1' },
           { kind: 'site', site: 'flexor_digitorum_longus_l__via_2' },
           { kind: 'site', site: 'flexor_digitorum_longus_l__via_3' },
           { kind: 'site', site: 'flexor_digitorum_longus_l__via_4' },
+          { kind: 'site', site: 'flexor_digitorum_longus_path_l_metatarsal_3_flexor_side_of_head' },
+          {
+            kind: 'site',
+            site: 'flexor_digitorum_longus_path_l_phalanx_pedis_proximal_3_flexor_side_of_head',
+          },
+          {
+            kind: 'site',
+            site: 'flexor_digitorum_longus_path_l_phalanx_pedis_middle_3_flexor_side_of_head',
+          },
         ],
         parameters: {
           maxIsometricForce: 332.13,
@@ -513,12 +572,17 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_hallucis_longus_l',
         displayName: 'Flexor hallucis longus, left',
         origin: 'flexor_hallucis_longus_origin_l_posterior_surface_of_fibula',
-        insertion: 'flexor_hallucis_longus_insertion_l_base_of_digit_bone',
+        insertion: 'flexor_hallucis_longus_insertion_l_flexor_side_of_shaft',
         path: [
           { kind: 'site', site: 'flexor_hallucis_longus_l__via_1' },
           { kind: 'site', site: 'flexor_hallucis_longus_l__via_2' },
           { kind: 'site', site: 'flexor_hallucis_longus_l__via_3' },
           { kind: 'site', site: 'flexor_hallucis_longus_l__via_4' },
+          { kind: 'site', site: 'flexor_hallucis_longus_path_l_metatarsal_1_flexor_side_of_head' },
+          {
+            kind: 'site',
+            site: 'flexor_hallucis_longus_path_l_phalanx_pedis_proximal_1_flexor_side_of_head',
+          },
         ],
         parameters: {
           maxIsometricForce: 749.779,

@@ -52,14 +52,23 @@ describe('the ankle muscle set', () => {
     // OQ-021. Via points are carried through one frame correspondence fitted at the femur, and by
     // the ankle they are out by about 20 mm -- nothing to a tendon 50 mm behind the joint,
     // everything to one 40 mm in front. Carried, tibialis anterior had a 4 mm dorsiflexion arm.
+    const carried = (id: string) =>
+      ANKLE_UNITS.find((u) => u.id === id)?.path.filter(
+        (p) => p.kind === 'site' && !p.site.includes('_side_of_'),
+      );
     for (const id of [
       'tibialis_anterior_r',
       'extensor_digitorum_longus_r',
       'extensor_hallucis_longus_r',
     ]) {
-      const unit = ANKLE_UNITS.find((u) => u.id === id);
-      expect(unit?.path, id).toEqual([]);
+      expect(carried(id), id).toEqual([]);
     }
+    // The two long extensors do keep points of *our* own out along the toe -- measured off the
+    // phalanges rather than carried from anywhere -- because without them the tendon runs from
+    // the ankle to the toe in a straight line and crosses the joints it is named for. Those are
+    // the `_side_of_` ones the filter above sets aside.
+    const toes = ANKLE_UNITS.find((u) => u.id === 'extensor_digitorum_longus_r')?.path;
+    expect(toes?.length).toBeGreaterThan(0);
     // And the posterior and lateral ones keep theirs, because theirs come out right.
     const posterior = ANKLE_UNITS.find((u) => u.id === 'fibularis_longus_r');
     expect(posterior?.path.length).toBeGreaterThan(0);
@@ -68,16 +77,22 @@ describe('the ankle muscle set', () => {
   it('carries the four long toe muscles to a phalanx, so they have an action at the toes', () => {
     // They used to stop at a metatarsal head, because the export marks no phalangeal feature --
     // which left them with no action at the toes at all, and with the toes welded into one body
-    // there was none to have. `Base_of_digit_bone` is measured off each phalanx's mesh now
+    // there was none to have. Every phalanx's ends are measured off its own mesh now
     // (tools/ingest/src/derived.ts), which is the second half of what OQ-021 closes on.
-    for (const id of [
-      'extensor_digitorum_longus_r',
-      'extensor_hallucis_longus_r',
-      'flexor_digitorum_longus_r',
-      'flexor_hallucis_longus_r',
-    ]) {
+    //
+    // A flexor ends on the *plantar* side of the shaft and an extensor on the dorsal one, which is
+    // where Gray puts them and is not a nicety: ending at the centre of the base puts the
+    // insertion on the joint it is meant to move, and the moment arm came out under a millimetre;
+    // ending on the base's plantar side fixed the sign but not the reversal at depth, because a
+    // point level with a joint swings across the tendon's own line as the bone turns.
+    for (const [id, side] of [
+      ['extensor_digitorum_longus_r', 'extensor'],
+      ['extensor_hallucis_longus_r', 'extensor'],
+      ['flexor_digitorum_longus_r', 'flexor'],
+      ['flexor_hallucis_longus_r', 'flexor'],
+    ] as const) {
       const unit = ANKLE_UNITS.find((u) => u.id === id);
-      expect(unit?.insertion, id).toMatch(/_insertion_r_base_of_digit_bone$/);
+      expect(unit?.insertion, id).toBe(`${id.slice(0, -2)}_insertion_r_${side}_side_of_shaft`);
     }
   });
 

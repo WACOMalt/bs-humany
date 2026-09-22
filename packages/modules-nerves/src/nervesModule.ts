@@ -13,7 +13,7 @@
  * costly part of the tick. But the command is added every tick, since the accumulator is zeroed
  * every tick.
  *
- * What it drives is groups, not units -- forty-six outputs for twenty-three groups a side --
+ * What it drives is groups, not units -- seventy outputs for thirty-five groups a side --
  * because that is the dimension a controller can be trained in and the dimension a person
  * reasons in. Each output is a signed correction in [-authority, +authority], spread over the
  * group's units by their weights.

@@ -14,52 +14,112 @@
  "metatarsal_1_l": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_medial_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_medial_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_medial_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_1_r": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_medial_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_medial_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_medial_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_2_l": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_intermediate_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_intermediate_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_intermediate_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_2_r": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_intermediate_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_intermediate_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_intermediate_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_3_l": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_lateral_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_lateral_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_lateral_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_3_r": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_lateral_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_lateral_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_lateral_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_4_l": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_4_r": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_5_l": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metatarsal_5_r": {
   "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "tibia_l": {
   "Medial_malleolus": "most inferior vertex of the tibia mesh (min Y): the tip of the medial malleolus"
@@ -347,266 +407,662 @@
  },
  "phalanx_pedis_proximal_1_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_1_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_1_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_1_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_1_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_1_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_1_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_1_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_1_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_1_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_1_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_1_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_1_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_1_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_1_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_1_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_2_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_2_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_2_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_2_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_2_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_2_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_2_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_2_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_2_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_2_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_2_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_2_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_2_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_2_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_2_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_2_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_2_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_2_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_2_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_2_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_2_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_2_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_2_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_2_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_3_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_3_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_3_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_3_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_3_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_3_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_3_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_3_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_3_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_3_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_3_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_3_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_3_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_3_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_3_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_3_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_3_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_3_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_3_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_3_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_3_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_3_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_3_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_3_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_4_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_4_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_4_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_4_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_4_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_4_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_4_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_4_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_4_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_4_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_4_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_4_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_4_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_4_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_4_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_4_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_4_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_4_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_4_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_4_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_4_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_4_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_4_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_4_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_5_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_5_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_5_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_5_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_proximal_5_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_5_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_5_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_5_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_5_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_5_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_5_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_5_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_middle_5_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_5_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_5_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_5_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_5_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_5_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_5_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_5_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_pedis_distal_5_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_5_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_5_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_5_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_1_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezium_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezium_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezium_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_1_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_1_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_1_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_1_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_1_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_1_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_1_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_1_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_2_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezoid_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezoid_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezoid_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_2_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_2_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_2_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_2_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_2_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_2_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_2_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_2_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_2_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_2_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_2_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_2_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_3_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer capitate_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from capitate_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from capitate_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_3_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_3_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_3_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_3_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_3_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_3_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_3_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_3_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_3_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_3_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_3_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_3_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_4_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_4_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_4_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_4_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_4_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_4_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_4_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_4_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_4_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_4_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_4_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_4_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_4_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_5_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_5_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_5_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_5_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_5_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_5_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_5_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_5_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_5_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_5_l": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_5_l",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_5_l"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_5_l",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_1_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezium_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezium_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezium_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_1_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_1_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_1_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_1_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_1_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_1_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_1_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_1_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_2_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezoid_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezoid_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezoid_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_2_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_2_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_2_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_2_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_2_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_2_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_2_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_2_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_2_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_2_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_2_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_2_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_3_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer capitate_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from capitate_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from capitate_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_3_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_3_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_3_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_3_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_3_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_3_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_3_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_3_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_3_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_3_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_3_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_3_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_4_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_4_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_4_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_4_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_4_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_4_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_4_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_4_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_4_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_4_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_4_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_4_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_4_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "metacarpal_5_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_proximal_5_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_5_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_5_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_5_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_middle_5_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_5_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_5_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_5_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  },
  "phalanx_distal_5_r": {
   "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_5_r",
-  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_5_r"
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_5_r",
+  "Flexor_side_of_head": "centroid of the head band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_head": "centroid of the head band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_base": "centroid of the base band moved to the flexor side of the bone by the band's own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_base": "centroid of the base band moved to the extensor side of the bone by the band's own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed",
+  "Flexor_side_of_shaft": "centroid of the whole bone moved to the flexor side of it by its own half-thickness that way, the direction being the limb's flexor side with its component along the bone's own long axis removed",
+  "Extensor_side_of_shaft": "centroid of the whole bone moved to the extensor side of it by its own half-thickness that way, the direction being the limb's extensor side with its component along the bone's own long axis removed"
  }
 }

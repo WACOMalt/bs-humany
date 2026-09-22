@@ -147,6 +147,198 @@ interface MuscleSpec {
   readonly bilateral: boolean;
 }
 
+/**
+ * Where a tendon running to `stop` is held down, and the two sides do not want the same answer.
+ *
+ * Both sides get a point at the head of every bone they pass, which is where the pulley is. The
+ * extensor gets one at each bone's base as well and the flexor does not, and that asymmetry is
+ * the geometry of which side of the bend the tendon is on.
+ *
+ * The extensor runs over the convex side: as the joint flexes, both bones' ends fall away from
+ * the chord between them, so with only the heads the chord swings past the joint centre and the
+ * muscle reverses -- extensor digitorum's arm at the little finger's proximal interphalangeal ran
+ * -2.9 mm to +1.1 across ninety degrees. A point at each base holds the crossing span at the
+ * joint and cures it.
+ *
+ * The flexor runs over the concave side, where the chord already stands off the joint and a base
+ * point pulls it back in: given one, flexor digitorum superficialis went 4.3 mm to -3.3 by thirty
+ * degrees, which is worse than the fault it was meant to cure. Both were measured on every digit
+ * joint of the hand and both feet; this pairing leaves three reversals out of thirty-two, all of
+ * them flexors in the last third of a range a finger rarely reaches.
+ */
+const heldAt =
+  (side: 'Flexor' | 'Extensor') =>
+  (
+    digit: number,
+    stop: 'proximal' | 'middle' | 'distal',
+  ): ReadonlyArray<readonly [string, string]> => {
+    const chain = [`metacarpal_${digit}_$`, ...phalanxChain(digit, stop)];
+    return chain.flatMap((bone, i) => [
+      // The first bone's base is behind the wrist and holds nothing; the last bone's head is past
+      // the insertion.
+      ...(i === 0 || side === 'Flexor' ? [] : [[bone, `${side}_side_of_base`] as const]),
+      ...(i === chain.length - 1 ? [] : [[bone, `${side}_side_of_head`] as const]),
+    ]);
+  };
+
+const flexorPath = heldAt('Flexor');
+const extensorPath = heldAt('Extensor');
+
+/** The phalanges of a digit from the proximal one up to and including `stop`. */
+function phalanxChain(digit: number, stop: 'proximal' | 'middle' | 'distal'): string[] {
+  // The thumb has no middle phalanx, so a tendon ending on its distal one crosses one phalanx.
+  const parts = digit === 1 ? ['proximal', 'distal'] : ['proximal', 'middle', 'distal'];
+  return parts.slice(0, parts.indexOf(stop) + 1).map((part) => `phalanx_${part}_${digit}_$`);
+}
+
+/** Where a tendon crosses the wrist: the compartment of the extensor retinaculum it runs in. */
+const CARPAL_TUNNEL: readonly [string, string] = ['hamate_$', 'Hook_of_hamate_bone'];
+const FIRST_COMPARTMENT: readonly [string, string] = ['radius_$', 'Radial_styloid_process'];
+const LISTERS_TUBERCLE: readonly [string, string] = ['radius_$', 'Dorsal_radial_tubercle'];
+const ULNAR_COMPARTMENT: readonly [string, string] = ['ulna_$', 'Head_of_ulna'];
+
+const digitName = (d: number) =>
+  ({ 1: 'thumb', 2: 'index', 3: 'middle', 4: 'ring', 5: 'little' })[d] ?? String(d);
+
+/**
+ * The long digital tendons, one spec each. See the block comment where they are spread in.
+ */
+const HAND_EXTRINSICS: readonly MuscleSpec[] = [
+  ...([2, 3, 4, 5] as const).flatMap((d): MuscleSpec[] => [
+    {
+      id: `flexor_digitorum_superficialis_${d}`,
+      muscle: `Flexor digitorum superficialis, ${digitName(d)}`,
+      section: 'The Flexor digitorum sublimis',
+      bilateral: true,
+      // Gray: from the medial epicondyle, the coronoid process and the anterior border of the
+      // radius, by four tendons to the sides of the middle phalanges of the four fingers.
+      origins: [
+        ['humerus_$', 'Medial_epicondyle_of_humerus'],
+        ['ulna_$', 'Coronoid_process_of_ulna'],
+      ],
+      footprint: [['humerus_$', 'Medial_epicondyle_of_humerus']],
+      path: [CARPAL_TUNNEL, ...flexorPath(d, 'middle')],
+      insertions: [[`phalanx_middle_${d}_$`, 'Flexor_side_of_shaft']],
+    },
+    {
+      id: `flexor_digitorum_profundus_${d}`,
+      muscle: `Flexor digitorum profundus, ${digitName(d)}`,
+      section: 'The Flexor digitorum profundus',
+      bilateral: true,
+      // Gray: from the upper three-fourths of the volar and medial surfaces of the ulna, by four
+      // tendons to the bases of the distal phalanges of the four fingers. It passes *through* the
+      // split superficialis tendon, which is why it reaches a joint further.
+      origins: [['ulna_$', 'Anterior_border_of_ulna']],
+      footprint: [
+        ['ulna_$', 'Anterior_border_of_ulna'],
+        ['ulna_$', 'Medial_surface_of_ulna'],
+      ],
+      path: [CARPAL_TUNNEL, ...flexorPath(d, 'distal')],
+      insertions: [[`phalanx_distal_${d}_$`, 'Flexor_side_of_shaft']],
+    },
+    {
+      id: `extensor_digitorum_${d}`,
+      muscle: `Extensor digitorum, ${digitName(d)}`,
+      section: 'The Extensor digitorum communis',
+      bilateral: true,
+      // Gray: from the lateral epicondyle by the common extensor tendon, by four tendons into the
+      // dorsal expansions of the fingers and thence the middle and distal phalanges. One line to
+      // the distal phalanx stands for that expansion and extends all three joints together.
+      origins: [['humerus_$', 'Lateral_epicondyle_of_humerus']],
+      path: [LISTERS_TUBERCLE, ...extensorPath(d, 'distal')],
+      insertions: [[`phalanx_distal_${d}_$`, 'Extensor_side_of_shaft']],
+    },
+  ]),
+  {
+    id: 'extensor_indicis',
+    muscle: 'Extensor indicis',
+    section: 'The Extensor indicis',
+    bilateral: true,
+    // Gray: from the dorsal surface of the ulna below the middle, joining the extensor digitorum
+    // tendon of the index finger on the back of the hand.
+    origins: [['ulna_$', 'Posterior_surface_of_ulna']],
+    path: [LISTERS_TUBERCLE, ...extensorPath(2, 'distal')],
+    insertions: [['phalanx_distal_2_$', 'Extensor_side_of_shaft']],
+  },
+  {
+    id: 'extensor_digiti_minimi',
+    muscle: 'Extensor digiti minimi',
+    section: 'The Extensor digiti quinti proprius',
+    bilateral: true,
+    // Gray: from the lateral epicondyle by the common extensor tendon, through its own
+    // compartment over the distal radioulnar joint, to the dorsal expansion of the little finger.
+    origins: [['humerus_$', 'Lateral_epicondyle_of_humerus']],
+    path: [ULNAR_COMPARTMENT, ...extensorPath(5, 'distal')],
+    insertions: [['phalanx_distal_5_$', 'Extensor_side_of_shaft']],
+  },
+  {
+    id: 'extensor_carpi_ulnaris',
+    muscle: 'Extensor carpi ulnaris',
+    section: 'The Extensor carpi ulnaris',
+    bilateral: true,
+    // Gray: from the lateral epicondyle and the posterior border of the ulna, to the base of the
+    // fifth metacarpal -- which is measured now, so this muscle can be here at all. It was left
+    // out of the forearm set for want of it, and its absence left the wrist with two flexors and
+    // no ulnar extensor, so ulnar deviation had only one direction.
+    origins: [
+      ['humerus_$', 'Lateral_epicondyle_of_humerus'],
+      ['ulna_$', 'Posterior_border_of_ulna'],
+    ],
+    footprint: [['humerus_$', 'Lateral_epicondyle_of_humerus']],
+    path: [ULNAR_COMPARTMENT],
+    insertions: [['metacarpal_5_$', 'Base_of_digit_bone']],
+  },
+  {
+    id: 'flexor_pollicis_longus',
+    muscle: 'Flexor pollicis longus',
+    section: 'The Flexor pollicis longus',
+    bilateral: true,
+    // Gray: from the grooved volar surface of the radius, to the base of the distal phalanx of
+    // the thumb.
+    origins: [['radius_$', 'Anterior_surface_of_radius']],
+    path: [CARPAL_TUNNEL, ...flexorPath(1, 'distal')],
+    insertions: [['phalanx_distal_1_$', 'Flexor_side_of_shaft']],
+  },
+  {
+    id: 'extensor_pollicis_longus',
+    muscle: 'Extensor pollicis longus',
+    section: 'The Extensor pollicis longus',
+    bilateral: true,
+    // Gray: from the lateral part of the dorsal surface of the ulna, to the base of the distal
+    // phalanx of the thumb. Its tendon turns round the dorsal radial tubercle, which is the one
+    // place in the hand where a via point is not a simplification but the anatomy itself.
+    origins: [['ulna_$', 'Posterior_surface_of_ulna']],
+    path: [LISTERS_TUBERCLE, ...extensorPath(1, 'distal')],
+    insertions: [['phalanx_distal_1_$', 'Extensor_side_of_shaft']],
+  },
+  {
+    id: 'extensor_pollicis_brevis',
+    muscle: 'Extensor pollicis brevis',
+    section: 'The Extensor pollicis brevis',
+    bilateral: true,
+    // Gray: from the dorsal surface of the radius below abductor pollicis longus, to the base of
+    // the first phalanx of the thumb.
+    origins: [['radius_$', 'Posterior_surface_of_radius']],
+    path: [FIRST_COMPARTMENT, ...extensorPath(1, 'proximal')],
+    insertions: [['phalanx_proximal_1_$', 'Extensor_side_of_shaft']],
+  },
+  {
+    id: 'abductor_pollicis_longus',
+    muscle: 'Abductor pollicis longus',
+    section: 'The Abductor pollicis longus',
+    bilateral: true,
+    // Gray: from the lateral part of the dorsal surface of the ulna and the middle third of the
+    // dorsal surface of the radius, to the radial side of the base of the first metacarpal.
+    origins: [
+      ['ulna_$', 'Posterior_surface_of_ulna'],
+      ['radius_$', 'Posterior_surface_of_radius'],
+    ],
+    footprint: [['radius_$', 'Posterior_surface_of_radius']],
+    path: [FIRST_COMPARTMENT],
+    insertions: [['metacarpal_1_$', 'Base_of_digit_bone']],
+  },
+];
+
 const MUSCLES: readonly MuscleSpec[] = [
   {
     id: 'deltoid',
@@ -333,11 +525,12 @@ const MUSCLES: readonly MuscleSpec[] = [
     section: 'The Flexor carpi radialis',
     bilateral: true,
     // Gray: from the medial epicondyle by the common flexor tendon, to the base of the second
-    // metacarpal. The dataset marks nothing on that bone and nothing on the left trapezium either,
-    // whose tubercle its tendon grooves; the scaphoid's tubercle is marked on both sides, is the
-    // radial anchor of the retinaculum this tendon passes under, and is where this one ends.
+    // metacarpal -- which used to be unmarked, so this tendon stopped at the scaphoid's tubercle,
+    // the radial anchor of the retinaculum it passes under. That base is measured now, so the
+    // muscle ends where Gray puts it, and keeps the scaphoid as the point it passes over.
     origins: [['humerus_$', 'Medial_epicondyle_of_humerus']],
-    insertions: [['scaphoid_$', 'Tubercle_of_scaphoid_bone']],
+    path: [['scaphoid_$', 'Tubercle_of_scaphoid_bone']],
+    insertions: [['metacarpal_2_$', 'Base_of_digit_bone']],
   },
   {
     id: 'flexor_carpi_ulnaris',
@@ -373,10 +566,11 @@ const MUSCLES: readonly MuscleSpec[] = [
     bilateral: true,
     // Gray: from the *lower third* of the lateral supracondylar ridge -- brachioradialis takes the
     // upper two-thirds -- to the base of the second metacarpal. `ridgeAttachments.ts` measures
-    // both portions of that ridge; the second metacarpal is unmarked and the third's base stands
-    // in for it.
+    // both portions of that ridge; the second metacarpal's base used to be unmarked and the
+    // third's stood in for it, and is measured now.
     origins: [['humerus_$', 'Lateral_supracondylar_ridge__lower_third']],
-    insertions: [['metacarpal_3_$', 'Metacarpal_base']],
+    path: [['radius_$', 'Radial_styloid_process']],
+    insertions: [['metacarpal_2_$', 'Base_of_digit_bone']],
   },
   {
     id: 'extensor_carpi_radialis_brevis',
@@ -389,6 +583,52 @@ const MUSCLES: readonly MuscleSpec[] = [
     origins: [['humerus_$', 'Lateral_epicondyle_of_humerus']],
     insertions: [['metacarpal_3_$', 'Styloid_process_of_third_metacarpal_bone']],
   },
+  /**
+   * The long tendons of the hand: what actually bends a finger.
+   *
+   * The hand has thirty joints and forty degrees of freedom and had no muscle crossing any of
+   * them, because there was nothing to attach one to. That is fixed at the other end: every bone
+   * in every digit now carries its own base, its own head, and the flexor and extensor sides of
+   * that head, all measured off the bone (`tools/ingest/src/derived.ts`).
+   *
+   * ## The path is the muscle
+   *
+   * A finger flexor that runs straight from the forearm to a fingertip does not flex the finger.
+   * It pulls it off its joints. What makes these muscles work is that the flexors are held
+   * against the palmar side of every bone they cross by the fibrous sheath's pulleys, and the
+   * extensors ride the dorsal ridges -- so each tendon is given the flexor or extensor side of
+   * the head of every bone proximal to its ending, which is where the sheath holds it.
+   *
+   * These are `path` rather than carried via points because `muscleViaPoints.ts` carries points
+   * for the clavicle, scapula, humerus, ulna and radius and nothing beyond: the frame
+   * correspondence it is built on stops at the wrist. The ankle set has the same argument written
+   * out at length and reached the same answer -- our own geometry beats a correspondence fitted
+   * two joints away.
+   *
+   * ## At the wrist, the compartment each tendon is really in
+   *
+   * The extensor retinaculum has six compartments and a tendon in the wrong one is deviated the
+   * wrong way, so each takes the marked feature its own compartment lies over: abductor pollicis
+   * longus and extensor pollicis brevis the radial styloid (first), extensor pollicis longus the
+   * dorsal radial tubercle it hooks around (third), the digital extensors that same tubercle,
+   * which the fourth compartment lies immediately ulnar to, and extensor digiti minimi and
+   * extensor carpi ulnaris the head of the ulna (fifth and sixth). The flexors pass the carpal
+   * tunnel, whose marked ulnar wall is the hook of the hamate.
+   *
+   * ## What is here and what is not
+   *
+   * The extrinsics: the muscles in the forearm that move the digits. Superficialis stops at the
+   * middle phalanx and profundus goes on to the distal one, which is the real difference between
+   * them and gives the finger two genuinely different flexions. The extensor is one line to the
+   * distal phalanx rather than the dorsal expansion it truly is, and so extends all three joints
+   * together -- which is how a finger extends, though not by this mechanism.
+   *
+   * The intrinsics are not here: the lumbricals and the interossei insert into that same dorsal
+   * expansion, which is not bone and which the dataset does not carry, and the thenar and
+   * hypothenar muscles arise from the flexor retinaculum, likewise. The reference model has all
+   * of them and they are listed in `attachmentGaps`.
+   */
+  ...HAND_EXTRINSICS,
   {
     id: 'supinator',
     muscle: 'Supinator',
@@ -1008,7 +1248,11 @@ const MUSCLES: readonly MuscleSpec[] = [
     // It used to stop at a metatarsal head, because the export marks no phalangeal feature --
     // `Base_of_digit_bone` is derived now (see tools/ingest/src/derived.ts), and with the toes
     // articulated a tendon that stopped short of them was crossing no toe joint at all.
-    insertions: [['phalanx_pedis_middle_3_$', 'Base_of_digit_bone']],
+    path: [
+      ['metatarsal_3_$', 'Extensor_side_of_head'],
+      ['phalanx_pedis_proximal_3_$', 'Extensor_side_of_head'],
+    ],
+    insertions: [['phalanx_pedis_middle_3_$', 'Extensor_side_of_shaft']],
   },
   {
     id: 'extensor_hallucis_longus',
@@ -1018,7 +1262,11 @@ const MUSCLES: readonly MuscleSpec[] = [
     // Gray: from the middle of the anterior surface of the fibula, to the base of the distal
     // phalanx of the great toe.
     origins: [['fibula_$', 'Anteromedial_surface_of_fibula']],
-    insertions: [['phalanx_pedis_distal_1_$', 'Base_of_digit_bone']],
+    path: [
+      ['metatarsal_1_$', 'Extensor_side_of_head'],
+      ['phalanx_pedis_proximal_1_$', 'Extensor_side_of_head'],
+    ],
+    insertions: [['phalanx_pedis_distal_1_$', 'Extensor_side_of_shaft']],
   },
   {
     id: 'flexor_digitorum_longus',
@@ -1029,7 +1277,12 @@ const MUSCLES: readonly MuscleSpec[] = [
     // distal phalanges of the four lesser toes.
     origins: [['tibia_$', 'Posterior_surface_of_tibia']],
     // The third toe's distal phalanx, standing for the four the tendon divides between.
-    insertions: [['phalanx_pedis_distal_3_$', 'Base_of_digit_bone']],
+    path: [
+      ['metatarsal_3_$', 'Flexor_side_of_head'],
+      ['phalanx_pedis_proximal_3_$', 'Flexor_side_of_head'],
+      ['phalanx_pedis_middle_3_$', 'Flexor_side_of_head'],
+    ],
+    insertions: [['phalanx_pedis_distal_3_$', 'Flexor_side_of_shaft']],
   },
   {
     id: 'flexor_hallucis_longus',
@@ -1040,7 +1293,11 @@ const MUSCLES: readonly MuscleSpec[] = [
     // distal phalanx of the great toe. Its tendon runs in a groove on the talus and another on
     // the calcaneus, and the dataset marks the calcaneal one.
     origins: [['fibula_$', 'Posterior_surface_of_fibula']],
-    insertions: [['phalanx_pedis_distal_1_$', 'Base_of_digit_bone']],
+    path: [
+      ['metatarsal_1_$', 'Flexor_side_of_head'],
+      ['phalanx_pedis_proximal_1_$', 'Flexor_side_of_head'],
+    ],
+    insertions: [['phalanx_pedis_distal_1_$', 'Flexor_side_of_shaft']],
   },
   {
     id: 'tibialis_posterior',
@@ -1158,7 +1415,18 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
           const centroid = centroids.get(bone);
           if (!site || !centroid) continue;
           const world = site.world;
-          const id = `${m.id}_${role}_${s}_${landmarkId(bone, feature).split('__')[1]}`;
+          // A via point carries the bone it is on, and an attachment does not. A tendon passes
+          // the same *named feature* on several bones -- a finger flexor crosses the flexor side
+          // of the head of the metacarpal and of two phalanges -- and without the bone in the id
+          // those are one id, so two of the three points vanish into the dedupe below and the
+          // tendon cuts the corner it was supposed to be held around. An attachment has no such
+          // problem: a muscle attaches to one bone by one feature, and the shorter id is the one
+          // every muscle data file already names.
+          const featureId = landmarkId(bone, feature).split('__')[1];
+          const id =
+            role === 'path'
+              ? `${m.id}_${role}_${s}_${bone.replace(/_[lr]$/, '')}_${featureId}`
+              : `${m.id}_${role}_${s}_${featureId}`;
           if (seen.has(id)) continue;
           seen.add(id);
           const local = (i: 0 | 1 | 2) =>

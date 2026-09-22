@@ -39,19 +39,7 @@ import {
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
 import { NervesModule } from '@bs-humany/modules-nerves';
-import {
-  ANKLE_MUSCLES,
-  ELBOW_MUSCLES,
-  FOREARM_MUSCLES,
-  GIRDLE_MUSCLES,
-  HIP_MUSCLES,
-  KNEE_MUSCLES,
-  NECK_MUSCLES,
-  SHOULDER_MUSCLES,
-  THORAX_MUSCLES,
-  TORSO_MUSCLES,
-  TRUNK_MUSCLES,
-} from '@bs-humany/muscle-data';
+import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
   GOAL_SIZE,
   type Scenario,
@@ -140,19 +128,7 @@ export async function runScenario(
   let muscleDrive: MuscleTestDriveModule | undefined;
   if (scenario.muscles) {
     const muscles = compileMuscleSet(
-      [
-        ...ELBOW_MUSCLES,
-        ...SHOULDER_MUSCLES,
-        ...KNEE_MUSCLES,
-        ...HIP_MUSCLES,
-        ...ANKLE_MUSCLES,
-        ...TRUNK_MUSCLES,
-        ...FOREARM_MUSCLES,
-        ...TORSO_MUSCLES,
-        ...NECK_MUSCLES,
-        ...GIRDLE_MUSCLES,
-        ...THORAX_MUSCLES,
-      ],
+      [...ALL_MUSCLES],
       document.attachmentSites,
       articulation,
       morphology.context,

@@ -182,6 +182,111 @@ function endBand(mesh: WorldMesh, axis: Vec3, fraction: number): Vec3 {
   return [sum[0] / taken, sum[1] / taken, sum[2] / taken];
 }
 
+/**
+ * Where a long tendon crosses the head of a bone in a digit: its flexor side, or its extensor one.
+ *
+ * A finger's tendons do not run straight from the forearm to a fingertip. The flexors are held
+ * against the palmar side of every bone they pass by the fibrous sheath's pulleys, and the
+ * extensors ride the dorsal ridges; that is the whole of their leverage, and a straight line
+ * instead of it gives a muscle that pulls the finger off its joints rather than round them.
+ *
+ * So each bone is asked where its own flexor and extensor sides are, at either end. At the head,
+ * because that is where the next bone's joint is and where the sheath holds the tendon down. At
+ * the base, because that is where a tendon *ends*, and it ends on the palmar or the dorsal surface
+ * of the base rather than in the middle of it -- Gray puts flexor digitorum profundus on the
+ * palmar surface of the base of the distal phalanx, and the difference is the whole of that
+ * muscle's leverage at the last joint: ending at the centre of the base put the insertion on the
+ * joint itself, which left the arm under a millimetre and changing sign across the range.
+ *
+ * And at the shaft, which is where the terminal tendons actually end up. An insertion on the base
+ * is level with the joint it moves, so as the bone turns, the insertion swings round the joint
+ * centre and across the tendon's own line, and the arm reverses at about forty degrees -- a real
+ * tendon does not do that because the sheath holds it against the bone the whole way. Gray has
+ * flexor digitorum superficialis on the sides of the shaft of the middle phalanx and the profundus
+ * tendon running along the palmar surface of the distal one, so the shaft point is on the tendon
+ * either way, and it is far enough past the joint that turning the bone cannot carry it across. The direction is the limb's
+ * flexor side with the component along this bone's own long axis taken out, so it is across the
+ * bone rather than along it whichever way the digit points. (For a phalanx that direction is the
+ * bone's own thinnest principal axis to within a couple of degrees, which is the check that it is
+ * the palmar-dorsal one; the projection is used rather than that axis because a metacarpal is
+ * nearly round in section -- 9.5 mm by 9.1 -- and its minor axis is not decided by its shape.)
+ *
+ * The point is the head's centroid moved that way by the head's own half-thickness, and not the
+ * furthest vertex that way. The furthest vertex is a corner of a condyle: for the middle finger's
+ * proximal phalanx the two corners are 7.7 mm apart across the bone in a direction the tendon does
+ * not run at all, and the flexor built on them came out extending the joint. The centroid stays on
+ * the shaft's own line, which is where a tendon in its sheath runs.
+ */
+function digitTendonSide(
+  mesh: WorldMesh,
+  proximal: WorldMesh | undefined,
+  flexor: Vec3,
+  side: 'flexor' | 'extensor',
+  end: 'base' | 'head' | 'shaft',
+): Vec3 {
+  const { axis, centre } = longAxis(mesh);
+  const toward = proximal ? longAxis(proximal).centre : centre;
+  const dot =
+    axis[0] * (toward[0] - centre[0]) +
+    axis[1] * (toward[1] - centre[1]) +
+    axis[2] * (toward[2] - centre[2]);
+  const proximalAxis: Vec3 = dot < 0 ? [-axis[0], -axis[1], -axis[2]] : axis;
+  // Across the bone: the limb's flexor direction with whatever runs along the shaft removed.
+  const along =
+    flexor[0] * proximalAxis[0] + flexor[1] * proximalAxis[1] + flexor[2] * proximalAxis[2];
+  const across: Vec3 = [
+    flexor[0] - along * proximalAxis[0],
+    flexor[1] - along * proximalAxis[1],
+    flexor[2] - along * proximalAxis[2],
+  ];
+  const length = Math.hypot(across[0], across[1], across[2]);
+  const wanted: Vec3 =
+    side === 'flexor'
+      ? [across[0] / length, across[1] / length, across[2] / length]
+      : [-across[0] / length, -across[1] / length, -across[2] / length];
+  const towardEnd: Vec3 =
+    end === 'base' ? proximalAxis : [-proximalAxis[0], -proximalAxis[1], -proximalAxis[2]];
+  // The shaft is the whole bone rather than a band at one end of it, so its centroid is the
+  // bone's own, and its half-thickness is measured over every vertex.
+  const band = end === 'shaft' ? 1 : END_BAND;
+  const onAxis = endBand(mesh, towardEnd, band);
+  const half = halfThicknessInBand(mesh, towardEnd, band, onAxis, wanted);
+  return [onAxis[0] + wanted[0] * half, onAxis[1] + wanted[1] * half, onAxis[2] + wanted[2] * half];
+}
+
+/** How far the head band reaches past `from` along `direction`: the bone's half-thickness there. */
+function halfThicknessInBand(
+  mesh: WorldMesh,
+  axis: Vec3,
+  fraction: number,
+  from: Vec3,
+  direction: Vec3,
+): number {
+  const p = mesh.positions;
+  const n = mesh.vertexCount;
+  const along = new Float64Array(n);
+  let lo = Number.POSITIVE_INFINITY;
+  let hi = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < n; i++) {
+    const t =
+      (p[i * 3] ?? 0) * axis[0] + (p[i * 3 + 1] ?? 0) * axis[1] + (p[i * 3 + 2] ?? 0) * axis[2];
+    along[i] = t;
+    if (t < lo) lo = t;
+    if (t > hi) hi = t;
+  }
+  const cut = hi - (hi - lo) * fraction;
+  let best = 0;
+  for (let i = 0; i < n; i++) {
+    if ((along[i] ?? 0) < cut) continue;
+    const d =
+      ((p[i * 3] ?? 0) - from[0]) * direction[0] +
+      ((p[i * 3 + 1] ?? 0) - from[1]) * direction[1] +
+      ((p[i * 3 + 2] ?? 0) - from[2]) * direction[2];
+    if (d > best) best = d;
+  }
+  return best;
+}
+
 /** How much of a bone's length the end band takes in: an eighth, which is the articular end. */
 const END_BAND = 0.125;
 
@@ -428,16 +533,31 @@ const TARSAL_UNDER: Record<number, string> = {
   5: 'cuboid',
 };
 
-const DIGIT_BONES: readonly { readonly id: string; readonly proximal: string }[] = (
-  ['l', 'r'] as const
-).flatMap((s) =>
+/**
+ * Which way a digit bends, per limb, in the canonical world frame.
+ *
+ * A finger flexes palmar-ward and this skeleton stands fully supinated -- its right thumb is
+ * lateral of its little finger, which is the check -- so the palm faces anteriorly and the hand's
+ * flexor side is -Z. A toe flexes plantar-ward, so the foot's is -Y. The extensor side of either
+ * is the opposite.
+ */
+const FLEXOR_SIDE: Record<'hand' | 'foot', Vec3> = {
+  hand: [0, 0, -1],
+  foot: [0, -1, 0],
+};
+
+const DIGIT_BONES: readonly {
+  readonly id: string;
+  readonly proximal: string;
+  readonly flexor: Vec3;
+}[] = (['l', 'r'] as const).flatMap((s) =>
   ([1, 2, 3, 4, 5] as const).flatMap((d) =>
     (
       [
         ['hand', 'metacarpal', 'phalanx', CARPAL_UNDER],
         ['foot', 'metatarsal', 'phalanx_pedis', TARSAL_UNDER],
       ] as const
-    ).flatMap(([, long, phalanx, under]) => {
+    ).flatMap(([limb, long, phalanx, under]) => {
       // The thumb and the hallux have no middle phalanx.
       const parts =
         d === 1 ? (['proximal', 'distal'] as const) : (['proximal', 'middle', 'distal'] as const);
@@ -445,6 +565,7 @@ const DIGIT_BONES: readonly { readonly id: string; readonly proximal: string }[]
       return chain.map((id, i) => ({
         id,
         proximal: i === 0 ? `${under[d]}_${s}` : (chain[i - 1] as string),
+        flexor: FLEXOR_SIDE[limb],
       }));
     }),
   ),
@@ -499,8 +620,8 @@ export const DERIVED_RULES: readonly DerivedRule[] = [
    * to its ending, and a via point there is what keeps it on the digit instead of cutting the
    * corner: the flexors over the palmar side, the extensors over the dorsal.
    */
-  ...DIGIT_BONES.flatMap((bone) =>
-    (['base', 'head'] as const).map(
+  ...DIGIT_BONES.flatMap((bone) => [
+    ...(['base', 'head'] as const).map(
       (end): DerivedRule => ({
         bone: bone.id,
         feature: end === 'base' ? 'Base_of_digit_bone' : 'Head_of_digit_bone',
@@ -511,7 +632,23 @@ export const DERIVED_RULES: readonly DerivedRule[] = [
         pick: (m, context) => digitEnd(m, context.meshOf(bone.proximal), end),
       }),
     ),
-  ),
+    ...(['flexor', 'extensor'] as const).flatMap((side) =>
+      (['base', 'head', 'shaft'] as const).map(
+        (end): DerivedRule => ({
+          bone: bone.id,
+          feature: `${side === 'flexor' ? 'Flexor' : 'Extensor'}_side_of_${end}`,
+          rule:
+            (end === 'shaft'
+              ? `centroid of the whole bone moved to the ${side} side of it by its own `
+              : `centroid of the ${end} band moved to the ${side} side of the bone by the band's own `) +
+            `half-thickness that way, the direction being the limb's ${side} side with its ` +
+            "component along the bone's own long axis removed",
+          pick: (m, context) =>
+            digitTendonSide(m, context.meshOf(bone.proximal), bone.flexor, side, end),
+        }),
+      ),
+    ),
+  ]),
   // ISB 2002 defines MM and LM as the *tips* of the malleoli. The export's markers are surface
   // patches -- the left lateral malleolus is a 390-vertex patch whose centroid sits well above
   // the tip -- and the two sides differed enough to tilt the tibia frame by 22 degrees. The tip is

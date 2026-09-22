@@ -21,3 +21,6 @@ export * from './thorax.js';
 export * from './torso.js';
 export * from './trunk.js';
 export * from './validate.js';
+
+export * from './hand.js';
+export * from './wholeBody.js';

@@ -3,7 +3,7 @@
  *
  * The studio's sliders are generated from this, the headless publisher's panel reads it, and so
  * the headset's panel shows exactly the same groups in the same order at the same ids. Every
- * one of the two hundred and thirty-four units belongs to exactly one group -- a test holds
+ * one of the two hundred and seventy-two units belongs to exactly one group -- a test holds
  * that against the muscle data -- so nothing in the body is out of reach of a slider.
  *
  * Grouped the way a person thinks about a joint: what flexes it, what extends it, and so on.
@@ -11,7 +11,7 @@
  * remembered them by name has to change.
  */
 
-export type DriveSection = 'Arm' | 'Leg' | 'Trunk' | 'Neck';
+export type DriveSection = 'Arm' | 'Hand' | 'Leg' | 'Trunk' | 'Neck';
 
 export interface DriveGroup {
   readonly id: string;
@@ -92,7 +92,13 @@ export const MUSCLE_GROUPS: readonly DriveGroup[] = [
     id: 'wristExtensorDrive',
     title: 'Wrist extensors',
     section: 'Arm',
-    units: both('extensor_carpi_radialis_longus', 'extensor_carpi_radialis_brevis'),
+    units: both(
+      'extensor_carpi_radialis_longus',
+      'extensor_carpi_radialis_brevis',
+      // The ulnar one, which the wrist had no counterpart to until the fifth metacarpal's base
+      // was measured and it could be given somewhere to end.
+      'extensor_carpi_ulnaris',
+    ),
   },
   {
     id: 'pronatorDrive',
@@ -101,6 +107,53 @@ export const MUSCLE_GROUPS: readonly DriveGroup[] = [
     units: both('pronator_teres', 'pronator_quadratus'),
   },
   { id: 'supinatorDrive', title: 'Supinator', section: 'Arm', units: both('supinator') },
+  // --- hand ------------------------------------------------------------------------------------
+  {
+    id: 'fingerFlexorDrive',
+    title: 'Finger flexors',
+    section: 'Hand',
+    units: both(
+      ...[2, 3, 4, 5].flatMap((d) => [
+        `flexor_digitorum_superficialis_${d}`,
+        `flexor_digitorum_profundus_${d}`,
+      ]),
+    ),
+  },
+  {
+    id: 'fingerExtensorDrive',
+    title: 'Finger extensors',
+    section: 'Hand',
+    units: both(
+      ...[2, 3, 4, 5].map((d) => `extensor_digitorum_${d}`),
+      'extensor_indicis',
+      'extensor_digiti_minimi',
+    ),
+  },
+  {
+    id: 'thumbFlexorDrive',
+    title: 'Thumb flexors',
+    section: 'Hand',
+    units: both('flexor_pollicis_longus'),
+  },
+  {
+    id: 'thumbExtensorDrive',
+    title: 'Thumb extensors',
+    section: 'Hand',
+    units: both('extensor_pollicis_longus', 'extensor_pollicis_brevis', 'abductor_pollicis_longus'),
+  },
+  // --- toes ---------------------------------------------------------------------------------
+  {
+    id: 'toeFlexorDrive',
+    title: 'Toe flexors',
+    section: 'Leg',
+    units: both('flexor_digitorum_longus', 'flexor_hallucis_longus'),
+  },
+  {
+    id: 'toeExtensorDrive',
+    title: 'Toe extensors',
+    section: 'Leg',
+    units: both('extensor_digitorum_longus', 'extensor_hallucis_longus'),
+  },
   // --- leg -------------------------------------------------------------------------------------
   {
     id: 'hipFlexorDrive',
@@ -174,20 +227,13 @@ export const MUSCLE_GROUPS: readonly DriveGroup[] = [
     id: 'anklePlantarflexorDrive',
     title: 'Ankle plantarflexors',
     section: 'Leg',
-    units: both(
-      'soleus',
-      'tibialis_posterior',
-      'fibularis_longus',
-      'fibularis_brevis',
-      'flexor_digitorum_longus',
-      'flexor_hallucis_longus',
-    ),
+    units: both('soleus', 'tibialis_posterior', 'fibularis_longus', 'fibularis_brevis'),
   },
   {
     id: 'ankleDorsiflexorDrive',
     title: 'Ankle dorsiflexors',
     section: 'Leg',
-    units: both('tibialis_anterior', 'extensor_digitorum_longus', 'extensor_hallucis_longus'),
+    units: both('tibialis_anterior'),
   },
   // --- trunk -----------------------------------------------------------------------------------
   {
@@ -290,6 +336,9 @@ const OPPOSED: readonly (readonly [string, string])[] = [
   ['shoulderExternalRotatorDrive', 'shoulderInternalRotatorDrive'],
   ['flexorDrive', 'extensorDrive'],
   ['wristFlexorDrive', 'wristExtensorDrive'],
+  ['fingerFlexorDrive', 'fingerExtensorDrive'],
+  ['thumbFlexorDrive', 'thumbExtensorDrive'],
+  ['toeFlexorDrive', 'toeExtensorDrive'],
   ['pronatorDrive', 'supinatorDrive'],
   ['hipFlexorDrive', 'hipExtensorDrive'],
   ['hipAbductorDrive', 'hipAdductorDrive'],

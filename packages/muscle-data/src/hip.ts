@@ -217,7 +217,7 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         origin: 'iliacus_origin_r_iliac_fossa',
         insertion: 'iliacus_insertion_r_lesser_trochanter',
         path: [
-          { kind: 'site', site: 'iliacus_path_r_iliopubic_eminence' },
+          { kind: 'site', site: 'iliacus_path_r_hip_iliopubic_eminence' },
           { kind: 'site', site: 'iliacus_r__via_1' },
         ],
         parameters: {
@@ -235,7 +235,7 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         origin: 'psoas_major_origin_r_vertebral_body',
         insertion: 'psoas_major_insertion_r_lesser_trochanter',
         path: [
-          { kind: 'site', site: 'psoas_major_path_r_iliopubic_eminence' },
+          { kind: 'site', site: 'psoas_major_path_r_hip_iliopubic_eminence' },
           { kind: 'site', site: 'psoas_major_r__via_1' },
         ],
         parameters: {
@@ -644,7 +644,7 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         origin: 'iliacus_origin_l_iliac_fossa',
         insertion: 'iliacus_insertion_l_lesser_trochanter',
         path: [
-          { kind: 'site', site: 'iliacus_path_l_iliopubic_eminence' },
+          { kind: 'site', site: 'iliacus_path_l_hip_iliopubic_eminence' },
           { kind: 'site', site: 'iliacus_l__via_1' },
         ],
         parameters: {
@@ -662,7 +662,7 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         origin: 'psoas_major_origin_l_vertebral_body',
         insertion: 'psoas_major_insertion_l_lesser_trochanter',
         path: [
-          { kind: 'site', site: 'psoas_major_path_l_iliopubic_eminence' },
+          { kind: 'site', site: 'psoas_major_path_l_hip_iliopubic_eminence' },
           { kind: 'site', site: 'psoas_major_l__via_1' },
         ],
         parameters: {

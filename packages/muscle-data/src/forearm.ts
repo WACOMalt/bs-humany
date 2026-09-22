@@ -155,8 +155,11 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_carpi_radialis_r',
         displayName: 'Flexor carpi radialis, right',
         origin: 'flexor_carpi_radialis_origin_r_medial_epicondyle_of_humerus',
-        insertion: 'flexor_carpi_radialis_insertion_r_tubercle_of_scaphoid_bone',
-        path: [{ kind: 'site', site: 'flexor_carpi_radialis_r__via_1' }],
+        insertion: 'flexor_carpi_radialis_insertion_r_base_of_digit_bone',
+        path: [
+          { kind: 'site', site: 'flexor_carpi_radialis_path_r_scaphoid_tubercle_of_scaphoid_bone' },
+          { kind: 'site', site: 'flexor_carpi_radialis_r__via_1' },
+        ],
         parameters: {
           maxIsometricForce: 407.9,
           optimalFiberLength: 0.0534153,
@@ -204,8 +207,12 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_carpi_radialis_longus_r',
         displayName: 'Extensor carpi radialis longus, right',
         origin: 'extensor_carpi_radialis_longus_origin_r_lateral_supracondylar_ridge',
-        insertion: 'extensor_carpi_radialis_longus_insertion_r_metacarpal_base',
+        insertion: 'extensor_carpi_radialis_longus_insertion_r_base_of_digit_bone',
         path: [
+          {
+            kind: 'site',
+            site: 'extensor_carpi_radialis_longus_path_r_radius_radial_styloid_process',
+          },
           { kind: 'site', site: 'extensor_carpi_radialis_longus_r__via_1' },
           { kind: 'site', site: 'extensor_carpi_radialis_longus_r__via_2' },
         ],
@@ -346,8 +353,11 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_carpi_radialis_l',
         displayName: 'Flexor carpi radialis, left',
         origin: 'flexor_carpi_radialis_origin_l_medial_epicondyle_of_humerus',
-        insertion: 'flexor_carpi_radialis_insertion_l_tubercle_of_scaphoid_bone',
-        path: [{ kind: 'site', site: 'flexor_carpi_radialis_l__via_1' }],
+        insertion: 'flexor_carpi_radialis_insertion_l_base_of_digit_bone',
+        path: [
+          { kind: 'site', site: 'flexor_carpi_radialis_path_l_scaphoid_tubercle_of_scaphoid_bone' },
+          { kind: 'site', site: 'flexor_carpi_radialis_l__via_1' },
+        ],
         parameters: {
           maxIsometricForce: 407.9,
           optimalFiberLength: 0.0534153,
@@ -395,8 +405,12 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_carpi_radialis_longus_l',
         displayName: 'Extensor carpi radialis longus, left',
         origin: 'extensor_carpi_radialis_longus_origin_l_lateral_supracondylar_ridge',
-        insertion: 'extensor_carpi_radialis_longus_insertion_l_metacarpal_base',
+        insertion: 'extensor_carpi_radialis_longus_insertion_l_base_of_digit_bone',
         path: [
+          {
+            kind: 'site',
+            site: 'extensor_carpi_radialis_longus_path_l_radius_radial_styloid_process',
+          },
           { kind: 'site', site: 'extensor_carpi_radialis_longus_l__via_1' },
           { kind: 'site', site: 'extensor_carpi_radialis_longus_l__via_2' },
         ],

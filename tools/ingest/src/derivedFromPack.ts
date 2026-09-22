@@ -84,8 +84,13 @@ for (const rule of [...DERIVED_RULES, ...RIB_RULES]) {
   } else if (!before) {
     added += 1;
   }
-  // A point the ingest measured from the FBX keeps the ingest's digits.
-  if (!before) table[rule.feature] = point;
+  // A derived point is a pure function of its rule and the pack, so this writes it -- including
+  // over the value the ingest measured from the FBX, which the drift above has already compared
+  // it against and which agrees to a hundredth of a millimetre. Keeping the old value instead
+  // was the earlier behaviour and it meant an edited rule silently did nothing: the run reported
+  // the improvement as drift and then threw it away. A marker the export carries is never
+  // touched, because it was never ours to write.
+  table[rule.feature] = point;
   landmarks[rule.bone] = table;
   const rules = derived[rule.bone] ?? {};
   rules[rule.feature] = rule.rule;

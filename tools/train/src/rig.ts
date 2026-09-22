@@ -67,19 +67,7 @@ import {
   SpinalModule,
   feetOf,
 } from '@bs-humany/modules-nerves';
-import {
-  ANKLE_MUSCLES,
-  ELBOW_MUSCLES,
-  FOREARM_MUSCLES,
-  GIRDLE_MUSCLES,
-  HIP_MUSCLES,
-  KNEE_MUSCLES,
-  NECK_MUSCLES,
-  SHOULDER_MUSCLES,
-  THORAX_MUSCLES,
-  TORSO_MUSCLES,
-  TRUNK_MUSCLES,
-} from '@bs-humany/muscle-data';
+import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
   type CompiledClip,
   GOAL_SIZE,
@@ -526,19 +514,7 @@ export class StandRig {
       boneOrder = pose.plan.bones;
     }
     const muscles = compileMuscleSet(
-      [
-        ...ELBOW_MUSCLES,
-        ...SHOULDER_MUSCLES,
-        ...KNEE_MUSCLES,
-        ...HIP_MUSCLES,
-        ...ANKLE_MUSCLES,
-        ...TRUNK_MUSCLES,
-        ...FOREARM_MUSCLES,
-        ...TORSO_MUSCLES,
-        ...NECK_MUSCLES,
-        ...GIRDLE_MUSCLES,
-        ...THORAX_MUSCLES,
-      ],
+      [...ALL_MUSCLES],
       document.attachmentSites,
       articulation,
       morphology.context,

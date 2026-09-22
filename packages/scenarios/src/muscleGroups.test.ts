@@ -1,37 +1,11 @@
-import {
-  ANKLE_MUSCLES,
-  ELBOW_MUSCLES,
-  FOREARM_MUSCLES,
-  GIRDLE_MUSCLES,
-  HIP_MUSCLES,
-  KNEE_MUSCLES,
-  NECK_MUSCLES,
-  SHOULDER_MUSCLES,
-  THORAX_MUSCLES,
-  TORSO_MUSCLES,
-  TRUNK_MUSCLES,
-} from '@bs-humany/muscle-data';
+import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import { describe, expect, it } from 'vitest';
 import { MUSCLE_GROUPS } from './muscleGroups.js';
 
 describe('the drive groups', () => {
   it('cover every unit in the muscle data exactly once', () => {
     const inData = new Set<string>();
-    for (const region of [
-      ELBOW_MUSCLES,
-      SHOULDER_MUSCLES,
-      FOREARM_MUSCLES,
-      TORSO_MUSCLES,
-      KNEE_MUSCLES,
-      HIP_MUSCLES,
-      ANKLE_MUSCLES,
-      TRUNK_MUSCLES,
-      NECK_MUSCLES,
-      GIRDLE_MUSCLES,
-      THORAX_MUSCLES,
-    ]) {
-      for (const group of region) for (const unit of group.units) inData.add(unit.id);
-    }
+    for (const group of ALL_MUSCLES) for (const unit of group.units) inData.add(unit.id);
     const seen = new Map<string, string>();
     for (const group of MUSCLE_GROUPS) {
       for (const unit of group.units) {

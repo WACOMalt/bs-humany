@@ -1,6 +1,6 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
-import { compileArticulation } from '@bs-humany/compiler';
+import { ROOT_NQ, allocateBuffers, compileArticulation } from '@bs-humany/compiler';
 import { Kernel } from '@bs-humany/kernel';
 import { ACTUATION_BODY_WRENCH, BODY_POSE, PhysicsModule } from '@bs-humany/modules-mechanics';
 import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
@@ -15,7 +15,7 @@ import {
   MUSCLE_STATE,
 } from './channels.js';
 import { compileMuscleSet } from './compile.js';
-import { degreeRange, sweepMomentArms } from './momentArmSweep.js';
+import { coordinateIndex, degreeRange, sweepMomentArms } from './momentArmSweep.js';
 import { MuscleDynamicsModule } from './muscleDynamicsModule.js';
 import { MuscleMomentModule } from './muscleMomentModule.js';
 import { MusclePathModule } from './musclePathModule.js';
@@ -511,11 +511,22 @@ describe('MuscleDynamicsModule', () => {
 
 describe('MuscleMomentModule', () => {
   /** A session with the diagnostics module registered alongside the rest. */
-  async function withMoments() {
+  /**
+   * The moment modules, with the elbow held where the test means rather than where a limp body
+   * happens to land.
+   *
+   * These used to run the body for four hundred ticks under gravity with every muscle silent and
+   * read the arm in whatever heap it collapsed into. That pose is not a statement about anything:
+   * it moved when the *hand* gained muscles and joint centres it had nothing to do with, and the
+   * biceps read -11 mm in it -- while a proper sweep has the same muscle between +12 and +44 mm at
+   * every forearm rotation and every elbow angle. This file already makes the argument a few tests
+   * down: "a sweep that does not say where the forearm was is not reproducible." So gravity is off
+   * and the pose is imposed, as `sweepMomentArms` does it.
+   */
+  async function withMoments(pose: { elbow?: number; pronation?: number } = {}) {
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
-    kernel.register(
-      new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }),
-    );
+    const backend = new MujocoBackend();
+    kernel.register(new PhysicsModule(backend, articulation, { gravity: { x: 0, y: 0, z: 0 } }));
     kernel.register(
       new MuscleTestDriveModule(muscles, [
         { units: 'all', pattern: { kind: 'constant', level: 0 } },
@@ -527,6 +538,20 @@ describe('MuscleMomentModule', () => {
     kernel.register(moment);
     await kernel.init();
     const fields = kernel.channels.storage(DIAGNOSTICS_MOMENT_ARM).fields;
+    const buffers = allocateBuffers(articulation);
+    backend.readJointState(buffers.jointState);
+    const { q, qdot } = buffers.jointState;
+    const elbow = coordinateIndex(articulation, 'elbow_r', 'flexion');
+    const pronation = coordinateIndex(articulation, 'radioulnar_r', 'pronation');
+    // The moment module runs at a tenth of the physics rate, so the pose is held for long enough
+    // that it has certainly seen it.
+    for (let tick = 0; tick < 12; tick++) {
+      qdot.fill(0);
+      q[ROOT_NQ + elbow] = pose.elbow ?? 0.5;
+      q[ROOT_NQ + pronation] = pose.pronation ?? 0;
+      backend.writeJointState(q, qdot);
+      kernel.run(1);
+    }
     return { kernel, moment, arm: fields.arm as Float64Array };
   }
 
@@ -560,7 +585,6 @@ describe('MuscleMomentModule', () => {
     // zero -- how close it is to a published curve is the moment-arm gate's business, and it says
     // this one is still 6 mm out (OQ-015).
     const s = await withMoments();
-    s.kernel.run(400);
     const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
     for (const id of [
       'triceps_brachii_long_r',
@@ -578,7 +602,6 @@ describe('MuscleMomentModule', () => {
 
   it('gives the flexors the opposite sign to the extensors', async () => {
     const s = await withMoments();
-    s.kernel.run(400);
     const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
     const arm = (id: string) => s.arm[index.get(id) as number] as number;
     expect(arm('brachialis_r')).toBeGreaterThan(0);
@@ -622,7 +645,6 @@ describe('MuscleMomentModule', () => {
     // deep flexion; carrying the reference model's two points on the radius across brings the
     // peak to 39 mm and removes the reversal.
     const s = await withMoments();
-    s.kernel.run(400);
     const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
     for (const id of ['biceps_brachii_long_r', 'biceps_brachii_short_r']) {
       const arm = s.arm[index.get(id) as number] as number;
@@ -634,7 +656,6 @@ describe('MuscleMomentModule', () => {
 
   it('reports arms of a plausible size for a human elbow', async () => {
     const s = await withMoments();
-    s.kernel.run(400);
     for (let i = 0; i < s.moment.pairs.length; i++) {
       const arm = s.arm[i] as number;
       expect(Number.isFinite(arm), s.moment.pairs[i]?.unitId).toBe(true);

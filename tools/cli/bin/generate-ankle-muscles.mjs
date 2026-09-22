@@ -120,7 +120,11 @@ const UNITS = [
     id: 'extensor_digitorum_longus_$',
     name: 'Extensor digitorum longus',
     origin: 'extensor_digitorum_longus_origin_$_footprint',
-    insertion: 'extensor_digitorum_longus_insertion_$_base_of_digit_bone',
+    insertion: 'extensor_digitorum_longus_insertion_$_extensor_side_of_shaft',
+    viaAfter: [
+      'extensor_digitorum_longus_path_$_metatarsal_3_extensor_side_of_head',
+      'extensor_digitorum_longus_path_$_phalanx_pedis_proximal_3_extensor_side_of_head',
+    ],
   },
   {
     actuator: 'ehl_r',
@@ -131,7 +135,11 @@ const UNITS = [
     id: 'extensor_hallucis_longus_$',
     name: 'Extensor hallucis longus',
     origin: 'extensor_hallucis_longus_origin_$_anteromedial_surface_of_fibula',
-    insertion: 'extensor_hallucis_longus_insertion_$_base_of_digit_bone',
+    insertion: 'extensor_hallucis_longus_insertion_$_extensor_side_of_shaft',
+    viaAfter: [
+      'extensor_hallucis_longus_path_$_metatarsal_1_extensor_side_of_head',
+      'extensor_hallucis_longus_path_$_phalanx_pedis_proximal_1_extensor_side_of_head',
+    ],
   },
   {
     actuator: 'fdl_r',
@@ -142,7 +150,12 @@ const UNITS = [
     id: 'flexor_digitorum_longus_$',
     name: 'Flexor digitorum longus',
     origin: 'flexor_digitorum_longus_origin_$_posterior_surface_of_tibia',
-    insertion: 'flexor_digitorum_longus_insertion_$_base_of_digit_bone',
+    insertion: 'flexor_digitorum_longus_insertion_$_flexor_side_of_shaft',
+    viaAfter: [
+      'flexor_digitorum_longus_path_$_metatarsal_3_flexor_side_of_head',
+      'flexor_digitorum_longus_path_$_phalanx_pedis_proximal_3_flexor_side_of_head',
+      'flexor_digitorum_longus_path_$_phalanx_pedis_middle_3_flexor_side_of_head',
+    ],
   },
   {
     actuator: 'fhl_r',
@@ -153,7 +166,11 @@ const UNITS = [
     id: 'flexor_hallucis_longus_$',
     name: 'Flexor hallucis longus',
     origin: 'flexor_hallucis_longus_origin_$_posterior_surface_of_fibula',
-    insertion: 'flexor_hallucis_longus_insertion_$_base_of_digit_bone',
+    insertion: 'flexor_hallucis_longus_insertion_$_flexor_side_of_shaft',
+    viaAfter: [
+      'flexor_hallucis_longus_path_$_metatarsal_1_flexor_side_of_head',
+      'flexor_hallucis_longus_path_$_phalanx_pedis_proximal_1_flexor_side_of_head',
+    ],
   },
 ];
 

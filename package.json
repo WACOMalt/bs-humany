@@ -25,6 +25,7 @@
     "generate:elbow-muscles": "node tools/cli/bin/generate-elbow-muscles.mjs",
     "generate:forearm-muscles": "node tools/cli/bin/generate-forearm-muscles.mjs",
     "generate:girdle-muscles": "node tools/cli/bin/generate-girdle-muscles.mjs",
+    "generate:hand-muscles": "node tools/cli/bin/generate-hand-muscles.mjs",
     "generate:hip-muscles": "node tools/cli/bin/generate-hip-muscles.mjs",
     "generate:knee-muscles": "node tools/cli/bin/generate-knee-muscles.mjs",
     "generate:neck-muscles": "node tools/cli/bin/generate-neck-muscles.mjs",

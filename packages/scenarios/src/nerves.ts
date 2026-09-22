@@ -1,7 +1,7 @@
 /**
  * What the nerves drive and want, as scenarios see them.
  *
- * The policy's outputs are the drive groups a side -- forty-six for twenty-three groups -- in a
+ * The policy's outputs are the drive groups a side -- seventy for thirty-five groups -- in a
  * fixed order, because the training rig, the studio and the headset must agree on which output
  * is which. The goal is a one-hot over the behaviours a policy can be told to produce; only the
  * first is trained yet. `NervesSetup` is the scenario's part: which policy file, how much
@@ -15,7 +15,7 @@ import { MUSCLE_GROUPS } from './muscleGroups.js';
 export const GOAL_SIZE = 3;
 export const GOALS = ['stand', 'walk', 'flail'] as const;
 
-/** Twenty-three groups a side, right first then left, each output driving its units evenly. */
+/** Thirty-five groups a side, right first then left, each output driving its units evenly. */
 export function driveOutputs(): DriveOutput[] {
   const outputs: DriveOutput[] = [];
   for (const side of ['r', 'l'] as const) {
