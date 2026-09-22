@@ -183,13 +183,13 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'brachioradialis_origin_r_lateral_supracondylar_ridge',
         insertion: 'brachioradialis_insertion_r_radial_styloid_process',
         path: [
+          { kind: 'site', site: 'brachioradialis_r__via_1' },
           {
             kind: 'wrap',
             surface: 'elbow_trochlea_r',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Brachioradialis'),
           },
-          { kind: 'site', site: 'brachioradialis_r__via_1' },
         ],
         parameters: {
           maxIsometricForce: 272.486,
@@ -397,13 +397,13 @@ export const ELBOW_MUSCLES: readonly MuscleGroup[] = [
         origin: 'brachioradialis_origin_l_lateral_supracondylar_ridge',
         insertion: 'brachioradialis_insertion_l_radial_styloid_process',
         path: [
+          { kind: 'site', site: 'brachioradialis_l__via_1' },
           {
             kind: 'wrap',
             surface: 'elbow_trochlea_l',
             preferredSide: { x: 0, y: 0, z: -1 },
             source: gray('Brachioradialis'),
           },
-          { kind: 'site', site: 'brachioradialis_l__via_1' },
         ],
         parameters: {
           maxIsometricForce: 272.486,
