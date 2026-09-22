@@ -45,6 +45,8 @@ export interface AlignHost {
   jointsOn(segment: string): readonly import('three').Vector3[];
   /** Attachment sites in the world at rest. */
   sites(): readonly { id: string; bone: string; world: { x: number; y: number; z: number } }[];
+  /** Light up one of our segments in the viewport, or clear it with undefined. */
+  highlightSegment(id: string | undefined): void;
   /** Hand a file to the user, however this studio does that. */
   save(name: string, text: string): void;
   /**
@@ -472,7 +474,10 @@ export function createAlignPanel(
     overlay.emphasiseBone(ui.theirBone.value || undefined);
     refreshBoneButton();
   });
-  ui.ourBone.addEventListener('change', refreshBoneButton);
+  ui.ourBone.addEventListener('change', () => {
+    host.highlightSegment(ui.ourBone.value || undefined);
+    refreshBoneButton();
+  });
   ui.pairBone.addEventListener('click', () => {
     const theirs = ui.theirBone.value;
     const ours = ui.ourBone.value;
@@ -606,6 +611,7 @@ export function createAlignPanel(
     },
     gizmo,
     dispose(): void {
+      host.highlightSegment(undefined);
       overlay.dispose();
       handles.dispose();
       gizmo.detach();

@@ -120,6 +120,8 @@ export class SourceOverlay {
   private readonly boneLines = new Map<string, LineSegments>();
   private boneJoints: Points | undefined;
   private meshes: Mesh[] = [];
+  /** The bone last emphasised, so meshes arriving later can catch up with it. */
+  private emphasised: string | undefined;
   private data: SourceSites | undefined;
   private shown = new Set<string>();
 
@@ -320,19 +322,22 @@ export class SourceOverlay {
   private async loadMeshes(source: SourceModel): Promise<void> {
     const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js');
     const loader = new STLLoader();
-    const material = new MeshStandardMaterial({
-      color: 0xd8d2c6,
-      roughness: 0.85,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.55,
-      depthWrite: false,
-    });
+    // A material each, not one shared: an emphasis has to be able to pick one bone out of the
+    // rest, and a shared material lights the whole skeleton or none of it.
+    const material = () =>
+      new MeshStandardMaterial({
+        color: 0xd8d2c6,
+        roughness: 0.85,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+      });
     for (const body of source.bodies) {
       for (const wear of body.meshes) {
         try {
           const geometry = await loader.loadAsync(`refMeshes/${wear.file}`);
-          const mesh = new Mesh(geometry, material);
+          const mesh = new Mesh(geometry, material());
           // Their geom's offset inside the body, then the body's pose in their world.
           const local = new Vector3(wear.pos[0] ?? 0, wear.pos[1] ?? 0, wear.pos[2] ?? 0);
           const spin = new Quaternion(
@@ -355,6 +360,8 @@ export class SourceOverlay {
           mesh.name = body.name;
           this.meshes.push(mesh);
           this.bones.add(mesh);
+          // A selection made while these were still loading still applies to them.
+          if (this.emphasised !== undefined) this.emphasiseBone(this.emphasised);
         } catch {
           // A mesh that is not there is not worth stopping for: the tree is still drawn.
         }
@@ -362,13 +369,28 @@ export class SourceOverlay {
     }
   }
 
-  /** Light one of their bones up and dim the rest, for the pairing list's selection. */
+  /**
+   * Light one of their bones up and dim the rest, for the pairing list's selection.
+   *
+   * Both the tree and the meshes, because either alone leaves the eye hunting: the tree says
+   * where the bone is in the chain and the mesh says what shape it is, and a pairing is decided
+   * on both.
+   */
   emphasiseBone(name: string | undefined): void {
+    this.emphasised = name;
     for (const [id, line] of this.boneLines) {
       const material = line.material as LineBasicMaterial;
       const lit = name === undefined || id === name;
       material.opacity = lit ? (name === undefined ? 0.85 : 1) : 0.15;
       material.color.set(name !== undefined && id === name ? 0xe0864a : 0xe8e2d6);
+      material.needsUpdate = true;
+    }
+    for (const mesh of this.meshes) {
+      const material = mesh.material as MeshStandardMaterial;
+      const lit = name === undefined || mesh.name === name;
+      material.opacity = name === undefined ? 0.55 : lit ? 0.95 : 0.08;
+      material.color.set(name !== undefined && lit ? 0xe0864a : 0xd8d2c6);
+      material.emissive.set(name !== undefined && lit ? 0x3a1c08 : 0x000000);
       material.needsUpdate = true;
     }
   }

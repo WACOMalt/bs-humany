@@ -213,6 +213,21 @@ const selectedMaterial = new MeshStandardMaterial({
   emissive: 0x14304f,
 });
 
+/**
+ * The Align tab's own highlight, for the segment picked in its pairing list.
+ *
+ * A different colour from the inspector's, and from the orange their bones light up in, because
+ * the whole point is telling three things apart at once: the bone of ours being paired, the bone
+ * of theirs it is being paired to, and whatever the inspector happens to have selected.
+ */
+const alignedMaterial = new MeshStandardMaterial({
+  color: 0x5fe0d0,
+  roughness: 0.45,
+  metalness: 0.05,
+  emissive: 0x0d4a45,
+});
+let alignedObject: Mesh | null = null;
+
 let skeletonMesh: SkeletonMesh | null = null;
 let skinned: SkinnedSkeleton | null = null;
 let selectedObject: Mesh | null = null;
@@ -2547,6 +2562,30 @@ align = createAlignPanel(
         }
       }
       return out;
+    },
+    /**
+     * Light up one of our segments, or clear it with undefined.
+     *
+     * Built from the bones the segment owns -- a segment is several bones, and `thigh_r` has to
+     * light up as a femur rather than as a dot at an origin. It is a rest-pose object, like the
+     * inspector's highlight, which suits: the retargeted paths are drawn at rest too, and
+     * pairing is something done to a body standing still.
+     */
+    highlightSegment: (id) => {
+      if (alignedObject) {
+        alignedObject.geometry.dispose();
+        world.remove(alignedObject);
+        alignedObject = null;
+      }
+      if (!id) return;
+      const segment = simulation?.articulation.segments.find((s) => s.id === id);
+      if (!segment || segment.bones.length === 0) return;
+      const mesh = buildSkeletonMesh(document_, resolveMorphology(currentMorphology()).context, {
+        quality: QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM,
+        include: new Set(segment.bones),
+      });
+      alignedObject = new Mesh(toSkeletonGeometry(mesh), alignedMaterial);
+      world.add(alignedObject);
     },
     save: (name, text) => void download(name, text, 'application/json'),
     setGizmoDragging: (dragging) => {
