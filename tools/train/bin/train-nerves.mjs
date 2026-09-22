@@ -43,7 +43,18 @@ const { rigOptionsFor, defaultRecipe, DEFAULT_REFLEX } = await jiti.import(
 const { train } = await jiti.import(join(ROOT, 'tools/train/src/trainer.ts'));
 
 const args = process.argv.slice(2);
+/**
+ * Every flag this run asked for, so an unknown one can be refused rather than ignored.
+ *
+ * A flag nobody reads used to pass silently, and the run went ahead on the default recipe -- which
+ * is named `stand` and writes `stand.json`. `--name something-else` therefore looked like it was
+ * naming the run and was in fact overwriting the policy of that name with three generations of a
+ * fresh one. Recipes are named in their files; the flags cannot rename a run, and now say so.
+ */
+const asked = new Set(args.filter((a) => a.startsWith('--')).map((a) => a.slice(2)));
+const known = new Set();
 const flag = (name, fallback) => {
+  known.add(name);
   const at = args.indexOf(`--${name}`);
   return at >= 0 && args[at + 1] !== undefined ? args[at + 1] : fallback;
 };
@@ -67,13 +78,19 @@ if (flag('noise', undefined) !== undefined || flag('sense-noise', undefined) !==
 }
 // The cord under the brain and the memory in it, overridable the same way. `--reflex 0` is the
 // body every checkpoint before the spinal module was trained in: no stretch reflex at all.
-if (
-  flag('reflex', undefined) !== undefined ||
-  flag('reflex-velocity', undefined) !== undefined ||
-  flag('reflex-delay', undefined) !== undefined ||
-  flag('reflex-inhibition', undefined) !== undefined ||
-  flag('reflex-setpoint', undefined) !== undefined
-) {
+// Every one of the cord's own settings, so that `--reflex-ceiling 1.5` on its own reaches the
+// cord. Two of them used to be read only inside this block without appearing in the test that
+// opens it, so passing either alone changed nothing and said nothing.
+const REFLEX_FLAGS = [
+  'reflex',
+  'reflex-velocity',
+  'reflex-delay',
+  'reflex-inhibition',
+  'reflex-setpoint',
+  'reflex-ceiling',
+  'reflex-force-inhibition',
+];
+if (REFLEX_FLAGS.some((f) => flag(f, undefined) !== undefined)) {
   const base = recipe.reflex ?? DEFAULT_REFLEX;
   recipe.reflex = {
     stretch: Number(flag('reflex', base.stretch)),
@@ -123,6 +140,21 @@ const under =
     : recipe.feedforward.kind === 'script'
       ? "the scenario's script"
       : 'nothing';
+// Every flag has been read by now, so anything left over is one this script does not have.
+const unknown = [...asked].filter((a) => !known.has(a));
+if (unknown.length > 0) {
+  console.error(
+    `train-nerves: no such option${unknown.length > 1 ? 's' : ''}: ` +
+      `${unknown.map((a) => `--${a}`).join(', ')}\n` +
+      `  known options: ${[...known]
+        .sort()
+        .map((a) => `--${a}`)
+        .join(' ')}\n` +
+      '  a run is named by its recipe, not by a flag; `--recipe <file>` chooses one.',
+  );
+  process.exit(1);
+}
+
 console.log(
   `training ${name} (${task}): ${generations} generations, population ${population} x ${seedsPerCandidate} seeds, ` +
     `${seconds} s episodes on ${profileId}, ${workers} workers`,
