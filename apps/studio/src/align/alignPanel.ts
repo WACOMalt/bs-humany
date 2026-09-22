@@ -144,6 +144,8 @@ export function createAlignPanel(
   let placement: Placement = { ...Z_UP_TO_Y_UP };
   const pairs: Pair[] = [];
   const moves: Move[] = [];
+  /** Whether the overlay is currently on our bones rather than in their own world. */
+  let retargeted = false;
   /** Bone pairs per model, because each reference model has its own bones. */
   const bonePairs = new Map<string, BodyPair[]>();
   const bonesFor = (model: string): BodyPair[] => {
@@ -178,12 +180,21 @@ export function createAlignPanel(
     writeSliders(p);
   };
   for (const key of PLACE) {
-    slider(key).addEventListener('input', () => applyPlacement(readSliders()));
+    slider(key).addEventListener('input', () => {
+      // Moving the whole model once it is on our bones would take it back off them, so the
+      // first nudge of a slider drops the retarget and puts their own geometry back.
+      if (retargeted) {
+        retargeted = false;
+        showModel();
+      }
+      applyPlacement(readSliders());
+    });
   }
   ui.reset.addEventListener('click', () => applyPlacement({ ...Z_UP_TO_Y_UP }));
 
   const showModel = (): void => {
     const model = ui.model.value;
+    retargeted = false;
     overlay.clear();
     if (model) overlay.show(model);
     overlay.visible = ui.show.checked && model !== '';
@@ -541,9 +552,20 @@ export function createAlignPanel(
       else dropped += 1;
     }
     overlay.showRetargeted(paths);
-    // Once the paths are on our bones the model transform must not move them again.
+    // Their bones go through the same fits, or the muscles end up floating beside a skeleton
+    // they no longer belong to.
+    overlay.retargetBones(fits);
+    // Everything is in our space now, so the model transform must not move it again. The
+    // sliders follow, rather than silently disagreeing with what is on screen.
     applyPlacement({ ...NEUTRAL_PLACEMENT });
+    retargeted = true;
+    // A redraw nobody can see is the same as no redraw: whichever layer was off comes on.
+    if (!ui.show.checked) {
+      ui.show.checked = true;
+      overlay.visible = true;
+    }
     overlay.visible = ui.show.checked;
+    overlay.bonesVisible = ui.showBones.checked;
     const scaled = [...fits.values()].filter((f) => f.scaleFrom === 'two joints');
     const ratios = scaled.map((f) => f.scale).sort((a, b) => a - b);
     ui.fitNote.textContent =

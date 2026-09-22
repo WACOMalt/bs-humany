@@ -122,6 +122,8 @@ export class SourceOverlay {
   private meshes: Mesh[] = [];
   /** The bone last emphasised, so meshes arriving later can catch up with it. */
   private emphasised: string | undefined;
+  /** Each mesh's geom offset inside its body, kept so a retarget can recompute from it. */
+  private readonly wearing = new WeakMap<Mesh, SourceMesh>();
   private data: SourceSites | undefined;
   private shown = new Set<string>();
 
@@ -358,6 +360,7 @@ export class SourceOverlay {
             .applyQuaternion(bodySpin)
             .add(new Vector3(body.pos[0] ?? 0, body.pos[1] ?? 0, body.pos[2] ?? 0));
           mesh.name = body.name;
+          this.wearing.set(mesh, wear);
           this.meshes.push(mesh);
           this.bones.add(mesh);
           // A selection made while these were still loading still applies to them.
@@ -367,6 +370,50 @@ export class SourceOverlay {
         }
       }
     }
+  }
+
+  /**
+  /**
+   * Put their bones on ours, through the same fits the paths go through.
+   *
+   * A retarget that moves the muscles and leaves the bones where they were is a picture of
+   * muscles floating beside a skeleton they no longer belong to. Each mesh is taken into its own
+   * body's frame, scaled to our bone, and put back out through our segment's -- the same three
+   * steps `retargetPath` does to a point, applied to a whole mesh at once.
+   *
+   * A mesh whose body is not paired is hidden rather than left behind, for the same reason a
+   * half-retargeted path is dropped.
+   */
+  retargetBones(
+    fits: ReadonlyMap<string, { position: Vector3; rotation: Quaternion; scale: number }>,
+  ): void {
+    for (const mesh of this.meshes) {
+      const fit = fits.get(mesh.name);
+      const wear = this.wearing.get(mesh);
+      if (!fit || !wear) {
+        mesh.visible = false;
+        continue;
+      }
+      mesh.visible = true;
+      const geomSpin = new Quaternion(
+        wear.quat[1] ?? 0,
+        wear.quat[2] ?? 0,
+        wear.quat[3] ?? 0,
+        wear.quat[0] ?? 1,
+      );
+      // The geom's offset is stated in its body's frame, so the geom's own turn survives the
+      // change of body and our segment's rotation replaces theirs.
+      mesh.quaternion.copy(fit.rotation).multiply(geomSpin);
+      mesh.position
+        .set(wear.pos[0] ?? 0, wear.pos[1] ?? 0, wear.pos[2] ?? 0)
+        .multiplyScalar(fit.scale)
+        .applyQuaternion(fit.rotation)
+        .add(fit.position);
+      mesh.scale.setScalar(fit.scale);
+    }
+    // The tree is theirs and says nothing once the meshes are on our bones.
+    for (const line of this.boneLines.values()) line.visible = false;
+    if (this.boneJoints) this.boneJoints.visible = false;
   }
 
   /**
@@ -407,6 +454,7 @@ export class SourceOverlay {
     for (const mesh of this.meshes) {
       mesh.removeFromParent();
       mesh.geometry.dispose();
+      (mesh.material as MeshStandardMaterial).dispose();
     }
     this.meshes = [];
     for (const line of this.boneLines.values()) {
