@@ -4308,6 +4308,11 @@
    -0.09948822325286683,
    0.009722025562221527,
    -0.09448283466783308
+  ],
+  "Base_of_phalanx": [
+   -0.111441,
+   0.008248,
+   -0.076083
   ]
  },
  "phalanx_pedis_proximal_3_r": {
@@ -4330,6 +4335,11 @@
    0.09948817271047874,
    0.009722021450364429,
    -0.09448283045039634
+  ],
+  "Base_of_phalanx": [
+   0.111441,
+   0.008248,
+   -0.076083
   ]
  },
  "phalanx_pedis_distal_3_l": {
@@ -4337,6 +4347,11 @@
    -0.12042355487093223,
    0.005753633352351692,
    -0.13010057655505342
+  ],
+  "Base_of_phalanx": [
+   -0.119605,
+   0.002283,
+   -0.11828
   ]
  },
  "phalanx_pedis_distal_3_r": {
@@ -4344,6 +4359,11 @@
    0.12042355636859596,
    0.005753634643713517,
    -0.13010057144327314
+  ],
+  "Base_of_phalanx": [
+   0.119605,
+   0.002283,
+   -0.11828
   ]
  },
  "metatarsal_5_l": {
@@ -5262,6 +5282,174 @@
    0.084887,
    1.062366,
    0.042977
+  ]
+ },
+ "phalanx_pedis_proximal_1_l": {
+  "Base_of_phalanx": [
+   -0.077235,
+   0.005132,
+   -0.079921
+  ]
+ },
+ "phalanx_pedis_proximal_1_r": {
+  "Base_of_phalanx": [
+   0.077235,
+   0.005132,
+   -0.079921
+  ]
+ },
+ "phalanx_pedis_distal_1_l": {
+  "Base_of_phalanx": [
+   -0.081312,
+   0.004041,
+   -0.107711
+  ]
+ },
+ "phalanx_pedis_distal_1_r": {
+  "Base_of_phalanx": [
+   0.081312,
+   0.004041,
+   -0.107711
+  ]
+ },
+ "phalanx_pedis_proximal_2_l": {
+  "Base_of_phalanx": [
+   -0.098209,
+   0.013866,
+   -0.082446
+  ]
+ },
+ "phalanx_pedis_proximal_2_r": {
+  "Base_of_phalanx": [
+   0.098209,
+   0.013866,
+   -0.082446
+  ]
+ },
+ "phalanx_pedis_middle_2_l": {
+  "Base_of_phalanx": [
+   -0.102334,
+   0.004465,
+   -0.108943
+  ]
+ },
+ "phalanx_pedis_middle_2_r": {
+  "Base_of_phalanx": [
+   0.102334,
+   0.004465,
+   -0.108943
+  ]
+ },
+ "phalanx_pedis_distal_2_l": {
+  "Base_of_phalanx": [
+   -0.102383,
+   0.002121,
+   -0.123641
+  ]
+ },
+ "phalanx_pedis_distal_2_r": {
+  "Base_of_phalanx": [
+   0.102383,
+   0.002121,
+   -0.123641
+  ]
+ },
+ "phalanx_pedis_middle_3_l": {
+  "Base_of_phalanx": [
+   -0.117096,
+   0.004071,
+   -0.103399
+  ]
+ },
+ "phalanx_pedis_middle_3_r": {
+  "Base_of_phalanx": [
+   0.117096,
+   0.004071,
+   -0.103399
+  ]
+ },
+ "phalanx_pedis_proximal_4_l": {
+  "Base_of_phalanx": [
+   -0.124146,
+   0.009283,
+   -0.068461
+  ]
+ },
+ "phalanx_pedis_proximal_4_r": {
+  "Base_of_phalanx": [
+   0.124146,
+   0.009283,
+   -0.068461
+  ]
+ },
+ "phalanx_pedis_middle_4_l": {
+  "Base_of_phalanx": [
+   -0.129911,
+   0.001413,
+   -0.092283
+  ]
+ },
+ "phalanx_pedis_middle_4_r": {
+  "Base_of_phalanx": [
+   0.129911,
+   0.001413,
+   -0.092283
+  ]
+ },
+ "phalanx_pedis_distal_4_l": {
+  "Base_of_phalanx": [
+   -0.133293,
+   0.002835,
+   -0.103727
+  ]
+ },
+ "phalanx_pedis_distal_4_r": {
+  "Base_of_phalanx": [
+   0.133293,
+   0.002835,
+   -0.103727
+  ]
+ },
+ "phalanx_pedis_proximal_5_l": {
+  "Base_of_phalanx": [
+   -0.137846,
+   0.006117,
+   -0.055017
+  ]
+ },
+ "phalanx_pedis_proximal_5_r": {
+  "Base_of_phalanx": [
+   0.137846,
+   0.006117,
+   -0.055017
+  ]
+ },
+ "phalanx_pedis_middle_5_l": {
+  "Base_of_phalanx": [
+   -0.140356,
+   0.001398,
+   -0.079774
+  ]
+ },
+ "phalanx_pedis_middle_5_r": {
+  "Base_of_phalanx": [
+   0.140356,
+   0.001398,
+   -0.079774
+  ]
+ },
+ "phalanx_pedis_distal_5_l": {
+  "Base_of_phalanx": [
+   -0.14218,
+   0.001839,
+   -0.085585
+  ]
+ },
+ "phalanx_pedis_distal_5_r": {
+  "Base_of_phalanx": [
+   0.14218,
+   0.001839,
+   -0.085585
   ]
  }
 }

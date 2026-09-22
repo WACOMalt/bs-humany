@@ -485,8 +485,11 @@ units to four.
 
 ### OQ-021 — The foot has no frame of its own, and no marked phalanx
 **Needed for:** `packages/muscle-data/src/ankle.ts`, `tools/cli/bin/generate-muscle-via-points.mjs`
-**Provisional value:** three of the nine ankle muscles run straight from their attachments, and
-the four long toe muscles stop at the metatarsals.
+**Provisional value:** three of the nine ankle muscles run straight from their attachments. The
+four long toe muscles no longer stop at the metatarsals: `Base_of_phalanx` is measured off each
+phalanx's own mesh by `tools/ingest/src/derived.ts`, the same kind of rule the metatarsal heads
+already used, and the tendons reach it. The two digitorum muscles are still one unit apiece
+standing for the four toes they fan to, taking the third.
 
 *The frame.* Via points are carried from the reference model through one frame correspondence per
 limb, fitted at the proximal bone -- the leg's from the hip centre, the knee axis and the femur's
@@ -521,8 +524,11 @@ stops there. They keep their line through the ankle and have none of their actio
 which is all of the toe-off in a stride. The two digitorum muscles fan to four toes apiece and are
 carried to the third metatarsal, the middle of the four.
 **Closes when:** the foot carries its own frame correspondence, and the toe muscles reach a marked
-phalanx or a measured one.
-**Status:** open, the frame half answered another way. On 2026-09-20 the foot was given a frame of
+phalanx or a measured one -- the second half done on 2026-09-22, by measuring one. What is left of
+this question is the frame, and splitting the two digitorum muscles into the four slips each of
+them really has.
+**Status:** open on the frame; the phalanx half closed on 2026-09-22 when the toes were
+articulated and the tendons were carried to a measured phalangeal base. On 2026-09-20 the foot was given a frame of
 its own and it was worse: the only forefoot landmark the reference marks is the fifth metatarsal's
 head, which is lateral, and a frame with a lateral long axis is ill-conditioned. What worked was
 the shank's frame, fitted knee to ankle on the malleoli both models mark, carrying the foot beyond

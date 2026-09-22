@@ -60,8 +60,8 @@ Two separate faults, and the first is documented rather than accidental.
 ### 3 — Separate the toes at L3
 - [x] 3.1 Five digital rays as their own segments, rather than one welded `toes_*`
 - [x] 3.2 Colliders generated per ray rather than one hull over the group
-- [ ] 3.3 Re-map every connection that was attached to the grouped joint, to the ray it belongs to
-- [ ] 3.4 Confirm against the gap measurement: the four worst muscles are all toe muscles
+- [x] 3.3 Re-map every connection that was attached to the grouped joint, to the ray it belongs to
+- [x] 3.4 Confirm against the gap measurement: the four worst muscles are all toe muscles
 
 ### 4 — The hand, and muscles for both ends
 - [ ] 4.1 Articulate the hand: 31 segments exist and carry no joints at all

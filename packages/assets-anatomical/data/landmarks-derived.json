@@ -324,5 +324,89 @@
   "Superior_nuchal_line_r": "the occipital vertex nearest the 'Superior_nuchal_line' marker mirrored across the midline (X negated)",
   "Inferior_nuchal_line_l": "the occipital vertex nearest the 'Inferior_nuchal_line' marker",
   "Inferior_nuchal_line_r": "the occipital vertex nearest the 'Inferior_nuchal_line' marker mirrored across the midline (X negated)"
+ },
+ "phalanx_pedis_proximal_1_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_1_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_1_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_1_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_2_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_2_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_2_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_2_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_2_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_2_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_3_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_3_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_3_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_3_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_3_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_3_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_4_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_4_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_4_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_4_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_4_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_4_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_5_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_proximal_5_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_5_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_middle_5_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_5_l": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+ },
+ "phalanx_pedis_distal_5_r": {
+  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
  }
 }

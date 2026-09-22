@@ -65,9 +65,11 @@ describe('the ankle muscle set', () => {
     expect(posterior?.path.length).toBeGreaterThan(0);
   });
 
-  it('stops the four long toe muscles at the metatarsals, and says so', () => {
-    // The dataset marks no phalangeal feature at all, so these four keep their line through the
-    // ankle and have no action at the toes. OQ-021.
+  it('carries the four long toe muscles to a phalanx, so they have an action at the toes', () => {
+    // They used to stop at a metatarsal head, because the export marks no phalangeal feature --
+    // which left them with no action at the toes at all, and with the toes welded into one body
+    // there was none to have. `Base_of_phalanx` is measured off each phalanx's mesh now
+    // (tools/ingest/src/derived.ts), which is the second half of what OQ-021 closes on.
     for (const id of [
       'extensor_digitorum_longus_r',
       'extensor_hallucis_longus_r',
@@ -75,7 +77,7 @@ describe('the ankle muscle set', () => {
       'flexor_hallucis_longus_r',
     ]) {
       const unit = ANKLE_UNITS.find((u) => u.id === id);
-      expect(unit?.insertion, id).toMatch(/_insertion_r_head_of_metatarsal_bone$/);
+      expect(unit?.insertion, id).toMatch(/_insertion_r_base_of_phalanx$/);
     }
   });
 

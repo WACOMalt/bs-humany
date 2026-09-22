@@ -332,6 +332,35 @@ export const DERIVED_RULES: readonly DerivedRule[] = [
       }),
     ),
   ),
+  /**
+   * The base of a toe phalanx: where the long flexors and extensors actually end.
+   *
+   * Gray puts flexor digitorum longus on the bases of the distal phalanges of the four lesser
+   * toes and flexor hallucis longus on the base of the great toe's, and the extensors on the
+   * phalanges likewise. The export marks no phalangeal feature at all, so until now those four
+   * tendons were carried to the head of a metatarsal and stopped there -- which made them ankle
+   * muscles rather than toe ones, and left them crossing no toe joint. With the toes articulated
+   * that is no longer a simplification, it is simply wrong.
+   *
+   * A phalanx's base is its proximal end, and a toe points forward, so proximal is the most
+   * posterior vertex of the bone: the same shape of rule as the metatarsal heads above, with the
+   * direction reversed.
+   */
+  ...([1, 2, 3, 4, 5] as const).flatMap((d) =>
+    (['proximal', 'middle', 'distal'] as const).flatMap((part) =>
+      // The hallux has no middle phalanx.
+      d === 1 && part === 'middle'
+        ? []
+        : (['l', 'r'] as const).map(
+            (s): DerivedRule => ({
+              bone: `phalanx_pedis_${part}_${d}_${s}`,
+              feature: 'Base_of_phalanx',
+              rule: 'most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end',
+              pick: (m) => extreme(m, 2, 1),
+            }),
+          ),
+    ),
+  ),
   // ISB 2002 defines MM and LM as the *tips* of the malleoli. The export's markers are surface
   // patches -- the left lateral malleolus is a 390-vertex patch whose centroid sits well above
   // the tip -- and the two sides differed enough to tilt the tibia frame by 22 degrees. The tip is
