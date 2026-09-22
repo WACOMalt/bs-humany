@@ -152,10 +152,19 @@ export interface ReflexLevels {
  *
  * Thirty milliseconds is the conduction time of a monosynaptic loop in a human leg.
  */
+/**
+ * The cord a run gets unless it says otherwise. Every number is measured; see
+ * `docs/validation/reflex-gains.md` for the tables and `SpinalGains` for what each one is.
+ *
+ * Under the committed standing policy this cord is worth 0.89 s upright against 0.46 with no
+ * cord at all -- it very nearly doubles it. The set of numbers it replaces was worth 0.46, which
+ * is to say nothing, because the afferent it answered was normalised twice and read every muscle
+ * in the body as hugely stretched at every instant.
+ */
 export const DEFAULT_REFLEX: ReflexLevels = {
-  stretch: 0.005,
-  velocity: 1,
-  setPoint: -0.1,
+  stretch: 3.5,
+  velocity: 0.25,
+  setPoint: 0,
   inhibition: 0.3,
   forceCeiling: 1.2,
   forceInhibition: 0.5,

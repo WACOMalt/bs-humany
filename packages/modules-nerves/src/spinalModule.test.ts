@@ -68,6 +68,28 @@ describe('SpinalModule', () => {
     expect(Array.from(spine.lastDrive).every((d) => d === 0)).toBe(true);
   });
 
+  it('reads the length afferent as a strain, in the unit the channel publishes it in', async () => {
+    // What the double-normalisation bug looked like from the outside, and nothing caught it for
+    // want of a test on the *scale* of an afferent rather than its sign. `muscle.state` publishes
+    // fibre length already in optimal fibre lengths, so subtracting one gives a strain that runs
+    // from about -0.5 to +0.4 over everything a body does. It used to be divided by the optimal
+    // length in metres as well, which put it between 2 and 41 -- so every muscle read as hugely
+    // stretched at every instant, the reflex was a constant tone rather than an answer to a
+    // stretch, and the gain had to be held three orders of magnitude below where it belongs.
+    //
+    // A gain of one is asserted here against a set point of one: a muscle at exactly its optimal
+    // length is one strain unit *short* of that set point, so the reflex says nothing. Under the
+    // old arithmetic the same muscle read about ten, was nine past the set point, and every unit
+    // in the body pinned at full excitation.
+    const { kernel, spine } = rig({ stretch: 1, velocity: 0, setPoint: 1, inhibition: 0 });
+    await kernel.init();
+    kernel.run(40);
+    for (const drive of spine.lastDrive) {
+      expect(drive, 'a muscle at its optimal length is not one whole strain unit past it').toBe(0);
+    }
+    kernel.dispose();
+  });
+
   it('excites a muscle the body has stretched past its set point', async () => {
     // A set point well under the resting fibre length, so every unit reads as stretched.
     const { kernel, spine } = rig({ stretch: 2, velocity: 0, setPoint: -0.5, inhibition: 0 });

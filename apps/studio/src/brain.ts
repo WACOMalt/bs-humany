@@ -304,10 +304,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   const showSpine = () => {
     const stretch = Number(ui.spineStretch.value);
     must<HTMLOutputElement>('#spine-stretch-value').textContent =
-      stretch === 0 ? 'off' : stretch.toFixed(3);
+      stretch === 0 ? 'off' : stretch.toFixed(2);
     must<HTMLOutputElement>('#spine-velocity-value').textContent = Number(
       ui.spineVelocity.value,
-    ).toFixed(1);
+    ).toFixed(2);
     must<HTMLOutputElement>('#spine-setpoint-value').textContent = Number(
       ui.spineSetPoint.value,
     ).toFixed(2);

@@ -7,46 +7,106 @@ the body those weights are searched against, fixed for the whole run by the reci
 
 So they are chosen by measurement, and this is the measurement.
 
-## The stretch reflex, on the body as it stands
+## First, the afferent was wrong
 
-Eight seeds of the reference stand, six-second episodes, the policy silent so that what is being
-measured is the cord and nothing else, with the tremor and sense grain training itself uses.
+`muscle.state` publishes fibre length already normalised -- the channel's own word for its unit is
+"optimal fiber lengths" -- so 1 is a fibre at its optimal length. The cord divided it by the
+optimal fibre length **in metres** as well. The signal it reacted to therefore ran from 2.3 to 41
+where the strain runs from -0.44 to 0, and every muscle in the body read as hugely stretched at
+every instant, standing perfectly still included.
 
-| stretch | velocity damper | seconds upright | fitness |
-|---|---|---|---|
-| 0 | 0 | 0.48 | 1.070 |
-| 0.001 | 1 | **0.52** | **1.153** |
-| 0.002 | 1 | 0.49 | 1.092 |
-| 0.003 | 1 | 0.47 | 1.040 |
-| 0.005 | 1 | 0.43 | 0.941 |
-| 0.005 | 0 | 0.43 | 0.938 |
-| 0.008 | 1 | 0.39 | 0.833 |
-| 0.012 | 1 | 0.35 | 0.742 |
+That is not a stretch reflex. It is a constant tone, and one proportional to one over the muscle's
+fibre length, so the shortest-fibred muscles got the most of it. It is also the whole explanation
+for the gains that used to be here: five thousandths was as much as could be applied before the
+tone saturated the body, and eight tenths put 94 per cent of its muscles at full excitation.
 
-Above about a thousandth the reflex costs the body time on its feet, monotonically, and by 0.012 it
-has taken a quarter of it. The best row is 0.001 and it is four hundredths of a second better than
-no cord at all across eight seeds, which is not a difference worth claiming.
+Fixed, the length afferent is `fiberLength - 1`, and this is what the body actually presents:
 
-**This is a change.** `DEFAULT_REFLEX.stretch` is 0.005 because when it was chosen the same
-measurement ran 0.33 s with no cord, 0.67 s at 0.005, and 0.87 s with the velocity damper on top.
-Every one of those numbers is now wrong: the body stands half a second on its own where it used to
-manage a third, and the cord subtracts from that instead of adding. What changed in between is the
-body -- every spinal joint moved to its disc and now leans with the spine, and the hand and the
-toes gained 38 muscles. A gain tuned against the old geometry is not tuned against this one.
+| | p05 | p50 | p95 | max |
+|---|---|---|---|---|
+| standing, the first moment | -0.440 | -0.053 | -0.004 | 0.023 |
+| three seconds into a collapse | -0.501 | -0.111 | 0.118 | 0.386 |
 
-What the table does **not** measure is what the cord is for. A silent body falling over is one
-signal; the reflex is meant to be a floor under a policy that is still learning, and the argument
-that first put it at 0.005 was that 0.8 saturated 94 per cent of the muscles and left a trained
-policy at 0.016 against 1.006 with the reflexes off -- a cord that silences the policy is worse
-than no cord. That much stands. Where between 0 and 0.005 a *training run* does best is a question
-this table cannot answer, and the way to answer it is two runs.
+## The set point, which decides whether it is a reflex at all
 
-## Reproducing it
+Muscles past the set point, of 272:
 
-Build a `StandRig` per setting with `reflex: { ...DEFAULT_REFLEX, stretch, velocity }`, run
-`episode` with zero weights over several seeds, and read `aliveSeconds`. The flags do the same for
-a real run: `--reflex`, `--reflex-velocity`, `--reflex-setpoint`, `--reflex-inhibition`,
-`--reflex-ceiling`, `--reflex-force-inhibition`, `--reflex-delay`.
+| set point | standing still | falling |
+|---|---|---|
+| -0.10 (the old default) | **173** | 123 |
+| -0.05 | 135 | 101 |
+| **0.00** | **2** | 61 |
+| +0.05 | 0 | 26 |
+
+At -0.10 two thirds of the body is excited while it stands perfectly still. At 0 -- hold the fibre
+at its optimal length -- the cord is quiet until something is actually stretched, and 61 muscles
+answer as the body goes down. Swept for time upright it is a plateau from 0 to +0.02 and falls off
+below: 0.578 s at 0, 0.544 at -0.02, 0.504 at -0.06.
+
+## The gains, under a trained policy
+
+Eight seeds, six-second episodes, the committed standing policy loaded, damper 0.5:
+
+| stretch | seconds upright | fitness |
+|---|---|---|
+| 0 (no cord) | 0.456 | 0.967 |
+| 2 | 0.639 | 1.343 |
+| 2.5 | 0.736 | 1.518 |
+| 3 | 0.859 | 1.714 |
+| **3.5** | **0.894** | **1.751** |
+| 4 | 0.904 | 1.797 |
+| 5 | 0.851 | 1.712 |
+
+The peak is broad across 3.5 to 4 and the default is 3.5, off the measured argmax of an eight-seed
+estimate and with room on both sides. The fall-off past it is the excitation ceiling: the brain
+adds its correction to what the cord has already put on the muscle, and a muscle clamped at 1 eats
+it. A reflex that silences the policy is worse than no reflex, and that much was always true.
+
+The same numbers with the policy silent peak lower and flatter -- 0.484 s with no cord, 0.568 at
+stretch 2 to 4 -- which is the sense in which the cord is a floor rather than a controller.
+
+## The damper
+
+Nearly neutral at these gains, and kept for what it is for. Fibre velocity reaches 0.044 optimal
+lengths a second in a fall where stretch reaches 0.39, so the term is small either way: it is
+worth a little to a silent body (0.578 s at 0.5 against 0.573 at 0) and costs a little to a
+trained one (0.859 at 0.5 against 0.876 at 0).
+
+What it prevents is plain further out. A length loop with a conduction delay in it rings, and past
+2 the ringing is the whole story: 0.524 s upright at 2, 0.388 at 4, 0.268 at 8, against 0.573 with
+no damping at all. The useful range is narrow and below 1, and a quarter sits inside it.
+
+## Reciprocal inhibition, which this measure cannot choose
+
+| inhibition | seconds upright |
+|---|---|
+| 0 | 0.546 |
+| 0.30 | 0.578 |
+| 0.80 | 0.609 |
+| 1.00 | 0.619 |
+| 1.50 | 0.635 |
+| 3.00 | 0.684 |
+
+It rises monotonically straight past every value that means anything. More inhibition is less
+muscle doing less, and a limper body takes longer to fall -- so time upright is measuring
+slackness here, not the reflex. 1 is the physiological statement, that the antagonist's reflex is
+fully cancelled; 0.3 is what is set, unchanged and unclaimed. Choosing between them wants two
+training runs, not a table.
+
+## The Golgi ceiling, which never fires
+
+Tendon force over maximum isometric force reaches 0.042 at the 95th percentile and 0.235 at worst
+in a full collapse, against a ceiling of 1.2. The autogenic term contributes exactly nothing to
+any measurement on this page -- the two rows for it are identical to three decimals. It is left
+where it is because nothing here exercises it, not because it has been shown to be right.
+
+## Reproducing all of it
+
+Build a `StandRig` per setting with `reflex: { ...DEFAULT_REFLEX, ... }`, run `episode` over
+several seeds, and read `aliveSeconds`. For a trained body, `MlpPolicy.fit` the checkpoint against
+`rig.inputNames` and `rig.outputNames` first. The flags do the same for a real run: `--reflex`,
+`--reflex-velocity`, `--reflex-setpoint`, `--reflex-inhibition`, `--reflex-ceiling`,
+`--reflex-force-inhibition`, `--reflex-delay`.
 
 ## Making them trainable
 

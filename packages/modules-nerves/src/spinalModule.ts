@@ -70,22 +70,35 @@ export interface SpinalGains {
   /**
    * Group II, length: excitation a unit of stretch past the set point. 0 is no reflex.
    *
-   * Small, and it has to be. Fibre stretch is measured in whole optimal lengths, so a gain near
-   * one drives every muscle to the excitation ceiling within a tick and the body becomes a
-   * rigid statue -- which survives a little longer than a slack one and is useless, because the
-   * brain above adds its correction to an excitation already clamped at 1 and the clamp eats it.
-   * A reflex that silences the policy is worse than no reflex. Measured on the reference body:
-   * 0.005 puts about five percent excitation on a resting muscle with nothing at the ceiling,
-   * and 0.04 begins to saturate. See `tools/train/runs/cordlevel.mjs`.
+   * Stretch is a strain: 0.1 is a fibre a tenth longer than its optimal length. Standing still,
+   * hardly any muscle is past a set point of 0 -- two of 272 -- and a body on its way down puts
+   * 61 of them there, reaching 0.39 at the worst. So a gain of a few turns a real stretch into a
+   * few tenths of excitation, and that is the range: measured under a trained policy, 2 is worth
+   * 0.64 s upright, 3.5 is worth 0.89, 5 is back to 0.85, and no reflex at all is worth 0.46.
+   *
+   * The ceiling still matters at the top of that range. The brain above adds its correction to
+   * whatever the cord has already put on the muscle, and an excitation clamped at 1 eats it: a
+   * reflex that silences the policy is worse than no reflex. That is what the fall-off past 4 is.
+   *
+   * This used to be five thousandths, and the reason is worth keeping: the length afferent was
+   * divided by the optimal fibre length twice, so it read 2.3 to 41 instead of -0.44 to 0, and
+   * any gain that was not tiny saturated the whole body. `docs/validation/reflex-gains.md` has
+   * the numbers before and after.
    */
   readonly stretch: number;
   /**
    * Group Ia, velocity: excitation a unit of lengthening speed. The damping term.
    *
-   * Scaled quite differently from `stretch`, because fibre velocity in optimal lengths a second
-   * is a much smaller number than fibre stretch in optimal lengths. It does nothing below about
-   * 0.1 and saturates past about 3; at 1 it is worth roughly a third more time upright than the
-   * length term alone, which is what a damping term is supposed to be worth.
+   * Nearly neutral, and kept anyway. Fibre velocity reaches 0.044 optimal lengths a second in a
+   * fall where stretch reaches 0.39, so at any gain comparable to `stretch` this term is small.
+   * Measured, it is worth a little to a silent body (0.578 s at 0.5 against 0.573 at 0) and costs
+   * a little to a trained one (0.859 s at 0.5 against 0.876 at 0), which is to say it is worth
+   * nothing either way at these gains.
+   *
+   * It is not zero because of what it is for. A length loop with a conduction delay in it rings,
+   * and this is the term that stops it: past 2 the ringing is plain -- 0.39 s upright at 4 and
+   * 0.27 at 8, against 0.57 with no damping at all -- so the useful range is narrow and below 1.
+   * A quarter is inside it with room on both sides.
    */
   readonly velocity: number;
   /**
@@ -93,7 +106,16 @@ export interface SpinalGains {
    * optimal length; a positive set point lets it hang slacker before the reflex answers.
    */
   readonly setPoint: number;
-  /** How much of a group's reflex drive subtracts from its antagonist's, 0 to 1. */
+  /**
+   * How much of a group's reflex drive subtracts from its antagonist's, 0 to 1.
+   *
+   * Not tuned by time upright, because that measure cannot choose it: more inhibition means less
+   * muscle doing less, and a limper body takes longer to fall. It rises monotonically past every
+   * value that means anything -- 0.61 s at 1, 0.65 at 2, 0.68 at 3 -- which is the measure being
+   * gamed rather than the reflex being tuned. 1 is the physiological statement, that the
+   * antagonist's reflex is fully cancelled; a third of it is what is here, and what chooses
+   * between them is a pair of training runs, not a table.
+   */
   readonly inhibition: number;
   /** Ib: tendon load, as a share of maximum isometric force, above which the unit inhibits itself. */
   readonly forceCeiling: number;
@@ -106,7 +128,10 @@ export interface SpinalGains {
 export const DEFAULT_SPINAL_GAINS: SpinalGains = {
   stretch: 0,
   velocity: 0,
-  setPoint: -0.1,
+  // Hold the fibre at its optimal length. Below this the reflex stops being a reflex: at -0.1,
+  // 173 of the body's 272 muscles are past the set point standing perfectly still, so the cord
+  // adds a constant tone to most of the body instead of answering a stretch.
+  setPoint: 0,
   inhibition: 0.3,
   forceCeiling: 1.2,
   forceInhibition: 0.5,
@@ -125,7 +150,6 @@ export class SpinalModule implements SimModule {
   private gainsInUse: SpinalGains;
   private readonly stepSeconds: number;
   /** Per unit: its optimal fibre length and the force at which its tendon reads 1. */
-  private readonly optimal: Float64Array;
   private readonly maxForce: Float64Array;
   /** Per group: the unit indices in it, and the index of the group that opposes it. */
   private readonly groupUnits: Int32Array[];
@@ -149,7 +173,6 @@ export class SpinalModule implements SimModule {
     this.stepSeconds = options.stepSeconds > 0 ? options.stepSeconds : 1 / 500;
     const unitIndex = new Map(muscles.units.map((u, i) => [u.id, i]));
     this.unitCount = muscles.units.length;
-    this.optimal = Float64Array.from(muscles.units, (u) => u.parameters.optimalFiberLength || 0.1);
     this.maxForce = Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce || 1);
     this.groupIds = options.groups.map((g) => g.id);
     this.groupUnits = options.groups.map((g) =>
@@ -241,7 +264,16 @@ export class SpinalModule implements SimModule {
     const pull = this.pull;
     const n = this.unitCount;
     for (let u = 0; u < n; u++) {
-      const length = (fibre[u] as number) / (this.optimal[u] as number) - 1;
+      // `muscle.state` publishes this already normalised -- the channel's own word for its unit
+      // is "optimal fiber lengths" -- so 1 is a fibre at its optimal length and this is the
+      // strain. It used to be divided by the optimal length in metres as well, which turned a
+      // signal that runs from -0.44 to 0 into one that runs from 2.3 to 41, so every muscle in
+      // the body read as enormously stretched at every instant including standing still. The
+      // reflex was not a reflex: it was a constant bias, and one proportional to 1 over the
+      // muscle's fibre length, so the shortest-fibred muscles got the most of it. That is why the
+      // gain had to be held down at five thousandths to stop it saturating, and why eight tenths
+      // put ninety-four per cent of the body's muscles at full excitation.
+      const length = (fibre[u] as number) - 1;
       const rate = speed ? (speed[u] as number) : 0;
       const load = pull ? (pull[u] as number) / (this.maxForce[u] as number) : 0;
       this.snapshot[u] = Number.isFinite(length) ? length : 0;
