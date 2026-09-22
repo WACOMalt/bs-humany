@@ -14,6 +14,7 @@
     "bench": "node tools/cli/bin/bench.mjs",
     "build:studio": "pnpm --filter @bs-humany/studio build",
     "cite:lint": "node tools/cli/bin/cite-lint.mjs",
+    "check:generated": "node tools/cli/bin/check-generated.mjs",
     "desktop:appimage": "pnpm desktop:sidecar && NO_STRIP=true pnpm --filter @bs-humany/studio tauri build --bundles appimage",
     "desktop:build": "pnpm desktop:sidecar && pnpm --filter @bs-humany/studio tauri build --no-bundle",
     "desktop:dev": "pnpm --filter @bs-humany/studio tauri dev",

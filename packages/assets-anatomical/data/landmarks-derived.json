@@ -12,34 +12,54 @@
   "Xiphoid_tip": "most inferior vertex of the fused sternum within 8 mm of the midline (min Y, |X| < 0.008)"
  },
  "metatarsal_1_l": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_medial_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_medial_l"
  },
  "metatarsal_1_r": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_medial_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_medial_r"
  },
  "metatarsal_2_l": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_intermediate_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_intermediate_l"
  },
  "metatarsal_2_r": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_intermediate_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_intermediate_r"
  },
  "metatarsal_3_l": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_lateral_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_lateral_l"
  },
  "metatarsal_3_r": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuneiform_lateral_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuneiform_lateral_r"
  },
  "metatarsal_4_l": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_l"
  },
  "metatarsal_4_r": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_r"
  },
  "metatarsal_5_l": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_l"
  },
  "metatarsal_5_r": {
-  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)"
+  "Head_of_metatarsal_bone": "most anterior vertex of the metatarsal mesh (min Z, world frame)",
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer cuboid_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from cuboid_r"
  },
  "tibia_l": {
   "Medial_malleolus": "most inferior vertex of the tibia mesh (min Y): the tip of the medial malleolus"
@@ -326,87 +346,267 @@
   "Inferior_nuchal_line_r": "the occipital vertex nearest the 'Inferior_nuchal_line' marker mirrored across the midline (X negated)"
  },
  "phalanx_pedis_proximal_1_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_1_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_1_l"
  },
  "phalanx_pedis_proximal_1_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_1_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_1_r"
  },
  "phalanx_pedis_distal_1_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_1_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_1_l"
  },
  "phalanx_pedis_distal_1_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_1_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_1_r"
  },
  "phalanx_pedis_proximal_2_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_2_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_2_l"
  },
  "phalanx_pedis_proximal_2_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_2_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_2_r"
  },
  "phalanx_pedis_middle_2_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_2_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_2_l"
  },
  "phalanx_pedis_middle_2_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_2_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_2_r"
  },
  "phalanx_pedis_distal_2_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_2_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_2_l"
  },
  "phalanx_pedis_distal_2_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_2_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_2_r"
  },
  "phalanx_pedis_proximal_3_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_3_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_3_l"
  },
  "phalanx_pedis_proximal_3_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_3_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_3_r"
  },
  "phalanx_pedis_middle_3_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_3_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_3_l"
  },
  "phalanx_pedis_middle_3_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_3_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_3_r"
  },
  "phalanx_pedis_distal_3_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_3_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_3_l"
  },
  "phalanx_pedis_distal_3_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_3_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_3_r"
  },
  "phalanx_pedis_proximal_4_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_4_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_4_l"
  },
  "phalanx_pedis_proximal_4_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_4_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_4_r"
  },
  "phalanx_pedis_middle_4_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_4_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_4_l"
  },
  "phalanx_pedis_middle_4_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_4_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_4_r"
  },
  "phalanx_pedis_distal_4_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_4_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_4_l"
  },
  "phalanx_pedis_distal_4_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_4_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_4_r"
  },
  "phalanx_pedis_proximal_5_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_5_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_5_l"
  },
  "phalanx_pedis_proximal_5_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metatarsal_5_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metatarsal_5_r"
  },
  "phalanx_pedis_middle_5_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_5_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_5_l"
  },
  "phalanx_pedis_middle_5_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_proximal_5_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_proximal_5_r"
  },
  "phalanx_pedis_distal_5_l": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_5_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_5_l"
  },
  "phalanx_pedis_distal_5_r": {
-  "Base_of_phalanx": "most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end"
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_pedis_middle_5_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_pedis_middle_5_r"
+ },
+ "metacarpal_1_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezium_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezium_l"
+ },
+ "phalanx_proximal_1_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_1_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_1_l"
+ },
+ "phalanx_distal_1_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_1_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_1_l"
+ },
+ "metacarpal_2_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezoid_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezoid_l"
+ },
+ "phalanx_proximal_2_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_2_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_2_l"
+ },
+ "phalanx_middle_2_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_2_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_2_l"
+ },
+ "phalanx_distal_2_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_2_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_2_l"
+ },
+ "metacarpal_3_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer capitate_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from capitate_l"
+ },
+ "phalanx_proximal_3_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_3_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_3_l"
+ },
+ "phalanx_middle_3_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_3_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_3_l"
+ },
+ "phalanx_distal_3_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_3_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_3_l"
+ },
+ "metacarpal_4_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_l"
+ },
+ "phalanx_proximal_4_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_4_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_4_l"
+ },
+ "phalanx_middle_4_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_4_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_4_l"
+ },
+ "phalanx_distal_4_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_4_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_4_l"
+ },
+ "metacarpal_5_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_l"
+ },
+ "phalanx_proximal_5_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_5_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_5_l"
+ },
+ "phalanx_middle_5_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_5_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_5_l"
+ },
+ "phalanx_distal_5_l": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_5_l",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_5_l"
+ },
+ "metacarpal_1_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezium_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezium_r"
+ },
+ "phalanx_proximal_1_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_1_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_1_r"
+ },
+ "phalanx_distal_1_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_1_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_1_r"
+ },
+ "metacarpal_2_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer trapezoid_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from trapezoid_r"
+ },
+ "phalanx_proximal_2_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_2_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_2_r"
+ },
+ "phalanx_middle_2_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_2_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_2_r"
+ },
+ "phalanx_distal_2_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_2_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_2_r"
+ },
+ "metacarpal_3_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer capitate_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from capitate_r"
+ },
+ "phalanx_proximal_3_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_3_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_3_r"
+ },
+ "phalanx_middle_3_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_3_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_3_r"
+ },
+ "phalanx_distal_3_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_3_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_3_r"
+ },
+ "metacarpal_4_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_r"
+ },
+ "phalanx_proximal_4_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_4_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_4_r"
+ },
+ "phalanx_middle_4_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_4_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_4_r"
+ },
+ "phalanx_distal_4_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_4_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_4_r"
+ },
+ "metacarpal_5_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer hamate_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from hamate_r"
+ },
+ "phalanx_proximal_5_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer metacarpal_5_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from metacarpal_5_r"
+ },
+ "phalanx_middle_5_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_proximal_5_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_proximal_5_r"
+ },
+ "phalanx_distal_5_r": {
+  "Base_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end nearer phalanx_middle_5_r",
+  "Head_of_digit_bone": "centroid of the vertices in the terminal eighth of the bone along its own long axis (dominant eigenvector of the vertex covariance), at the end away from phalanx_middle_5_r"
  }
 }

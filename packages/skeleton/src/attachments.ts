@@ -1006,9 +1006,9 @@ const MUSCLES: readonly MuscleSpec[] = [
     // it on the middle and distal phalanges of the lesser toes through the extensor expansion;
     // one unit cannot be on four toes at once, so it takes the middle of the four and says so.
     // It used to stop at a metatarsal head, because the export marks no phalangeal feature --
-    // `Base_of_phalanx` is derived now (see tools/ingest/src/derived.ts), and with the toes
+    // `Base_of_digit_bone` is derived now (see tools/ingest/src/derived.ts), and with the toes
     // articulated a tendon that stopped short of them was crossing no toe joint at all.
-    insertions: [['phalanx_pedis_middle_3_$', 'Base_of_phalanx']],
+    insertions: [['phalanx_pedis_middle_3_$', 'Base_of_digit_bone']],
   },
   {
     id: 'extensor_hallucis_longus',
@@ -1018,7 +1018,7 @@ const MUSCLES: readonly MuscleSpec[] = [
     // Gray: from the middle of the anterior surface of the fibula, to the base of the distal
     // phalanx of the great toe.
     origins: [['fibula_$', 'Anteromedial_surface_of_fibula']],
-    insertions: [['phalanx_pedis_distal_1_$', 'Base_of_phalanx']],
+    insertions: [['phalanx_pedis_distal_1_$', 'Base_of_digit_bone']],
   },
   {
     id: 'flexor_digitorum_longus',
@@ -1029,7 +1029,7 @@ const MUSCLES: readonly MuscleSpec[] = [
     // distal phalanges of the four lesser toes.
     origins: [['tibia_$', 'Posterior_surface_of_tibia']],
     // The third toe's distal phalanx, standing for the four the tendon divides between.
-    insertions: [['phalanx_pedis_distal_3_$', 'Base_of_phalanx']],
+    insertions: [['phalanx_pedis_distal_3_$', 'Base_of_digit_bone']],
   },
   {
     id: 'flexor_hallucis_longus',
@@ -1040,7 +1040,7 @@ const MUSCLES: readonly MuscleSpec[] = [
     // distal phalanx of the great toe. Its tendon runs in a groove on the talus and another on
     // the calcaneus, and the dataset marks the calcaneal one.
     origins: [['fibula_$', 'Posterior_surface_of_fibula']],
-    insertions: [['phalanx_pedis_distal_1_$', 'Base_of_phalanx']],
+    insertions: [['phalanx_pedis_distal_1_$', 'Base_of_digit_bone']],
   },
   {
     id: 'tibialis_posterior',

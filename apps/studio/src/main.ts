@@ -1354,6 +1354,7 @@ ui.muscles.addEventListener('change', () => {
 // The brain panel is made once the follow code below exists; runs read its setup when they start.
 // biome-ignore lint/style/useConst: assigned once, but below the code that reads it, so a `const` there would be in its dead zone for the handlers above.
 let brain: ReturnType<typeof createBrainPanel> | undefined;
+// biome-ignore lint/style/useConst: as above -- assigned once, below the handlers that read it.
 let align: AlignPanel | undefined;
 
 // --- The editors' chrome: tabs, what the page remembers, the overlays popover ------------------

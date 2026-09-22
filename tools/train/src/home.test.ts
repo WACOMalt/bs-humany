@@ -44,8 +44,8 @@ describe('the data directory', () => {
     try {
       expect(dataHome()).toBe('/tmp/bs-humany-test-home');
     } finally {
-      if (was === undefined) delete process.env.BS_HUMANY_HOME;
-      else process.env.BS_HUMANY_HOME = was;
+      // `undefined` here is `process.env`'s own way of saying unset, and reads as absent.
+      process.env.BS_HUMANY_HOME = was;
     }
   });
 });

@@ -112,6 +112,112 @@ function sideExtreme(mesh: WorldMesh, side: 'l' | 'r', axis: Axis, sign: 1 | -1)
 
 type Vec3 = [number, number, number];
 
+/**
+ * The long axis of an elongated bone: the dominant eigenvector of its vertex covariance, found by
+ * power iteration. A phalanx or a metacarpal is far longer than it is wide, so this axis is the
+ * bone's own shaft direction, whichever way the digit happens to point.
+ */
+function longAxis(mesh: WorldMesh): { axis: Vec3; centre: Vec3 } {
+  const p = mesh.positions;
+  const n = mesh.vertexCount;
+  const centre: Vec3 = [0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    centre[0] += p[i * 3] ?? 0;
+    centre[1] += p[i * 3 + 1] ?? 0;
+    centre[2] += p[i * 3 + 2] ?? 0;
+  }
+  centre[0] /= n;
+  centre[1] /= n;
+  centre[2] /= n;
+  // Upper triangle of the covariance, then mirrored: [xx, xy, xz, yy, yz, zz].
+  const c: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    const x = (p[i * 3] ?? 0) - centre[0];
+    const y = (p[i * 3 + 1] ?? 0) - centre[1];
+    const z = (p[i * 3 + 2] ?? 0) - centre[2];
+    c[0] += x * x;
+    c[1] += x * y;
+    c[2] += x * z;
+    c[3] += y * y;
+    c[4] += y * z;
+    c[5] += z * z;
+  }
+  let v: Vec3 = [1, 1, 1];
+  for (let k = 0; k < 64; k++) {
+    const a = c[0] * v[0] + c[1] * v[1] + c[2] * v[2];
+    const b = c[1] * v[0] + c[3] * v[1] + c[4] * v[2];
+    const d = c[2] * v[0] + c[4] * v[1] + c[5] * v[2];
+    const length = Math.hypot(a, b, d);
+    if (length === 0) break;
+    v = [a / length, b / length, d / length];
+  }
+  return { axis: v, centre };
+}
+
+/** The centroid of the vertices in the terminal `fraction` of the bone along `axis`, `+axis` end. */
+function endBand(mesh: WorldMesh, axis: Vec3, fraction: number): Vec3 {
+  const p = mesh.positions;
+  const n = mesh.vertexCount;
+  const along = new Float64Array(n);
+  let lo = Number.POSITIVE_INFINITY;
+  let hi = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < n; i++) {
+    const t =
+      (p[i * 3] ?? 0) * axis[0] + (p[i * 3 + 1] ?? 0) * axis[1] + (p[i * 3 + 2] ?? 0) * axis[2];
+    along[i] = t;
+    if (t < lo) lo = t;
+    if (t > hi) hi = t;
+  }
+  const cut = hi - (hi - lo) * fraction;
+  const sum: Vec3 = [0, 0, 0];
+  let taken = 0;
+  for (let i = 0; i < n; i++) {
+    if ((along[i] ?? 0) < cut) continue;
+    sum[0] += p[i * 3] ?? 0;
+    sum[1] += p[i * 3 + 1] ?? 0;
+    sum[2] += p[i * 3 + 2] ?? 0;
+    taken += 1;
+  }
+  if (taken === 0) return longAxis(mesh).centre;
+  return [sum[0] / taken, sum[1] / taken, sum[2] / taken];
+}
+
+/** How much of a bone's length the end band takes in: an eighth, which is the articular end. */
+const END_BAND = 0.125;
+
+/**
+ * The base or the head of a bone in a digit, measured from the bone itself.
+ *
+ * A digit's bones are short, and the dataset's markers are label anchors floating 12 to 30 mm
+ * clear of the hand -- further than a phalanx is wide -- so there is nothing to read a tendon's
+ * ending off. There is the bone. A phalanx is a shaft with an articular surface at each end, so
+ * the base is the centroid of the end band nearer the bone it articulates with proximally, and
+ * the head is the centroid of the band at the other end.
+ *
+ * Taking the *centroid of a band* rather than the single most extreme vertex matters: the extreme
+ * vertex is a corner of the rim, on the dorsal or the palmar edge, and a tendon put there runs a
+ * centimetre off the bone's axis. The band's centroid is on the axis, which is where the base of
+ * a phalanx is.
+ *
+ * The check that it is right is continuity: down every digit of both hands and both feet, a
+ * bone's head and the next bone's base come out 1.2 to 7.6 mm apart -- a joint space -- and the
+ * bone lengths that fall out (metacarpal 2 at 65 mm, the middle phalanx of the little toe at
+ * 8 mm) are the published ones.
+ */
+function digitEnd(mesh: WorldMesh, proximal: WorldMesh | undefined, end: 'base' | 'head'): Vec3 {
+  const { axis, centre } = longAxis(mesh);
+  // Orient the axis proximally: toward the bone this one articulates with at its base.
+  const toward = proximal ? longAxis(proximal).centre : centre;
+  const dot =
+    axis[0] * (toward[0] - centre[0]) +
+    axis[1] * (toward[1] - centre[1]) +
+    axis[2] * (toward[2] - centre[2]);
+  const proximalAxis: Vec3 = dot < 0 ? [-axis[0], -axis[1], -axis[2]] : axis;
+  const wanted: Vec3 =
+    end === 'base' ? proximalAxis : [-proximalAxis[0], -proximalAxis[1], -proximalAxis[2]];
+  return endBand(mesh, wanted, END_BAND);
+}
+
 /** Bins along a rib's arc, from its head to its anterior end. */
 export const RIB_BINS = 24;
 
@@ -297,6 +403,53 @@ export const RIB_RULES: readonly DerivedRule[] = Array.from(
   ]),
 );
 
+/**
+ * Every bone in a digit, with the bone proximal to it -- which is what orients its long axis.
+ *
+ * The hallux and the thumb have two phalanges, the other eight digits three. A metacarpal's or a
+ * metatarsal's proximal neighbour is a carpal or a tarsal, and the ones chosen here are the bones
+ * each actually articulates with: the trapezium under the thumb, the capitate under the third
+ * finger, the hamate under the fourth and fifth, and in the foot the cuneiforms and the cuboid.
+ * Only the direction matters, so a neighbouring carpal would do as well; naming the right one
+ * costs nothing and says what the bone is.
+ */
+const CARPAL_UNDER: Record<number, string> = {
+  1: 'trapezium',
+  2: 'trapezoid',
+  3: 'capitate',
+  4: 'hamate',
+  5: 'hamate',
+};
+const TARSAL_UNDER: Record<number, string> = {
+  1: 'cuneiform_medial',
+  2: 'cuneiform_intermediate',
+  3: 'cuneiform_lateral',
+  4: 'cuboid',
+  5: 'cuboid',
+};
+
+const DIGIT_BONES: readonly { readonly id: string; readonly proximal: string }[] = (
+  ['l', 'r'] as const
+).flatMap((s) =>
+  ([1, 2, 3, 4, 5] as const).flatMap((d) =>
+    (
+      [
+        ['hand', 'metacarpal', 'phalanx', CARPAL_UNDER],
+        ['foot', 'metatarsal', 'phalanx_pedis', TARSAL_UNDER],
+      ] as const
+    ).flatMap(([, long, phalanx, under]) => {
+      // The thumb and the hallux have no middle phalanx.
+      const parts =
+        d === 1 ? (['proximal', 'distal'] as const) : (['proximal', 'middle', 'distal'] as const);
+      const chain = [`${long}_${d}_${s}`, ...parts.map((part) => `${phalanx}_${part}_${d}_${s}`)];
+      return chain.map((id, i) => ({
+        id,
+        proximal: i === 0 ? `${under[d]}_${s}` : (chain[i - 1] as string),
+      }));
+    }),
+  ),
+);
+
 export const DERIVED_RULES: readonly DerivedRule[] = [
   {
     bone: 'vertebra_c7',
@@ -333,32 +486,30 @@ export const DERIVED_RULES: readonly DerivedRule[] = [
     ),
   ),
   /**
-   * The base of a toe phalanx: where the long flexors and extensors actually end.
+   * The base and the head of every bone in every digit, hand and foot.
    *
    * Gray puts flexor digitorum longus on the bases of the distal phalanges of the four lesser
-   * toes and flexor hallucis longus on the base of the great toe's, and the extensors on the
-   * phalanges likewise. The export marks no phalangeal feature at all, so until now those four
-   * tendons were carried to the head of a metatarsal and stopped there -- which made them ankle
-   * muscles rather than toe ones, and left them crossing no toe joint. With the toes articulated
-   * that is no longer a simplification, it is simply wrong.
+   * toes and flexor hallucis longus on the base of the great toe's, the extensors on the phalanges
+   * likewise, and in the hand flexor digitorum superficialis on the middle phalanges and profundus
+   * on the distal ones. The export marks a phalangeal feature on one digit only -- the third
+   * finger -- and even there as a label anchor 16 mm clear of the bone. So every one of those
+   * endings is measured from the bone, by `digitEnd`, which has the argument for the rule.
    *
-   * A phalanx's base is its proximal end, and a toe points forward, so proximal is the most
-   * posterior vertex of the bone: the same shape of rule as the metatarsal heads above, with the
-   * direction reversed.
+   * The heads come with the bases because a long tendon runs over the head of the bone proximal
+   * to its ending, and a via point there is what keeps it on the digit instead of cutting the
+   * corner: the flexors over the palmar side, the extensors over the dorsal.
    */
-  ...([1, 2, 3, 4, 5] as const).flatMap((d) =>
-    (['proximal', 'middle', 'distal'] as const).flatMap((part) =>
-      // The hallux has no middle phalanx.
-      d === 1 && part === 'middle'
-        ? []
-        : (['l', 'r'] as const).map(
-            (s): DerivedRule => ({
-              bone: `phalanx_pedis_${part}_${d}_${s}`,
-              feature: 'Base_of_phalanx',
-              rule: 'most posterior vertex of the phalanx mesh (max Z, world frame): its proximal end',
-              pick: (m) => extreme(m, 2, 1),
-            }),
-          ),
+  ...DIGIT_BONES.flatMap((bone) =>
+    (['base', 'head'] as const).map(
+      (end): DerivedRule => ({
+        bone: bone.id,
+        feature: end === 'base' ? 'Base_of_digit_bone' : 'Head_of_digit_bone',
+        rule:
+          'centroid of the vertices in the terminal eighth of the bone along its own long axis ' +
+          '(dominant eigenvector of the vertex covariance), at the end ' +
+          (end === 'base' ? `nearer ${bone.proximal}` : `away from ${bone.proximal}`),
+        pick: (m, context) => digitEnd(m, context.meshOf(bone.proximal), end),
+      }),
     ),
   ),
   // ISB 2002 defines MM and LM as the *tips* of the malleoli. The export's markers are surface

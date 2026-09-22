@@ -197,7 +197,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_digitorum_longus_r',
         displayName: 'Extensor digitorum longus, right',
         origin: 'extensor_digitorum_longus_origin_r_footprint',
-        insertion: 'extensor_digitorum_longus_insertion_r_base_of_phalanx',
+        insertion: 'extensor_digitorum_longus_insertion_r_base_of_digit_bone',
         path: [],
         parameters: {
           maxIsometricForce: 553.241,
@@ -221,7 +221,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_hallucis_longus_r',
         displayName: 'Extensor hallucis longus, right',
         origin: 'extensor_hallucis_longus_origin_r_anteromedial_surface_of_fibula',
-        insertion: 'extensor_hallucis_longus_insertion_r_base_of_phalanx',
+        insertion: 'extensor_hallucis_longus_insertion_r_base_of_digit_bone',
         path: [],
         parameters: {
           maxIsometricForce: 265.537,
@@ -245,7 +245,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_digitorum_longus_r',
         displayName: 'Flexor digitorum longus, right',
         origin: 'flexor_digitorum_longus_origin_r_posterior_surface_of_tibia',
-        insertion: 'flexor_digitorum_longus_insertion_r_base_of_phalanx',
+        insertion: 'flexor_digitorum_longus_insertion_r_base_of_digit_bone',
         path: [
           { kind: 'site', site: 'flexor_digitorum_longus_r__via_1' },
           { kind: 'site', site: 'flexor_digitorum_longus_r__via_2' },
@@ -274,7 +274,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_hallucis_longus_r',
         displayName: 'Flexor hallucis longus, right',
         origin: 'flexor_hallucis_longus_origin_r_posterior_surface_of_fibula',
-        insertion: 'flexor_hallucis_longus_insertion_r_base_of_phalanx',
+        insertion: 'flexor_hallucis_longus_insertion_r_base_of_digit_bone',
         path: [
           { kind: 'site', site: 'flexor_hallucis_longus_r__via_1' },
           { kind: 'site', site: 'flexor_hallucis_longus_r__via_2' },
@@ -436,7 +436,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_digitorum_longus_l',
         displayName: 'Extensor digitorum longus, left',
         origin: 'extensor_digitorum_longus_origin_l_footprint',
-        insertion: 'extensor_digitorum_longus_insertion_l_base_of_phalanx',
+        insertion: 'extensor_digitorum_longus_insertion_l_base_of_digit_bone',
         path: [],
         parameters: {
           maxIsometricForce: 553.241,
@@ -460,7 +460,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'extensor_hallucis_longus_l',
         displayName: 'Extensor hallucis longus, left',
         origin: 'extensor_hallucis_longus_origin_l_anteromedial_surface_of_fibula',
-        insertion: 'extensor_hallucis_longus_insertion_l_base_of_phalanx',
+        insertion: 'extensor_hallucis_longus_insertion_l_base_of_digit_bone',
         path: [],
         parameters: {
           maxIsometricForce: 265.537,
@@ -484,7 +484,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_digitorum_longus_l',
         displayName: 'Flexor digitorum longus, left',
         origin: 'flexor_digitorum_longus_origin_l_posterior_surface_of_tibia',
-        insertion: 'flexor_digitorum_longus_insertion_l_base_of_phalanx',
+        insertion: 'flexor_digitorum_longus_insertion_l_base_of_digit_bone',
         path: [
           { kind: 'site', site: 'flexor_digitorum_longus_l__via_1' },
           { kind: 'site', site: 'flexor_digitorum_longus_l__via_2' },
@@ -513,7 +513,7 @@ export const ANKLE_MUSCLES: readonly MuscleGroup[] = [
         id: 'flexor_hallucis_longus_l',
         displayName: 'Flexor hallucis longus, left',
         origin: 'flexor_hallucis_longus_origin_l_posterior_surface_of_fibula',
-        insertion: 'flexor_hallucis_longus_insertion_l_base_of_phalanx',
+        insertion: 'flexor_hallucis_longus_insertion_l_base_of_digit_bone',
         path: [
           { kind: 'site', site: 'flexor_hallucis_longus_l__via_1' },
           { kind: 'site', site: 'flexor_hallucis_longus_l__via_2' },

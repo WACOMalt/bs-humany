@@ -120,7 +120,7 @@ const UNITS = [
     id: 'extensor_digitorum_longus_$',
     name: 'Extensor digitorum longus',
     origin: 'extensor_digitorum_longus_origin_$_footprint',
-    insertion: 'extensor_digitorum_longus_insertion_$_head_of_metatarsal_bone',
+    insertion: 'extensor_digitorum_longus_insertion_$_base_of_digit_bone',
   },
   {
     actuator: 'ehl_r',
@@ -131,7 +131,7 @@ const UNITS = [
     id: 'extensor_hallucis_longus_$',
     name: 'Extensor hallucis longus',
     origin: 'extensor_hallucis_longus_origin_$_anteromedial_surface_of_fibula',
-    insertion: 'extensor_hallucis_longus_insertion_$_head_of_metatarsal_bone',
+    insertion: 'extensor_hallucis_longus_insertion_$_base_of_digit_bone',
   },
   {
     actuator: 'fdl_r',
@@ -142,7 +142,7 @@ const UNITS = [
     id: 'flexor_digitorum_longus_$',
     name: 'Flexor digitorum longus',
     origin: 'flexor_digitorum_longus_origin_$_posterior_surface_of_tibia',
-    insertion: 'flexor_digitorum_longus_insertion_$_head_of_metatarsal_bone',
+    insertion: 'flexor_digitorum_longus_insertion_$_base_of_digit_bone',
   },
   {
     actuator: 'fhl_r',
@@ -153,7 +153,7 @@ const UNITS = [
     id: 'flexor_hallucis_longus_$',
     name: 'Flexor hallucis longus',
     origin: 'flexor_hallucis_longus_origin_$_posterior_surface_of_fibula',
-    insertion: 'flexor_hallucis_longus_insertion_$_head_of_metatarsal_bone',
+    insertion: 'flexor_hallucis_longus_insertion_$_base_of_digit_bone',
   },
 ];
 

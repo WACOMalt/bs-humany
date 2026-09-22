@@ -67,6 +67,7 @@ let added = 0;
 let checked = 0;
 let worst = 0;
 let worstAt = '';
+const written = new Set<string>();
 for (const rule of [...DERIVED_RULES, ...RIB_RULES]) {
   const mesh = meshOf(rule.bone);
   if (!mesh) continue;
@@ -89,6 +90,22 @@ for (const rule of [...DERIVED_RULES, ...RIB_RULES]) {
   const rules = derived[rule.bone] ?? {};
   rules[rule.feature] = rule.rule;
   derived[rule.bone] = rules;
+  written.add(`${rule.bone}/${rule.feature}`);
+}
+
+// A rule that has been removed or renamed leaves its points behind, and a stale point is worse
+// than a missing one: it still resolves, so nothing fails, and a muscle goes on attaching to a
+// measurement no rule makes any more. Only points this file wrote are dropped -- a marker the
+// export carries is never touched, because it was never ours to drop.
+let pruned = 0;
+for (const [bone, rules] of Object.entries(derived)) {
+  for (const feature of Object.keys(rules)) {
+    if (written.has(`${bone}/${feature}`)) continue;
+    delete rules[feature];
+    delete landmarks[bone]?.[feature];
+    pruned += 1;
+  }
+  if (Object.keys(rules).length === 0) delete derived[bone];
 }
 
 // Every rib's length along its arc, for the intercostals.
@@ -116,7 +133,7 @@ writeFileSync(
 writeFileSync(join(dataDir, 'rib-arcs.json'), `${JSON.stringify({ ribs: arcs }, null, 1)}\n`);
 
 console.log(
-  `derived from the pack: ${added} new landmarks, ${checked} re-measured ` +
+  `derived from the pack: ${added} new landmarks, ${checked} re-measured, ${pruned} stale dropped ` +
     `(worst ${(worst * 1000).toFixed(2)} mm at ${worstAt || 'none'}), ` +
     `${Object.keys(arcs).length} rib arcs`,
 );
