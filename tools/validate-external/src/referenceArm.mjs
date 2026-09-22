@@ -212,7 +212,11 @@ export function referenceArmXml(tendons = Object.keys(ELBOW_TENDONS), model = MO
     .slice(from, assets.lastIndexOf('</default>', to) + 10)
     .replace(/ material="[^"]*"/g, '');
 
-  const chain = unwrap(read(model.chain))
+  // A model may need its chain fixed up before it can stand alone -- the torso includes the head
+  // by a path relative to the upstream repository's layout rather than to how it is vendored
+  // here. `rewrite` is that hook, and a model without one is untouched.
+  const rewrite = model.rewrite ?? ((xml) => xml);
+  const chain = rewrite(unwrap(read(model.chain)))
     .replace(/<geom[^>]*type="mesh"[^>]*\/>/g, '')
     .replace(/<geom[^>]*mesh="[^"]*"[^>]*\/>/g, '');
 

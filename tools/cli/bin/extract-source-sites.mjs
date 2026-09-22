@@ -1,0 +1,155 @@
+#!/usr/bin/env node
+/**
+ * Where every muscle of the reference models runs, in that model's own world.
+ *
+ *   pnpm extract:source-sites        # rewrite apps/studio/src/align/sourceSites.json
+ *
+ * ## What this is for
+ *
+ * The parameters come from MyoSuite and the geometry from Z-Anatomy, and nothing says which of
+ * their muscles is which of ours. The names do not match -- their torso calls the external
+ * obliques `EO1` to `EO6` where we have one `external_oblique` -- and the correspondence is not
+ * one to one, so it cannot be computed. It has to be decided by someone looking at both.
+ *
+ * This is the half a machine can do: run each vendored model, and write out where every muscle
+ * actually runs, as a polyline of world points in that model's own frame. The alignment tool
+ * draws those beside ours so the pairing can be made by eye.
+ *
+ * Their meshes are not vendored -- only the XML -- so there are no bones to draw on that side.
+ * Sites and paths are what there is, and for deciding which muscle is which they are enough.
+ *
+ * Positions are read from the loaded model rather than composed out of the XML by hand, because
+ * the body tree nests and MuJoCo already knows how. The pose is the model's own neutral.
+ */
+
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createJiti } from 'jiti';
+import { MODELS, referenceArmXml } from '../../validate-external/src/referenceArm.mjs';
+
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
+const OUT = join(ROOT, 'apps/studio/src/align/sourceSites.json');
+
+/**
+ * The torso, which `referenceArm.mjs` does not list because nothing needed it until now. It is
+ * rooted at the sacrum and stands on its own, unlike the four arm muscles whose paths end on a
+ * trunk the arm model does not contain.
+ */
+const TORSO = {
+  assets: 'myotorso_assets.xml',
+  chain: 'myotorso_chain.xml',
+  tendon: 'myotorso_tendon.xml',
+  defaults: '<default class="main">',
+  /**
+   * The torso chain includes the head from a path that is relative to the layout of the upstream
+   * repository, not to how it is vendored here. The file itself is vendored, beside the others,
+   * so the include is pointed at where it actually is rather than dropped -- the head hangs off
+   * the top of the cervical spine and several neck muscles end on it.
+   */
+  rewrite: (chain) =>
+    chain.replace(/<include file="[^"]*myohead_rigid_chain\.xml"\s*\/>/g, () =>
+      unwrapInclude(readFileSync(join(MYO_SIM, 'myohead_rigid_chain.xml'), 'utf8')),
+    ),
+};
+
+/**
+ * An included fragment, with its wrapper taken off so it can be spliced in, and everything this
+ * tool does not read removed with it.
+ *
+ * Geoms go entirely: they name collision and mesh classes defined in that fragment's own
+ * defaults, which are not spliced in beside it, and MuJoCo refuses a class it cannot resolve.
+ * `childclass` goes for the same reason -- without it the bodies still nest exactly as stated
+ * and inherit the including model's defaults instead. Sites and body transforms are what is
+ * read here, and neither depends on any of it.
+ */
+const unwrapInclude = (xml) =>
+  xml
+    .replace(/<\/?mujocoinclude[^>]*>/g, '')
+    .replace(/<geom[\s\S]*?\/>/g, '')
+    .replace(/ childclass="[^"]*"/g, '')
+    .replace(/ class="[^"]*"/g, '');
+const ALL = { arm: MODELS.arm, legs: MODELS.legs, torso: TORSO };
+
+const jiti = createJiti(
+  new URL('../../../packages/backend-mujoco/src/index.ts', import.meta.url).href,
+);
+const mujoco = await (await jiti.import('@mujoco/mujoco')).default();
+
+/** Every spatial tendon in a file, with the sites it runs through, in order. */
+function tendonsOf(file) {
+  const xml = readFileSync(join(MYO_SIM, file), 'utf8');
+  const out = [];
+  for (const block of xml.matchAll(/<spatial[\s\S]*?<\/spatial>/g)) {
+    const name = /name="([^"]+)"/.exec(block[0])?.[1];
+    if (!name) continue;
+    const sites = [...block[0].matchAll(/<site site="([^"]+)"/g)].map((m) => m[1]);
+    if (sites.length >= 2) out.push({ name, sites });
+  }
+  return out;
+}
+
+const models = {};
+let total = 0;
+for (const [key, spec] of Object.entries(ALL)) {
+  const stated = tendonsOf(spec.tendon);
+  // Some muscles cross out of the model that states them -- the arm's latissimus and pectoralis
+  // end on a trunk the arm chain does not contain, and `referenceArm.mjs` explains why joining
+  // the two chains is a piece of work rather than a line. Rather than curate a list that goes
+  // stale when the vendored model moves, the sites the assembled chain actually carries are
+  // read off it, and a tendon that wants one it has not got is dropped and counted.
+  const assembled = referenceArmXml([], spec);
+  const present = new Set([...assembled.matchAll(/<site[^>]*name="([^"]+)"/g)].map((m) => m[1]));
+  const tendons = stated.filter((t) => t.sites.every((site) => present.has(site)));
+  const dropped = stated.length - tendons.length;
+  let model;
+  try {
+    model = mujoco.MjModel.from_xml_string(
+      referenceArmXml(
+        tendons.map((t) => t.name),
+        spec,
+      ),
+    );
+  } catch (error) {
+    // A model that will not load standalone says so and is skipped rather than guessed at.
+    console.log(`  ${key}: will not load on its own -- ${String(error).slice(0, 140)}`);
+    continue;
+  }
+  const data = new mujoco.MjData(model);
+  mujoco.mj_forward(model, data);
+  const xpos = data.site_xpos;
+  const siteId = (name) => mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE.value, name);
+  const bodyOf = (id) => {
+    const b = model.site_bodyid?.[id];
+    return b === undefined ? null : mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY.value, b);
+  };
+  const muscles = [];
+  for (const t of tendons) {
+    const path = [];
+    const bodies = [];
+    for (const s of t.sites) {
+      const id = siteId(s);
+      if (id < 0) continue;
+      path.push(
+        Number(xpos[3 * id].toFixed(5)),
+        Number(xpos[3 * id + 1].toFixed(5)),
+        Number(xpos[3 * id + 2].toFixed(5)),
+      );
+      const b = bodyOf(id);
+      if (b && !bodies.includes(b)) bodies.push(b);
+    }
+    if (path.length >= 6) {
+      muscles.push({ name: t.name.replace(/_tendon$/, ''), path, bodies });
+    }
+  }
+  models[key] = { muscles };
+  total += muscles.length;
+  console.log(
+    `  ${key}: ${muscles.length} muscles, ${model.nbody} bodies, ${model.nsite} sites` +
+      (dropped ? `  (${dropped} dropped: their path leaves this model)` : ''),
+  );
+}
+
+writeFileSync(OUT, `${JSON.stringify({ format: 'bs-humany.source-sites/1', models }, null, 1)}\n`);
+console.log(`\n${total} muscles written to ${OUT.replace(ROOT, '')}`);
