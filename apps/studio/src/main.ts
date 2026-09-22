@@ -199,7 +199,14 @@ scene.add(world);
 const grid = new GridHelper(6, 24, 0x3a4250, 0x252a33);
 world.add(grid);
 
+/**
+ * `vertexColors` so a bone can be tinted where it is drawn.
+ *
+ * It costs nothing when nothing is tinted: every vertex starts white and white multiplies the
+ * base colour to itself.
+ */
 const boneMaterial = new MeshStandardMaterial({
+  vertexColors: true,
   color: 0xe8e2d4,
   roughness: 0.72,
   metalness: 0.02,
@@ -220,13 +227,7 @@ const selectedMaterial = new MeshStandardMaterial({
  * the whole point is telling three things apart at once: the bone of ours being paired, the bone
  * of theirs it is being paired to, and whatever the inspector happens to have selected.
  */
-const alignedMaterial = new MeshStandardMaterial({
-  color: 0x5fe0d0,
-  roughness: 0.45,
-  metalness: 0.05,
-  emissive: 0x0d4a45,
-});
-let alignedObject: Mesh | null = null;
+const ALIGNED_TINT = new Color(0x3fd6c4);
 
 let skeletonMesh: SkeletonMesh | null = null;
 let skinned: SkinnedSkeleton | null = null;
@@ -2572,20 +2573,9 @@ align = createAlignPanel(
      * pairing is something done to a body standing still.
      */
     highlightSegment: (id) => {
-      if (alignedObject) {
-        alignedObject.geometry.dispose();
-        world.remove(alignedObject);
-        alignedObject = null;
-      }
-      if (!id) return;
-      const segment = simulation?.articulation.segments.find((s) => s.id === id);
-      if (!segment || segment.bones.length === 0) return;
-      const mesh = buildSkeletonMesh(document_, resolveMorphology(currentMorphology()).context, {
-        quality: QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM,
-        include: new Set(segment.bones),
-      });
-      alignedObject = new Mesh(toSkeletonGeometry(mesh), alignedMaterial);
-      world.add(alignedObject);
+      if (!skinned) return;
+      const segment = id ? simulation?.articulation.segments.find((s) => s.id === id) : undefined;
+      skinned.tint(segment ? new Set(segment.bones) : undefined, ALIGNED_TINT);
     },
     save: (name, text) => void download(name, text, 'application/json'),
     setGizmoDragging: (dragging) => {

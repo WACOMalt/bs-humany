@@ -12,6 +12,7 @@ import type { SkeletonMesh } from '@bs-humany/render-three';
 import {
   Bone,
   type BufferGeometry,
+  type Color,
   Float32BufferAttribute,
   type Material,
   Matrix4,
@@ -38,6 +39,17 @@ export interface SkinnedSkeleton {
   update(order: readonly string[], position: Float64Array, orientation: Float64Array): void;
   /** Put every bone back at rest. */
   rest(): void;
+  /**
+   * Tint a set of bones, or clear the tint with undefined.
+   *
+   * Done on the mesh that is already drawn rather than by building a second one, because a
+   * rebuilt highlight is wrong twice over: it comes out as procedural geometry unless the asset
+   * pack is handed to it again, and it sits at the document's rest pose while the body on screen
+   * is wherever the simulation has put it. Tinting what is there cannot drift from it.
+   *
+   * One bone per vertex, weight one, so a vertex colour is a bone colour.
+   */
+  tint(bones: ReadonlySet<string> | undefined, colour: Color): void;
   /**
    * The nearest bone a ray meets, or null.
    *
@@ -68,6 +80,10 @@ export function createSkinnedSkeleton(
   }
   geometry.setAttribute('skinIndex', new Uint16BufferAttribute(skinIndex, 4));
   geometry.setAttribute('skinWeight', new Float32BufferAttribute(skinWeight, 4));
+  // White everywhere to begin with, which multiplies to no change at all, so a material with
+  // vertex colours on looks exactly as it did until something is actually tinted.
+  const tintColour = new Float32Array(vertexCount * 3).fill(1);
+  geometry.setAttribute('color', new Float32BufferAttribute(tintColour, 3));
 
   const bones: Bone[] = [];
   const inverses: Matrix4[] = [];
@@ -187,6 +203,22 @@ export function createSkinnedSkeleton(
   }
 
   return {
+    tint(want: ReadonlySet<string> | undefined, colour: Color): void {
+      const attribute = geometry.getAttribute('color');
+      const wanted = new Set<number>();
+      if (want) {
+        for (const id of want) {
+          const at = indexOf.get(id);
+          if (at !== undefined) wanted.add(at);
+        }
+      }
+      for (let i = 0; i < vertexCount; i++) {
+        const lit = wanted.has(skeleton.boneIndex[i] ?? 0);
+        if (lit) attribute.setXYZ(i, colour.r, colour.g, colour.b);
+        else attribute.setXYZ(i, 1, 1, 1);
+      }
+      attribute.needsUpdate = true;
+    },
     mesh,
     indexOf,
 
