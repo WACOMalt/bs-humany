@@ -2494,6 +2494,32 @@ align = createAlignPanel(
   {
     articulation: () => simulation?.articulation,
     units: () => simulation?.muscles?.units.map((u) => u.id) ?? [],
+    /**
+     * Where our joints that touch a segment sit in the world at rest.
+     *
+     * The distance between the two furthest apart is that bone's length, and the ratio against
+     * the same measurement on their model is what scales a retarget. A joint is counted whether
+     * the segment is its parent or its child, because a femur is bounded by the hip above it and
+     * the knee below.
+     */
+    jointsOn: (segment) => {
+      const sim = simulation;
+      if (!sim) return [];
+      const index = sim.articulation.segments.findIndex((s) => s.id === segment);
+      if (index < 0) return [];
+      const out: Vector3[] = [];
+      for (const joint of sim.articulation.joints) {
+        const onParent = joint.parentSegment === index;
+        const onChild = joint.childSegment === index;
+        if (!onParent && !onChild) continue;
+        const seg = sim.articulation.segments[onParent ? joint.parentSegment : joint.childSegment];
+        const frame = onParent ? joint.frameInParent : joint.frameInChild;
+        if (!seg) continue;
+        const p = transformPoint(seg.restWorld, frame.translation);
+        out.push(new Vector3(p.x, p.y, p.z));
+      }
+      return out;
+    },
     sites: () => {
       const sim = simulation;
       if (!sim?.muscles) return [];

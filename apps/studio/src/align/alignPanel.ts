@@ -18,7 +18,14 @@ import type { Camera, WebGLRenderer } from 'three';
 import { Object3D, Raycaster, Vector2 } from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { type Move, PointHandles } from './pointHandles.js';
-import { type Placement, SourceOverlay, type SourceSites, Z_UP_TO_Y_UP } from './sourceOverlay.js';
+import { type BodyPair, fitBodies, retargetPath, suggestBodyPairs } from './retarget.js';
+import {
+  NEUTRAL as NEUTRAL_PLACEMENT,
+  type Placement,
+  SourceOverlay,
+  type SourceSites,
+  Z_UP_TO_Y_UP,
+} from './sourceOverlay.js';
 
 export interface Pair {
   /** Their muscle, by the name the reference model gives it. */
@@ -34,6 +41,8 @@ export interface AlignHost {
   articulation(): CompiledArticulation | undefined;
   /** Our muscle unit ids, for the right-hand list. */
   units(): readonly string[];
+  /** Where our joints touching a segment sit in the world at rest, for the length ratio. */
+  jointsOn(segment: string): readonly import('three').Vector3[];
   /** Attachment sites in the world at rest. */
   sites(): readonly { id: string; bone: string; world: { x: number; y: number; z: number } }[];
   /** Hand a file to the user, however this studio does that. */
@@ -101,6 +110,18 @@ export function createAlignPanel(
     reason: must<HTMLInputElement>('#align-reason'),
     keep: must<HTMLButtonElement>('#align-keep'),
     revert: must<HTMLButtonElement>('#align-revert'),
+    theirBone: must<HTMLSelectElement>('#align-their-bone'),
+    ourBone: must<HTMLSelectElement>('#align-our-bone'),
+    pairBone: must<HTMLButtonElement>('#align-pair-bone'),
+    unpairBone: must<HTMLButtonElement>('#align-unpair-bone'),
+    bones: must<HTMLSelectElement>('#align-bones'),
+    bonesCount: must<HTMLOutputElement>('#align-bones-count'),
+    boneNote: must<HTMLElement>('#align-bone-note'),
+    fitNote: must<HTMLElement>('#align-fit-note'),
+    suggest: must<HTMLButtonElement>('#align-suggest'),
+    retarget: must<HTMLButtonElement>('#align-retarget'),
+    clearBones: must<HTMLButtonElement>('#align-clear-bones'),
+    saveBones: must<HTMLButtonElement>('#align-save-bones'),
     moves: must<HTMLSelectElement>('#align-moves'),
     movesCount: must<HTMLOutputElement>('#align-moves-count'),
     saveMoves: must<HTMLButtonElement>('#align-save-moves'),
@@ -111,6 +132,13 @@ export function createAlignPanel(
   let placement: Placement = { ...Z_UP_TO_Y_UP };
   const pairs: Pair[] = [];
   const moves: Move[] = [];
+  /** Bone pairs per model, because each reference model has its own bones. */
+  const bonePairs = new Map<string, BodyPair[]>();
+  const bonesFor = (model: string): BodyPair[] => {
+    const list = bonePairs.get(model) ?? [];
+    bonePairs.set(model, list);
+    return list;
+  };
 
   // ---- the reference model --------------------------------------------------------------
   const readSliders = (): Placement => ({
@@ -153,6 +181,7 @@ export function createAlignPanel(
       ? `${n} muscles on the reference ${model}. Paths only — their meshes are not vendored.`
       : 'No reference model shown.';
     fillTheirs();
+    fillBones();
   };
   ui.model.addEventListener('change', showModel);
   ui.show.addEventListener('change', () => {
@@ -384,9 +413,145 @@ export function createAlignPanel(
     );
   });
 
+  // ---- bone pairing, which is what actually registers the two bodies -------------------
+  const fillBoneLists = (): void => {
+    const model = overlay.model(ui.model.value);
+    const done = new Set(bonesFor(ui.model.value).map((p) => p.theirs));
+    ui.theirBone.innerHTML = '';
+    for (const body of model?.bodies ?? []) {
+      const option = document.createElement('option');
+      option.value = body.name;
+      option.textContent = `${done.has(body.name) ? '· ' : ''}${body.name}`;
+      ui.theirBone.appendChild(option);
+    }
+    ui.ourBone.innerHTML = '';
+    for (const seg of host.articulation()?.segments ?? []) {
+      const option = document.createElement('option');
+      option.value = seg.id;
+      option.textContent = seg.id;
+      ui.ourBone.appendChild(option);
+    }
+  };
+  const fillBones = (): void => {
+    const list = bonesFor(ui.model.value);
+    ui.bones.innerHTML = '';
+    for (const p of list) {
+      const option = document.createElement('option');
+      option.value = p.theirs;
+      option.textContent = `${p.theirs}  →  ${p.ours}`;
+      ui.bones.appendChild(option);
+    }
+    ui.bonesCount.textContent = `${list.length}`;
+    ui.unpairBone.disabled = list.length === 0;
+    ui.retarget.disabled = list.length === 0;
+    fillBoneLists();
+  };
+  const refreshBoneButton = (): void => {
+    ui.pairBone.disabled = !(ui.theirBone.value && ui.ourBone.value);
+  };
+  ui.theirBone.addEventListener('change', refreshBoneButton);
+  ui.ourBone.addEventListener('change', refreshBoneButton);
+  ui.pairBone.addEventListener('click', () => {
+    const theirs = ui.theirBone.value;
+    const ours = ui.ourBone.value;
+    if (!theirs || !ours) return;
+    const list = bonesFor(ui.model.value);
+    const at = list.findIndex((p) => p.theirs === theirs);
+    // One of their bones sits on exactly one of ours, so a second pairing replaces the first.
+    if (at >= 0) list.splice(at, 1, { theirs, ours });
+    else list.push({ theirs, ours });
+    ui.boneNote.textContent = `${theirs} → ${ours}.`;
+    fillBones();
+  });
+  ui.unpairBone.addEventListener('click', () => {
+    const list = bonesFor(ui.model.value);
+    const at = list.findIndex((p) => p.theirs === ui.bones.value);
+    if (at >= 0) {
+      list.splice(at, 1);
+      fillBones();
+    }
+  });
+  ui.clearBones.addEventListener('click', () => {
+    bonePairs.set(ui.model.value, []);
+    ui.boneNote.textContent = 'Bone pairs cleared.';
+    showModel();
+    fillBones();
+  });
+  ui.suggest.addEventListener('click', () => {
+    const model = overlay.model(ui.model.value);
+    const articulation = host.articulation();
+    if (!model || !articulation) return;
+    const suggested = suggestBodyPairs(
+      model,
+      articulation.segments.map((s) => s.id),
+    );
+    const list = bonesFor(ui.model.value);
+    let added = 0;
+    for (const p of suggested) {
+      if (!list.some((existing) => existing.theirs === p.theirs)) {
+        list.push(p);
+        added += 1;
+      }
+    }
+    ui.boneNote.textContent = added
+      ? `${added} pairs suggested by name. Check them: a wrong pair is worse than an absent one.`
+      : 'Nothing further could be matched by name; the rest are yours to pair.';
+    fillBones();
+  });
+
+  /** Redraw their muscles on our bones, through the bone pairs as they stand. */
+  const doRetarget = (): void => {
+    const model = overlay.model(ui.model.value);
+    const articulation = host.articulation();
+    const list = bonesFor(ui.model.value);
+    if (!model || !articulation || list.length === 0) return;
+    const fits = fitBodies(model, list, articulation, (segment) => host.jointsOn(segment));
+    const paths = new Map<string, readonly number[]>();
+    let dropped = 0;
+    for (const muscle of model.muscles) {
+      const moved = retargetPath(muscle.path, muscle.on, model.bodies, fits);
+      if (moved) paths.set(muscle.name, moved);
+      else dropped += 1;
+    }
+    overlay.showRetargeted(paths);
+    // Once the paths are on our bones the model transform must not move them again.
+    applyPlacement({ ...NEUTRAL_PLACEMENT });
+    overlay.visible = ui.show.checked;
+    const scaled = [...fits.values()].filter((f) => f.scaleFrom === 'two joints');
+    const ratios = scaled.map((f) => f.scale).sort((a, b) => a - b);
+    ui.fitNote.textContent =
+      `${paths.size} of ${model.muscles.length} muscles redrawn on our bones` +
+      (dropped ? `; ${dropped} left out, a bone they run over is not paired yet` : '') +
+      (ratios.length
+        ? `. Scale from ${ratios.length} bones with two joints: ` +
+          `${(ratios[0] as number).toFixed(2)}x to ${(ratios[ratios.length - 1] as number).toFixed(2)}x, ` +
+          `median ${(ratios[Math.floor(ratios.length / 2)] as number).toFixed(2)}x.`
+        : '. No bone had two joints to take a scale from.');
+  };
+  ui.retarget.addEventListener('click', doRetarget);
+  ui.saveBones.addEventListener('click', () => {
+    host.save(
+      'bonePairing.json',
+      `${JSON.stringify(
+        {
+          format: 'bs-humany.bone-pairing/1',
+          decidedAt: new Date().toISOString(),
+          note:
+            'Which bone of each reference model is which of ours. A pair fixes an origin and an ' +
+            'orientation; the joints on that bone give it a scale. Decided by eye in the studio ' +
+            'Align tab.',
+          models: Object.fromEntries([...bonePairs].filter(([, v]) => v.length > 0)),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  });
+
   fillOurs();
   fillPairs();
   fillMoves();
+  fillBones();
   writeSliders(placement);
 
   return {
@@ -431,7 +596,9 @@ export function createAlignPanel(
  */
 export async function loadSourceSites(): Promise<SourceSites | undefined> {
   try {
-    const response = await fetch('sourceSites.json', { cache: 'force-cache' });
+    // Not force-cached: this file is regenerated by `pnpm extract:source-sites` whenever the
+    // vendored models are re-read, and a stale copy is indistinguishable from a broken one.
+    const response = await fetch('sourceSites.json', { cache: 'no-cache' });
     if (!response.ok) return undefined;
     return (await response.json()) as SourceSites;
   } catch {

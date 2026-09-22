@@ -6,21 +6,25 @@
         {
           "name": "s_glenohum_ligament",
           "path": [-0.00588, -0.00293, 0.1355, -0.03033, -0.00293, 0.1185],
+          "on": ["humerus_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
           "name": "m_glenohum_ligament",
           "path": [-0.00788, -0.01093, 0.1325, -0.02833, -0.00993, 0.1165],
+          "on": ["humerus_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
           "name": "i_glenohum_ligament",
           "path": [-0.01488, -0.01693, 0.1265, -0.03433, -0.01593, 0.1155],
+          "on": ["humerus_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
           "name": "coracohum_ligament",
           "path": [-0.00388, -0.00293, 0.1415, -0.02033, -0.00593, 0.1105],
+          "on": ["humerus_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
@@ -29,6 +33,7 @@
             -0.01492, -0.13276, 0.15035, -0.00765, -0.11723, 0.14038, 0.02914, -0.01195, 0.14049,
             -0.014, 0.01106, 0.08021
           ],
+          "on": ["humerus_r", "humerus_r", "scapula_r", "clavicle_r"],
           "bodies": ["humerus_r", "scapula_r", "clavicle_r"]
         },
         {
@@ -37,6 +42,7 @@
             -0.01927, -0.15004, 0.1501, -0.01765, -0.07813, 0.11432, -0.01428, 0.02301, 0.15783,
             -0.02511, 0.01973, 0.1417
           ],
+          "on": ["humerus_r", "humerus_r", "scapula_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
@@ -44,6 +50,7 @@
           "path": [
             -0.07006, 0.02129, 0.11038, -0.0868, -0.01278, 0.14783, -0.02182, -0.08995, 0.15495
           ],
+          "on": ["scapula_r", "scapula_r", "humerus_r"],
           "bodies": ["scapula_r", "humerus_r"]
         },
         {
@@ -51,6 +58,7 @@
           "path": [
             -0.02132, -0.0033, 0.17043, -0.02146, 0.02622, 0.14708, -0.05833, 0.00495, 0.07695
           ],
+          "on": ["humerus_r", "scapula_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
@@ -58,6 +66,7 @@
           "path": [
             -0.03275, -0.00909, 0.16898, -0.06209, -0.01985, 0.12586, -0.08815, -0.03469, 0.08769
           ],
+          "on": ["humerus_r", "scapula_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
@@ -65,6 +74,7 @@
           "path": [
             -0.00985, -0.00553, 0.13119, -0.03264, -0.03216, 0.11093, -0.08679, -0.01936, 0.07075
           ],
+          "on": ["humerus_r", "scapula_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
@@ -72,6 +82,7 @@
           "path": [
             -0.02515, -0.02652, 0.1665, -0.10906, -0.05984, 0.08813, -0.11076, -0.06114, 0.08252
           ],
+          "on": ["humerus_r", "scapula_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
@@ -80,6 +91,7 @@
             -0.0139, -0.06812, 0.13882, -0.03014, -0.06392, 0.12857, -0.10974, -0.08902, 0.08509,
             -0.12095, -0.09049, 0.05979
           ],
+          "on": ["humerus_r", "humerus_r", "scapula_r", "scapula_r"],
           "bodies": ["humerus_r", "scapula_r"]
         },
         {
@@ -88,6 +100,7 @@
             -0.01219, -0.05584, 0.1523, -0.00283, -0.03389, 0.15244, 0.02645, 0.004, 0.05723,
             0.00321, -0.00013, 0.05113
           ],
+          "on": ["humerus_r", "humerus_r", "clavicle_r", "clavicle_r"],
           "bodies": ["humerus_r", "clavicle_r"]
         },
         {
@@ -95,6 +108,7 @@
           "path": [
             -0.00183, -0.0212, 0.10898, -0.0095, -0.04951, 0.11987, -0.01645, -0.16441, 0.13668
           ],
+          "on": ["scapula_r", "scapula_r", "humerus_r"],
           "bodies": ["scapula_r", "humerus_r"]
         },
         {
@@ -103,6 +117,7 @@
             -0.05998, -0.02066, 0.12173, -0.06038, -0.01833, 0.1232, -0.05102, -0.12834, 0.13786,
             -0.05572, -0.2403, 0.13233, -0.04131, -0.2815, 0.13242, -0.03968, -0.29387, 0.13142
           ],
+          "on": ["scapula_r", "humerus_r", "humerus_r", "humerus_r", "humerus_r", "ulna_r"],
           "bodies": ["scapula_r", "humerus_r", "ulna_r"]
         },
         {
@@ -111,6 +126,7 @@
             -0.02987, -0.14039, 0.14878, -0.04732, -0.15921, 0.15378, -0.05572, -0.2403, 0.13233,
             -0.04131, -0.2815, 0.13242, -0.03968, -0.29387, 0.13142
           ],
+          "on": ["humerus_r", "humerus_r", "humerus_r", "humerus_r", "ulna_r"],
           "bodies": ["humerus_r", "ulna_r"]
         },
         {
@@ -119,11 +135,13 @@
             -0.03226, -0.15088, 0.13544, -0.04989, -0.16532, 0.1337, -0.05572, -0.2403, 0.13233,
             -0.04131, -0.2815, 0.13242, -0.03968, -0.29387, 0.13142
           ],
+          "on": ["humerus_r", "humerus_r", "humerus_r", "humerus_r", "ulna_r"],
           "bodies": ["humerus_r", "ulna_r"]
         },
         {
           "name": "ANC",
           "path": [-0.03132, -0.29752, 0.15429, -0.0431, -0.30557, 0.1382],
+          "on": ["humerus_r", "ulna_r"],
           "bodies": ["humerus_r", "ulna_r"]
         },
         {
@@ -131,6 +149,7 @@
           "path": [
             -0.00742, -0.37679, 0.15295, -0.00437, -0.36753, 0.14863, -0.03138, -0.33817, 0.15233
           ],
+          "on": ["radius_r", "radius_r", "ulna_r"],
           "bodies": ["radius_r", "ulna_r"]
         },
         {
@@ -141,6 +160,18 @@
             -0.00685, -0.13518, 0.14474, -0.00108, -0.18933, 0.1382, -0.02408, -0.34499, 0.13947,
             -0.01938, -0.35333, 0.1502
           ],
+          "on": [
+            "scapula_r",
+            "scapula_r",
+            "humerus_r",
+            "humerus_r",
+            "humerus_r",
+            "humerus_r",
+            "humerus_r",
+            "humerus_r",
+            "radius_r",
+            "radius_r"
+          ],
           "bodies": ["scapula_r", "humerus_r", "radius_r"]
         },
         {
@@ -150,11 +181,21 @@
             -0.00685, -0.13518, 0.13371, -0.00108, -0.18933, 0.1382, -0.02512, -0.34139, 0.13909,
             -0.01938, -0.35333, 0.1502
           ],
+          "on": [
+            "scapula_r",
+            "scapula_r",
+            "humerus_r",
+            "humerus_r",
+            "humerus_r",
+            "radius_r",
+            "radius_r"
+          ],
           "bodies": ["scapula_r", "humerus_r", "radius_r"]
         },
         {
           "name": "BRA",
           "path": [-0.01708, -0.18783, 0.1409, -0.02098, -0.32823, 0.1331],
+          "on": ["humerus_r", "ulna_r"],
           "bodies": ["humerus_r", "ulna_r"]
         },
         {
@@ -162,6 +203,7 @@
           "path": [
             -0.03368, -0.21356, 0.14673, 0.01839, -0.44325, 0.17535, 0.02452, -0.53683, 0.1746
           ],
+          "on": ["humerus_r", "radius_r", "radius_r"],
           "bodies": ["humerus_r", "radius_r"]
         },
         {
@@ -170,6 +212,7 @@
             -0.03118, -0.27483, 0.1536, 0.01462, -0.45043, 0.18, 0.02502, -0.55263, 0.1884, 0.0218,
             -0.5941, 0.18536
           ],
+          "on": ["humerus_r", "radius_r", "radius_r", "secondmc_r"],
           "bodies": ["humerus_r", "radius_r", "secondmc_r"]
         },
         {
@@ -178,6 +221,7 @@
             -0.01038, -0.30443, 0.1615, 0.01162, -0.44673, 0.176, 0.01812, -0.54383, 0.1916,
             0.00959, -0.58422, 0.188
           ],
+          "on": ["humerus_r", "radius_r", "radius_r", "thirdmc_r"],
           "bodies": ["humerus_r", "radius_r", "thirdmc_r"]
         },
         {
@@ -186,11 +230,13 @@
             -0.02308, -0.30343, 0.1633, -0.03168, -0.33633, 0.1617, -0.03478, -0.35863, 0.1609,
             -0.03568, -0.40003, 0.165, -0.03158, -0.54283, 0.187, -0.01788, -0.58687, 0.17821
           ],
+          "on": ["humerus_r", "ulna_r", "ulna_r", "ulna_r", "radius_r", "fifthmc_r"],
           "bodies": ["humerus_r", "ulna_r", "radius_r", "fifthmc_r"]
         },
         {
           "name": "FCR",
           "path": [-0.01628, -0.29203, 0.1075, 0.00372, -0.53523, 0.1535, 0.0159, -0.5913, 0.17536],
+          "on": ["humerus_r", "radius_r", "secondmc_r"],
           "bodies": ["humerus_r", "radius_r", "secondmc_r"]
         },
         {
@@ -199,6 +245,7 @@
             -0.02168, -0.29133, 0.1057, -0.00788, -0.49993, 0.1527, -0.00658, -0.53913, 0.1619,
             -0.01177, -0.56472, 0.15661, -0.01578, -0.59057, 0.17201
           ],
+          "on": ["humerus_r", "radius_r", "radius_r", "pisiform_r", "fifthmc_r"],
           "bodies": ["humerus_r", "radius_r", "pisiform_r", "fifthmc_r"]
         },
         {
@@ -207,6 +254,7 @@
             -0.01928, -0.28913, 0.1059, 0.00792, -0.55503, 0.1494, 0.01381, -0.59188, 0.16203,
             0.00689, -0.60382, 0.1845
           ],
+          "on": ["humerus_r", "radius_r", "capitate_r", "thirdmc_r"],
           "bodies": ["humerus_r", "radius_r", "capitate_r", "thirdmc_r"]
         },
         {
@@ -215,11 +263,13 @@
             -0.02028, -0.28983, 0.108, -0.00928, -0.33803, 0.1179, -0.00558, -0.36953, 0.13,
             0.00622, -0.40923, 0.1616, 0.00802, -0.42463, 0.172
           ],
+          "on": ["humerus_r", "ulna_r", "ulna_r", "radius_r", "radius_r"],
           "bodies": ["humerus_r", "ulna_r", "radius_r"]
         },
         {
           "name": "PQ",
           "path": [0.01502, -0.51583, 0.1718, -0.01588, -0.51403, 0.1685],
+          "on": ["radius_r", "ulna_r"],
           "bodies": ["radius_r", "ulna_r"]
         },
         {
@@ -228,6 +278,16 @@
             -0.01968, -0.28993, 0.1059, -0.00358, -0.50303, 0.1542, 0.00221, -0.58678, 0.16573,
             -0.01033, -0.6049, 0.17094, -0.01739, -0.62065, 0.16579, -0.02058, -0.6439, 0.16671,
             -0.02138, -0.6549, 0.16841, -0.02306, -0.68276, 0.16633
+          ],
+          "on": [
+            "humerus_r",
+            "radius_r",
+            "capitate_r",
+            "fourthmc_r",
+            "fifthmc_r",
+            "5proxph_r",
+            "5proxph_r",
+            "midph5_r"
           ],
           "bodies": [
             "humerus_r",
@@ -246,6 +306,16 @@
             -0.00401, -0.60672, 0.1761, -0.00543, -0.6272, 0.17704, -0.00916, -0.64979, 0.17537,
             -0.00866, -0.67319, 0.18187, -0.01279, -0.68925, 0.18241
           ],
+          "on": [
+            "humerus_r",
+            "radius_r",
+            "capitate_r",
+            "thirdmc_r",
+            "fourthmc_r",
+            "4proxph_r",
+            "4proxph_r",
+            "midph4_r"
+          ],
           "bodies": [
             "humerus_r",
             "radius_r",
@@ -263,6 +333,16 @@
             0.00639, -0.60572, 0.1774, 0.00749, -0.63652, 0.1765, 0.00593, -0.65301, 0.17988,
             0.00983, -0.67601, 0.18658, 0.00718, -0.69332, 0.18951
           ],
+          "on": [
+            "ulna_r",
+            "radius_r",
+            "capitate_r",
+            "thirdmc_r",
+            "thirdmc_r",
+            "3proxph_r",
+            "3proxph_r",
+            "midph3_r"
+          ],
           "bodies": ["ulna_r", "radius_r", "capitate_r", "thirdmc_r", "3proxph_r", "midph3_r"]
         },
         {
@@ -271,6 +351,16 @@
             -0.02458, -0.33253, 0.1308, 0.00402, -0.50203, 0.1577, 0.01351, -0.58658, 0.16563,
             0.0152, -0.6107, 0.17976, 0.0242, -0.6243, 0.18386, 0.0241, -0.64715, 0.17618, 0.0292,
             -0.67555, 0.19048, 0.03011, -0.68882, 0.19141
+          ],
+          "on": [
+            "ulna_r",
+            "radius_r",
+            "capitate_r",
+            "secondmc_r",
+            "secondmc_r",
+            "2proxph_r",
+            "2proxph_r",
+            "midph2_r"
           ],
           "bodies": ["ulna_r", "radius_r", "capitate_r", "secondmc_r", "2proxph_r", "midph2_r"]
         },
@@ -281,6 +371,18 @@
             -0.01433, -0.6045, 0.17684, -0.01628, -0.62057, 0.16661, -0.01988, -0.6427, 0.16871,
             -0.01938, -0.6581, 0.16581, -0.02516, -0.67356, 0.16693, -0.02516, -0.68056, 0.16693,
             -0.02733, -0.69914, 0.16389
+          ],
+          "on": [
+            "ulna_r",
+            "radius_r",
+            "capitate_r",
+            "fourthmc_r",
+            "fifthmc_r",
+            "5proxph_r",
+            "5proxph_r",
+            "midph5_r",
+            "midph5_r",
+            "distph5_r"
           ],
           "bodies": [
             "ulna_r",
@@ -301,6 +403,18 @@
             -0.01266, -0.67029, 0.18097, -0.01049, -0.68445, 0.17821, -0.01349, -0.69705, 0.18291,
             -0.01491, -0.71614, 0.18257
           ],
+          "on": [
+            "ulna_r",
+            "radius_r",
+            "capitate_r",
+            "thirdmc_r",
+            "fourthmc_r",
+            "4proxph_r",
+            "4proxph_r",
+            "midph4_r",
+            "midph4_r",
+            "distph4_r"
+          ],
           "bodies": [
             "ulna_r",
             "radius_r",
@@ -320,6 +434,18 @@
             0.00773, -0.67481, 0.18818, 0.00858, -0.69412, 0.18981, 0.00908, -0.70402, 0.19281,
             0.00914, -0.71567, 0.19487
           ],
+          "on": [
+            "ulna_r",
+            "radius_r",
+            "capitate_r",
+            "thirdmc_r",
+            "thirdmc_r",
+            "3proxph_r",
+            "3proxph_r",
+            "midph3_r",
+            "midph3_r",
+            "distph3_r"
+          ],
           "bodies": [
             "ulna_r",
             "radius_r",
@@ -338,6 +464,18 @@
             0.18758, 0.03091, -0.68882, 0.18971, 0.03461, -0.69962, 0.19201, 0.03434, -0.71051,
             0.19273
           ],
+          "on": [
+            "ulna_r",
+            "radius_r",
+            "capitate_r",
+            "secondmc_r",
+            "secondmc_r",
+            "2proxph_r",
+            "2proxph_r",
+            "midph2_r",
+            "midph2_r",
+            "distph2_r"
+          ],
           "bodies": [
             "ulna_r",
             "radius_r",
@@ -355,6 +493,17 @@
             -0.01858, -0.62577, 0.18101, -0.02338, -0.6413, 0.18011, -0.02678, -0.6612, 0.17631,
             -0.02916, -0.67456, 0.17293, -0.02916, -0.68556, 0.17093, -0.02903, -0.69224, 0.16869
           ],
+          "on": [
+            "humerus_r",
+            "radius_r",
+            "radius_r",
+            "fifthmc_r",
+            "5proxph_r",
+            "5proxph_r",
+            "midph5_r",
+            "midph5_r",
+            "distph5_r"
+          ],
           "bodies": ["humerus_r", "radius_r", "fifthmc_r", "5proxph_r", "midph5_r", "distph5_r"]
         },
         {
@@ -363,6 +512,17 @@
             -0.02548, -0.30333, 0.1623, -0.01478, -0.35513, 0.1666, -0.00858, -0.53953, 0.195,
             -0.00783, -0.6341, 0.19254, -0.01126, -0.64549, 0.19167, -0.01306, -0.67509, 0.18767,
             -0.01469, -0.68315, 0.19301, -0.01679, -0.70335, 0.19021, -0.01611, -0.71014, 0.18777
+          ],
+          "on": [
+            "humerus_r",
+            "radius_r",
+            "radius_r",
+            "fourthmc_r",
+            "4proxph_r",
+            "4proxph_r",
+            "midph4_r",
+            "midph4_r",
+            "distph4_r"
           ],
           "bodies": ["humerus_r", "radius_r", "fourthmc_r", "4proxph_r", "midph4_r", "distph4_r"]
         },
@@ -373,6 +533,17 @@
             0.00439, -0.63842, 0.1981, 0.00413, -0.65061, 0.19938, 0.00703, -0.67981, 0.19998,
             0.00738, -0.68682, 0.20111, 0.00808, -0.71162, 0.20001, 0.00914, -0.71747, 0.20097
           ],
+          "on": [
+            "humerus_r",
+            "radius_r",
+            "radius_r",
+            "thirdmc_r",
+            "3proxph_r",
+            "3proxph_r",
+            "midph3_r",
+            "midph3_r",
+            "distph3_r"
+          ],
           "bodies": ["humerus_r", "radius_r", "thirdmc_r", "3proxph_r", "midph3_r", "distph3_r"]
         },
         {
@@ -382,6 +553,17 @@
             0.0224, -0.64, 0.19696, 0.0248, -0.64875, 0.19518, 0.0298, -0.67675, 0.20018, 0.02941,
             -0.68462, 0.20291, 0.03331, -0.70492, 0.20031, 0.03364, -0.71051, 0.20012
           ],
+          "on": [
+            "humerus_r",
+            "radius_r",
+            "radius_r",
+            "secondmc_r",
+            "2proxph_r",
+            "2proxph_r",
+            "midph2_r",
+            "midph2_r",
+            "distph2_r"
+          ],
           "bodies": ["humerus_r", "radius_r", "secondmc_r", "2proxph_r", "midph2_r", "distph2_r"]
         },
         {
@@ -390,6 +572,17 @@
             -0.02298, -0.30313, 0.163, -0.02758, -0.34343, 0.163, -0.02538, -0.38703, 0.1687,
             -0.01288, -0.54223, 0.189, -0.01598, -0.58317, 0.18321, -0.02268, -0.62607, 0.17851,
             -0.02428, -0.6614, 0.17391, -0.02616, -0.66756, 0.17393, -0.02933, -0.68854, 0.16929
+          ],
+          "on": [
+            "humerus_r",
+            "ulna_r",
+            "ulna_r",
+            "radius_r",
+            "fifthmc_r",
+            "fifthmc_r",
+            "5proxph_r",
+            "midph5_r",
+            "distph5_r"
           ],
           "bodies": [
             "humerus_r",
@@ -409,6 +602,19 @@
             -0.68005, 0.20228, 0.03151, -0.68902, 0.20151, 0.03431, -0.70602, 0.19951, 0.03464,
             -0.70891, 0.19973, 0.03624, -0.71721, 0.19943
           ],
+          "on": [
+            "ulna_r",
+            "ulna_r",
+            "radius_r",
+            "secondmc_r",
+            "secondmc_r",
+            "2proxph_r",
+            "2proxph_r",
+            "midph2_r",
+            "midph2_r",
+            "distph2_r",
+            "distph2_r"
+          ],
           "bodies": ["ulna_r", "radius_r", "secondmc_r", "2proxph_r", "midph2_r", "distph2_r"]
         },
         {
@@ -418,6 +624,20 @@
             0.01642, -0.54333, 0.1983, 0.02492, -0.55353, 0.1939, 0.02891, -0.57278, 0.18563,
             0.02801, -0.58205, 0.17912, 0.03371, -0.58715, 0.17462, 0.04871, -0.60705, 0.16142,
             0.05511, -0.61565, 0.15562, 0.0628, -0.63855, 0.14362, 0.06301, -0.64505, 0.13932
+          ],
+          "on": [
+            "ulna_r",
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "capitate_r",
+            "trapezium_r",
+            "firstmc_r",
+            "firstmc_r",
+            "proximal_thumb_r",
+            "proximal_thumb_r",
+            "distal_thumb_r"
           ],
           "bodies": [
             "ulna_r",
@@ -436,6 +656,16 @@
             0.03502, -0.55193, 0.1792, 0.03581, -0.57028, 0.17623, 0.04151, -0.58625, 0.16272,
             0.04881, -0.60585, 0.15532, 0.05291, -0.61825, 0.14842
           ],
+          "on": [
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "capitate_r",
+            "firstmc_r",
+            "firstmc_r",
+            "proximal_thumb_r"
+          ],
           "bodies": ["radius_r", "capitate_r", "firstmc_r", "proximal_thumb_r"]
         },
         {
@@ -446,6 +676,18 @@
             0.02921, -0.60585, 0.15712, 0.03911, -0.63045, 0.14892, 0.04951, -0.63805, 0.14292,
             0.06001, -0.64925, 0.13982
           ],
+          "on": [
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "capitate_r",
+            "firstmc_r",
+            "firstmc_r",
+            "proximal_thumb_r",
+            "proximal_thumb_r",
+            "distal_thumb_r"
+          ],
           "bodies": ["radius_r", "capitate_r", "firstmc_r", "proximal_thumb_r", "distal_thumb_r"]
         },
         {
@@ -455,16 +697,28 @@
             0.02662, -0.49423, 0.1835, 0.03762, -0.54663, 0.1759, 0.02711, -0.57685, 0.15672,
             0.03341, -0.57965, 0.16082, 0.03541, -0.58875, 0.16072
           ],
+          "on": [
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "radius_r",
+            "firstmc_r",
+            "firstmc_r",
+            "firstmc_r"
+          ],
           "bodies": ["radius_r", "firstmc_r"]
         },
         {
           "name": "OP",
           "path": [0.00891, -0.58245, 0.16522, 0.0381, -0.61285, 0.15072],
+          "on": ["trapezium_r", "firstmc_r"],
           "bodies": ["trapezium_r", "firstmc_r"]
         },
         {
           "name": "RI2",
           "path": [0.0152, -0.6107, 0.17976, 0.0284, -0.6305, 0.17966, 0.0298, -0.64545, 0.18808],
+          "on": ["secondmc_r", "secondmc_r", "2proxph_r"],
           "bodies": ["secondmc_r", "2proxph_r"]
         },
         {
@@ -473,6 +727,7 @@
             0.0152, -0.6107, 0.17976, 0.0295, -0.637, 0.18456, 0.0312, -0.64705, 0.18818, 0.0341,
             -0.67265, 0.19758, 0.03631, -0.68802, 0.19651, 0.03631, -0.70102, 0.19751
           ],
+          "on": ["secondmc_r", "secondmc_r", "2proxph_r", "2proxph_r", "midph2_r", "midph2_r"],
           "bodies": ["secondmc_r", "2proxph_r", "midph2_r"]
         },
         {
@@ -481,6 +736,7 @@
             0.0152, -0.6107, 0.17976, 0.016, -0.6399, 0.18446, 0.0185, -0.65465, 0.19058, 0.0238,
             -0.67815, 0.19928, 0.02621, -0.68662, 0.19931, 0.03131, -0.70302, 0.19851
           ],
+          "on": ["secondmc_r", "secondmc_r", "2proxph_r", "2proxph_r", "midph2_r", "midph2_r"],
           "bodies": ["secondmc_r", "2proxph_r", "midph2_r"]
         },
         {
@@ -488,6 +744,7 @@
           "path": [
             0.00639, -0.60572, 0.1774, 0.01469, -0.61482, 0.1821, 0.01293, -0.65011, 0.18918
           ],
+          "on": ["thirdmc_r", "thirdmc_r", "3proxph_r"],
           "bodies": ["thirdmc_r", "3proxph_r"]
         },
         {
@@ -496,6 +753,7 @@
             0.00639, -0.60572, 0.1774, 0.01529, -0.63532, 0.1861, 0.01213, -0.66041, 0.19598,
             0.01113, -0.68311, 0.19628, 0.01188, -0.69422, 0.19841
           ],
+          "on": ["thirdmc_r", "thirdmc_r", "3proxph_r", "3proxph_r", "midph3_r"],
           "bodies": ["thirdmc_r", "3proxph_r", "midph3_r"]
         },
         {
@@ -504,6 +762,7 @@
             0.00639, -0.60572, 0.1774, 0.00199, -0.63692, 0.1835, 0.00413, -0.65671, 0.17938,
             0.00103, -0.68121, 0.19558, 0.00158, -0.69032, 0.20091
           ],
+          "on": ["thirdmc_r", "thirdmc_r", "3proxph_r", "3proxph_r", "midph3_r"],
           "bodies": ["thirdmc_r", "3proxph_r", "midph3_r"]
         },
         {
@@ -511,6 +770,7 @@
           "path": [
             -0.00401, -0.60672, 0.1761, 0.00047, -0.6278, 0.18274, -0.00616, -0.66139, 0.18297
           ],
+          "on": ["thirdmc_r", "fourthmc_r", "4proxph_r"],
           "bodies": ["thirdmc_r", "fourthmc_r", "4proxph_r"]
         },
         {
@@ -519,6 +779,7 @@
             -0.00401, -0.60672, 0.1761, -0.00423, -0.6358, 0.18224, -0.00906, -0.65169, 0.18347,
             -0.00796, -0.67739, 0.18697, -0.00849, -0.68185, 0.18851
           ],
+          "on": ["thirdmc_r", "fourthmc_r", "4proxph_r", "4proxph_r", "midph4_r"],
           "bodies": ["thirdmc_r", "fourthmc_r", "4proxph_r", "midph4_r"]
         },
         {
@@ -527,6 +788,7 @@
             -0.00401, -0.60672, 0.1761, -0.01223, -0.6375, 0.17864, -0.01346, -0.65829, 0.17737,
             -0.01816, -0.67589, 0.18467, -0.01859, -0.68135, 0.18761
           ],
+          "on": ["thirdmc_r", "fourthmc_r", "4proxph_r", "4proxph_r", "midph4_r"],
           "bodies": ["thirdmc_r", "fourthmc_r", "4proxph_r", "midph4_r"]
         },
         {
@@ -534,6 +796,7 @@
           "path": [
             -0.00401, -0.60672, 0.1761, -0.01118, -0.62247, 0.16871, -0.01418, -0.6433, 0.17611
           ],
+          "on": ["thirdmc_r", "fifthmc_r", "5proxph_r"],
           "bodies": ["thirdmc_r", "fifthmc_r", "5proxph_r"]
         },
         {
@@ -542,6 +805,7 @@
             -0.00401, -0.58672, 0.1761, -0.01118, -0.62747, 0.17511, -0.01538, -0.6421, 0.17581,
             -0.02208, -0.6662, 0.17691, -0.02486, -0.68126, 0.17263
           ],
+          "on": ["thirdmc_r", "fifthmc_r", "5proxph_r", "5proxph_r", "midph5_r"],
           "bodies": ["thirdmc_r", "fifthmc_r", "5proxph_r", "midph5_r"]
         },
         {
@@ -550,7 +814,456 @@
             -0.01501, -0.58672, 0.1711, -0.02238, -0.62727, 0.16771, -0.02198, -0.6467, 0.16591,
             -0.02958, -0.6649, 0.17061, -0.02916, -0.68056, 0.16893
           ],
+          "on": ["thirdmc_r", "fifthmc_r", "5proxph_r", "5proxph_r", "midph5_r"],
           "bodies": ["thirdmc_r", "fifthmc_r", "5proxph_r", "midph5_r"]
+        }
+      ],
+      "joints": [
+        {
+          "name": "sternoclavicular_r2_r",
+          "body": "clavicle_r",
+          "anchor": [0, 0, 0],
+          "axis": [0.0153, 0.9893, -0.1451]
+        },
+        {
+          "name": "sternoclavicular_r3_r",
+          "body": "clavicle_r",
+          "anchor": [0, 0, 0],
+          "axis": [-0.9945, 0, -0.105]
+        },
+        {
+          "name": "unrotscap_r3_r",
+          "body": "clavphant_r",
+          "anchor": [-0.01433, 0.02007, 0.1355],
+          "axis": [-0.9945, 0, -0.105]
+        },
+        {
+          "name": "unrotscap_r2_r",
+          "body": "clavphant_r",
+          "anchor": [-0.01433, 0.02007, 0.1355],
+          "axis": [0.0153, 0.9893, -0.1451]
+        },
+        {
+          "name": "acromioclavicular_r2_r",
+          "body": "scapula_r",
+          "anchor": [-0.01433, 0.02007, 0.1355],
+          "axis": [0.1571, 0.9473, -0.2793]
+        },
+        {
+          "name": "acromioclavicular_r3_r",
+          "body": "scapula_r",
+          "anchor": [-0.01433, 0.02007, 0.1355],
+          "axis": [-0.7541, 0.2976, 0.5855]
+        },
+        {
+          "name": "acromioclavicular_r1_r",
+          "body": "scapula_r",
+          "anchor": [-0.01433, 0.02007, 0.1355],
+          "axis": [0.6377, 0.1186, 0.7611]
+        },
+        {
+          "name": "unrothum_r1_r",
+          "body": "scapphant_r",
+          "anchor": [-0.02388, -0.01393, 0.1445],
+          "axis": [0.6377, 0.1186, 0.7611]
+        },
+        {
+          "name": "unrothum_r3_r",
+          "body": "scapphant_r",
+          "anchor": [-0.02388, -0.01393, 0.1445],
+          "axis": [-0.7541, 0.2976, 0.5855]
+        },
+        {
+          "name": "unrothum_r2_r",
+          "body": "scapphant_r",
+          "anchor": [-0.02388, -0.01393, 0.1445],
+          "axis": [0.1571, 0.9473, -0.2793]
+        },
+        {
+          "name": "elv_angle_r",
+          "body": "humphant_r",
+          "anchor": [-0.02388, -0.01393, 0.1445],
+          "axis": [0.0048, 0.9991, 0.0424]
+        },
+        {
+          "name": "shoulder_elv_r",
+          "body": "humphant1_r",
+          "anchor": [-0.02388, -0.01393, 0.1445],
+          "axis": [-0.9983, 0.0023, 0.0589]
+        },
+        {
+          "name": "shoulder1_r2_r",
+          "body": "humphant1_r",
+          "anchor": [-0.02388, -0.01393, 0.1445],
+          "axis": [0.0048, 0.9991, 0.0424]
+        },
+        {
+          "name": "shoulder_rot_r",
+          "body": "humerus_r",
+          "anchor": [-0.02388, -0.01393, 0.1445],
+          "axis": [0.0048, 0.9991, 0.0424]
+        },
+        {
+          "name": "elbow_flexion_r",
+          "body": "ulna_r",
+          "anchor": [-0.01778, -0.30433, 0.1322],
+          "axis": [0.0494, 0.0366, 0.9981]
+        },
+        {
+          "name": "pro_sup_r",
+          "body": "radius_r",
+          "anchor": [-0.01738, -0.31583, 0.1522],
+          "axis": [-0.0172, 0.9927, -0.1197]
+        },
+        {
+          "name": "deviation_r",
+          "body": "lunate_r",
+          "anchor": [0.00062, -0.55783, 0.1772],
+          "axis": [0, 0, 1]
+        },
+        {
+          "name": "flexion_r",
+          "body": "lunate_r",
+          "anchor": [0.00062, -0.55783, 0.1772],
+          "axis": [1, 0, 0]
+        },
+        {
+          "name": "cmc_flexion",
+          "body": "firstmc_r",
+          "anchor": [0.02711, -0.58285, 0.16672],
+          "axis": [-0.0424, -0.6653, 0.7454]
+        },
+        {
+          "name": "cmc_abduction",
+          "body": "firstmc_r",
+          "anchor": [0.02711, -0.58285, 0.16672],
+          "axis": [0.4956, 0.7317, 0.468]
+        },
+        {
+          "name": "mp_flexion_r",
+          "body": "proximal_thumb_r",
+          "anchor": [0.04361, -0.61205, 0.15402],
+          "axis": [-0.0843, -0.2035, 0.9754]
+        },
+        {
+          "name": "ip_flexion_r",
+          "body": "distal_thumb_r",
+          "anchor": [0.05761, -0.63795, 0.14392],
+          "axis": [-0.0501, -0.4796, 0.876]
+        },
+        {
+          "name": "mcp2_flexion_r",
+          "body": "2proxph_r",
+          "anchor": [0.0228, -0.63875, 0.18818],
+          "axis": [0.995, 0.0997, 0]
+        },
+        {
+          "name": "mcp2_abduction_r",
+          "body": "2proxph_r",
+          "anchor": [0.0228, -0.63875, 0.18818],
+          "axis": [-0.055, 0.0859, 0.9948]
+        },
+        {
+          "name": "pm2_flexion_r",
+          "body": "midph2_r",
+          "anchor": [0.03031, -0.68002, 0.19551],
+          "axis": [0.9752, 0.0998, -0.1977]
+        },
+        {
+          "name": "md2_flexion_r",
+          "body": "distph2_r",
+          "anchor": [0.03364, -0.70491, 0.19673],
+          "axis": [0.995, 0.0998, 0]
+        },
+        {
+          "name": "mcp3_flexion_r",
+          "body": "3proxph_r",
+          "anchor": [0.00533, -0.63841, 0.18868],
+          "axis": [0.9801, 0, 0.1987]
+        },
+        {
+          "name": "mcp3_abduction_r",
+          "body": "3proxph_r",
+          "anchor": [0.00533, -0.63841, 0.18868],
+          "axis": [-0.1987, 0, 0.9801]
+        },
+        {
+          "name": "pm3_flexion_r",
+          "body": "midph3_r",
+          "anchor": [0.00698, -0.68262, 0.19491],
+          "axis": [1, 0, 0]
+        },
+        {
+          "name": "md3_flexion",
+          "body": "distph3_r",
+          "anchor": [0.00834, -0.71167, 0.19687],
+          "axis": [1, 0, 0]
+        },
+        {
+          "name": "mcp4_flexion_r",
+          "body": "4proxph_r",
+          "anchor": [-0.00926, -0.63709, 0.18287],
+          "axis": [0.9004, 0, 0.435]
+        },
+        {
+          "name": "mcp4_abduction_r",
+          "body": "4proxph_r",
+          "anchor": [-0.00926, -0.63709, 0.18287],
+          "axis": [-0.435, 0, 0.9004]
+        },
+        {
+          "name": "pm4_flexion",
+          "body": "midph4_r",
+          "anchor": [-0.01279, -0.67735, 0.18421],
+          "axis": [0.9211, 0, 0.3894]
+        },
+        {
+          "name": "md4_flexion_r",
+          "body": "distph4_r",
+          "anchor": [-0.01511, -0.70214, 0.18477],
+          "axis": [0.8253, 0, 0.5646]
+        },
+        {
+          "name": "mcp5_flexion_r",
+          "body": "5proxph_r",
+          "anchor": [-0.01888, -0.629, 0.17381],
+          "axis": [0.8253, 0, 0.5646]
+        },
+        {
+          "name": "mcp5_abduction_r",
+          "body": "5proxph_r",
+          "anchor": [-0.01888, -0.629, 0.17381],
+          "axis": [-0.5646, 0, 0.8253]
+        },
+        {
+          "name": "pm5_flexion_r",
+          "body": "midph5_r",
+          "anchor": [-0.02416, -0.66456, 0.17093],
+          "axis": [0.8253, 0, 0.5646]
+        },
+        {
+          "name": "md5_flexion_r",
+          "body": "distph5_r",
+          "anchor": [-0.02703, -0.68524, 0.16869],
+          "axis": [0.8677, -0.1494, 0.474]
+        }
+      ],
+      "bodies": [
+        {
+          "name": "clavicle_r",
+          "parent": null,
+          "pos": [0, 0, 0],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "clavphant_r",
+          "parent": "clavicle_r",
+          "pos": [-0.01433, 0.02007, 0.1355],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "scapula_r",
+          "parent": "clavphant_r",
+          "pos": [-0.01433, 0.02007, 0.1355],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "scapphant_r",
+          "parent": "scapula_r",
+          "pos": [-0.02388, -0.01393, 0.1445],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "humphant_r",
+          "parent": "scapphant_r",
+          "pos": [-0.02388, -0.01393, 0.1445],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "humphant1_r",
+          "parent": "humphant_r",
+          "pos": [-0.02388, -0.01393, 0.1445],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "humerus_r",
+          "parent": "humphant1_r",
+          "pos": [-0.02388, -0.01393, 0.1445],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "ulna_r",
+          "parent": "humerus_r",
+          "pos": [-0.01778, -0.30433, 0.1322],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "radius_r",
+          "parent": "ulna_r",
+          "pos": [-0.01738, -0.31583, 0.1522],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "lunate_r",
+          "parent": "radius_r",
+          "pos": [0.00062, -0.55783, 0.1772],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "scaphoid_r",
+          "parent": "lunate_r",
+          "pos": [0.01297, -0.56229, 0.17595],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "pisiform_r",
+          "parent": "lunate_r",
+          "pos": [-0.01277, -0.56772, 0.16661],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "triquetrum_r",
+          "parent": "lunate_r",
+          "pos": [-0.01016, -0.56533, 0.17591],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "capitate_r",
+          "parent": "lunate_r",
+          "pos": [0.00461, -0.57288, 0.17953],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "trapezium_r",
+          "parent": "capitate_r",
+          "pos": [0.01991, -0.57745, 0.16922],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "firstmc_r",
+          "parent": "trapezium_r",
+          "pos": [0.02711, -0.58285, 0.16672],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "proximal_thumb_r",
+          "parent": "firstmc_r",
+          "pos": [0.04361, -0.61205, 0.15402],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "distal_thumb_r",
+          "parent": "proximal_thumb_r",
+          "pos": [0.05761, -0.63795, 0.14392],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "trapezoid_r",
+          "parent": "capitate_r",
+          "pos": [0.01376, -0.57695, 0.17706],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "hamate_r",
+          "parent": "capitate_r",
+          "pos": [-0.00636, -0.57538, 0.17878],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "secondmc_r",
+          "parent": "capitate_r",
+          "pos": [0.0193, -0.6105, 0.18456],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "2proxph_r",
+          "parent": "secondmc_r",
+          "pos": [0.0228, -0.63875, 0.18818],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "midph2_r",
+          "parent": "2proxph_r",
+          "pos": [0.03031, -0.68002, 0.19551],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "distph2_r",
+          "parent": "midph2_r",
+          "pos": [0.03364, -0.70491, 0.19673],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "thirdmc_r",
+          "parent": "capitate_r",
+          "pos": [0.00509, -0.61212, 0.1869],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "3proxph_r",
+          "parent": "thirdmc_r",
+          "pos": [0.00533, -0.63841, 0.18868],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "midph3_r",
+          "parent": "3proxph_r",
+          "pos": [0.00698, -0.68262, 0.19491],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "distph3_r",
+          "parent": "midph3_r",
+          "pos": [0.00834, -0.71167, 0.19687],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "fourthmc_r",
+          "parent": "capitate_r",
+          "pos": [-0.00743, -0.6134, 0.18304],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "4proxph_r",
+          "parent": "fourthmc_r",
+          "pos": [-0.00926, -0.63709, 0.18287],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "midph4_r",
+          "parent": "4proxph_r",
+          "pos": [-0.01279, -0.67735, 0.18421],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "distph4_r",
+          "parent": "midph4_r",
+          "pos": [-0.01511, -0.70214, 0.18477],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "fifthmc_r",
+          "parent": "capitate_r",
+          "pos": [-0.01728, -0.60757, 0.17531],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "5proxph_r",
+          "parent": "fifthmc_r",
+          "pos": [-0.01888, -0.629, 0.17381],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "midph5_r",
+          "parent": "5proxph_r",
+          "pos": [-0.02416, -0.66456, 0.17093],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "distph5_r",
+          "parent": "midph5_r",
+          "pos": [-0.02703, -0.68524, 0.16869],
+          "quat": [1, 0, 0, 0]
         }
       ]
     },
@@ -559,31 +1272,37 @@
         {
           "name": "addbrev_r",
           "path": [-0.01542, 0.01901, -0.09402, -0.10221, 0.05804, -0.19654],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "addlong_r",
           "path": [-0.01891, 0.00751, -0.08891, -0.0931, 0.04465, -0.31793],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "addmagDist_r",
           "path": [-0.03986, 0.07387, -0.12776, -0.0966, 0.04473, -0.34103],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "addmagIsch_r",
           "path": [-0.04177, 0.08946, -0.12987, -0.0446, 0.05107, -0.46653],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "addmagMid_r",
           "path": [-0.02854, 0.05258, -0.12084, -0.1065, 0.0536, -0.24093],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "addmagProx_r",
           "path": [-0.01362, 0.0309, -0.10762, -0.10932, 0.07136, -0.15745],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
@@ -591,11 +1310,13 @@
           "path": [
             -0.05868, 0.10386, -0.11918, -0.10137, 0.08948, -0.51799, -0.10636, 0.08447, -0.52848
           ],
+          "on": ["pelvis", "tibia_r", "tibia_r"],
           "bodies": ["pelvis", "tibia_r"]
         },
         {
           "name": "bfsh_r",
           "path": [-0.1007, 0.05097, -0.28963, -0.10786, 0.08587, -0.52488],
+          "on": ["femur_r", "tibia_r"],
           "bodies": ["femur_r", "tibia_r"]
         },
         {
@@ -604,6 +1325,7 @@
             -0.09655, 0.07172, -0.59867, -0.08723, 0.03912, -0.85895, -0.08473, 0.02237, -0.88888,
             -0.09688, -0.04736, -0.91933, -0.10024, -0.06487, -0.92211, -0.10991, -0.10888, -0.92718
           ],
+          "on": ["tibia_r", "tibia_r", "calcn_r", "calcn_r", "toes_r", "toes_r"],
           "bodies": ["tibia_r", "calcn_r", "toes_r"]
         },
         {
@@ -612,6 +1334,16 @@
             -0.09495, 0.06969, -0.63797, -0.09243, 0.04849, -0.77385, -0.07322, 0.03554, -0.85224,
             -0.06283, 0.01729, -0.88598, -0.0582, -0.01501, -0.89395, -0.05587, -0.05912, -0.91092,
             -0.06042, -0.09434, -0.92269, -0.0663, -0.12084, -0.92337
+          ],
+          "on": [
+            "tibia_r",
+            "tibia_r",
+            "tibia_r",
+            "calcn_r",
+            "calcn_r",
+            "calcn_r",
+            "toes_r",
+            "toes_r"
           ],
           "bodies": ["tibia_r", "calcn_r", "toes_r"]
         },
@@ -622,6 +1354,16 @@
             -0.05765, 0.04348, -0.9073, -0.09547, -0.05157, -0.93292, -0.09965, -0.06268, -0.93462,
             -0.10642, -0.09308, -0.93389, -0.10911, -0.10868, -0.93278
           ],
+          "on": [
+            "tibia_r",
+            "tibia_r",
+            "calcn_r",
+            "calcn_r",
+            "calcn_r",
+            "toes_r",
+            "toes_r",
+            "toes_r"
+          ],
           "bodies": ["tibia_r", "calcn_r", "toes_r"]
         },
         {
@@ -631,16 +1373,19 @@
             -0.05832, 0.01047, -0.91807, -0.05697, -0.05834, -0.93012, -0.05843, -0.08004, -0.9332,
             -0.0668, -0.12075, -0.93697
           ],
+          "on": ["tibia_r", "tibia_r", "calcn_r", "calcn_r", "calcn_r", "toes_r", "toes_r"],
           "bodies": ["tibia_r", "calcn_r", "toes_r"]
         },
         {
           "name": "gaslat_r",
           "path": [-0.10501, 0.05883, -0.45994, -0.0787, 0.10987, -0.89395],
+          "on": ["femur_r", "calcn_r"],
           "bodies": ["femur_r", "calcn_r"]
         },
         {
           "name": "gasmed_r",
           "path": [-0.0565, 0.04787, -0.45733, -0.0787, 0.10987, -0.89395],
+          "on": ["femur_r", "calcn_r"],
           "bodies": ["femur_r", "calcn_r"]
         },
         {
@@ -649,6 +1394,7 @@
             -0.0564, 0.12308, 0.0344, -0.078, 0.12562, -0.0243, -0.10754, 0.1005, -0.11117,
             -0.12433, 0.08377, -0.13516
           ],
+          "on": ["pelvis", "pelvis", "femur_r", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
@@ -657,6 +1403,7 @@
             -0.0463, 0.13167, 0.0086, -0.08141, 0.13429, -0.06101, -0.10254, 0.10109, -0.13697,
             -0.11922, 0.07164, -0.18015
           ],
+          "on": ["pelvis", "pelvis", "femur_r", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
@@ -665,36 +1412,43 @@
             -0.0091, 0.12995, -0.0526, -0.0436, 0.12716, -0.1264, -0.08673, 0.08415, -0.19106,
             -0.11841, 0.06201, -0.22044
           ],
+          "on": ["pelvis", "pelvis", "femur_r", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "glmed1_r",
           "path": [-0.11724, 0.04443, 0.02446, -0.13282, 0.0779, -0.09025],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "glmed2_r",
           "path": [-0.06757, 0.08497, 0.03153, -0.13003, 0.08191, -0.08436],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "glmed3_r",
           "path": [-0.05269, 0.11515, -0.00739, -0.12913, 0.08701, -0.08326],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "glmin1_r",
           "path": [-0.10424, 0.04631, -0.01494, -0.13331, 0.0633, -0.08894],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "glmin2_r",
           "path": [-0.09715, 0.06151, -0.01425, -0.13331, 0.0657, -0.08894],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
           "name": "glmin3_r",
           "path": [-0.07986, 0.07882, -0.01556, -0.13232, 0.0696, -0.08685],
+          "on": ["pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
@@ -702,6 +1456,7 @@
           "path": [
             -0.02464, 0.04728, -0.12934, -0.04645, 0.07422, -0.53057, -0.06034, 0.05399, -0.55256
           ],
+          "on": ["pelvis", "tibia_r", "tibia_r"],
           "bodies": ["pelvis", "tibia_r"]
         },
         {
@@ -710,6 +1465,7 @@
             -0.08435, 0.06046, 0.03085, -0.07561, 0.0134, -0.05571, -0.09121, 0.0584, -0.13504,
             -0.09691, 0.06829, -0.14224
           ],
+          "on": ["pelvis", "pelvis", "femur_r", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
@@ -718,6 +1474,7 @@
             -0.10116, 0.07991, -0.73618, -0.10097, 0.0894, -0.87229, -0.10156, 0.08399, -0.88338,
             -0.10727, 0.06715, -0.89792, -0.11825, 0.04653, -0.903
           ],
+          "on": ["tibia_r", "tibia_r", "tibia_r", "calcn_r", "calcn_r"],
           "bodies": ["tibia_r", "calcn_r"]
         },
         {
@@ -727,6 +1484,7 @@
             -0.10607, 0.07044, -0.90192, -0.11235, 0.04613, -0.9143, -0.09574, 0.02904, -0.91799,
             -0.06551, -0.00604, -0.91636
           ],
+          "on": ["tibia_r", "tibia_r", "tibia_r", "calcn_r", "calcn_r", "calcn_r", "calcn_r"],
           "bodies": ["tibia_r", "calcn_r"]
         },
         {
@@ -734,6 +1492,7 @@
           "path": [
             -0.01358, 0.10178, -0.00658, -0.06098, 0.10193, -0.03078, -0.12102, 0.07091, -0.08215
           ],
+          "on": ["pelvis", "pelvis", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
@@ -742,6 +1501,7 @@
             -0.03905, 0.06062, 0.06195, -0.06562, 0.0204, -0.06542, -0.08192, 0.06931, -0.12525,
             -0.08612, 0.0796, -0.13095
           ],
+          "on": ["pelvis", "pelvis", "femur_r", "femur_r"],
           "bodies": ["pelvis", "femur_r"]
         },
         {
@@ -750,6 +1510,7 @@
             -0.09332, 0.02389, -0.03882, -0.078, 0.05396, -0.43749, -0.0763, 0.05185, -0.44279,
             -0.07731, 0.05892, -0.484, -0.07551, 0.02318, -0.54603
           ],
+          "on": ["pelvis", "patella_r", "patella_r", "patella_r", "tibia_r"],
           "bodies": ["pelvis", "patella_r", "tibia_r"]
         },
         {
@@ -758,11 +1519,13 @@
             -0.10562, 0.0194, -0.01562, -0.03521, 0.0589, -0.43534, -0.03956, 0.08093, -0.52308,
             -0.04965, 0.0717, -0.54287, -0.07343, 0.04217, -0.56395
           ],
+          "on": ["pelvis", "femur_r", "tibia_r", "tibia_r", "tibia_r"],
           "bodies": ["pelvis", "femur_r", "tibia_r"]
         },
         {
           "name": "semimem_r",
           "path": [-0.06148, 0.09856, -0.11408, -0.05646, 0.08481, -0.52468],
+          "on": ["pelvis", "tibia_r"],
           "bodies": ["pelvis", "tibia_r"]
         },
         {
@@ -770,11 +1533,13 @@
           "path": [
             -0.05158, 0.10366, -0.12538, -0.05316, 0.08701, -0.53378, -0.06434, 0.05388, -0.56026
           ],
+          "on": ["pelvis", "tibia_r", "tibia_r"],
           "bodies": ["pelvis", "tibia_r"]
         },
         {
           "name": "soleus_r",
           "path": [-0.08585, 0.06335, -0.57457, -0.0787, 0.10987, -0.89395],
+          "on": ["tibia_r", "calcn_r"],
           "bodies": ["tibia_r", "calcn_r"]
         },
         {
@@ -783,6 +1548,7 @@
             -0.12412, 0.03102, 0.02138, -0.13698, 0.02663, -0.17801, -0.1097, 0.0451, -0.48353,
             -0.11063, 0.04497, -0.52395
           ],
+          "on": ["pelvis", "femur_r", "femur_r", "tibia_r"],
           "bodies": ["pelvis", "femur_r", "tibia_r"]
         },
         {
@@ -791,6 +1557,7 @@
             -0.09223, 0.04031, -0.61415, -0.08882, 0.03057, -0.67354, -0.06282, 0.03225, -0.84884,
             -0.05341, -0.00232, -0.90706
           ],
+          "on": ["tibia_r", "tibia_r", "tibia_r", "calcn_r"],
           "bodies": ["tibia_r", "calcn_r"]
         },
         {
@@ -799,6 +1566,7 @@
             -0.08634, 0.05982, -0.61336, -0.05855, 0.07195, -0.84847, -0.05537, 0.07259, -0.89152,
             -0.05584, 0.03708, -0.90899
           ],
+          "on": ["tibia_r", "tibia_r", "calcn_r", "calcn_r"],
           "bodies": ["tibia_r", "calcn_r"]
         },
         {
@@ -807,6 +1575,7 @@
             -0.10828, 0.02697, -0.27091, -0.10578, 0.02246, -0.28691, -0.07671, 0.05816, -0.4385,
             -0.07691, 0.05892, -0.484, -0.07641, 0.02318, -0.54613
           ],
+          "on": ["femur_r", "femur_r", "patella_r", "patella_r", "tibia_r"],
           "bodies": ["femur_r", "patella_r", "tibia_r"]
         },
         {
@@ -815,6 +1584,7 @@
             -0.1122, 0.05118, -0.26393, -0.11818, 0.02901, -0.33761, -0.0914, 0.05364, -0.44419,
             -0.08461, 0.05891, -0.484, -0.08111, 0.02328, -0.54633
           ],
+          "on": ["femur_r", "femur_r", "patella_r", "patella_r", "tibia_r"],
           "bodies": ["femur_r", "patella_r", "tibia_r"]
         },
         {
@@ -823,36 +1593,43 @@
             -0.09609, 0.04197, -0.28842, -0.07818, 0.02033, -0.35541, -0.06031, 0.05767, -0.442,
             -0.06881, 0.05893, -0.484, -0.06921, 0.02389, -0.54653
           ],
+          "on": ["femur_r", "femur_r", "patella_r", "patella_r", "tibia_r"],
           "bodies": ["femur_r", "patella_r", "tibia_r"]
         },
         {
           "name": "addbrev_l",
           "path": [0.01538, 0.01904, -0.09402, 0.10211, 0.0582, -0.19654],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "addlong_l",
           "path": [0.01889, 0.00754, -0.08891, 0.09302, 0.0448, -0.31793],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "addmagDist_l",
           "path": [0.03974, 0.07393, -0.12776, 0.09652, 0.04488, -0.34103],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "addmagIsch_l",
           "path": [0.04163, 0.08953, -0.12987, 0.04452, 0.05114, -0.46653],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "addmagMid_l",
           "path": [0.02846, 0.05263, -0.12084, 0.10642, 0.05377, -0.24093],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "addmagProx_l",
           "path": [0.01358, 0.03093, -0.10762, 0.1092, 0.07154, -0.15745],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
@@ -860,11 +1637,13 @@
           "path": [
             0.05852, 0.10395, -0.11918, 0.10122, 0.08964, -0.51799, 0.10623, 0.08464, -0.52848
           ],
+          "on": ["pelvis", "tibia_l", "tibia_l"],
           "bodies": ["pelvis", "tibia_l"]
         },
         {
           "name": "bfsh_l",
           "path": [0.10062, 0.05113, -0.28963, 0.10773, 0.08604, -0.52488],
+          "on": ["femur_l", "tibia_l"],
           "bodies": ["femur_l", "tibia_l"]
         },
         {
@@ -873,6 +1652,7 @@
             0.09644, 0.07188, -0.59867, 0.08716, 0.03926, -0.85895, 0.0847, 0.02251, -0.88888,
             0.09695, -0.04721, -0.91933, 0.10035, -0.06471, -0.92211, 0.11008, -0.1087, -0.92718
           ],
+          "on": ["tibia_l", "tibia_l", "calcn_l", "calcn_l", "toes_l", "toes_l"],
           "bodies": ["tibia_l", "calcn_l", "toes_l"]
         },
         {
@@ -881,6 +1661,16 @@
             0.09484, 0.06984, -0.63797, 0.09236, 0.04863, -0.77385, 0.07317, 0.03566, -0.85224,
             0.0628, 0.01739, -0.88598, 0.05823, -0.01492, -0.89395, 0.05596, -0.05903, -0.91092,
             0.06057, -0.09424, -0.92269, 0.06649, -0.12074, -0.92337
+          ],
+          "on": [
+            "tibia_l",
+            "tibia_l",
+            "tibia_l",
+            "calcn_l",
+            "calcn_l",
+            "calcn_l",
+            "toes_l",
+            "toes_l"
           ],
           "bodies": ["tibia_l", "calcn_l", "toes_l"]
         },
@@ -891,6 +1681,16 @@
             0.05758, 0.04357, -0.9073, 0.09556, -0.05142, -0.93292, 0.09974, -0.06252, -0.93462,
             0.10657, -0.09291, -0.93389, 0.10928, -0.10851, -0.93278
           ],
+          "on": [
+            "tibia_l",
+            "tibia_l",
+            "calcn_l",
+            "calcn_l",
+            "calcn_l",
+            "toes_l",
+            "toes_l",
+            "toes_l"
+          ],
           "bodies": ["tibia_l", "calcn_l", "toes_l"]
         },
         {
@@ -900,16 +1700,19 @@
             0.05831, 0.01056, -0.91807, 0.05706, -0.05825, -0.93012, 0.05856, -0.07995, -0.9332,
             0.06699, -0.12065, -0.93697
           ],
+          "on": ["tibia_l", "tibia_l", "calcn_l", "calcn_l", "calcn_l", "toes_l", "toes_l"],
           "bodies": ["tibia_l", "calcn_l", "toes_l"]
         },
         {
           "name": "gaslat_l",
           "path": [0.10491, 0.05899, -0.45994, 0.07853, 0.11, -0.89395],
+          "on": ["femur_l", "calcn_l"],
           "bodies": ["femur_l", "calcn_l"]
         },
         {
           "name": "gasmed_l",
           "path": [0.05642, 0.04796, -0.45733, 0.07853, 0.11, -0.89395],
+          "on": ["femur_l", "calcn_l"],
           "bodies": ["femur_l", "calcn_l"]
         },
         {
@@ -918,6 +1721,7 @@
             0.0562, 0.12317, 0.0344, 0.0778, 0.12574, -0.0243, 0.10738, 0.10067, -0.11117, 0.12419,
             0.08397, -0.13516
           ],
+          "on": ["pelvis", "pelvis", "femur_l", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
@@ -926,6 +1730,7 @@
             0.0461, 0.13174, 0.0086, 0.08119, 0.13442, -0.06101, 0.10238, 0.10125, -0.13697, 0.1191,
             0.07183, -0.18015
           ],
+          "on": ["pelvis", "pelvis", "femur_l", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
@@ -934,36 +1739,43 @@
             0.0089, 0.12997, -0.0526, 0.0434, 0.12723, -0.1264, 0.08659, 0.08429, -0.19106, 0.11831,
             0.06219, -0.22044
           ],
+          "on": ["pelvis", "pelvis", "femur_l", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "glmed1_l",
           "path": [0.11716, 0.04461, 0.02446, 0.1327, 0.07811, -0.09025],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "glmed2_l",
           "path": [0.06743, 0.08508, 0.03153, 0.12989, 0.08211, -0.08436],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "glmed3_l",
           "path": [0.05251, 0.11524, -0.00739, 0.12899, 0.08721, -0.08326],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "glmin1_l",
           "path": [0.10416, 0.04647, -0.01494, 0.13321, 0.06351, -0.08894],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "glmin2_l",
           "path": [0.09705, 0.06167, -0.01425, 0.13321, 0.06591, -0.08894],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
           "name": "glmin3_l",
           "path": [0.07974, 0.07895, -0.01556, 0.1322, 0.06981, -0.08685],
+          "on": ["pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
@@ -971,6 +1783,7 @@
           "path": [
             0.02456, 0.04732, -0.12934, 0.04634, 0.07429, -0.53057, 0.06025, 0.05408, -0.55256
           ],
+          "on": ["pelvis", "tibia_l", "tibia_l"],
           "bodies": ["pelvis", "tibia_l"]
         },
         {
@@ -979,6 +1792,7 @@
             0.08425, 0.06059, 0.03085, 0.07559, 0.01352, -0.05571, 0.09111, 0.05854, -0.13504,
             0.09681, 0.06844, -0.14224
           ],
+          "on": ["pelvis", "pelvis", "femur_l", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
@@ -987,6 +1801,7 @@
             0.10103, 0.08007, -0.73618, 0.10082, 0.08956, -0.87229, 0.10143, 0.08415, -0.88338,
             0.10716, 0.06732, -0.89792, 0.11818, 0.04672, -0.903
           ],
+          "on": ["tibia_l", "tibia_l", "tibia_l", "calcn_l", "calcn_l"],
           "bodies": ["tibia_l", "calcn_l"]
         },
         {
@@ -996,6 +1811,7 @@
             0.10596, 0.07061, -0.90192, 0.11228, 0.04631, -0.9143, 0.09569, 0.02919, -0.91799,
             0.06552, -0.00593, -0.91636
           ],
+          "on": ["tibia_l", "tibia_l", "tibia_l", "calcn_l", "calcn_l", "calcn_l", "calcn_l"],
           "bodies": ["tibia_l", "calcn_l"]
         },
         {
@@ -1003,6 +1819,7 @@
           "path": [
             0.01342, 0.10181, -0.00658, 0.06082, 0.10202, -0.03078, 0.1209, 0.07111, -0.08215
           ],
+          "on": ["pelvis", "pelvis", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
@@ -1011,6 +1828,7 @@
             0.03895, 0.06068, 0.06195, 0.06558, 0.0205, -0.06542, 0.0818, 0.06944, -0.12525, 0.086,
             0.07974, -0.13095
           ],
+          "on": ["pelvis", "pelvis", "femur_l", "femur_l"],
           "bodies": ["pelvis", "femur_l"]
         },
         {
@@ -1019,6 +1837,7 @@
             0.09328, 0.02404, -0.03882, 0.07792, 0.05408, -0.43749, 0.07622, 0.05197, -0.44279,
             0.07721, 0.05904, -0.484, 0.07548, 0.0233, -0.54603
           ],
+          "on": ["pelvis", "patella_l", "patella_l", "patella_l", "tibia_l"],
           "bodies": ["pelvis", "patella_l", "tibia_l"]
         },
         {
@@ -1027,11 +1846,13 @@
             0.10558, 0.01957, -0.01562, 0.03511, 0.05896, -0.43534, 0.03943, 0.08099, -0.52308,
             0.04954, 0.07178, -0.54287, 0.07336, 0.04229, -0.56395
           ],
+          "on": ["pelvis", "femur_l", "tibia_l", "tibia_l", "tibia_l"],
           "bodies": ["pelvis", "femur_l", "tibia_l"]
         },
         {
           "name": "semimem_l",
           "path": [0.06132, 0.09866, -0.11408, 0.05633, 0.0849, -0.52468],
+          "on": ["pelvis", "tibia_l"],
           "bodies": ["pelvis", "tibia_l"]
         },
         {
@@ -1039,11 +1860,13 @@
           "path": [
             0.05142, 0.10374, -0.12538, 0.05303, 0.08709, -0.53378, 0.06425, 0.05398, -0.56026
           ],
+          "on": ["pelvis", "tibia_l", "tibia_l"],
           "bodies": ["pelvis", "tibia_l"]
         },
         {
           "name": "soleus_l",
           "path": [0.08574, 0.06349, -0.57457, 0.07853, 0.11, -0.89395],
+          "on": ["tibia_l", "calcn_l"],
           "bodies": ["tibia_l", "calcn_l"]
         },
         {
@@ -1052,6 +1875,7 @@
             0.12408, 0.03122, 0.02138, 0.13694, 0.02684, -0.17801, 0.10962, 0.04528, -0.48353,
             0.11056, 0.04515, -0.52395
           ],
+          "on": ["pelvis", "femur_l", "femur_l", "tibia_l"],
           "bodies": ["pelvis", "femur_l", "tibia_l"]
         },
         {
@@ -1060,6 +1884,7 @@
             0.09216, 0.04046, -0.61415, 0.08877, 0.03071, -0.67354, 0.06277, 0.03235, -0.84884,
             0.05342, -0.00223, -0.90706
           ],
+          "on": ["tibia_l", "tibia_l", "tibia_l", "calcn_l"],
           "bodies": ["tibia_l", "calcn_l"]
         },
         {
@@ -1068,6 +1893,7 @@
             0.08625, 0.05996, -0.61336, 0.05844, 0.07205, -0.84847, 0.05526, 0.07268, -0.89152,
             0.05578, 0.03717, -0.90899
           ],
+          "on": ["tibia_l", "tibia_l", "calcn_l", "calcn_l"],
           "bodies": ["tibia_l", "calcn_l"]
         },
         {
@@ -1076,6 +1902,7 @@
             0.10824, 0.02715, -0.27091, 0.10574, 0.02263, -0.28691, 0.07661, 0.05828, -0.4385,
             0.07681, 0.05904, -0.484, 0.07638, 0.0233, -0.54613
           ],
+          "on": ["femur_l", "femur_l", "patella_l", "patella_l", "tibia_l"],
           "bodies": ["femur_l", "patella_l", "tibia_l"]
         },
         {
@@ -1084,6 +1911,7 @@
             0.11212, 0.05136, -0.26393, 0.11814, 0.0292, -0.33761, 0.09132, 0.05379, -0.44419,
             0.08451, 0.05905, -0.484, 0.08108, 0.02341, -0.54633
           ],
+          "on": ["femur_l", "femur_l", "patella_l", "patella_l", "tibia_l"],
           "bodies": ["femur_l", "patella_l", "tibia_l"]
         },
         {
@@ -1092,7 +1920,258 @@
             0.09603, 0.04212, -0.28842, 0.07814, 0.02046, -0.35541, 0.06021, 0.05776, -0.442,
             0.06871, 0.05904, -0.484, 0.06918, 0.024, -0.54653
           ],
+          "on": ["femur_l", "femur_l", "patella_l", "patella_l", "tibia_l"],
           "bodies": ["femur_l", "patella_l", "tibia_l"]
+        }
+      ],
+      "joints": [
+        {
+          "name": "hip_flexion_r",
+          "body": "femur_r",
+          "anchor": [-0.0773, 0.05615, -0.07853],
+          "axis": [-1, -0.0008, 0]
+        },
+        {
+          "name": "hip_adduction_r",
+          "body": "femur_r",
+          "anchor": [-0.0773, 0.05615, -0.07853],
+          "axis": [0.0008, -1, 0.0008]
+        },
+        {
+          "name": "hip_rotation_r",
+          "body": "femur_r",
+          "anchor": [-0.0773, 0.05615, -0.07853],
+          "axis": [0, 0.0008, 1]
+        },
+        {
+          "name": "knee_angle_translation2_r",
+          "body": "tibia_r",
+          "anchor": [-0.07604, 0.05583, -0.48296],
+          "axis": [0.0096, -0.9921, 0.1248]
+        },
+        {
+          "name": "knee_angle_translation1_r",
+          "body": "tibia_r",
+          "anchor": [-0.07604, 0.05583, -0.48296],
+          "axis": [0.0701, 0.1251, 0.9897]
+        },
+        {
+          "name": "knee_angle_r",
+          "body": "tibia_r",
+          "anchor": [-0.07604, 0.05583, -0.48296],
+          "axis": [0.9975, 0.0007, -0.0707]
+        },
+        {
+          "name": "knee_angle_rotation2_r",
+          "body": "tibia_r",
+          "anchor": [-0.07604, 0.05583, -0.48296],
+          "axis": [0.0096, -0.9921, 0.1248]
+        },
+        {
+          "name": "knee_angle_rotation3_r",
+          "body": "tibia_r",
+          "anchor": [-0.07604, 0.05583, -0.48296],
+          "axis": [0.0701, 0.1251, 0.9897]
+        },
+        {
+          "name": "ankle_angle_r",
+          "body": "talus_r",
+          "anchor": [-0.07605, 0.06551, -0.88297],
+          "axis": [-0.9792, 0.1041, -0.1741]
+        },
+        {
+          "name": "subtalar_angle_r",
+          "body": "calcn_r",
+          "anchor": [-0.08401, 0.11424, -0.92496],
+          "axis": [0.1216, -0.7866, 0.6054]
+        },
+        {
+          "name": "mtp_angle_r",
+          "body": "toes_r",
+          "anchor": [-0.08494, -0.06456, -0.92681],
+          "axis": [0.8144, -0.5803, 0.0005]
+        },
+        {
+          "name": "knee_angle_beta_translation2_r",
+          "body": "patella_r",
+          "anchor": [-0.07731, 0.06392, -0.4865],
+          "axis": [0, 0.0008, 1]
+        },
+        {
+          "name": "knee_angle_beta_translation1_r",
+          "body": "patella_r",
+          "anchor": [-0.07731, 0.06392, -0.4865],
+          "axis": [0.0008, -1, 0.0008]
+        },
+        {
+          "name": "knee_angle_beta_rotation1_r",
+          "body": "patella_r",
+          "anchor": [-0.07731, 0.06392, -0.4865],
+          "axis": [-1, -0.0008, 0]
+        },
+        {
+          "name": "hip_flexion_l",
+          "body": "femur_l",
+          "anchor": [0.07722, 0.05627, -0.07853],
+          "axis": [-1, -0.0008, 0]
+        },
+        {
+          "name": "hip_adduction_l",
+          "body": "femur_l",
+          "anchor": [0.07722, 0.05627, -0.07853],
+          "axis": [-0.0008, 1, -0.0008]
+        },
+        {
+          "name": "hip_rotation_l",
+          "body": "femur_l",
+          "anchor": [0.07722, 0.05627, -0.07853],
+          "axis": [0, -0.0008, -1]
+        },
+        {
+          "name": "knee_angle_translation2_l",
+          "body": "tibia_l",
+          "anchor": [0.07595, 0.05595, -0.48296],
+          "axis": [-0.008, -0.9922, 0.1248]
+        },
+        {
+          "name": "knee_angle_translation1_l",
+          "body": "tibia_l",
+          "anchor": [0.07595, 0.05595, -0.48296],
+          "axis": [-0.0703, 0.125, 0.9897]
+        },
+        {
+          "name": "knee_angle_l",
+          "body": "tibia_l",
+          "anchor": [0.07595, 0.05595, -0.48296],
+          "axis": [0.9975, 0.0009, 0.0707]
+        },
+        {
+          "name": "knee_angle_rotation2_l",
+          "body": "tibia_l",
+          "anchor": [0.07595, 0.05595, -0.48296],
+          "axis": [0.008, 0.9922, -0.1248]
+        },
+        {
+          "name": "knee_angle_rotation3_l",
+          "body": "tibia_l",
+          "anchor": [0.07595, 0.05595, -0.48296],
+          "axis": [0.0703, -0.125, -0.9897]
+        },
+        {
+          "name": "ankle_angle_l",
+          "body": "talus_l",
+          "anchor": [0.07594, 0.06563, -0.88297],
+          "axis": [-0.979, -0.1057, 0.1741]
+        },
+        {
+          "name": "subtalar_angle_l",
+          "body": "calcn_l",
+          "anchor": [0.08382, 0.11438, -0.92496],
+          "axis": [0.1203, 0.7868, -0.6054]
+        },
+        {
+          "name": "mtp_angle_l",
+          "body": "toes_l",
+          "anchor": [0.08505, -0.06442, -0.92681],
+          "axis": [0.8135, 0.5816, -0.0005]
+        },
+        {
+          "name": "knee_angle_beta_translation2_l",
+          "body": "patella_l",
+          "anchor": [0.07721, 0.06404, -0.4865],
+          "axis": [0, 0.0008, 1]
+        },
+        {
+          "name": "knee_angle_beta_translation1_l",
+          "body": "patella_l",
+          "anchor": [0.07721, 0.06404, -0.4865],
+          "axis": [0.0008, -1, 0.0008]
+        },
+        {
+          "name": "knee_angle_beta_rotation1_l",
+          "body": "patella_l",
+          "anchor": [0.07721, 0.06404, -0.4865],
+          "axis": [-1, -0.0008, 0]
+        }
+      ],
+      "bodies": [
+        {
+          "name": "pelvis",
+          "parent": null,
+          "pos": [0, 0, 0],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "femur_r",
+          "parent": "pelvis",
+          "pos": [-0.0773, 0.05615, -0.07853],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "tibia_r",
+          "parent": "femur_r",
+          "pos": [-0.07604, 0.05583, -0.48296],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "talus_r",
+          "parent": "tibia_r",
+          "pos": [-0.07605, 0.06551, -0.88297],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "calcn_r",
+          "parent": "talus_r",
+          "pos": [-0.08401, 0.11424, -0.92496],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "toes_r",
+          "parent": "calcn_r",
+          "pos": [-0.08494, -0.06456, -0.92681],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "patella_r",
+          "parent": "femur_r",
+          "pos": [-0.07731, 0.06392, -0.4865],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "femur_l",
+          "parent": "pelvis",
+          "pos": [0.07722, 0.05627, -0.07853],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "tibia_l",
+          "parent": "femur_l",
+          "pos": [0.07595, 0.05595, -0.48296],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "talus_l",
+          "parent": "tibia_l",
+          "pos": [0.07594, 0.06563, -0.88297],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "calcn_l",
+          "parent": "talus_l",
+          "pos": [0.08382, 0.11438, -0.92496],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "toes_l",
+          "parent": "calcn_l",
+          "pos": [0.08505, -0.06442, -0.92681],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
+        },
+        {
+          "name": "patella_l",
+          "parent": "femur_l",
+          "pos": [0.07721, 0.06404, -0.4865],
+          "quat": [0.5004, 0.5, -0.5, -0.4996]
         }
       ]
     },
@@ -1101,161 +2180,193 @@
         {
           "name": "Ps_L1_VB_r",
           "path": [-0.02, 0.11666, 0.22347, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "Ps_L1_TP_r",
           "path": [-0.02263, 0.12975, 0.21486, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "Ps_L1_L2_IVD_r",
           "path": [-0.02068, 0.10775, 0.20371, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "Ps_L2_TP_r",
           "path": [-0.02225, 0.11672, 0.18599, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar2", "sacrum"],
           "bodies": ["lumbar2", "sacrum"]
         },
         {
           "name": "Ps_L2_L3_IVD_r",
           "path": [-0.02145, 0.09314, 0.17479, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar2", "sacrum"],
           "bodies": ["lumbar2", "sacrum"]
         },
         {
           "name": "Ps_L3_TP_r",
           "path": [-0.02826, 0.11291, 0.15703, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar3", "sacrum"],
           "bodies": ["lumbar3", "sacrum"]
         },
         {
           "name": "Ps_L3_L4_IVD_r",
           "path": [-0.02115, 0.08725, 0.14251, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar3", "sacrum"],
           "bodies": ["lumbar3", "sacrum"]
         },
         {
           "name": "Ps_L4_TP_r",
           "path": [-0.02588, 0.10465, 0.12805, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar4", "sacrum"],
           "bodies": ["lumbar4", "sacrum"]
         },
         {
           "name": "Ps_L4_L5_IVD_r",
           "path": [-0.0206, 0.08358, 0.10705, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar4", "sacrum"],
           "bodies": ["lumbar4", "sacrum"]
         },
         {
           "name": "Ps_L5_TP_r",
           "path": [-0.02529, 0.10362, 0.10014, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar5", "sacrum"],
           "bodies": ["lumbar5", "sacrum"]
         },
         {
           "name": "Ps_L5_VB_r",
           "path": [-0.019, 0.088, 0.08341, -0.0759, 0.0238, -0.008],
+          "on": ["lumbar5", "sacrum"],
           "bodies": ["lumbar5", "sacrum"]
         },
         {
           "name": "Ps_L1_VB_l",
           "path": [0.02, 0.11666, 0.22347, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "Ps_L1_TP_l",
           "path": [0.02263, 0.12975, 0.21486, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "Ps_L1_L2_IVD_l",
           "path": [0.02068, 0.10775, 0.20371, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "Ps_L2_TP_l",
           "path": [0.02225, 0.11672, 0.18599, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar2", "sacrum"],
           "bodies": ["lumbar2", "sacrum"]
         },
         {
           "name": "Ps_L2_L3_IVD_l",
           "path": [0.02145, 0.09314, 0.17479, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar2", "sacrum"],
           "bodies": ["lumbar2", "sacrum"]
         },
         {
           "name": "Ps_L3_TP_l",
           "path": [0.02826, 0.11291, 0.15703, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar3", "sacrum"],
           "bodies": ["lumbar3", "sacrum"]
         },
         {
           "name": "Ps_L3_L4_IVD_l",
           "path": [0.02115, 0.08725, 0.14251, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar3", "sacrum"],
           "bodies": ["lumbar3", "sacrum"]
         },
         {
           "name": "Ps_L4_TP_l",
           "path": [0.02588, 0.10465, 0.12805, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar4", "sacrum"],
           "bodies": ["lumbar4", "sacrum"]
         },
         {
           "name": "Ps_L4_L5_IVD_l",
           "path": [0.0206, 0.08358, 0.10705, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar4", "sacrum"],
           "bodies": ["lumbar4", "sacrum"]
         },
         {
           "name": "Ps_L5_TP_l",
           "path": [0.02529, 0.10362, 0.10014, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar5", "sacrum"],
           "bodies": ["lumbar5", "sacrum"]
         },
         {
           "name": "Ps_L5_VB_l",
           "path": [0.019, 0.088, 0.08341, 0.0759, 0.0238, -0.008],
+          "on": ["lumbar5", "sacrum"],
           "bodies": ["lumbar5", "sacrum"]
         },
         {
           "name": "rect_abd_r",
           "path": [0.01069, 0.04158, -0.04748, 0.03445, 0.01594, 0.33377],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "rect_abd_l",
           "path": [-0.01069, 0.04158, -0.04748, -0.03445, 0.01594, 0.33377],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "IL_L1_r",
           "path": [-0.03829, 0.15941, 0.05995, -0.02918, 0.13657, 0.2157],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "IL_L2_r",
           "path": [-0.04265, 0.15092, 0.07718, -0.02853, 0.12493, 0.18307],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "IL_L3_r",
           "path": [-0.04751, 0.13692, 0.08881, -0.03054, 0.11762, 0.15629],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "IL_L4_r",
           "path": [-0.0442, 0.13184, 0.0856, -0.03143, 0.11096, 0.12868],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "IL_L1_l",
           "path": [0.03829, 0.15941, 0.05995, 0.02918, 0.13657, 0.2157],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "IL_L2_l",
           "path": [0.04265, 0.15092, 0.07718, 0.02853, 0.12493, 0.18307],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "IL_L3_l",
           "path": [0.04751, 0.13692, 0.08881, 0.03054, 0.11762, 0.15629],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "IL_L4_l",
           "path": [0.0442, 0.13184, 0.0856, 0.03143, 0.11096, 0.12868],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
@@ -1265,6 +2376,7 @@
             -0.0434, 0.18479, 0.31381, -0.04377, 0.1867, 0.34294, -0.04501, 0.18759, 0.37139,
             -0.0453, 0.18485, 0.39203, -0.04557, 0.18014, 0.41196
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1274,6 +2386,7 @@
             -0.04643, 0.1873, 0.31635, -0.04728, 0.18796, 0.34629, -0.04827, 0.1856, 0.37402,
             -0.04859, 0.18021, 0.38796
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1282,6 +2395,7 @@
             -0.04587, 0.13416, 0.08736, -0.04726, 0.14376, 0.17377, -0.04866, 0.18435, 0.28576,
             -0.04918, 0.18736, 0.31475, -0.04955, 0.18837, 0.34536, -0.0509, 0.1832, 0.36894
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1290,6 +2404,7 @@
             -0.05018, 0.13733, 0.0919, -0.05001, 0.1433, 0.17426, -0.05123, 0.18305, 0.28154,
             -0.05105, 0.18511, 0.31473, -0.05229, 0.18372, 0.33916
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1298,6 +2413,7 @@
             -0.05114, 0.13331, 0.09388, -0.05219, 0.14345, 0.17405, -0.05371, 0.18349, 0.2857,
             -0.05379, 0.18094, 0.30516
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1305,6 +2421,7 @@
           "path": [
             -0.05311, 0.1303, 0.09675, -0.05467, 0.14319, 0.17403, -0.05623, 0.17896, 0.27404
           ],
+          "on": ["sacrum", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1312,11 +2429,13 @@
           "path": [
             -0.05547, 0.12746, 0.09896, -0.05769, 0.14305, 0.1741, -0.0599, 0.16644, 0.24708
           ],
+          "on": ["sacrum", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
           "name": "IL_R12_r",
           "path": [-0.05792, 0.12481, 0.10112, -0.0594, 0.14233, 0.2173],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
@@ -1326,6 +2445,7 @@
             0.18479, 0.31381, 0.04377, 0.1867, 0.34294, 0.04501, 0.18759, 0.37139, 0.0453, 0.18485,
             0.39203, 0.04557, 0.18014, 0.41196
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1335,6 +2455,7 @@
             0.04643, 0.1873, 0.31635, 0.04728, 0.18796, 0.34629, 0.04827, 0.1856, 0.37402, 0.04859,
             0.18021, 0.38796
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1343,6 +2464,7 @@
             0.04587, 0.13416, 0.08736, 0.04726, 0.14376, 0.17377, 0.04866, 0.18435, 0.28576,
             0.04918, 0.18736, 0.31475, 0.04955, 0.18837, 0.34536, 0.0509, 0.1832, 0.36894
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1351,6 +2473,7 @@
             0.05018, 0.13733, 0.0919, 0.05001, 0.1433, 0.17426, 0.05123, 0.18305, 0.28154, 0.05105,
             0.18511, 0.31473, 0.05229, 0.18372, 0.33916
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1359,36 +2482,43 @@
             0.05114, 0.13331, 0.09388, 0.05219, 0.14345, 0.17405, 0.05371, 0.18349, 0.2857, 0.05379,
             0.18094, 0.30516
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
           "name": "IL_R10_l",
           "path": [0.05311, 0.1303, 0.09675, 0.05467, 0.14319, 0.17403, 0.05623, 0.17896, 0.27404],
+          "on": ["sacrum", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
           "name": "IL_R11_l",
           "path": [0.05547, 0.12746, 0.09896, 0.05769, 0.14305, 0.1741, 0.0599, 0.16644, 0.24708],
+          "on": ["sacrum", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
           "name": "IL_R12_l",
           "path": [0.05792, 0.12481, 0.10112, 0.0594, 0.14233, 0.2173],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "LTpT_T1_r",
           "path": [-0.00321, 0.15247, 0.18963, -0.02615, 0.15638, 0.5104],
+          "on": ["lumbar1", "torso"],
           "bodies": ["lumbar1", "torso"]
         },
         {
           "name": "LTpT_T2_r",
           "path": [-0.00383, 0.1399, 0.15708, -0.02654, 0.16013, 0.49145],
+          "on": ["lumbar2", "torso"],
           "bodies": ["lumbar2", "torso"]
         },
         {
           "name": "LTpT_T3_r",
           "path": [-0.00407, 0.1346, 0.13287, -0.005, 0.14361, 0.18618, -0.02598, 0.1691, 0.47006],
+          "on": ["lumbar3", "lumbar1", "torso"],
           "bodies": ["lumbar3", "lumbar1", "torso"]
         },
         {
@@ -1396,11 +2526,13 @@
           "path": [
             -0.00282, 0.13479, 0.11016, -0.00612, 0.14361, 0.18618, -0.02615, 0.17725, 0.44888
           ],
+          "on": ["lumbar4", "lumbar1", "torso"],
           "bodies": ["lumbar4", "lumbar1", "torso"]
         },
         {
           "name": "LTpT_T5_r",
           "path": [-0.00008, 0.1363, 0.10707, -0.0064, 0.1391, 0.1758, -0.02808, 0.18014, 0.42582],
+          "on": ["lumbar4", "lumbar2", "torso"],
           "bodies": ["lumbar4", "lumbar2", "torso"]
         },
         {
@@ -1409,6 +2541,7 @@
             -0.00021, 0.13422, 0.08715, -0.009, 0.1391, 0.1758, -0.01547, 0.1788, 0.29749, -0.02766,
             0.18738, 0.4005
           ],
+          "on": ["lumbar5", "lumbar2", "torso", "torso"],
           "bodies": ["lumbar5", "lumbar2", "torso"]
         },
         {
@@ -1417,6 +2550,7 @@
             -0.00028, 0.13132, 0.06051, -0.011, 0.13909, 0.1758, -0.01956, 0.17996, 0.29746,
             -0.02647, 0.18624, 0.37429
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1425,6 +2559,7 @@
             -0.00037, 0.1429, 0.05025, -0.00566, 0.13597, 0.12114, -0.00832, 0.13515, 0.14985,
             -0.01094, 0.14042, 0.1745, -0.0255, 0.18446, 0.3471
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1433,6 +2568,7 @@
             0, 0.16582, 0.02684, -0.00748, 0.13572, 0.12106, -0.00969, 0.13483, 0.15015, -0.0115,
             0.13982, 0.17487, -0.02633, 0.18094, 0.32955
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1441,6 +2577,7 @@
             -0.01072, 0.16446, 0.02456, -0.01256, 0.13572, 0.12106, -0.01441, 0.1345, 0.15033,
             -0.01525, 0.1391, 0.17478, -0.0181, 0.17382, 0.30098
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1449,6 +2586,7 @@
             -0.02404, 0.15765, 0.03071, -0.02194, 0.13572, 0.1201, -0.02089, 0.13855, 0.14979,
             -0.01983, 0.1411, 0.17478, -0.01762, 0.16488, 0.27292
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1457,6 +2595,7 @@
             -0.02793, 0.14476, 0.0488, -0.02524, 0.13572, 0.1201, -0.0239, 0.13777, 0.15036,
             -0.02255, 0.1409, 0.17538, -0.01818, 0.15672, 0.24253
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1466,6 +2605,7 @@
             -0.02858, 0.18158, 0.32218, -0.03112, 0.1823, 0.34846, -0.03352, 0.18081, 0.37573,
             -0.03839, 0.17954, 0.44102
           ],
+          "on": ["lumbar4", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["lumbar4", "lumbar2", "torso"]
         },
         {
@@ -1475,6 +2615,7 @@
             -0.03197, 0.18329, 0.32063, -0.03464, 0.18401, 0.34809, -0.03652, 0.18177, 0.37446,
             -0.03919, 0.17882, 0.41503
           ],
+          "on": ["lumbar4", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["lumbar4", "lumbar2", "torso"]
         },
         {
@@ -1484,6 +2625,7 @@
             0.18389, 0.2937, -0.03466, 0.18431, 0.32032, -0.03735, 0.18486, 0.34763, -0.03952,
             0.18149, 0.37437, -0.0401, 0.17761, 0.39409
           ],
+          "on": ["lumbar5", "lumbar3", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["lumbar5", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1493,6 +2635,7 @@
             -0.01727, 0.13909, 0.17572, -0.03549, 0.18435, 0.29265, -0.03959, 0.18486, 0.31897,
             -0.04225, 0.18587, 0.34717, -0.04333, 0.1832, 0.37063
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1502,6 +2645,7 @@
             -0.02054, 0.13909, 0.17528, -0.04071, 0.18527, 0.29204, -0.04372, 0.18511, 0.31757,
             -0.04635, 0.18372, 0.34173
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1510,6 +2654,7 @@
             0, 0.16582, 0.02684, -0.01489, 0.13572, 0.12078, -0.01958, 0.1345, 0.14932, -0.02419,
             0.13909, 0.17534, -0.04336, 0.18479, 0.29002, -0.04676, 0.18422, 0.31157
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1518,6 +2663,7 @@
             -0.01072, 0.16446, 0.02456, -0.01944, 0.13567, 0.11996, -0.02345, 0.13445, 0.14897,
             -0.02733, 0.13904, 0.17505, -0.04689, 0.18319, 0.28408
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1526,6 +2672,7 @@
             -0.02404, 0.15765, 0.03071, -0.02942, 0.1351, 0.12106, -0.03258, 0.1345, 0.15023,
             -0.03557, 0.13912, 0.17588, -0.04556, 0.16902, 0.25886
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1534,31 +2681,37 @@
             -0.02793, 0.14476, 0.0488, -0.03351, 0.13572, 0.12068, -0.03587, 0.1345, 0.14994,
             -0.03882, 0.1391, 0.1758, -0.04661, 0.14904, 0.23284
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
           "name": "LTpT_T1_l",
           "path": [0.00321, 0.15247, 0.18963, 0.02615, 0.15638, 0.5104],
+          "on": ["lumbar1", "torso"],
           "bodies": ["lumbar1", "torso"]
         },
         {
           "name": "LTpT_T2_l",
           "path": [0.00383, 0.1399, 0.15708, 0.02654, 0.16013, 0.49145],
+          "on": ["lumbar2", "torso"],
           "bodies": ["lumbar2", "torso"]
         },
         {
           "name": "LTpT_T3_l",
           "path": [0.00407, 0.1346, 0.13287, 0.005, 0.14361, 0.18618, 0.02598, 0.1691, 0.47006],
+          "on": ["lumbar3", "lumbar1", "torso"],
           "bodies": ["lumbar3", "lumbar1", "torso"]
         },
         {
           "name": "LTpT_T4_l",
           "path": [0.00282, 0.13479, 0.11016, 0.00612, 0.14361, 0.18618, 0.02615, 0.17725, 0.44888],
+          "on": ["lumbar4", "lumbar1", "torso"],
           "bodies": ["lumbar4", "lumbar1", "torso"]
         },
         {
           "name": "LTpT_T5_l",
           "path": [0.00008, 0.1363, 0.10707, 0.0064, 0.1391, 0.1758, 0.02808, 0.18014, 0.42582],
+          "on": ["lumbar4", "lumbar2", "torso"],
           "bodies": ["lumbar4", "lumbar2", "torso"]
         },
         {
@@ -1567,6 +2720,7 @@
             0.00021, 0.13422, 0.08715, 0.009, 0.1391, 0.1758, 0.01547, 0.1788, 0.29749, 0.02766,
             0.18738, 0.4005
           ],
+          "on": ["lumbar5", "lumbar2", "torso", "torso"],
           "bodies": ["lumbar5", "lumbar2", "torso"]
         },
         {
@@ -1575,6 +2729,7 @@
             0.00028, 0.13132, 0.06051, 0.011, 0.13909, 0.1758, 0.01956, 0.17996, 0.29746, 0.02647,
             0.18624, 0.37429
           ],
+          "on": ["sacrum", "lumbar2", "torso", "torso"],
           "bodies": ["sacrum", "lumbar2", "torso"]
         },
         {
@@ -1583,6 +2738,7 @@
             0.00037, 0.1429, 0.05025, 0.00566, 0.13597, 0.12114, 0.00832, 0.13515, 0.14985, 0.01094,
             0.14042, 0.1745, 0.0255, 0.18446, 0.3471
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1591,6 +2747,7 @@
             0, 0.16582, 0.02684, 0.00748, 0.13572, 0.12106, 0.00969, 0.13483, 0.15015, 0.0115,
             0.13982, 0.17487, 0.02633, 0.18094, 0.32955
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1599,6 +2756,7 @@
             0.01072, 0.16446, 0.02456, 0.01256, 0.13572, 0.12106, 0.01441, 0.1345, 0.15033, 0.01525,
             0.1391, 0.17478, 0.0181, 0.17382, 0.30098
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1607,6 +2765,7 @@
             0.02404, 0.15765, 0.03071, 0.02194, 0.13572, 0.1201, 0.02088, 0.13855, 0.14979, 0.01983,
             0.1411, 0.17478, 0.01762, 0.16488, 0.27292
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1615,6 +2774,7 @@
             -0.02793, 0.14476, 0.0488, -0.02524, 0.13572, 0.1201, -0.0239, 0.13777, 0.15036,
             -0.02255, 0.1409, 0.17538, -0.01818, 0.15672, 0.24253
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1624,6 +2784,7 @@
             0.18158, 0.32218, 0.03112, 0.1823, 0.34846, 0.03352, 0.18081, 0.37573, 0.03839, 0.17954,
             0.44102
           ],
+          "on": ["lumbar4", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["lumbar4", "lumbar2", "torso"]
         },
         {
@@ -1633,6 +2794,7 @@
             0.18329, 0.32063, 0.03464, 0.18401, 0.34809, 0.03652, 0.18177, 0.37446, 0.03919,
             0.17882, 0.41503
           ],
+          "on": ["lumbar4", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["lumbar4", "lumbar2", "torso"]
         },
         {
@@ -1642,6 +2804,7 @@
             0.18389, 0.2937, 0.03466, 0.18431, 0.32032, 0.03735, 0.18486, 0.34763, 0.03952, 0.18149,
             0.37437, 0.0401, 0.17761, 0.39409
           ],
+          "on": ["lumbar5", "lumbar3", "lumbar2", "torso", "torso", "torso", "torso", "torso"],
           "bodies": ["lumbar5", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1651,6 +2814,7 @@
             0.13909, 0.17572, 0.03549, 0.18435, 0.29265, 0.03959, 0.18486, 0.31897, 0.04225,
             0.18587, 0.34717, 0.04333, 0.1832, 0.37063
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1660,6 +2824,7 @@
             0.13909, 0.17528, 0.04071, 0.18527, 0.29204, 0.04372, 0.18511, 0.31757, 0.04635,
             0.18372, 0.34173
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso", "torso", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1668,6 +2833,7 @@
             0, 0.16582, 0.02684, 0.01489, 0.13572, 0.12078, 0.01958, 0.1345, 0.14932, 0.02419,
             0.13909, 0.17534, 0.04336, 0.18479, 0.29002, 0.04676, 0.18422, 0.31157
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1676,6 +2842,7 @@
             0.01072, 0.16446, 0.02456, 0.01944, 0.13567, 0.11996, 0.02345, 0.13445, 0.14897,
             0.02733, 0.13904, 0.17505, 0.04689, 0.18319, 0.28408
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1684,6 +2851,7 @@
             0.02404, 0.15765, 0.03071, 0.02942, 0.1351, 0.12106, 0.03258, 0.1345, 0.15023, 0.03557,
             0.13912, 0.17588, 0.04556, 0.16902, 0.25886
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
@@ -1692,607 +2860,924 @@
             0.02793, 0.14476, 0.0488, 0.03351, 0.13572, 0.12068, 0.03587, 0.1345, 0.14994, 0.03882,
             0.1391, 0.1758, 0.04661, 0.14904, 0.23284
           ],
+          "on": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"],
           "bodies": ["sacrum", "lumbar4", "lumbar3", "lumbar2", "torso"]
         },
         {
           "name": "LTpL_L5_r",
           "path": [-0.03487, 0.14125, 0.07389, -0.0224, 0.10834, 0.09765],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "LTpL_L4_r",
           "path": [-0.03731, 0.1505, 0.06649, -0.0224, 0.10934, 0.12615],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "LTpL_L3_r",
           "path": [-0.0402, 0.15844, 0.06649, -0.01961, 0.11756, 0.15593],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "LTpL_L2_r",
           "path": [-0.04195, 0.15969, 0.06197, -0.0203, 0.12386, 0.18396],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "LTpL_L1_r",
           "path": [-0.04312, 0.16199, 0.05919, -0.0218, 0.13558, 0.21526],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "LTpL_L5_l",
           "path": [0.03487, 0.14125, 0.07389, 0.0224, 0.10834, 0.09765],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "LTpL_L4_l",
           "path": [0.03731, 0.1505, 0.06649, 0.0224, 0.10934, 0.12615],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "LTpL_L3_l",
           "path": [0.0402, 0.15844, 0.06649, 0.01961, 0.11756, 0.15593],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "LTpL_L2_l",
           "path": [0.04195, 0.15969, 0.06197, 0.0203, 0.12386, 0.18396],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "LTpL_L1_l",
           "path": [0.04312, 0.16199, 0.05919, 0.0218, 0.13558, 0.21526],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "QL_post_I.1-L3_r",
           "path": [-0.05202, 0.12147, 0.09531, -0.0303, 0.1174, 0.15593],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "QL_post_I.2-L4_r",
           "path": [-0.05902, 0.11147, 0.10531, -0.0303, 0.111, 0.12915],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "QL_post_I.2-L3_r",
           "path": [-0.05902, 0.11147, 0.10531, -0.0303, 0.1174, 0.15593],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "QL_post_I.2-L2_r",
           "path": [-0.05902, 0.11147, 0.10531, -0.0303, 0.1261, 0.1834],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "QL_post_I.3-L1_r",
           "path": [-0.029, 0.13914, 0.21508, -0.06917, 0.10477, 0.11112],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "QL_post_I.3-L2_r",
           "path": [-0.0303, 0.1261, 0.1834, -0.06917, 0.10477, 0.11112],
+          "on": ["lumbar2", "sacrum"],
           "bodies": ["lumbar2", "sacrum"]
         },
         {
           "name": "QL_post_I.3-L3_r",
           "path": [-0.0303, 0.1174, 0.15593, -0.06917, 0.10477, 0.11112],
+          "on": ["lumbar3", "sacrum"],
           "bodies": ["lumbar3", "sacrum"]
         },
         {
           "name": "QL_post_I.1-L3_l",
           "path": [0.05202, 0.12147, 0.09531, 0.0303, 0.1174, 0.15593],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "QL_post_I.2-L4_l",
           "path": [0.05902, 0.11147, 0.10531, 0.0303, 0.111, 0.12915],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "QL_post_I.2-L3_l",
           "path": [0.05902, 0.11147, 0.10531, 0.0303, 0.1174, 0.15593],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "QL_post_I.2-L2_l",
           "path": [0.05902, 0.11147, 0.10531, 0.0303, 0.1261, 0.1834],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "QL_post_I.3-L1_l",
           "path": [0.029, 0.13914, 0.21508, 0.06917, 0.10477, 0.11112],
+          "on": ["lumbar1", "sacrum"],
           "bodies": ["lumbar1", "sacrum"]
         },
         {
           "name": "QL_post_I.3-L2_l",
           "path": [0.0303, 0.1261, 0.1834, 0.06917, 0.10477, 0.11112],
+          "on": ["lumbar2", "sacrum"],
           "bodies": ["lumbar2", "sacrum"]
         },
         {
           "name": "QL_post_I.3-L3_l",
           "path": [0.0303, 0.1174, 0.15593, 0.06917, 0.10477, 0.11112],
+          "on": ["lumbar3", "sacrum"],
           "bodies": ["lumbar3", "sacrum"]
         },
         {
           "name": "QL_mid_L3-12.3_r",
           "path": [-0.05166, 0.14591, 0.22357, -0.03038, 0.11776, 0.15803],
+          "on": ["torso", "lumbar3"],
           "bodies": ["torso", "lumbar3"]
         },
         {
           "name": "QL_mid_L3-12.2_r",
           "path": [-0.04319, 0.14648, 0.23042, -0.03038, 0.11776, 0.15803],
+          "on": ["torso", "lumbar3"],
           "bodies": ["torso", "lumbar3"]
         },
         {
           "name": "QL_mid_L3-12.1_r",
           "path": [-0.03119, 0.14528, 0.2394, -0.03038, 0.11776, 0.15803],
+          "on": ["torso", "lumbar3"],
           "bodies": ["torso", "lumbar3"]
         },
         {
           "name": "QL_mid_L2-12.1_r",
           "path": [-0.03119, 0.14528, 0.2394, -0.02562, 0.12422, 0.1883],
+          "on": ["torso", "lumbar2"],
           "bodies": ["torso", "lumbar2"]
         },
         {
           "name": "QL_mid_L4-12.3_r",
           "path": [-0.05167, 0.14578, 0.22352, -0.02806, 0.11038, 0.1338],
+          "on": ["torso", "lumbar4"],
           "bodies": ["torso", "lumbar4"]
         },
         {
           "name": "QL_mid_L3-12.3_l",
           "path": [0.05166, 0.14591, 0.22357, 0.03038, 0.11776, 0.15803],
+          "on": ["torso", "lumbar3"],
           "bodies": ["torso", "lumbar3"]
         },
         {
           "name": "QL_mid_L3-12.2_l",
           "path": [0.04319, 0.14648, 0.23042, 0.03038, 0.11776, 0.15803],
+          "on": ["torso", "lumbar3"],
           "bodies": ["torso", "lumbar3"]
         },
         {
           "name": "QL_mid_L3-12.1_l",
           "path": [0.03119, 0.14528, 0.2394, 0.03038, 0.11776, 0.15803],
+          "on": ["torso", "lumbar3"],
           "bodies": ["torso", "lumbar3"]
         },
         {
           "name": "QL_mid_L2-12.1_l",
           "path": [0.02562, 0.12422, 0.1883, 0.03119, 0.14528, 0.2394],
+          "on": ["lumbar2", "torso"],
           "bodies": ["lumbar2", "torso"]
         },
         {
           "name": "QL_mid_L4-12.3_l",
           "path": [0.05167, 0.14578, 0.22352, 0.02806, 0.11038, 0.1338],
+          "on": ["torso", "lumbar4"],
           "bodies": ["torso", "lumbar4"]
         },
         {
           "name": "QL_ant_I.2-T12_r",
           "path": [-0.05902, 0.11147, 0.10531, -0.01737, 0.1182, 0.24134],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-T12_r",
           "path": [-0.06917, 0.10477, 0.11112, -0.01737, 0.1182, 0.24134],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.2-12.1_r",
           "path": [-0.05902, 0.11147, 0.10531, -0.03745, 0.14428, 0.2356],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-12.1_r",
           "path": [-0.06917, 0.10477, 0.11112, -0.03745, 0.14428, 0.2356],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-12.2_r",
           "path": [-0.06917, 0.10477, 0.11112, -0.04608, 0.14424, 0.22906],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-12.3_r",
           "path": [-0.06917, 0.10477, 0.11111, -0.05452, 0.14201, 0.22256],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.2-T12_l",
           "path": [0.05902, 0.11147, 0.10531, 0.01737, 0.1182, 0.24134],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-T12_l",
           "path": [0.06917, 0.10477, 0.11112, 0.01737, 0.1182, 0.24134],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.2-12.1_l",
           "path": [0.05902, 0.11147, 0.10531, 0.03745, 0.14428, 0.2356],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-12.1_l",
           "path": [0.06917, 0.10477, 0.11112, 0.03745, 0.14428, 0.2356],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-12.2_l",
           "path": [0.06917, 0.10477, 0.11112, 0.04608, 0.14424, 0.22906],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "QL_ant_I.3-12.3_l",
           "path": [0.06917, 0.10477, 0.11111, 0.05452, 0.14201, 0.22256],
+          "on": ["sacrum", "torso"],
           "bodies": ["sacrum", "torso"]
         },
         {
           "name": "MF_m1s_r",
           "path": [-0.01747, 0.11998, 0.1355, -0.00302, 0.14081, 0.18705],
+          "on": ["lumbar4", "lumbar1"],
           "bodies": ["lumbar4", "lumbar1"]
         },
         {
           "name": "MF_m1t.1_r",
           "path": [-0.01759, 0.11663, 0.10797, -0.0031, 0.14744, 0.1842],
+          "on": ["lumbar5", "lumbar1"],
           "bodies": ["lumbar5", "lumbar1"]
         },
         {
           "name": "MF_m1t.2_r",
           "path": [-0.01884, 0.12142, 0.08398, -0.0031, 0.14744, 0.1842],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "MF_m1t.3_r",
           "path": [-0.03835, 0.14457, 0.07542, -0.0031, 0.14744, 0.1842],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "MF_m2s_r",
           "path": [-0.01581, 0.1165, 0.10868, -0.00355, 0.13093, 0.15964],
+          "on": ["lumbar5", "lumbar2"],
           "bodies": ["lumbar5", "lumbar2"]
         },
         {
           "name": "MF_m2t.1_r",
           "path": [-0.02044, 0.12076, 0.08522, -0.00364, 0.13466, 0.15301],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "MF_m2t.2_r",
           "path": [-0.03685, 0.14734, 0.07016, -0.00364, 0.13466, 0.15301],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "MF_m2t.3_r",
           "path": [-0.03458, 0.14972, 0.057, -0.00237, 0.13391, 0.15266],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "MF_m3s_r",
           "path": [-0.01742, 0.12151, 0.08364, -0.00291, 0.12559, 0.12985],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m3t.1_r",
           "path": [-0.0171, 0.1645, 0.01402, -0.00166, 0.13178, 0.12607],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m3t.2_r",
           "path": [-0.02185, 0.15388, 0.03294, -0.00266, 0.13176, 0.12607],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m3t.3_r",
           "path": [-0.02185, 0.15388, 0.03294, -0.00266, 0.13176, 0.12607],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m4s_r",
           "path": [-0.01618, 0.14369, 0.05471, -0.00224, 0.12438, 0.10288],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m4t.1_r",
           "path": [-0.01536, 0.15223, 0.04153, -0.00288, 0.1308, 0.10327],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m4t.2_r",
           "path": [-0.0152, 0.16229, 0.02034, -0.00288, 0.1318, 0.10327],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m4t.3_r",
           "path": [-0.01272, 0.17083, 0.00782, -0.00288, 0.1331, 0.10327],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m5s_r",
           "path": [-0.01043, 0.13046, 0.06627, -0.00393, 0.12816, 0.08639],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m5t.1_r",
           "path": [-0.01003, 0.17407, 0.00523, -0.00293, 0.13351, 0.08786],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m5t.2_r",
           "path": [-0.01171, 0.16312, 0.02566, -0.00277, 0.13255, 0.08693],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m5t.3_r",
           "path": [-0.0116, 0.15228, 0.04258, -0.00232, 0.13082, 0.08625],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m1.laminar_r",
           "path": [-0.01691, 0.12711, 0.16157, -0.00619, 0.1406, 0.19459],
+          "on": ["lumbar3", "lumbar1"],
           "bodies": ["lumbar3", "lumbar1"]
         },
         {
           "name": "MF_m2.laminar_r",
           "path": [-0.01694, 0.11956, 0.1366, -0.00674, 0.128, 0.16579],
+          "on": ["lumbar4", "lumbar2"],
           "bodies": ["lumbar4", "lumbar2"]
         },
         {
           "name": "MF_m3.laminar_r",
           "path": [-0.01617, 0.1167, 0.10844, -0.00635, 0.12434, 0.13699],
+          "on": ["lumbar5", "lumbar3"],
           "bodies": ["lumbar5", "lumbar3"]
         },
         {
           "name": "MF_m4.laminar_r",
           "path": [-0.01934, 0.12536, 0.07749, -0.00694, 0.12112, 0.10891],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m5.laminar_r",
           "path": [-0.01238, 0.13421, 0.06011, -0.00564, 0.1239, 0.08805],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m1s_l",
           "path": [0.01747, 0.11998, 0.1355, 0.00302, 0.14081, 0.18705],
+          "on": ["lumbar4", "lumbar1"],
           "bodies": ["lumbar4", "lumbar1"]
         },
         {
           "name": "MF_m1t.1_l",
           "path": [0.01759, 0.11663, 0.10797, 0.0031, 0.14744, 0.1842],
+          "on": ["lumbar5", "lumbar1"],
           "bodies": ["lumbar5", "lumbar1"]
         },
         {
           "name": "MF_m1t.2_l",
           "path": [0.01884, 0.12142, 0.08398, 0.0031, 0.14744, 0.1842],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "MF_m1t.3_l",
           "path": [0.03835, 0.14457, 0.07542, 0.0031, 0.14744, 0.1842],
+          "on": ["sacrum", "lumbar1"],
           "bodies": ["sacrum", "lumbar1"]
         },
         {
           "name": "MF_m2s_l",
           "path": [0.01581, 0.1165, 0.10868, 0.00355, 0.13093, 0.15964],
+          "on": ["lumbar5", "lumbar2"],
           "bodies": ["lumbar5", "lumbar2"]
         },
         {
           "name": "MF_m2t.1_l",
           "path": [0.02044, 0.12076, 0.08522, 0.00364, 0.13466, 0.15301],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "MF_m2t.2_l",
           "path": [0.03685, 0.14734, 0.07016, 0.00364, 0.13466, 0.15301],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "MF_m2t.3_l",
           "path": [0.03458, 0.14972, 0.057, 0.00237, 0.13391, 0.15266],
+          "on": ["sacrum", "lumbar2"],
           "bodies": ["sacrum", "lumbar2"]
         },
         {
           "name": "MF_m3s_l",
           "path": [0.01742, 0.12151, 0.08364, 0.00291, 0.12559, 0.12985],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m3t.1_l",
           "path": [0.0171, 0.16451, 0.01402, 0.00166, 0.13178, 0.12607],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m3t.2_l",
           "path": [0.02185, 0.15388, 0.03294, 0.00266, 0.13176, 0.12607],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m3t.3_l",
           "path": [0.02185, 0.15388, 0.03294, 0.00266, 0.13176, 0.12607],
+          "on": ["sacrum", "lumbar3"],
           "bodies": ["sacrum", "lumbar3"]
         },
         {
           "name": "MF_m4s_l",
           "path": [0.01618, 0.14369, 0.05471, 0.00224, 0.12438, 0.10288],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m4t.1_l",
           "path": [0.01536, 0.15223, 0.04153, 0.00288, 0.1308, 0.10327],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m4t.2_l",
           "path": [0.0152, 0.16229, 0.02034, 0.00288, 0.1318, 0.10327],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m4t.3_l",
           "path": [0.01272, 0.17083, 0.00782, 0.00288, 0.1331, 0.10327],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m5s_l",
           "path": [0.01043, 0.13046, 0.06627, 0.00393, 0.12816, 0.08639],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m5t.1_l",
           "path": [0.01003, 0.17407, 0.00523, 0.00293, 0.13351, 0.08786],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m5t.2_l",
           "path": [0.01171, 0.16312, 0.02566, 0.00277, 0.13255, 0.08693],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m5t.3_l",
           "path": [0.0116, 0.15228, 0.04258, 0.00232, 0.13082, 0.08625],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "MF_m1.laminar_l",
           "path": [0.01691, 0.12711, 0.16157, 0.00619, 0.1406, 0.19459],
+          "on": ["lumbar3", "lumbar1"],
           "bodies": ["lumbar3", "lumbar1"]
         },
         {
           "name": "MF_m2.laminar_l",
           "path": [0.01694, 0.11956, 0.1366, 0.00674, 0.128, 0.16579],
+          "on": ["lumbar4", "lumbar2"],
           "bodies": ["lumbar4", "lumbar2"]
         },
         {
           "name": "MF_m3.laminar_l",
           "path": [0.01617, 0.1167, 0.10844, 0.00635, 0.12434, 0.13699],
+          "on": ["lumbar5", "lumbar3"],
           "bodies": ["lumbar5", "lumbar3"]
         },
         {
           "name": "MF_m4.laminar_l",
           "path": [0.01934, 0.12536, 0.07749, 0.00694, 0.12112, 0.10891],
+          "on": ["sacrum", "lumbar4"],
           "bodies": ["sacrum", "lumbar4"]
         },
         {
           "name": "MF_m5.laminar_l",
           "path": [0.01238, 0.13421, 0.06011, 0.00564, 0.1239, 0.08805],
+          "on": ["sacrum", "lumbar5"],
           "bodies": ["sacrum", "lumbar5"]
         },
         {
           "name": "EO1_r",
           "path": [-0.03089, -0.00655, 0.20484, -0.09566, 0.0158, 0.28919],
+          "on": ["Abdomen", "torso"],
           "bodies": ["Abdomen", "torso"]
         },
         {
           "name": "EO2_r",
           "path": [-0.10478, 0.01341, 0.25653, -0.03646, -0.00723, 0.17506],
+          "on": ["torso", "Abdomen"],
           "bodies": ["torso", "Abdomen"]
         },
         {
           "name": "EO3_r",
           "path": [-0.10823, 0.01863, 0.22452, -0.04163, -0.00677, 0.1551],
+          "on": ["torso", "Abdomen"],
           "bodies": ["torso", "Abdomen"]
         },
         {
           "name": "EO4_r",
           "path": [-0.10411, 0.02944, 0.20262, -0.04033, -0.00695, 0.1361],
+          "on": ["torso", "Abdomen"],
           "bodies": ["torso", "Abdomen"]
         },
         {
           "name": "EO5_r",
           "path": [-0.11786, 0.08717, 0.21916, -0.11382, 0.05927, 0.10841],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "EO6_r",
           "path": [-0.10511, 0.10633, 0.20332, -0.10412, 0.07008, 0.11114],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "IO1_r",
           "path": [-0.04538, -0.00307, 0.10144, -0.12246, 0.02565, 0.04961],
+          "on": ["Abdomen", "sacrum"],
           "bodies": ["Abdomen", "sacrum"]
         },
         {
           "name": "IO2_r",
           "path": [-0.05139, -0.00068, 0.13057, -0.12707, 0.03459, 0.07457],
+          "on": ["Abdomen", "sacrum"],
           "bodies": ["Abdomen", "sacrum"]
         },
         {
           "name": "IO3_r",
           "path": [-0.04188, -0.00338, 0.17141, -0.12243, 0.04468, 0.09566],
+          "on": ["Abdomen", "sacrum"],
           "bodies": ["Abdomen", "sacrum"]
         },
         {
           "name": "IO4_r",
           "path": [-0.1145, 0.02701, 0.22123, -0.11049, 0.05738, 0.1079],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "IO5_r",
           "path": [-0.11111, 0.06658, 0.20605, -0.09145, 0.08489, 0.11415],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "IO6_r",
           "path": [-0.1, 0.09856, 0.19562, -0.0697, 0.1096, 0.10986],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "EO1_l",
           "path": [0.03089, -0.00655, 0.20484, 0.09566, 0.0158, 0.28919],
+          "on": ["Abdomen", "torso"],
           "bodies": ["Abdomen", "torso"]
         },
         {
           "name": "EO2_l",
           "path": [0.10478, 0.01341, 0.25653, 0.03646, -0.00723, 0.17506],
+          "on": ["torso", "Abdomen"],
           "bodies": ["torso", "Abdomen"]
         },
         {
           "name": "EO3_l",
           "path": [0.10823, 0.01863, 0.22452, 0.04163, -0.00677, 0.1551],
+          "on": ["torso", "Abdomen"],
           "bodies": ["torso", "Abdomen"]
         },
         {
           "name": "EO4_l",
           "path": [0.10411, 0.02944, 0.20262, 0.04033, -0.00695, 0.1361],
+          "on": ["torso", "Abdomen"],
           "bodies": ["torso", "Abdomen"]
         },
         {
           "name": "EO5_l",
           "path": [0.11786, 0.08717, 0.21916, 0.11382, 0.05927, 0.10841],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "EO6_l",
           "path": [0.10511, 0.10633, 0.20332, 0.10412, 0.07008, 0.11114],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "IO1_l",
           "path": [0.04538, -0.00307, 0.10144, 0.12246, 0.02565, 0.04961],
+          "on": ["Abdomen", "sacrum"],
           "bodies": ["Abdomen", "sacrum"]
         },
         {
           "name": "IO2_l",
           "path": [0.05139, -0.00068, 0.13057, 0.12707, 0.03459, 0.07457],
+          "on": ["Abdomen", "sacrum"],
           "bodies": ["Abdomen", "sacrum"]
         },
         {
           "name": "IO3_l",
           "path": [0.04188, -0.00338, 0.17141, 0.12243, 0.04468, 0.09566],
+          "on": ["Abdomen", "sacrum"],
           "bodies": ["Abdomen", "sacrum"]
         },
         {
           "name": "IO4_l",
           "path": [0.1145, 0.02701, 0.22123, 0.11049, 0.05738, 0.1079],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "IO5_l",
           "path": [0.11111, 0.06658, 0.20605, 0.09145, 0.08489, 0.11415],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
         },
         {
           "name": "IO6_l",
           "path": [0.1, 0.09856, 0.19562, 0.0697, 0.1096, 0.10986],
+          "on": ["torso", "sacrum"],
           "bodies": ["torso", "sacrum"]
+        }
+      ],
+      "joints": [
+        {
+          "name": "flex_extension",
+          "body": "lumbar5",
+          "anchor": [0, 0.098, 0.071],
+          "axis": [-1, 0, 0]
+        },
+        {
+          "name": "lat_bending",
+          "body": "lumbar5",
+          "anchor": [0, 0.098, 0.071],
+          "axis": [0, -1, 0]
+        },
+        {
+          "name": "axial_rotation",
+          "body": "lumbar5",
+          "anchor": [0, 0.098, 0.071],
+          "axis": [0, 0, 1]
+        },
+        {
+          "name": "Abs_t1",
+          "body": "Abdomen",
+          "anchor": [0, 0, 0.1421],
+          "axis": [0, -1, 0]
+        },
+        {
+          "name": "Abs_t2",
+          "body": "Abdomen",
+          "anchor": [0, 0, 0.1421],
+          "axis": [0, 0, 1]
+        },
+        {
+          "name": "Abs_r3",
+          "body": "Abdomen",
+          "anchor": [0, 0, 0.1421],
+          "axis": [-1, 0, 0]
+        },
+        {
+          "name": "L4_L5_FE",
+          "body": "lumbar4",
+          "anchor": [0, 0.089, 0.1031],
+          "axis": [-1, 0, 0]
+        },
+        {
+          "name": "L4_L5_LB",
+          "body": "lumbar4",
+          "anchor": [0, 0.089, 0.1031],
+          "axis": [0, -1, 0]
+        },
+        {
+          "name": "L4_L5_AR",
+          "body": "lumbar4",
+          "anchor": [0, 0.089, 0.1031],
+          "axis": [0, 0, 1]
+        },
+        {
+          "name": "L3_L4_FE",
+          "body": "lumbar3",
+          "anchor": [0, 0.0884, 0.1363],
+          "axis": [-1, 0, 0]
+        },
+        {
+          "name": "L3_L4_LB",
+          "body": "lumbar3",
+          "anchor": [0, 0.0884, 0.1363],
+          "axis": [0, -1, 0]
+        },
+        {
+          "name": "L3_L4_AR",
+          "body": "lumbar3",
+          "anchor": [0, 0.0884, 0.1363],
+          "axis": [0, 0, 1]
+        },
+        {
+          "name": "L2_L3_FE",
+          "body": "lumbar2",
+          "anchor": [0, 0.0951, 0.1714],
+          "axis": [-1, 0, 0]
+        },
+        {
+          "name": "L2_L3_LB",
+          "body": "lumbar2",
+          "anchor": [0, 0.0951, 0.1714],
+          "axis": [0, -1, 0]
+        },
+        {
+          "name": "L2_L3_AR",
+          "body": "lumbar2",
+          "anchor": [0, 0.0951, 0.1714],
+          "axis": [0, 0, 1]
+        },
+        {
+          "name": "L1_L2_FE",
+          "body": "lumbar1",
+          "anchor": [0, 0.1065, 0.2002],
+          "axis": [-1, 0, 0]
+        },
+        {
+          "name": "L1_L2_LB",
+          "body": "lumbar1",
+          "anchor": [0, 0.1065, 0.2002],
+          "axis": [0, -1, 0]
+        },
+        {
+          "name": "L1_L2_AR",
+          "body": "lumbar1",
+          "anchor": [0, 0.1065, 0.2002],
+          "axis": [0, 0, 1]
+        }
+      ],
+      "bodies": [
+        {
+          "name": "sacrum",
+          "parent": null,
+          "pos": [0, 0, 0],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "lumbar5",
+          "parent": "sacrum",
+          "pos": [0, 0.098, 0.071],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "Abdomen",
+          "parent": "lumbar5",
+          "pos": [0, 0, 0.1421],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "lumbar4",
+          "parent": "lumbar5",
+          "pos": [0, 0.089, 0.1031],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "lumbar3",
+          "parent": "lumbar4",
+          "pos": [0, 0.0884, 0.1363],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "lumbar2",
+          "parent": "lumbar3",
+          "pos": [0, 0.0951, 0.1714],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "lumbar1",
+          "parent": "lumbar2",
+          "pos": [0, 0.1065, 0.2002],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "torso",
+          "parent": "lumbar1",
+          "pos": [0, 0.104, 0.1112],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "head_attach",
+          "parent": "torso",
+          "pos": [0, 0.109, 0.1012],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "neck",
+          "parent": "head_attach",
+          "pos": [0, 0.109, 0.1012],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "head",
+          "parent": "neck",
+          "pos": [0, 0.109, 0.6012],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "Arm_attachment",
+          "parent": "torso",
+          "pos": [0, 0.084, 0.4812],
+          "quat": [1, 0, 0, 0]
+        },
+        {
+          "name": "chest_r",
+          "parent": "Arm_attachment",
+          "pos": [0, 0.084, 0.4812],
+          "quat": [0.5, 0.5, -0.5, -0.5]
+        },
+        {
+          "name": "cervical_spine",
+          "parent": "chest_r",
+          "pos": [0, 0.12034, 0.5062],
+          "quat": [0.5, 0.5, -0.5, -0.5]
         }
       ]
     }

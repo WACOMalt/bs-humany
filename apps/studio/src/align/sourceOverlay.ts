@@ -38,13 +38,39 @@ export interface SourceMuscle {
   readonly name: string;
   /** World points on the source model, flat xyz, in that model's own frame. */
   readonly path: readonly number[];
+  /** Which body carries each point, one per point, for a per-body retarget. */
+  readonly on: readonly string[];
   /** The bodies its sites sit on, in the source's own naming. */
   readonly bodies: readonly string[];
 }
 
+/** One of their joints: where it turns, in their world, and which body it is on. */
+export interface SourceJoint {
+  readonly name: string;
+  readonly body: string | null;
+  readonly anchor: readonly number[];
+  readonly axis: readonly number[];
+}
+
+/** One of their bodies, with its pose in their world at the neutral pose. */
+export interface SourceBody {
+  readonly name: string;
+  /** The body it hangs off, or null at the root. */
+  readonly parent: string | null;
+  readonly pos: readonly number[];
+  /** MuJoCo's order: w first. */
+  readonly quat: readonly number[];
+}
+
+export interface SourceModel {
+  readonly muscles: readonly SourceMuscle[];
+  readonly joints: readonly SourceJoint[];
+  readonly bodies: readonly SourceBody[];
+}
+
 export interface SourceSites {
   readonly format: string;
-  readonly models: Readonly<Record<string, { readonly muscles: readonly SourceMuscle[] }>>;
+  readonly models: Readonly<Record<string, SourceModel>>;
 }
 
 /** Where a model's overlay sits in our world, and how big. */
@@ -92,6 +118,48 @@ export class SourceOverlay {
 
   muscles(model: string): readonly SourceMuscle[] {
     return this.data?.models[model]?.muscles ?? [];
+  }
+
+  model(name: string): SourceModel | undefined {
+    return this.data?.models[name];
+  }
+
+  /**
+   * Draw the paths a retarget has already moved onto our bones, rather than their own.
+   *
+   * A muscle whose path could not be retargeted -- because one of the bodies it runs over is not
+   * paired yet -- is left out, because half a path on our bones and half on theirs is a picture
+   * of nothing.
+   */
+  showRetargeted(paths: ReadonlyMap<string, readonly number[]>): void {
+    this.clear();
+    for (const [name, path] of paths) {
+      const points: number[] = [];
+      const n = path.length / 3;
+      for (let i = 0; i < n - 1; i++) {
+        points.push(
+          path[3 * i] as number,
+          path[3 * i + 1] as number,
+          path[3 * i + 2] as number,
+          path[3 * i + 3] as number,
+          path[3 * i + 4] as number,
+          path[3 * i + 5] as number,
+        );
+      }
+      if (points.length === 0) continue;
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+      const material = new LineBasicMaterial({
+        color: this.colour,
+        transparent: true,
+        opacity: 0.45,
+        depthTest: false,
+      });
+      const line = new LineSegments(geometry, material);
+      line.name = name;
+      this.lines.set(name, line);
+      this.group.add(line);
+    }
   }
 
   /** Draw one model's muscles; anything drawn before is taken down. */

@@ -125,10 +125,68 @@ for (const [key, spec] of Object.entries(ALL)) {
     const b = model.site_bodyid?.[id];
     return b === undefined ? null : mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY.value, b);
   };
+  // The joints, by their world anchor at the neutral pose. These are what a retarget is
+  // actually built from: a muscle path is only comparable once the two bodies agree about where
+  // the hip is, and one rigid transform over a whole model can never make a shoulder and a hip
+  // agree at the same time, because the proportions differ. That difference is the thing being
+  // measured.
+  const joints = [];
+  for (let j = 0; j < model.njnt; j++) {
+    const name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT.value, j);
+    if (!name) continue;
+    const body = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY.value, model.jnt_bodyid[j]);
+    joints.push({
+      name,
+      body: body ?? null,
+      anchor: [
+        Number(data.xanchor[3 * j].toFixed(5)),
+        Number(data.xanchor[3 * j + 1].toFixed(5)),
+        Number(data.xanchor[3 * j + 2].toFixed(5)),
+      ],
+      axis: [
+        Number(data.xaxis[3 * j].toFixed(4)),
+        Number(data.xaxis[3 * j + 1].toFixed(4)),
+        Number(data.xaxis[3 * j + 2].toFixed(4)),
+      ],
+    });
+  }
+
+  // The bodies, so a path point can be expressed in the body that carries it and follow that
+  // body when it is retargeted, rather than riding on one transform for the whole model.
+  const bodies = [];
+  for (let b = 0; b < model.nbody; b++) {
+    const name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY.value, b);
+    if (!name || name === 'world') continue;
+    const parentId = model.body_parentid?.[b];
+    const parent =
+      parentId === undefined || parentId === 0
+        ? null
+        : mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY.value, parentId);
+    bodies.push({
+      name,
+      // A joint in MuJoCo belongs to its child body, so a bone's own joints all sit at its
+      // proximal end -- the three hip degrees of freedom share one anchor on the femur. Its
+      // length is that anchor to the joints of the bodies hanging off it, which needs the tree.
+      parent,
+      pos: [
+        Number(data.xpos[3 * b].toFixed(5)),
+        Number(data.xpos[3 * b + 1].toFixed(5)),
+        Number(data.xpos[3 * b + 2].toFixed(5)),
+      ],
+      quat: [
+        Number(data.xquat[4 * b].toFixed(5)),
+        Number(data.xquat[4 * b + 1].toFixed(5)),
+        Number(data.xquat[4 * b + 2].toFixed(5)),
+        Number(data.xquat[4 * b + 3].toFixed(5)),
+      ],
+    });
+  }
+
   const muscles = [];
   for (const t of tendons) {
     const path = [];
-    const bodies = [];
+    const on = [];
+    const spans = [];
     for (const s of t.sites) {
       const id = siteId(s);
       if (id < 0) continue;
@@ -137,17 +195,20 @@ for (const [key, spec] of Object.entries(ALL)) {
         Number(xpos[3 * id + 1].toFixed(5)),
         Number(xpos[3 * id + 2].toFixed(5)),
       );
+      // Which body carries each point, so a retarget can move it with that body rather than
+      // with the model as a whole.
       const b = bodyOf(id);
-      if (b && !bodies.includes(b)) bodies.push(b);
+      on.push(b ?? '');
+      if (b && !spans.includes(b)) spans.push(b);
     }
     if (path.length >= 6) {
-      muscles.push({ name: t.name.replace(/_tendon$/, ''), path, bodies });
+      muscles.push({ name: t.name.replace(/_tendon$/, ''), path, on, bodies: spans });
     }
   }
-  models[key] = { muscles };
+  models[key] = { muscles, joints, bodies };
   total += muscles.length;
   console.log(
-    `  ${key}: ${muscles.length} muscles, ${model.nbody} bodies, ${model.nsite} sites` +
+    `  ${key}: ${muscles.length} muscles, ${joints.length} joints, ${bodies.length} bodies` +
       (dropped ? `  (${dropped} dropped: their path leaves this model)` : ''),
   );
 }
