@@ -103,14 +103,28 @@ export interface Placement {
 export const NEUTRAL: Placement = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, scale: 1 };
 
 /**
- * A first guess at where a model belongs.
+ * A first guess at where a model belongs: the change of axes, which is a fact rather than a
+ * judgement, and nothing else.
  *
- * MyoSuite's models are Z-up and ours is Y-up, which is a quarter turn about X and is the one
- * part of the registration that is a fact rather than a judgement. The rest -- where along the
- * body, and whether the stature matches -- is left at neutral for a person to set, because
- * guessing it would put the two bodies somewhere plausible and wrong.
+ * Measured off both models rather than taken from either one's documentation, by asking which
+ * axis separates a right femur from a left and which one drops from the pelvis to the toes:
+ *
+ *              lateral          vertical        forward
+ *   theirs     X, right is -    Z, up is +      -Y
+ *   ours       X, right is +    Y, up is +      -Z
+ *
+ * So a point of theirs becomes a point of ours as `(x, y, z) -> (-x, z, y)`. That is a half turn
+ * about `(0, 1, 1)`, which is a rotation and not a reflection, as it has to be -- no arrangement
+ * of bones turns into its own mirror image.
+ *
+ * As Euler angles in the order three composes them, that is a quarter turn back about X and a
+ * half turn about Z: `Rx(-90) * Rz(180)` carries `(x, y, z)` to `(-x, z, y)`. The quarter turn
+ * alone leaves the model rolled through half a circle, which is what it looked like.
+ *
+ * Where along the body it belongs, and whether the stature matches, stay at neutral for a person
+ * to set. Guessing those would put the two bodies somewhere plausible and wrong.
  */
-export const Z_UP_TO_Y_UP: Placement = { ...NEUTRAL, rx: -90 };
+export const Z_UP_TO_Y_UP: Placement = { ...NEUTRAL, rx: -90, rz: 180 };
 
 export class SourceOverlay {
   readonly group = new Group();

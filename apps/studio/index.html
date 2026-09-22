@@ -444,12 +444,15 @@
                 <input type="range" id="align-rx" min="-180" max="180" step="1" value="-90" />
                 <label for="align-ry">Yaw <output id="align-ry-value">0</output></label>
                 <input type="range" id="align-ry" min="-180" max="180" step="1" value="0" />
-                <label for="align-rz">Roll <output id="align-rz-value">0</output></label>
-                <input type="range" id="align-rz" min="-180" max="180" step="1" value="0" />
+                <label for="align-rz">Roll <output id="align-rz-value">180</output></label>
+                <input type="range" id="align-rz" min="-180" max="180" step="1" value="180" />
                 <label for="align-scale">Scale <output id="align-scale-value">1.00</output></label>
                 <input type="range" id="align-scale" min="0.5" max="1.6" step="0.005" value="1" />
               </div>
-              <p class="note">This places the whole model at once, which can never put their
+              <p class="note">The pitch and roll are the change of axes between the two models:
+              theirs is Z-up with the right side on negative X, ours is Y-up with the right side
+              on positive X. That part is a fact. Where along the body, and the scale, are yours
+              to set. This places the whole model at once, which can never put their
               shoulder and their hip on ours at the same time -- the proportions differ, and that
               difference is what is being measured. Use it to get the model roughly on screen; the
               bone pairing below is what actually registers the two.</p>
