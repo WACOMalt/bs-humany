@@ -13,3 +13,14 @@ dist-release/
 apps/studio/src-tauri/binaries/
 # Training logs, one line a generation; the policy that results is committed, the log is not.
 tools/train/runs/
+
+# Copied from tools/validate-external/myo_sim/meshes by `pnpm sync:ref-meshes`; the vendored
+# originals are the ones under version control, and one copy of 7.5 MB is enough.
+apps/studio/public/refMeshes/
+
+# The Align tab's saved proposals land in the working directory, because a browser download has
+# no say in where it goes. They are decisions to review and move somewhere deliberate, not
+# things to pick up by accident.
+/bonePairing.json
+/sourceCorrespondence.json
+/pointOverrides.json

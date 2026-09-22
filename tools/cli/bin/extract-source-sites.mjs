@@ -91,9 +91,58 @@ function tendonsOf(file) {
   return out;
 }
 
+/**
+ * Which mesh each body wears, and where.
+ *
+ * The chain says `<geom mesh="r_femur" .../>` inside a body and the asset file says
+ * `<mesh file="meshes/r_femur.stl" name="r_femur"/>`, so the two together give a body its
+ * bones. Read from the raw XML rather than the loaded model, because the loader is handed a
+ * chain with every mesh geom stripped out -- their meshes are large and MuJoCo does not need
+ * them to tell us where anything is.
+ */
+function meshesOf(spec) {
+  const assets = readFileSync(join(MYO_SIM, spec.assets), 'utf8');
+  const file = new Map();
+  for (const m of assets.matchAll(/<mesh\b[^>]*\/>/g)) {
+    const name = /name="([^"]+)"/.exec(m[0])?.[1];
+    const path = /file="([^"]+)"/.exec(m[0])?.[1];
+    if (name && path) file.set(name, path.split('/').pop());
+  }
+  // Walk the chain body by body, keeping the mesh geoms that sit inside each.
+  const chain = readFileSync(join(MYO_SIM, spec.chain), 'utf8');
+  const byBody = new Map();
+  const bodyAt = [];
+  const token = /<body\b[^>]*>|<\/body>|<geom\b[^>]*\/>/g;
+  for (const m of chain.matchAll(token)) {
+    const text = m[0];
+    if (text.startsWith('</body')) {
+      bodyAt.pop();
+      continue;
+    }
+    if (text.startsWith('<body')) {
+      bodyAt.push(/name="([^"]+)"/.exec(text)?.[1] ?? '');
+      continue;
+    }
+    const mesh = /mesh="([^"]+)"/.exec(text)?.[1];
+    const body = bodyAt[bodyAt.length - 1];
+    if (!mesh || !body || !file.has(mesh)) continue;
+    const pos = /\bpos="([^"]+)"/.exec(text)?.[1];
+    const quat = /\bquat="([^"]+)"/.exec(text)?.[1];
+    const list = byBody.get(body) ?? [];
+    list.push({
+      file: file.get(mesh),
+      pos: pos ? pos.trim().split(/\s+/).map(Number) : [0, 0, 0],
+      quat: quat ? quat.trim().split(/\s+/).map(Number) : [1, 0, 0, 0],
+    });
+    byBody.set(body, list);
+  }
+  return byBody;
+}
+
 const models = {};
 let total = 0;
 for (const [key, spec] of Object.entries(ALL)) {
+  const wearing = meshesOf(spec);
   const stated = tendonsOf(spec.tendon);
   // Some muscles cross out of the model that states them -- the arm's latissimus and pectoralis
   // end on a trunk the arm chain does not contain, and `referenceArm.mjs` explains why joining
@@ -168,6 +217,7 @@ for (const [key, spec] of Object.entries(ALL)) {
       // proximal end -- the three hip degrees of freedom share one anchor on the femur. Its
       // length is that anchor to the joints of the bodies hanging off it, which needs the tree.
       parent,
+      meshes: wearing.get(name) ?? [],
       pos: [
         Number(data.xpos[3 * b].toFixed(5)),
         Number(data.xpos[3 * b + 1].toFixed(5)),
@@ -208,7 +258,8 @@ for (const [key, spec] of Object.entries(ALL)) {
   models[key] = { muscles, joints, bodies };
   total += muscles.length;
   console.log(
-    `  ${key}: ${muscles.length} muscles, ${joints.length} joints, ${bodies.length} bodies` +
+    `  ${key}: ${muscles.length} muscles, ${joints.length} joints, ${bodies.length} bodies, ` +
+      `${bodies.reduce((n, b) => n + b.meshes.length, 0)} meshes` +
       (dropped ? `  (${dropped} dropped: their path leaves this model)` : ''),
   );
 }

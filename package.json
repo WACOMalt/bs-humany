@@ -39,6 +39,7 @@
     "measure:source-travel": "node tools/cli/bin/measure-source-travel.mjs",
     "module:lint": "node tools/cli/bin/module-lint.mjs",
     "publish:pose": "node tools/cli/bin/publish-pose.mjs",
+    "sync:ref-meshes": "mkdir -p apps/studio/public/refMeshes && cp tools/validate-external/myo_sim/meshes/*.stl apps/studio/public/refMeshes/",
     "test": "vitest run",
     "test:watch": "vitest",
     "train:dashboard": "node tools/train/bin/dashboard.mjs",

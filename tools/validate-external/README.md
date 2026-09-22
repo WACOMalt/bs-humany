@@ -14,6 +14,12 @@ comparison is reproducible from the repository alone.
   abdomen model (`myotorso_abdomen_muscle.xml`, `myotorso_abdomen_tendon.xml`, three actuators a
   side) and the full lumbar one (`myotorso_muscle.xml`, `myotorso_tendon.xml`, 210 fascicles),
   the latter read only to see what it says about the two the abdomen model leaves unusable
+- Meshes: `meshes/`, the 67 bone meshes those models reference, 7.5 MB, fetched and verified by
+  `node tools/validate-external/fetch-meshes.mjs`. Only what the models ask for: the repository
+  also carries prosthetic and exoskeleton parts and a scene with a logo in it, four times as much
+  again and nothing to do with a skeleton. The script reads the asset files for the list rather
+  than keeping one, so a model that starts using another bone is followed without anyone
+  remembering. `--check` verifies without fetching.
 
 The arm muscle and tendon files are here for a second reason beyond validation. The muscle file
 is the source of the elbow Hill-type parameters in `packages/muscle-data`, which are extracted by
@@ -34,8 +40,14 @@ Both print the same object id for a matching file, because GitHub's blob sha and
 same hash. Update the commit above whenever the files change, and re-run the validation.
 
 These are a *reference*, not a source of values in the sense of section 5.3: values transcribed
-from them are cited to `caggiano2022` at the point of use. Nothing here is compiled into a
-published package.
+from them are cited to `caggiano2022` at the point of use.
+
+Nothing here is compiled into a published package, with one stated exception: the studio's Align
+tab loads `meshes/` and the extracted muscle paths at runtime so the two skeletons can be seen
+side by side, which is what makes pairing our bones to theirs possible by eye. They are fetched
+from `public/`, not bundled, so a studio nobody aligns anything in never carries them. Apache-2.0
+permits the redistribution; the licence and the attribution above travel with the files, and the
+pinned commit is what makes the copy checkable.
 
 ## MyoSkeleton
 

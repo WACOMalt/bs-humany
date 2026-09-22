@@ -421,7 +421,7 @@
             <details class="panel" open>
               <summary>Reference model</summary>
               <p class="note">The muscles of the model our parameters came from, drawn as paths.
-              Their meshes are not vendored, so there are no bones on that side. It is a reference
+              Their bones are the models' own meshes, vendored beside the XML. It is a reference
               and never a target: attachment points here are measured from the Z-Anatomy meshes and
               stay ours.</p>
               <div class="control">
@@ -431,6 +431,7 @@
                 </select>
               </div>
               <label class="checkbox"><input type="checkbox" id="align-show" /> Show their muscles</label>
+              <label class="checkbox"><input type="checkbox" id="align-show-bones" /> Show their bones</label>
               <p class="note live" id="align-model-note"></p>
               <div class="control grid2">
                 <label for="align-x">Across <output id="align-x-value">0.00</output></label>

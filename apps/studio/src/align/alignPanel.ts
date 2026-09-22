@@ -99,6 +99,7 @@ export function createAlignPanel(
   const ui = {
     model: must<HTMLSelectElement>('#align-model'),
     show: must<HTMLInputElement>('#align-show'),
+    showBones: must<HTMLInputElement>('#align-show-bones'),
     modelNote: must<HTMLElement>('#align-model-note'),
     grab: must<HTMLButtonElement>('#align-grab'),
     reset: must<HTMLButtonElement>('#align-reset'),
@@ -184,10 +185,12 @@ export function createAlignPanel(
     overlay.clear();
     if (model) overlay.show(model);
     overlay.visible = ui.show.checked && model !== '';
+    if (model) overlay.showBones(model);
+    overlay.bonesVisible = ui.showBones.checked && model !== '';
     overlay.place(placement);
     const n = overlay.muscles(model).length;
     ui.modelNote.textContent = model
-      ? `${n} muscles on the reference ${model}. Paths only — their meshes are not vendored.`
+      ? `${n} muscles on the reference ${model}, and its bones. Turn either on to compare.`
       : 'No reference model shown.';
     fillTheirs();
     fillBones();
@@ -196,8 +199,11 @@ export function createAlignPanel(
   ui.show.addEventListener('change', () => {
     overlay.visible = ui.show.checked && ui.model.value !== '';
   });
+  ui.showBones.addEventListener('change', () => {
+    overlay.bonesVisible = ui.showBones.checked && ui.model.value !== '';
+  });
   ui.grab.addEventListener('click', () => {
-    if (!overlay.visible) return;
+    if (!overlay.visible && !overlay.bonesVisible) return;
     gizmo.attach(overlay.group);
     gizmo.setMode(gizmo.mode === 'translate' ? 'rotate' : 'translate');
     ui.grab.textContent = `Gizmo: ${gizmo.mode}`;
@@ -205,6 +211,8 @@ export function createAlignPanel(
   // When the gizmo has moved the overlay, the sliders have to agree with it.
   gizmo.addEventListener('objectChange', () => {
     if (gizmo.object === overlay.group) {
+      // `place` moves the bones with the muscles, so reading one and applying both keeps the
+      // skeleton and its muscles together under the gizmo.
       applyPlacement(overlay.readPlacement());
     } else if (gizmo.object && handles.pickedHandle) {
       handles.moveTo(gizmo.object.position.clone());
@@ -460,7 +468,10 @@ export function createAlignPanel(
   const refreshBoneButton = (): void => {
     ui.pairBone.disabled = !(ui.theirBone.value && ui.ourBone.value);
   };
-  ui.theirBone.addEventListener('change', refreshBoneButton);
+  ui.theirBone.addEventListener('change', () => {
+    overlay.emphasiseBone(ui.theirBone.value || undefined);
+    refreshBoneButton();
+  });
   ui.ourBone.addEventListener('change', refreshBoneButton);
   ui.pairBone.addEventListener('click', () => {
     const theirs = ui.theirBone.value;
@@ -571,6 +582,7 @@ export function createAlignPanel(
     },
     attach(world: Object3D): void {
       world.add(overlay.group);
+      world.add(overlay.bones);
       world.add(handles.group);
       world.add(proxy);
       const helper = (gizmo as unknown as { getHelper?: () => Object3D }).getHelper?.();

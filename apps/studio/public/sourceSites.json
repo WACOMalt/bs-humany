@@ -1052,216 +1052,444 @@
         {
           "name": "clavicle_r",
           "parent": null,
+          "meshes": [
+            {
+              "file": "clavicle.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0, 0],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "clavphant_r",
           "parent": "clavicle_r",
+          "meshes": [],
           "pos": [-0.01433, 0.02007, 0.1355],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "scapula_r",
           "parent": "clavphant_r",
+          "meshes": [
+            {
+              "file": "scapula.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01433, 0.02007, 0.1355],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "scapphant_r",
           "parent": "scapula_r",
+          "meshes": [],
           "pos": [-0.02388, -0.01393, 0.1445],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "humphant_r",
           "parent": "scapphant_r",
+          "meshes": [],
           "pos": [-0.02388, -0.01393, 0.1445],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "humphant1_r",
           "parent": "humphant_r",
+          "meshes": [],
           "pos": [-0.02388, -0.01393, 0.1445],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "humerus_r",
           "parent": "humphant1_r",
+          "meshes": [
+            {
+              "file": "humerus.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.02388, -0.01393, 0.1445],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "ulna_r",
           "parent": "humerus_r",
+          "meshes": [
+            {
+              "file": "ulna.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01778, -0.30433, 0.1322],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "radius_r",
           "parent": "ulna_r",
+          "meshes": [
+            {
+              "file": "radius.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01738, -0.31583, 0.1522],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "lunate_r",
           "parent": "radius_r",
+          "meshes": [
+            {
+              "file": "lunate.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.00062, -0.55783, 0.1772],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "scaphoid_r",
           "parent": "lunate_r",
+          "meshes": [
+            {
+              "file": "scaphoid.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.01297, -0.56229, 0.17595],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "pisiform_r",
           "parent": "lunate_r",
+          "meshes": [
+            {
+              "file": "pisiform.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01277, -0.56772, 0.16661],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "triquetrum_r",
           "parent": "lunate_r",
+          "meshes": [
+            {
+              "file": "triquetrum.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01016, -0.56533, 0.17591],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "capitate_r",
           "parent": "lunate_r",
+          "meshes": [
+            {
+              "file": "capitate.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.00461, -0.57288, 0.17953],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "trapezium_r",
           "parent": "capitate_r",
+          "meshes": [
+            {
+              "file": "trapezium.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.01991, -0.57745, 0.16922],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "firstmc_r",
           "parent": "trapezium_r",
+          "meshes": [
+            {
+              "file": "1mc.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.02711, -0.58285, 0.16672],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "proximal_thumb_r",
           "parent": "firstmc_r",
+          "meshes": [
+            {
+              "file": "thumbprox.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.04361, -0.61205, 0.15402],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "distal_thumb_r",
           "parent": "proximal_thumb_r",
+          "meshes": [
+            {
+              "file": "thumbdist.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.05761, -0.63795, 0.14392],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "trapezoid_r",
           "parent": "capitate_r",
+          "meshes": [
+            {
+              "file": "trapezoid.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.01376, -0.57695, 0.17706],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "hamate_r",
           "parent": "capitate_r",
+          "meshes": [
+            {
+              "file": "hamate.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.00636, -0.57538, 0.17878],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "secondmc_r",
           "parent": "capitate_r",
+          "meshes": [
+            {
+              "file": "2mc.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.0193, -0.6105, 0.18456],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "2proxph_r",
           "parent": "secondmc_r",
+          "meshes": [
+            {
+              "file": "2proxph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.0228, -0.63875, 0.18818],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "midph2_r",
           "parent": "2proxph_r",
+          "meshes": [
+            {
+              "file": "2midph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.03031, -0.68002, 0.19551],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "distph2_r",
           "parent": "midph2_r",
+          "meshes": [
+            {
+              "file": "2distph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.03364, -0.70491, 0.19673],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "thirdmc_r",
           "parent": "capitate_r",
+          "meshes": [
+            {
+              "file": "3mc.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.00509, -0.61212, 0.1869],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "3proxph_r",
           "parent": "thirdmc_r",
+          "meshes": [
+            {
+              "file": "3proxph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.00533, -0.63841, 0.18868],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "midph3_r",
           "parent": "3proxph_r",
+          "meshes": [
+            {
+              "file": "3midph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.00698, -0.68262, 0.19491],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "distph3_r",
           "parent": "midph3_r",
+          "meshes": [
+            {
+              "file": "3distph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.00834, -0.71167, 0.19687],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "fourthmc_r",
           "parent": "capitate_r",
+          "meshes": [
+            {
+              "file": "4mc.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.00743, -0.6134, 0.18304],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "4proxph_r",
           "parent": "fourthmc_r",
+          "meshes": [
+            {
+              "file": "4proxph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.00926, -0.63709, 0.18287],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "midph4_r",
           "parent": "4proxph_r",
+          "meshes": [
+            {
+              "file": "4midph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01279, -0.67735, 0.18421],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "distph4_r",
           "parent": "midph4_r",
+          "meshes": [
+            {
+              "file": "4distph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01511, -0.70214, 0.18477],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "fifthmc_r",
           "parent": "capitate_r",
+          "meshes": [
+            {
+              "file": "5mc.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01728, -0.60757, 0.17531],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "5proxph_r",
           "parent": "fifthmc_r",
+          "meshes": [
+            {
+              "file": "5proxph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.01888, -0.629, 0.17381],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "midph5_r",
           "parent": "5proxph_r",
+          "meshes": [
+            {
+              "file": "5midph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.02416, -0.66456, 0.17093],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "distph5_r",
           "parent": "midph5_r",
+          "meshes": [
+            {
+              "file": "5distph.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.02703, -0.68524, 0.16869],
           "quat": [1, 0, 0, 0]
         }
@@ -2098,78 +2326,184 @@
         {
           "name": "pelvis",
           "parent": null,
+          "meshes": [
+            {
+              "file": "r_pelvis.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            },
+            {
+              "file": "l_pelvis.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0, 0],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "femur_r",
           "parent": "pelvis",
+          "meshes": [
+            {
+              "file": "r_femur.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.0773, 0.05615, -0.07853],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "tibia_r",
           "parent": "femur_r",
+          "meshes": [
+            {
+              "file": "r_tibia.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            },
+            {
+              "file": "r_fibula.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.07604, 0.05583, -0.48296],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "talus_r",
           "parent": "tibia_r",
+          "meshes": [
+            {
+              "file": "r_talus.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.07605, 0.06551, -0.88297],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "calcn_r",
           "parent": "talus_r",
+          "meshes": [
+            {
+              "file": "r_foot.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.08401, 0.11424, -0.92496],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "toes_r",
           "parent": "calcn_r",
+          "meshes": [
+            {
+              "file": "r_bofoot.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.08494, -0.06456, -0.92681],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "patella_r",
           "parent": "femur_r",
+          "meshes": [
+            {
+              "file": "r_patella.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [-0.07731, 0.06392, -0.4865],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "femur_l",
           "parent": "pelvis",
+          "meshes": [
+            {
+              "file": "l_femur.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.07722, 0.05627, -0.07853],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "tibia_l",
           "parent": "femur_l",
+          "meshes": [
+            {
+              "file": "l_tibia.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            },
+            {
+              "file": "l_fibula.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.07595, 0.05595, -0.48296],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "talus_l",
           "parent": "tibia_l",
+          "meshes": [
+            {
+              "file": "l_talus.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.07594, 0.06563, -0.88297],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "calcn_l",
           "parent": "talus_l",
+          "meshes": [
+            {
+              "file": "l_foot.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.08382, 0.11438, -0.92496],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "toes_l",
           "parent": "calcn_l",
+          "meshes": [
+            {
+              "file": "l_bofoot.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.08505, -0.06442, -0.92681],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         },
         {
           "name": "patella_l",
           "parent": "femur_l",
+          "meshes": [
+            {
+              "file": "l_patella.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0.07721, 0.06404, -0.4865],
           "quat": [0.5004, 0.5, -0.5, -0.4996]
         }
@@ -3698,84 +4032,200 @@
         {
           "name": "sacrum",
           "parent": null,
+          "meshes": [
+            {
+              "file": "sacrum.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0, 0],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "lumbar5",
           "parent": "sacrum",
+          "meshes": [
+            {
+              "file": "lumbar5.stl",
+              "pos": [-0.01, -0.01, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0.098, 0.071],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "Abdomen",
           "parent": "lumbar5",
+          "meshes": [],
           "pos": [0, 0, 0.1421],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "lumbar4",
           "parent": "lumbar5",
+          "meshes": [
+            {
+              "file": "lumbar4.stl",
+              "pos": [-0.009, -0.004, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0.089, 0.1031],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "lumbar3",
           "parent": "lumbar4",
+          "meshes": [
+            {
+              "file": "lumbar3.stl",
+              "pos": [-0.004, -0.002, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0.0884, 0.1363],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "lumbar2",
           "parent": "lumbar3",
+          "meshes": [
+            {
+              "file": "lumbar2.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0.0951, 0.1714],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "lumbar1",
           "parent": "lumbar2",
+          "meshes": [
+            {
+              "file": "lumbar1.stl",
+              "pos": [0, 0, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0.1065, 0.2002],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "torso",
           "parent": "lumbar1",
+          "meshes": [
+            {
+              "file": "thoracic12_s.stl",
+              "pos": [-0.016, 0.119, 0],
+              "quat": [0.980067, 0, 0, 0.198669]
+            },
+            {
+              "file": "thoracic11_s.stl",
+              "pos": [-0.032, 0.146, 0],
+              "quat": [0.995004, 0, 0, 0.0998334]
+            },
+            {
+              "file": "thoracic10_s.stl",
+              "pos": [-0.04, 0.171, 0],
+              "quat": [0.997189, 0, 0, 0.0749297]
+            },
+            {
+              "file": "thoracic9_s.stl",
+              "pos": [-0.043, 0.198, 0],
+              "quat": [0.99875, 0, 0, 0.0499792]
+            },
+            {
+              "file": "thoracic8_s.stl",
+              "pos": [-0.045, 0.223, 0],
+              "quat": [0.9998, 0, 0, -0.0199987]
+            },
+            {
+              "file": "thoracic7_s.stl",
+              "pos": [-0.044, 0.249, 0],
+              "quat": [0.99955, 0, 0, -0.0299955]
+            },
+            {
+              "file": "thoracic6_s.stl",
+              "pos": [-0.043, 0.27, 0],
+              "quat": [0.99955, 0, 0, -0.0299955]
+            },
+            {
+              "file": "thoracic5_s.stl",
+              "pos": [-0.041, 0.292, 0],
+              "quat": [0.99875, 0, 0, -0.0499792]
+            },
+            {
+              "file": "thoracic4_s.stl",
+              "pos": [-0.0395, 0.314, 0],
+              "quat": [0.997189, 0, 0, -0.0749297]
+            },
+            {
+              "file": "thoracic3_s.stl",
+              "pos": [-0.036, 0.337, 0],
+              "quat": [0.995004, 0, 0, -0.0998334]
+            },
+            {
+              "file": "thoracic2_s.stl",
+              "pos": [-0.032, 0.358, 0],
+              "quat": [0.992198, 0, 0, -0.124675]
+            },
+            {
+              "file": "thoracic1_s.stl",
+              "pos": [-0.028, 0.375, 0],
+              "quat": [0.988771, 0, 0, -0.149438]
+            },
+            {
+              "file": "thorax.stl",
+              "pos": [0.028, 0.365, 0],
+              "quat": [1, 0, 0, 0]
+            }
+          ],
           "pos": [0, 0.104, 0.1112],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "head_attach",
           "parent": "torso",
+          "meshes": [],
           "pos": [0, 0.109, 0.1012],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "neck",
           "parent": "head_attach",
+          "meshes": [],
           "pos": [0, 0.109, 0.1012],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "head",
           "parent": "neck",
+          "meshes": [],
           "pos": [0, 0.109, 0.6012],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "Arm_attachment",
           "parent": "torso",
+          "meshes": [],
           "pos": [0, 0.084, 0.4812],
           "quat": [1, 0, 0, 0]
         },
         {
           "name": "chest_r",
           "parent": "Arm_attachment",
+          "meshes": [],
           "pos": [0, 0.084, 0.4812],
           "quat": [0.5, 0.5, -0.5, -0.5]
         },
         {
           "name": "cervical_spine",
           "parent": "chest_r",
+          "meshes": [],
           "pos": [0, 0.12034, 0.5062],
           "quat": [0.5, 0.5, -0.5, -0.5]
         }

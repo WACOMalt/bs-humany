@@ -8,8 +8,8 @@
  * both have to be on screen at once.
  *
  * What is drawn is each muscle's path as a polyline through the sites it runs over, read off the
- * running model by `pnpm extract:source-sites`. Their meshes are not vendored, only the XML, so
- * there are no bones on that side -- and for deciding which muscle is which, paths are enough.
+ * running model by `pnpm extract:source-sites`, alongside their bones: the models' own meshes,
+ * vendored beside the XML and verified against the pinned commit.
  *
  * ## Why the whole model gets a transform
  *
@@ -31,6 +31,11 @@ import {
   Group,
   LineBasicMaterial,
   LineSegments,
+  Mesh,
+  MeshStandardMaterial,
+  Points,
+  PointsMaterial,
+  Quaternion,
   Vector3,
 } from 'three';
 
@@ -53,10 +58,20 @@ export interface SourceJoint {
 }
 
 /** One of their bodies, with its pose in their world at the neutral pose. */
+/** A bone mesh a body wears, and where it sits in that body's frame. */
+export interface SourceMesh {
+  readonly file: string;
+  readonly pos: readonly number[];
+  /** MuJoCo's order: w first. */
+  readonly quat: readonly number[];
+}
+
 export interface SourceBody {
   readonly name: string;
   /** The body it hangs off, or null at the root. */
   readonly parent: string | null;
+  /** The bone meshes it wears; empty for a body their model draws nothing for. */
+  readonly meshes: readonly SourceMesh[];
   readonly pos: readonly number[];
   /** MuJoCo's order: w first. */
   readonly quat: readonly number[];
@@ -99,13 +114,20 @@ export const Z_UP_TO_Y_UP: Placement = { ...NEUTRAL, rx: -90 };
 
 export class SourceOverlay {
   readonly group = new Group();
+  /** Their skeleton, drawn separately so muscles and bones can be shown on their own. */
+  readonly bones = new Group();
   private readonly lines = new Map<string, LineSegments>();
+  private readonly boneLines = new Map<string, LineSegments>();
+  private boneJoints: Points | undefined;
+  private meshes: Mesh[] = [];
   private data: SourceSites | undefined;
   private shown = new Set<string>();
 
   constructor(private readonly colour = new Color(0x4fb4c8)) {
     this.group.visible = false;
     this.group.renderOrder = 2;
+    this.bones.visible = false;
+    this.bones.renderOrder = 2;
   }
 
   load(data: SourceSites): void {
@@ -214,7 +236,175 @@ export class SourceOverlay {
     }
   }
 
+  /**
+   * Their skeleton: a bone from each body to each of its children, and a dot at every joint.
+   *
+   * The tree first -- every body's pose and what it hangs off, which is the skeleton's structure
+   * exactly -- and then the meshes over it. The tree is drawn synchronously and stands on its
+   * own, so a mesh that will not load leaves the structure visible rather than an empty
+   * viewport. A leaf body with no children still gets a dot, so a toe or a patella can be seen.
+   */
+  showBones(model: string): void {
+    this.clearBones();
+    const source = this.model(model);
+    if (!source) return;
+    void this.loadMeshes(source);
+    const at = new Map(source.bodies.map((b) => [b.name, b.pos]));
+    const material = () =>
+      new LineBasicMaterial({
+        color: 0xe8e2d6,
+        transparent: true,
+        opacity: 0.85,
+        depthTest: false,
+      });
+    for (const body of source.bodies) {
+      const child = at.get(body.name);
+      if (!child) continue;
+      const points: number[] = [];
+      for (const other of source.bodies) {
+        if (other.parent !== body.name) continue;
+        const end = at.get(other.name);
+        if (!end) continue;
+        points.push(
+          child[0] as number,
+          child[1] as number,
+          child[2] as number,
+          end[0] as number,
+          end[1] as number,
+          end[2] as number,
+        );
+      }
+      if (points.length === 0) continue;
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+      const line = new LineSegments(geometry, material());
+      line.name = body.name;
+      this.boneLines.set(body.name, line);
+      this.bones.add(line);
+    }
+    // Every joint anchor, so the places the two skeletons must agree about are visible.
+    const anchors: number[] = [];
+    for (const joint of source.joints) {
+      anchors.push(joint.anchor[0] as number, joint.anchor[1] as number, joint.anchor[2] as number);
+    }
+    // Leaf bodies have no bone drawn to them; a dot keeps them on screen.
+    for (const body of source.bodies) {
+      if (source.bodies.some((other) => other.parent === body.name)) continue;
+      anchors.push(body.pos[0] as number, body.pos[1] as number, body.pos[2] as number);
+    }
+    if (anchors.length > 0) {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', new Float32BufferAttribute(anchors, 3));
+      this.boneJoints = new Points(
+        geometry,
+        new PointsMaterial({
+          size: 7,
+          sizeAttenuation: false,
+          color: 0xe0864a,
+          depthTest: false,
+          transparent: true,
+        }),
+      );
+      this.bones.add(this.boneJoints);
+    }
+  }
+
+  /**
+   * Their actual bones, loaded from the meshes vendored beside the models.
+   *
+   * Asynchronous and best-effort: the stick figure above is drawn first and stands on its own,
+   * so a mesh that will not load leaves the tree visible rather than an empty viewport. Each
+   * mesh sits at its geom's offset inside its body, and the body's own pose puts it in their
+   * world; the group's placement then brings the whole thing into ours.
+   */
+  private async loadMeshes(source: SourceModel): Promise<void> {
+    const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js');
+    const loader = new STLLoader();
+    const material = new MeshStandardMaterial({
+      color: 0xd8d2c6,
+      roughness: 0.85,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
+    for (const body of source.bodies) {
+      for (const wear of body.meshes) {
+        try {
+          const geometry = await loader.loadAsync(`refMeshes/${wear.file}`);
+          const mesh = new Mesh(geometry, material);
+          // Their geom's offset inside the body, then the body's pose in their world.
+          const local = new Vector3(wear.pos[0] ?? 0, wear.pos[1] ?? 0, wear.pos[2] ?? 0);
+          const spin = new Quaternion(
+            wear.quat[1] ?? 0,
+            wear.quat[2] ?? 0,
+            wear.quat[3] ?? 0,
+            wear.quat[0] ?? 1,
+          );
+          const bodySpin = new Quaternion(
+            body.quat[1] ?? 0,
+            body.quat[2] ?? 0,
+            body.quat[3] ?? 0,
+            body.quat[0] ?? 1,
+          );
+          mesh.quaternion.copy(bodySpin).multiply(spin);
+          mesh.position
+            .copy(local)
+            .applyQuaternion(bodySpin)
+            .add(new Vector3(body.pos[0] ?? 0, body.pos[1] ?? 0, body.pos[2] ?? 0));
+          mesh.name = body.name;
+          this.meshes.push(mesh);
+          this.bones.add(mesh);
+        } catch {
+          // A mesh that is not there is not worth stopping for: the tree is still drawn.
+        }
+      }
+    }
+  }
+
+  /** Light one of their bones up and dim the rest, for the pairing list's selection. */
+  emphasiseBone(name: string | undefined): void {
+    for (const [id, line] of this.boneLines) {
+      const material = line.material as LineBasicMaterial;
+      const lit = name === undefined || id === name;
+      material.opacity = lit ? (name === undefined ? 0.85 : 1) : 0.15;
+      material.color.set(name !== undefined && id === name ? 0xe0864a : 0xe8e2d6);
+      material.needsUpdate = true;
+    }
+  }
+
+  set bonesVisible(on: boolean) {
+    this.bones.visible = on;
+  }
+
+  get bonesVisible(): boolean {
+    return this.bones.visible;
+  }
+
+  private clearBones(): void {
+    for (const mesh of this.meshes) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+    }
+    this.meshes = [];
+    for (const line of this.boneLines.values()) {
+      line.removeFromParent();
+      line.geometry.dispose();
+      (line.material as LineBasicMaterial).dispose();
+    }
+    this.boneLines.clear();
+    if (this.boneJoints) {
+      this.boneJoints.removeFromParent();
+      this.boneJoints.geometry.dispose();
+      (this.boneJoints.material as PointsMaterial).dispose();
+      this.boneJoints = undefined;
+    }
+  }
+
   place(p: Placement): void {
+    this.bones.position.set(p.x, p.y, p.z);
+    this.bones.rotation.set((p.rx * Math.PI) / 180, (p.ry * Math.PI) / 180, (p.rz * Math.PI) / 180);
+    this.bones.scale.setScalar(p.scale);
     this.group.position.set(p.x, p.y, p.z);
     this.group.rotation.set((p.rx * Math.PI) / 180, (p.ry * Math.PI) / 180, (p.rz * Math.PI) / 180);
     this.group.scale.setScalar(p.scale);
@@ -268,6 +458,8 @@ export class SourceOverlay {
 
   dispose(): void {
     this.clear();
+    this.clearBones();
     this.group.removeFromParent();
+    this.bones.removeFromParent();
   }
 }
