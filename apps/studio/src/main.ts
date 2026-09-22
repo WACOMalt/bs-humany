@@ -2520,26 +2520,47 @@ align = createAlignPanel(
     /**
      * Where our joints that touch a segment sit in the world at rest.
      *
-     * The distance between the two furthest apart is that bone's length, and the ratio against
-     * the same measurement on their model is what scales a retarget. A joint is counted whether
-     * the segment is its parent or its child, because a femur is bounded by the hip above it and
-     * the knee below.
+     * Each carries the segment on the other side of it, which is how a joint of theirs is
+     * matched to one of ours: both models agree a hip is a hip, so the joint between two paired
+     * bones is the same joint in both, and matched joints are what a rotation is fitted from. A
+     * joint is counted whether the segment is its parent or its child, because a femur is
+     * bounded by the hip above it and the knee below.
      */
     jointsOn: (segment) => {
       const sim = simulation;
       if (!sim) return [];
       const index = sim.articulation.segments.findIndex((s) => s.id === segment);
       if (index < 0) return [];
-      const out: Vector3[] = [];
+      const out: { at: Vector3; other: string; axes: Vector3[] }[] = [];
       for (const joint of sim.articulation.joints) {
         const onParent = joint.parentSegment === index;
         const onChild = joint.childSegment === index;
         if (!onParent && !onChild) continue;
         const seg = sim.articulation.segments[onParent ? joint.parentSegment : joint.childSegment];
+        const other =
+          sim.articulation.segments[onParent ? joint.childSegment : joint.parentSegment];
         const frame = onParent ? joint.frameInParent : joint.frameInChild;
-        if (!seg) continue;
+        if (!seg || !other) continue;
         const p = transformPoint(seg.restWorld, frame.translation);
-        out.push(new Vector3(p.x, p.y, p.z));
+        // The hinge axes in the world: stated in the joint frame, carried out through the
+        // joint's frame in the segment and the segment's own rest pose.
+        const spin = new Quaternion(
+          seg.restWorld.rotation.x,
+          seg.restWorld.rotation.y,
+          seg.restWorld.rotation.z,
+          seg.restWorld.rotation.w,
+        ).multiply(
+          new Quaternion(frame.rotation.x, frame.rotation.y, frame.rotation.z, frame.rotation.w),
+        );
+        const axes: Vector3[] = [];
+        for (const dof of joint.dofs) {
+          if (dof.kind !== 'hinge') continue;
+          const v = new Vector3(dof.vector.x, dof.vector.y, dof.vector.z)
+            .applyQuaternion(spin)
+            .normalize();
+          if (v.lengthSq() > 1e-9 && !axes.some((a) => Math.abs(a.dot(v)) > 0.999)) axes.push(v);
+        }
+        out.push({ at: new Vector3(p.x, p.y, p.z), other: other.id, axes });
       }
       return out;
     },

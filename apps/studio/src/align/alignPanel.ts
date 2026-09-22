@@ -41,8 +41,18 @@ export interface AlignHost {
   articulation(): CompiledArticulation | undefined;
   /** Our muscle unit ids, for the right-hand list. */
   units(): readonly string[];
-  /** Where our joints touching a segment sit in the world at rest, for the length ratio. */
-  jointsOn(segment: string): readonly import('three').Vector3[];
+  /**
+   * Our joints touching a segment: where each sits at rest, and the segment on the other side.
+   *
+   * The other side is what lets a joint of theirs be matched to one of ours -- both models agree
+   * a hip is a hip, so the joint between two paired bones is the same joint in both.
+   */
+  jointsOn(segment: string): readonly {
+    at: import('three').Vector3;
+    other: string;
+    /** The joint's own hinge axes in the world, for settling a bone's roll. */
+    axes: import('three').Vector3[];
+  }[];
   /** Attachment sites in the world at rest. */
   sites(): readonly { id: string; bone: string; world: { x: number; y: number; z: number } }[];
   /** Light up one of our segments in the viewport, or clear it with undefined. */
@@ -566,16 +576,28 @@ export function createAlignPanel(
     }
     overlay.visible = ui.show.checked;
     overlay.bonesVisible = ui.showBones.checked;
-    const scaled = [...fits.values()].filter((f) => f.scaleFrom === 'two joints');
-    const ratios = scaled.map((f) => f.scale).sort((a, b) => a - b);
+    // What each fit rested on, because a fit from five matched joints and one that inherited its
+    // parent's roll are not the same claim, and the note should not flatten them together.
+    const all = [...fits.values()];
+    const full = all.filter((f) => f.kind === 'kabsch');
+    const axis = all.filter((f) => f.kind.startsWith('axis and'));
+    const inherited = all.filter((f) => f.kind === 'inherited' || f.kind === 'model');
+    const ratios = all.map((f) => f.scale).sort((a, b) => a - b);
+    const residuals = full.map((f) => f.residual ?? 0).sort((a, b) => a - b);
     ui.fitNote.textContent =
       `${paths.size} of ${model.muscles.length} muscles redrawn on our bones` +
       (dropped ? `; ${dropped} left out, a bone they run over is not paired yet` : '') +
+      `. ${full.length} bones fitted from three joints or more` +
+      (residuals.length
+        ? ` (worst ${(residuals[residuals.length - 1] as number).toFixed(1)} mm out)`
+        : '') +
+      (axis.length ? `, ${axis.length} from two with the roll off the hinges` : '') +
+      (inherited.length ? `, ${inherited.length} inherited whole` : '') +
       (ratios.length
-        ? `. Scale from ${ratios.length} bones with two joints: ` +
-          `${(ratios[0] as number).toFixed(2)}x to ${(ratios[ratios.length - 1] as number).toFixed(2)}x, ` +
+        ? `. Scale ${(ratios[0] as number).toFixed(2)}x to ` +
+          `${(ratios[ratios.length - 1] as number).toFixed(2)}x, ` +
           `median ${(ratios[Math.floor(ratios.length / 2)] as number).toFixed(2)}x.`
-        : '. No bone had two joints to take a scale from.');
+        : '.');
   };
   ui.retarget.addEventListener('click', doRetarget);
   ui.saveBones.addEventListener('click', () => {

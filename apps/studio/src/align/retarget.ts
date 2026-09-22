@@ -28,6 +28,7 @@
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
 import { Quaternion, Vector3 } from 'three';
+import { type FitKind, type Fitted, fitOne } from './fit.js';
 import type { SourceBody, SourceModel } from './sourceOverlay.js';
 
 export interface BodyPair {
@@ -44,11 +45,12 @@ export interface BodyFit {
   readonly position: Vector3;
   readonly rotation: Quaternion;
   readonly scale: number;
-  /** How the scale was arrived at, so a reader knows what it rests on. */
-  readonly scaleFrom: 'two joints' | 'inherited' | 'model' | 'none';
-  /** Millimetres between their joint spacing and ours, where both were measurable. */
-  readonly lengthTheirs: number | null;
-  readonly lengthOurs: number | null;
+  /** What the fit rested on, because a fit from two points is not the claim a fit from five is. */
+  readonly kind: FitKind;
+  /** How many joints both models had in the same place. */
+  readonly matched: number;
+  /** What is left over after the best fit, in millimetres; null when nothing was fitted. */
+  readonly residual: number | null;
 }
 
 const vec = (a: readonly number[]) => new Vector3(a[0] ?? 0, a[1] ?? 0, a[2] ?? 0);
@@ -107,101 +109,106 @@ export function suggestBodyPairs(
   return out;
 }
 
-/** The distance between the two joints furthest apart on a body, which is its length. */
-function spanOf(points: readonly Vector3[]): number {
-  let longest = 0;
-  for (let i = 0; i < points.length; i++) {
-    for (let j = i + 1; j < points.length; j++) {
-      longest = Math.max(longest, (points[i] as Vector3).distanceTo(points[j] as Vector3));
-    }
-  }
-  return longest;
-}
-
 /**
- * Work out where each paired body of theirs sits on ours, and how much to scale it.
+ * Work out where each paired bone of theirs sits on ours.
  *
- * `ourJointsOn` gives the world positions of our joints that touch a segment, which is how our
- * side of the length ratio is measured. A body nothing can be measured on keeps scale 1 and says
- * so, rather than borrowing a number that would look like evidence.
+ * The joints do the work. A joint is a place both models agree about -- a hip is a hip -- and a
+ * joint on body B joins B to B's parent, so once two bones are paired the joints around them can
+ * be matched by asking which paired bone is on the other side of each. That gives corresponding
+ * points in both worlds, and corresponding points give a rotation, a scale and a position.
+ *
+ * Taking our segment's own rest orientation instead, which is what this did at first, is wrong
+ * in a way that looks almost right: the two models disagree about which way a bone's frame
+ * points, so bones land a quarter turn off the ones they are paired with.
+ *
+ * Bones are fitted parents first, because a bone with too few joints of its own inherits its
+ * roll, or its whole orientation, from the one above it.
  */
 export function fitBodies(
   model: SourceModel,
   pairs: readonly BodyPair[],
   articulation: CompiledArticulation,
-  ourJointsOn: (segment: string) => readonly Vector3[],
+  ourJointsOn: (segment: string) => readonly { at: Vector3; other: string; axes: Vector3[] }[],
 ): Map<string, BodyFit> {
   const theirBody = new Map(model.bodies.map((b) => [b.name, b]));
-  const ourSegment = new Map(articulation.segments.map((s) => [s.id, s]));
-  // Their joints, gathered by the body they are on. Several of theirs may sit at one anatomical
-  // joint -- three `L4_L5_*` degrees of freedom share an anchor -- so near-duplicates collapse.
-  //
-  // A joint in MuJoCo belongs to its child body, so a bone's own joints all sit at its proximal
-  // end: the three hip degrees of freedom share one anchor on the femur, and a span taken from
-  // those alone is zero. A bone's length is that anchor to the joints of the bodies hanging off
-  // it -- hip to knee for a femur -- so each body is given its own anchors and its children's.
-  const own = new Map<string, Vector3[]>();
-  for (const joint of model.joints) {
-    if (!joint.body) continue;
-    const list = own.get(joint.body) ?? [];
-    const at = vec(joint.anchor);
-    if (!list.some((p) => p.distanceTo(at) < 1e-4)) list.push(at);
-    own.set(joint.body, list);
-  }
-  const theirJoints = new Map<string, Vector3[]>();
-  for (const body of model.bodies) {
-    const list = [...(own.get(body.name) ?? [])];
-    for (const child of model.bodies) {
-      if (child.parent !== body.name) continue;
-      for (const at of own.get(child.name) ?? []) {
-        if (!list.some((p) => p.distanceTo(at) < 1e-4)) list.push(at);
+  const ourFor = new Map(pairs.map((p) => [p.theirs, p.ours]));
+  const segments = new Set(articulation.segments.map((s) => s.id));
+
+  /**
+   * Their joints touching a body, each with the body on the other side of it.
+   *
+   * A joint belongs to its child, so a body's own joints lead to its parent and its children's
+   * joints lead to those children. Several degrees of freedom may share one anchor -- three at a
+   * hip -- and collapse to the one place they describe.
+   */
+  const touching = new Map<string, { at: Vector3; other: string; axes: Vector3[] }[]>();
+  const add = (body: string, at: Vector3, other: string, axis: Vector3): void => {
+    const list = touching.get(body) ?? [];
+    const already = list.find((p) => p.other === other && p.at.distanceTo(at) < 1e-4);
+    // Several degrees of freedom may share one anchor -- three at a hip -- and describe one
+    // place with several axes, so they collapse to one point carrying all of them.
+    if (already) {
+      if (axis.lengthSq() > 1e-9 && !already.axes.some((a) => Math.abs(a.dot(axis)) > 0.999)) {
+        already.axes.push(axis);
       }
+      return;
     }
-    theirJoints.set(body.name, list);
+    list.push({ at, other, axes: axis.lengthSq() > 1e-9 ? [axis] : [] });
+    touching.set(body, list);
+  };
+  for (const joint of model.joints) {
+    const body = joint.body;
+    if (!body) continue;
+    const parent = theirBody.get(body)?.parent;
+    if (!parent) continue;
+    const at = vec(joint.anchor);
+    const axis = vec(joint.axis).normalize();
+    add(body, at, parent, axis);
+    add(parent, at, body, axis);
   }
+
+  // Parents first, so an inherited roll has something to inherit from.
+  const order: string[] = [];
+  const seen = new Set<string>();
+  const visit = (name: string): void => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    const parent = theirBody.get(name)?.parent;
+    if (parent) visit(parent);
+    order.push(name);
+  };
+  for (const pair of pairs) visit(pair.theirs);
 
   const fits = new Map<string, BodyFit>();
-  const scales: number[] = [];
-  for (const pair of pairs) {
-    const them = theirBody.get(pair.theirs);
-    const us = ourSegment.get(pair.ours);
-    if (!them || !us) continue;
-    const lengthTheirs = spanOf(theirJoints.get(pair.theirs) ?? []);
-    const lengthOurs = spanOf(ourJointsOn(pair.ours));
-    const measurable = lengthTheirs > 1e-3 && lengthOurs > 1e-3;
-    const scale = measurable ? lengthOurs / lengthTheirs : 1;
-    if (measurable) scales.push(scale);
-    fits.set(pair.theirs, {
-      theirs: pair.theirs,
-      ours: pair.ours,
-      position: new Vector3(
-        us.restWorld.translation.x,
-        us.restWorld.translation.y,
-        us.restWorld.translation.z,
-      ),
-      rotation: new Quaternion(
-        us.restWorld.rotation.x,
-        us.restWorld.rotation.y,
-        us.restWorld.rotation.z,
-        us.restWorld.rotation.w,
-      ),
-      scale,
-      scaleFrom: measurable ? 'two joints' : 'none',
-      lengthTheirs: measurable ? Number((1000 * lengthTheirs).toFixed(1)) : null,
-      lengthOurs: measurable ? Number((1000 * lengthOurs).toFixed(1)) : null,
-    });
-  }
-
-  // A body with no length of its own takes the model's median rather than 1, which would draw it
-  // at the source's size beside bones that are not.
-  if (scales.length > 0) {
-    const sorted = [...scales].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)] as number;
-    for (const [name, fit] of fits) {
-      if (fit.scaleFrom === 'none') {
-        fits.set(name, { ...fit, scale: median, scaleFrom: 'model' });
-      }
+  const fitted = new Map<string, Fitted>();
+  for (const name of order) {
+    const ours = ourFor.get(name);
+    if (!ours || !segments.has(ours)) continue;
+    // Match each of their joints to one of ours by the paired bone on the other side of it.
+    const ourTouching = ourJointsOn(ours);
+    const theirPoints: Vector3[] = [];
+    const ourPoints: Vector3[] = [];
+    for (const theirs of touching.get(name) ?? []) {
+      const otherOurs = ourFor.get(theirs.other);
+      if (!otherOurs) continue;
+      const match = ourTouching.find((p) => p.other === otherOurs);
+      if (!match) continue;
+      theirPoints.push(theirs.at);
+      ourPoints.push(match.at);
     }
+    const parentName = theirBody.get(name)?.parent ?? undefined;
+    const fit = fitOne(theirPoints, ourPoints, parentName ? fitted.get(parentName) : undefined, 1);
+    fitted.set(name, fit);
+    fits.set(name, {
+      theirs: name,
+      ours,
+      position: fit.position,
+      rotation: fit.rotation,
+      scale: fit.scale,
+      kind: fit.kind,
+      matched: fit.matched,
+      residual: fit.residual,
+    });
   }
   return fits;
 }
