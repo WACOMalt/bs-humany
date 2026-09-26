@@ -14,10 +14,34 @@ const ROOT = join(import.meta.dirname, '../../..');
 const RUST = readFileSync(join(ROOT, 'apps/studio/src-tauri/src/main.rs'), 'utf8');
 const NODE = readFileSync(join(ROOT, 'tools/train/bin/home.mjs'), 'utf8');
 
+/**
+ * Put the override back as it was. Assigning `undefined` to a `process.env` key does not unset
+ * it: the environment holds only strings, so it stores the string 'undefined', and every later
+ * `dataHome()` in the process then answers a relative directory named `undefined`. An override
+ * that was not set has to be deleted -- through `Reflect`, because the linter's suggested fix for
+ * a `delete` is the very assignment that caused this.
+ */
+function unset(): void {
+  Reflect.deleteProperty(process.env, 'BS_HUMANY_HOME');
+}
+function restore(was: string | undefined): void {
+  if (was === undefined) unset();
+  else process.env.BS_HUMANY_HOME = was;
+}
+
 describe('the data directory', () => {
   it('resolves to a directory named for the project', async () => {
     const { dataHome } = await import('../bin/home.mjs');
-    expect(dataHome().endsWith('bs-humany')).toBe(true);
+    // Without the override, which a developer who trains into a scratch directory may well have
+    // exported in the shell this runs from -- and then the path is theirs, not the project's.
+    const was = process.env.BS_HUMANY_HOME;
+    unset();
+    try {
+      expect(dataHome().endsWith('bs-humany')).toBe(true);
+    } finally {
+      restore(was);
+    }
+    expect('BS_HUMANY_HOME' in process.env).toBe(was !== undefined);
   });
 
   it('names the same three platform locations in both implementations', () => {
@@ -44,8 +68,8 @@ describe('the data directory', () => {
     try {
       expect(dataHome()).toBe('/tmp/bs-humany-test-home');
     } finally {
-      // `undefined` here is `process.env`'s own way of saying unset, and reads as absent.
-      process.env.BS_HUMANY_HOME = was;
+      restore(was);
     }
+    expect('BS_HUMANY_HOME' in process.env).toBe(was !== undefined);
   });
 });
