@@ -27,7 +27,7 @@
           </select>
         </div>
         <div class="transport buttons">
-          <button type="button" id="simStart" title="Start a run, or carry one on from where it was left (Space)">&#9654; Start sim</button>
+          <button type="button" id="simStart" title="Start a run with the current settings (Space)">&#9654; Start sim</button>
           <button type="button" id="simPause" disabled title="Stop computing; everything computed stays (Space)">&#10074;&#10074; Pause sim</button>
           <button type="button" id="reset" disabled title="Back to the starting pose; the recording is thrown away">&#8634; Reset</button>
         </div>
@@ -48,7 +48,7 @@
           <div class="buttons views">
             <button type="button" data-view="front" title="Front (1)">Front</button>
             <button type="button" data-view="left" title="Left (3)">Left</button>
-            <button type="button" data-view="back" title="Back">Back</button>
+            <button type="button" data-view="back" title="Back (9)">Back</button>
             <button type="button" data-view="three-quarter" title="Three-quarter (7)">¾</button>
           </div>
           <div class="group">
@@ -621,7 +621,7 @@
       <div id="timeline-region">
         <div id="timeline-control" hidden>
           <div class="buttons transport">
-            <button type="button" id="playToggle" title="Replay the recording at the output rate (Space)">Play</button>
+            <button type="button" id="playToggle" title="Replay the recording at the output rate">Play</button>
             <button type="button" id="frameBack" title="One output frame back (Left)">&#9664;</button>
             <button type="button" id="frameForward" title="One output frame on; at the end of the recording, computes one (Right)">&#9654;</button>
             <button type="button" id="goLive" title="Back to the newest frame (Home)">Live</button>
@@ -641,7 +641,7 @@
       <!-- The status bar. ------------------------------------------------------------------------- -->
       <footer id="statusbar">
         <p class="note live" id="sim-status">At rest.</p>
-        <div id="hint">drag to orbit · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space play/pause</div>
+        <div id="hint">drag to orbit · right- or Shift-drag to pan · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space start/pause</div>
         <label class="checkbox inline" title="Show the paragraphs that say why a control does what it does"><input type="checkbox" id="showNotes" /> Explain</label>
         <div id="attribution" hidden></div>
       </footer>

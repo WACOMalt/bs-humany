@@ -87,6 +87,7 @@ import {
   serializeSnapshot,
   usesNativeFilePickers,
 } from './session.js';
+import { keyOwnedByTarget } from './shortcuts.js';
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
 import { type TissueTable, tissueTable } from './tissue.js';
@@ -439,7 +440,8 @@ const VIEWS: Record<string, { theta: number; phi: number }> = {
 };
 
 for (const button of window.document.querySelectorAll<HTMLButtonElement>('[data-view]')) {
-  button.addEventListener('click', () => {
+  button.addEventListener('click', (event) => {
+    blurAfterMouse(event);
     const view = VIEWS[button.dataset.view ?? ''];
     if (!view) return;
     controls.target.set(0, 0.88, 0);
@@ -623,11 +625,46 @@ function setMode(mode: 'rest' | 'running' | 'paused' | 'following'): void {
           : 'At rest';
 }
 
+/**
+ * What pressing Start does, in words, one face for each thing it can do.
+ *
+ * The button is three buttons in one -- start a run, carry a paused one on, or throw a live one
+ * away and start again -- and it used to be labelled as though it were always the first. Each face
+ * has its own title, because Restart is the one that discards a recording and the title is where
+ * somebody hovering to find out would look. Space is named only where Space does the same thing:
+ * on a live run it pauses, it never restarts.
+ */
+const START_FACES = {
+  start: { label: '\u25b6 Start sim', title: 'Start a run with the current settings (Space)' },
+  resume: {
+    label: '\u25b6 Resume sim',
+    title: 'Carry the run on from its newest frame; nothing computed is lost (Space)',
+  },
+  restart: {
+    label: '\u21bb Restart',
+    title: 'Throw this run and its recording away and start a new one with the current settings',
+  },
+} as const;
+
+/** Write a button's label and title, only when they change: this runs every frame. */
+function setFace(button: HTMLButtonElement, face: { label: string; title: string }): void {
+  if (button.textContent !== face.label) button.textContent = face.label;
+  if (button.title !== face.title) button.title = face.title;
+}
+
 function setRunControls(running: boolean): void {
-  // Start always begins a run with the current settings; a run in progress is replaced.
   setMode(!running ? 'rest' : simulation?.paused ? 'paused' : 'running');
   ui.simStart.disabled = false;
-  ui.simStart.textContent = !running ? 'Start sim' : simulation?.paused ? 'Resume sim' : 'Restart';
+  // Nothing computed yet -- no run, or one Reset back to its first tick -- is a start, whatever
+  // the paused flag says: there is nothing to carry on from.
+  setFace(
+    ui.simStart,
+    !running || !simulation || simulation.ticks === 0
+      ? START_FACES.start
+      : simulation.paused
+        ? START_FACES.resume
+        : START_FACES.restart,
+  );
   ui.simPause.disabled = !running || simulation?.paused === true;
   ui.reset.disabled = !running;
   ui.exportRecording.disabled = !running;
@@ -972,7 +1009,8 @@ window.addEventListener('pointerup', () => {
   scrubbing = false;
 });
 
-ui.playToggle.addEventListener('click', () => {
+ui.playToggle.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   if (!simulation || capturedFrames() <= 1) return;
   if (playback.playing) {
     playback.playing = false;
@@ -986,10 +1024,12 @@ ui.playToggle.addEventListener('click', () => {
   applyOverlayVisibility();
   setRunControls(true);
 });
-ui.frameBack.addEventListener('click', () => {
+ui.frameBack.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   scrubTo(playback.clampedFrame(capturedFrames()) - 1);
 });
-ui.frameForward.addEventListener('click', () => {
+ui.frameForward.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   if (!simulation) return;
   const frames = capturedFrames();
   const at = following ? frames - 1 : playback.clampedFrame(frames);
@@ -1009,7 +1049,10 @@ ui.frameForward.addEventListener('click', () => {
   }
   scrubTo(at + 1);
 });
-ui.goLive.addEventListener('click', goLive);
+ui.goLive.addEventListener('click', (event) => {
+  blurAfterMouse(event);
+  goLive();
+});
 
 /**
  * Which overlays are drawn, and which cannot be while the playhead is behind the newest frame.
@@ -1417,20 +1460,26 @@ for (const panel of window.document.querySelectorAll<HTMLDetailsElement>('detail
 }
 
 // Keyboard, as the reference has it: Space for the transport, arrows for a frame, Home for live,
-// and the numbers for the views. Never while typing into a control.
+// and the numbers for the views. A focused control keeps the keys it acts on -- Space on a
+// checkbox toggles it, the arrows move a slider -- and gives the rest to these.
 window.addEventListener('keydown', (event) => {
-  const target = event.target as HTMLElement | null;
-  const typing =
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLSelectElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLButtonElement;
-  if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+  // Space on Start or Pause is the transport, not the button. The button would otherwise take it
+  // as a press, and a press of Start on a live run is Restart: after a mouse click on Start,
+  // focus stayed on it, and the Space meant to pause threw the run away instead.
+  if (event.key === ' ' && (event.target === ui.simStart || event.target === ui.simPause)) {
+    event.preventDefault();
+    if (!event.repeat) toggleTransport();
+    return;
+  }
+  if (keyOwnedByTarget(event.target, event.key)) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
   switch (event.key) {
     case ' ':
       event.preventDefault();
-      if (simulation && !simulation.paused && !bridgeFollower.active) ui.simPause.click();
-      else ui.simStart.click();
+      // Held down, Space repeats; a transport that toggled at the key-repeat rate would flicker
+      // between paused and running and land wherever the finger happened to lift.
+      if (event.repeat) return;
+      toggleTransport();
       break;
     case 'ArrowLeft':
       if (!ui.frameBack.disabled) ui.frameBack.click();
@@ -1450,8 +1499,18 @@ window.addEventListener('keydown', (event) => {
     case '7':
       window.document.querySelector<HTMLButtonElement>('[data-view="three-quarter"]')?.click();
       break;
+    case '9':
+      window.document.querySelector<HTMLButtonElement>('[data-view="back"]')?.click();
+      break;
     default:
       return;
+  }
+});
+// A button activates on Space's release, so the keydown above is not enough on its own to keep
+// Start from being pressed by the Space that paused the run.
+window.addEventListener('keyup', (event) => {
+  if (event.key === ' ' && (event.target === ui.simStart || event.target === ui.simPause)) {
+    event.preventDefault();
   }
 });
 
@@ -1468,22 +1527,68 @@ for (const slider of driveInputs.values()) {
   });
 }
 
-ui.simStart.addEventListener('click', () => {
+/**
+ * Give focus back to the page after a mouse click on a transport or view button.
+ *
+ * A clicked button keeps focus, and a focused button owns Space and Enter; left there, the next
+ * Space would press the button again rather than reach the transport. A keyboard activation has a
+ * `detail` of zero and keeps its focus, so somebody tabbing through the buttons stays where they
+ * are.
+ */
+function blurAfterMouse(event: MouseEvent): void {
+  if (event.detail > 0) (event.currentTarget as HTMLElement | null)?.blur();
+}
+
+/** Stop computing, keeping everything computed. */
+function pause(): void {
+  if (!simulation) return;
+  simulation.paused = true;
+  setRunControls(true);
+}
+
+/** Carry the run on from its newest frame, which is live again. */
+function resume(): void {
+  if (!simulation) return;
+  simulation.paused = false;
+  goLive();
+}
+
+/**
+ * What Space does: pause a live run, carry a paused one on, start one when there is none.
+ *
+ * Never a restart, which is only ever a deliberate press of the Restart button, and nothing at
+ * all while following the bridge: the body on screen is somebody else's run, and Space used to
+ * start one of this page's own over it and end the follow.
+ */
+function toggleTransport(): void {
+  if (bridgeFollower.active) return;
+  if (simulation && !simulation.paused) pause();
+  else startOrResume();
+}
+
+/** Carry a run on, or start one when there is none; never a restart. */
+function startOrResume(): void {
+  if (bridgeFollower.active) return;
+  if (simulation) resume();
+  else void startSimulation();
+}
+
+ui.simStart.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   // Paused mid-run, or scrubbed back into it: carry on from the newest frame rather than
   // throwing the run away. Anything else starts a fresh one with the settings as they stand.
   if (simulation && (simulation.paused || !following)) {
-    simulation.paused = false;
-    goLive();
+    resume();
     return;
   }
   void startSimulation();
 });
-ui.simPause.addEventListener('click', () => {
-  if (!simulation) return;
-  simulation.paused = true;
-  setRunControls(true);
+ui.simPause.addEventListener('click', (event) => {
+  blurAfterMouse(event);
+  pause();
 });
-ui.reset.addEventListener('click', () => {
+ui.reset.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   if (!simulation) return;
   simulation.reset();
   simulation.paused = true;
@@ -2295,7 +2400,9 @@ const vrHost = {
         ui.simPause.click();
         break;
       case 'resume':
-        ui.simStart.click();
+        // Carry on, or start when nothing is running -- the headset shows no run as paused, so
+        // its Resume is Start there. Never the Restart a click on Start is on a live run.
+        startOrResume();
         break;
       case 'reset':
         ui.reset.click();
