@@ -76,6 +76,7 @@ import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
 import { Playback } from './playback.js';
 import { RingTubes } from './ringTubes.js';
+import { createRunGate, startSingleFlight } from './runController.js';
 import {
   type SessionFile,
   type SessionSettings,
@@ -246,6 +247,15 @@ let furniture: Group | null = null;
 let groundY = 0;
 /** Whether the full mesh pack is still on its way, for the readout at rest. */
 let fullDetailPending = false;
+/** The gate every run start goes through, so only one can land; see `runController.ts`. */
+const runGate = createRunGate();
+/** The carry a run start in flight was asked for, when it was one. */
+type Carry = { state: ReturnType<Simulation['jointState']>; ticks: number; paused: boolean };
+/**
+ * What the start in flight was asked to do, so a change to the body while it compiles can ask
+ * again rather than let a run built from the old body land. Null when nothing is starting.
+ */
+let pendingStart: { restoreFrom?: SessionFile['simulation']; carry?: Carry } | null = null;
 
 // ---------------------------------------------------------------------------------------------
 // Controls
@@ -381,6 +391,10 @@ function rebuild(cause = 'Body changed'): void {
     ? { state: simulation.jointState(), ticks: simulation.ticks, paused: simulation.paused }
     : null;
   const discarded = simulation?.capture.frameCount ?? 0;
+  // No run yet, but one compiling: it was built from the body as it was, and this rebuild is
+  // about to invalidate it. Ask again with what it was asked for, so the run that lands is the
+  // body the sliders now show rather than none at all.
+  const reissue = !carry && runGate.busy ? pendingStart : null;
 
   const morphology = currentMorphology();
   const resolved = resolveMorphology(morphology);
@@ -416,6 +430,7 @@ function rebuild(cause = 'Body changed'): void {
   refreshSelection();
   updateReadouts(resolved.input.stature, resolved.input.mass);
   showValidation();
+  if (reissue) void startSimulation(reissue.restoreFrom, reissue.carry);
   if (!carry) return;
   void startSimulation(undefined, carry);
   // After the start is under way, because a start clears the last run's notices as it begins.
@@ -672,9 +687,25 @@ function showReports(sim: Simulation): void {
 }
 
 function stopSimulation(): void {
-  if (!simulation) return;
-  grabState = null;
+  // A start still compiling is abandoned too: a stop, a follow or a new start wants no run from
+  // before it to land afterwards.
+  const wasStarting = runGate.busy;
+  runGate.invalidate();
+  pendingStart = null;
+  if (!simulation) {
+    if (wasStarting) {
+      setRunControls(false);
+      setSimulationStatus(restStatus());
+    }
+    return;
+  }
   simulation.dispose();
+  forgetRun();
+}
+
+/** Take a run's traces off the page, without disposing it: whoever calls this has, or will. */
+function forgetRun(): void {
+  grabState = null;
   simulation = null;
   overlays?.dispose();
   overlays = null;
@@ -729,6 +760,10 @@ const START_FACES = {
     label: '\u21bb Restart',
     title: 'Throw this run and its recording away and start a new one with the current settings',
   },
+  compiling: {
+    label: 'Compiling\u2026',
+    title: 'Building the body and the solver for a new run; the page may stop for a moment',
+  },
 } as const;
 
 /** Write a button's label and title, only when they change: this runs every frame. */
@@ -739,16 +774,23 @@ function setFace(button: HTMLButtonElement, face: { label: string; title: string
 
 function setRunControls(running: boolean): void {
   setMode(!running ? 'rest' : simulation?.paused ? 'paused' : 'running');
-  ui.simStart.disabled = false;
+  // Busy while a start compiles, so a second press cannot begin a second start and the page says
+  // why it is about to stop answering for a moment.
+  const compiling = runGate.busy;
+  ui.simStart.disabled = compiling;
+  if (compiling) ui.simStart.setAttribute('aria-busy', 'true');
+  else ui.simStart.removeAttribute('aria-busy');
   // Nothing computed yet -- no run, or one Reset back to its first tick -- is a start, whatever
   // the paused flag says: there is nothing to carry on from.
   setFace(
     ui.simStart,
-    !running || !simulation || simulation.ticks === 0
-      ? START_FACES.start
-      : simulation.paused
-        ? START_FACES.resume
-        : START_FACES.restart,
+    compiling
+      ? START_FACES.compiling
+      : !running || !simulation || simulation.ticks === 0
+        ? START_FACES.start
+        : simulation.paused
+          ? START_FACES.resume
+          : START_FACES.restart,
   );
   ui.simPause.disabled = !running || simulation?.paused === true;
   ui.reset.disabled = !running;
@@ -856,6 +898,9 @@ interface DrawnBox {
 
 /** Draw a scenario's static boxes so the body has something visible to land on. */
 function showFurniture(boxes: readonly DrawnBox[]): void {
+  // Whatever was up comes down first: two starts landing close together each drew their own set,
+  // and the first set stayed in the scene with nothing left to take it down.
+  clearFurniture();
   if (boxes.length === 0) return;
   furniture = new Group();
   const material = new MeshStandardMaterial({ color: 0x4a5566, roughness: 0.9 });
@@ -947,7 +992,7 @@ function showCapabilities(sim: Simulation): void {
 
 async function startSimulation(
   restoreFrom?: SessionFile['simulation'],
-  carry?: { state: ReturnType<Simulation['jointState']>; ticks: number; paused: boolean },
+  carry?: Carry,
 ): Promise<void> {
   if (!skeletonMesh || !skinned) {
     // Pressed before the bones arrived. It used to do nothing at all, which on a slow connection
@@ -958,90 +1003,145 @@ async function startSimulation(
   if (bridgeFollower.active) stopFollowing();
   stopSimulation();
   // What was said about the last run is not about this one. An error stays, because nobody has
-  // necessarily read it yet.
-  dismissAnnouncement(true);
-  setSimulationStatus('Compiling…');
+  // necessarily read it yet; and a carry is the same run going on, so what was said stays too --
+  // a slider dragged through a run carries it several times, and the first carry's notice that
+  // the capture was discarded is the one that matters.
+  if (!carry) dismissAnnouncement(true);
+  pendingStart = { ...(restoreFrom ? { restoreFrom } : {}), ...(carry ? { carry } : {}) };
+  // Kept so a failure after the run was put in place can take it out again.
+  let built: Simulation | undefined;
   try {
-    const chosen = currentScenario();
-    const sim = new Simulation(document_, resolveMorphology(currentMorphology()), {
-      profileId: ui.profile.value,
-      backend: ui.backend.value as BackendId,
-      passiveJoints: ui.passive.checked,
-      redistribute: ui.redistribute.checked,
-      scenario: chosen,
-      dropHeight: Number(ui.dropHeight.value),
-      groundHeight: groundY,
-      // A scenario that drives muscles gets them whether the box is ticked or not: the box is
-      // there to keep them off the runs that do not need them, not to make a muscle scenario
-      // silently run a bare skeleton.
-      muscles: ui.muscles.checked || chosen?.muscles === true,
-      // Only when somebody moved it. Left alone, each profile keeps the step rate its solver was
-      // tuned for, which is the number that ought to win by default.
-      ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
-      outputFramerate: Number(ui.outputFramerate.value),
-      nerves: brain?.setup,
-      // The cord the Spine panel shows, so a Start, a Reset-and-Start, a carry restart and a
-      // restored session all run the reflexes the sliders say rather than none at all.
-      reflex: brain?.state().reflex,
-      // A checkpoint trained with nothing under the brain has never felt a scenario's tone, so
-      // the scenario's script does everything else it does and drives no muscle.
-      scriptMuscleDrive: brain?.chosenRecipe()?.feedforward.kind !== 'none',
+    await startSingleFlight(runGate, {
+      before: async () => {
+        setRunControls(false);
+        setSimulationStatus('Compiling the body…');
+        await paintYield();
+      },
+      // Built after the yield, so it reads the settings as they are when it is built: a slider
+      // still moving when Start was pressed lands at its final value.
+      build: () => {
+        const chosen = currentScenario();
+        built = new Simulation(document_, resolveMorphology(currentMorphology()), {
+          profileId: ui.profile.value,
+          backend: ui.backend.value as BackendId,
+          passiveJoints: ui.passive.checked,
+          redistribute: ui.redistribute.checked,
+          scenario: chosen,
+          dropHeight: Number(ui.dropHeight.value),
+          groundHeight: groundY,
+          // A scenario that drives muscles gets them whether the box is ticked or not: the box
+          // is there to keep them off the runs that do not need them, not to make a muscle
+          // scenario silently run a bare skeleton.
+          muscles: ui.muscles.checked || chosen?.muscles === true,
+          // Only when somebody moved it. Left alone, each profile keeps the step rate its solver
+          // was tuned for, which is the number that ought to win by default.
+          ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
+          outputFramerate: Number(ui.outputFramerate.value),
+          nerves: brain?.setup,
+          // The cord the Spine panel shows, so a Start, a Reset-and-Start, a carry restart and
+          // a restored session all run the reflexes the sliders say rather than none at all.
+          reflex: brain?.state().reflex,
+          // A checkpoint trained with nothing under the brain has never felt a scenario's tone,
+          // so the scenario's script does everything else it does and drives no muscle.
+          scriptMuscleDrive: brain?.chosenRecipe()?.feedforward.kind !== 'none',
+        });
+        return built;
+      },
+      install: (sim) => installRun(sim, restoreFrom, carry),
     });
-    await sim.start();
-    // A fresh backend always starts with gravity and a solid floor; both toggles are session
-    // settings rather than run ones.
-    if (!ui.gravity.checked) sim.setGravity(false);
-    if (!ui.floor.checked) sim.setGroundCollision(false);
-    applyMuscleDrive(sim);
-    // A fresh run opens at the profile's own step rate, unless the slider has been moved off it.
-    if (!fidelityTouched) ui.stepsPerSecond.value = String(sim.stepsPerSecond);
-    applyFidelity(sim);
-    showRates();
-    if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
-    let unmatched: string[] = [];
-    if (carry) {
-      unmatched = sim.carryFrom(carry.state, carry.ticks);
-      sim.paused = carry.paused;
-      if (unmatched.length > 0)
-        console.warn('DoFs without a counterpart, left at neutral:', unmatched);
-    }
-    simulation = sim;
-    following = true;
-    playback.rewind();
-    overlays = createOverlays(sim.articulation, {
-      musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
-    });
-    world.add(overlays.root);
-    applyOverlayVisibility();
-    showFurniture(sim.staticBoxes);
-    // The Align tab draws our own joints and attachments, which are this body's: when the body
-    // is rebuilt they are a different body's and have to be read again.
-    align?.refresh();
-    showCapabilities(sim);
-    must<HTMLElement>('#diagnostics').hidden = false;
-    must<HTMLElement>('#timeline-control').hidden = false;
-    showReports(sim);
-    // A body carried into a profile with other joints leaves some of the old pose behind. That
-    // is expected and not an error, but it is a difference in the body that is running, so it is
-    // listed with the other things the compile had to say rather than only on the console.
-    if (unmatched.length > 0) {
-      const item = window.document.createElement('li');
-      item.textContent =
-        `[carry] ${unmatched.length} DoFs had no counterpart in ${sim.recording.profile} ` +
-        `and start at neutral: ${unmatched.join(', ')}`;
-      must<HTMLUListElement>('#sim-report').appendChild(item);
-    }
-    refreshSelection();
-    setRunControls(true);
-    setSimulationStatus('Running.');
   } catch (error) {
+    // The run may have been put in place before something in the installing failed; the gate has
+    // disposed it, so it only has to come off the page.
+    if (built && simulation === built) forgetRun();
     console.error('The simulation failed to start.', error);
-    announce(`The run failed to start: ${error instanceof Error ? error.message : String(error)}`, {
+    announce(`The run failed to start: ${messageOf(error)}`, {
       error: true,
     });
-    setRunControls(false);
     setSimulationStatus(restStatus());
+  } finally {
+    if (!runGate.busy) pendingStart = null;
+    // Whichever start this was, the controls follow what is true now: a run, a newer start still
+    // compiling, or nothing.
+    setRunControls(simulation !== null);
   }
+}
+
+/**
+ * Wait until the busy Start has been painted, then a little more.
+ *
+ * Building the body freezes the page for as long as it takes, and a freeze that begins before
+ * the button has turned grey looks like a click that did nothing. One animation frame is not
+ * enough -- the callback runs before that frame paints -- so the wait is a frame and then a task.
+ * The timeout is for a page that is not painting at all, hidden or minimised, which would
+ * otherwise never start.
+ */
+function paintYield(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      setTimeout(resolve, 0);
+    };
+    requestAnimationFrame(go);
+    setTimeout(go, 100);
+  });
+}
+
+/**
+ * Put a started run in place: its settings, its restored or carried state, and everything on the
+ * page that shows it. Only ever called for the start that is still current.
+ *
+ * What can fail is done first, before the run is assigned, so a failure leaves nothing of it on
+ * the page.
+ */
+function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], carry?: Carry): void {
+  // A fresh backend always starts with gravity and a solid floor; both toggles are session
+  // settings rather than run ones.
+  if (!ui.gravity.checked) sim.setGravity(false);
+  if (!ui.floor.checked) sim.setGroundCollision(false);
+  applyMuscleDrive(sim);
+  // A fresh run opens at the profile's own step rate, unless the slider has been moved off it.
+  if (!fidelityTouched) ui.stepsPerSecond.value = String(sim.stepsPerSecond);
+  applyFidelity(sim);
+  showRates();
+  if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
+  let unmatched: string[] = [];
+  if (carry) {
+    unmatched = sim.carryFrom(carry.state, carry.ticks);
+    sim.paused = carry.paused;
+    if (unmatched.length > 0)
+      console.warn('DoFs without a counterpart, left at neutral:', unmatched);
+  }
+  simulation = sim;
+  following = true;
+  playback.rewind();
+  overlays = createOverlays(sim.articulation, {
+    musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
+  });
+  world.add(overlays.root);
+  applyOverlayVisibility();
+  showFurniture(sim.staticBoxes);
+  // The Align tab draws our own joints and attachments, which are this body's: when the body
+  // is rebuilt they are a different body's and have to be read again.
+  align?.refresh();
+  showCapabilities(sim);
+  must<HTMLElement>('#diagnostics').hidden = false;
+  must<HTMLElement>('#timeline-control').hidden = false;
+  showReports(sim);
+  // A body carried into a profile with other joints leaves some of the old pose behind. That
+  // is expected and not an error, but it is a difference in the body that is running, so it is
+  // listed with the other things the compile had to say rather than only on the console.
+  if (unmatched.length > 0) {
+    const item = window.document.createElement('li');
+    item.textContent =
+      `[carry] ${unmatched.length} DoFs had no counterpart in ${sim.recording.profile} ` +
+      `and start at neutral: ${unmatched.join(', ')}`;
+    must<HTMLUListElement>('#sim-report').appendChild(item);
+  }
+  refreshSelection();
+  setRunControls(true);
+  setSimulationStatus('Running.');
 }
 
 /**
@@ -1088,7 +1188,7 @@ function stalled(sim: Simulation, error: unknown): void {
   console.error('A simulation tick failed; the run is paused.', error);
   announce(
     `The simulation failed at ${(sim.ticks * sim.dt).toFixed(3)} s and is paused: ` +
-      `${error instanceof Error ? error.message : String(error)}. Reset or Restart to go on.`,
+      `${messageOf(error)}. Reset or Restart to go on.`,
     { error: true },
   );
   setRunControls(true);
@@ -1692,14 +1792,15 @@ function resume(): void {
  * start one of this page's own over it and end the follow.
  */
 function toggleTransport(): void {
-  if (bridgeFollower.active) return;
+  // Nor while a run is compiling: the start in flight is the answer to the last press.
+  if (bridgeFollower.active || runGate.busy) return;
   if (simulation && !simulation.paused) pause();
   else startOrResume();
 }
 
 /** Carry a run on, or start one when there is none; never a restart. */
 function startOrResume(): void {
-  if (bridgeFollower.active) return;
+  if (bridgeFollower.active || runGate.busy) return;
   if (simulation) resume();
   else void startSimulation();
 }
@@ -1855,7 +1956,7 @@ async function saving(what: string, write: Promise<boolean>): Promise<void> {
     if (await write) announce(`Wrote ${what}.`);
   } catch (error) {
     console.error(`Writing ${what} failed.`, error);
-    announce(`Writing ${what} failed: ${error instanceof Error ? error.message : String(error)}`, {
+    announce(`Writing ${what} failed: ${messageOf(error)}`, {
       error: true,
     });
   }
@@ -1913,14 +2014,14 @@ async function loadSessionText(text: string): Promise<void> {
   try {
     const parsed: unknown = JSON.parse(text);
     if (!isSessionFile(parsed)) throw new Error('Not a bs-humany session file.');
+    // A session with a run in it starts that run. Stopped first, so the settings going in do not
+    // carry the old run across into a restart of their own that the snapshot then races.
+    if (parsed.simulation) stopSimulation();
     applySettings(parsed.settings);
     if (parsed.simulation) await startSimulation(parsed.simulation);
   } catch (error) {
     console.error('The session failed to load.', error);
-    announce(
-      `The session failed to load: ${error instanceof Error ? error.message : String(error)}`,
-      { error: true },
-    );
+    announce(`The session failed to load: ${messageOf(error)}`, { error: true });
   }
 }
 
@@ -1953,9 +2054,8 @@ function showValidation(): void {
   } catch (error) {
     // Both tables say so, rather than go on showing the last body's numbers as though they were
     // this one's -- which is what returning quietly here used to do.
-    const row = `<tbody><tr><td>Validation unavailable for ${escapeHtml(ui.profile.value)}: ${escapeHtml(
-      error instanceof Error ? error.message : String(error),
-    )}</td></tr></tbody>`;
+    const why = `Validation unavailable for ${ui.profile.value}: ${messageOf(error)}`;
+    const row = `<tbody><tr><td>${escapeHtml(why)}</td></tr></tbody>`;
     must<HTMLTableElement>('#inertia-audit').innerHTML = row;
     must<HTMLTableElement>('#joint-sweep').innerHTML = row;
     return;
@@ -2362,7 +2462,7 @@ function loadFailed(message: string, error: unknown): void {
   loading.hidden = false;
   loading.textContent = `${message} See the console.`;
   loading.classList.add('error');
-  announce(`${message} ${error instanceof Error ? error.message : String(error)}`, {
+  announce(`${message} ${messageOf(error)}`, {
     error: true,
   });
 }
@@ -2376,7 +2476,7 @@ function loadFailed(message: string, error: unknown): void {
  */
 function fullDetailFailed(error: unknown): void {
   console.error('The full-detail bones failed to load; staying on the reduced set.', error);
-  const why = error instanceof Error ? error.message : String(error);
+  const why = messageOf(error);
   showMeshDetail('reduced (full detail failed to load)', why);
   announce('Full-detail bones failed to load; showing the reduced set (see the console).', {
     error: true,
@@ -2434,6 +2534,11 @@ function must<T extends Element>(selector: string): T {
   const element = window.document.querySelector<T>(selector);
   if (!element) throw new Error(`Missing required element: ${selector}`);
   return element;
+}
+
+/** An error's message, or whatever was thrown as a string. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function escapeHtml(value: string): string {
@@ -2652,6 +2757,10 @@ const vrHost = {
           case 'crural':
           case 'brachial':
           case 'legLength':
+            // The slider's own events rebuild the body and carry a running one across; a restart
+            // on top of that was a second run racing the first.
+            setFromPanel(ui[key], value);
+            break;
           case 'dropHeight':
           case 'passive':
           case 'redistribute':
@@ -2726,10 +2835,7 @@ if (isTauri()) {
         vrLink = link;
         connectVr.textContent = 'Disconnect VR viewer';
       } catch (error) {
-        announce(
-          `The VR viewer did not connect: ${error instanceof Error ? error.message : String(error)}`,
-          { error: true },
-        );
+        announce(`The VR viewer did not connect: ${messageOf(error)}`, { error: true });
       } finally {
         connectVr.disabled = false;
       }
@@ -3013,10 +3119,7 @@ brain = createBrainPanel({
     try {
       simulation.handOver(setup.policy, setup.authority);
     } catch (error) {
-      announce(
-        `The checkpoint could not be handed over: ${error instanceof Error ? error.message : String(error)}`,
-        { error: true },
-      );
+      announce(`The checkpoint could not be handed over: ${messageOf(error)}`, { error: true });
       // And back to the panel, whose Hand over catches it and says the checkpoint could not be
       // loaded -- rather than "Policy chosen", which is what it said while nothing was in charge.
       throw error;

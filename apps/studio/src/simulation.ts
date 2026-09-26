@@ -794,7 +794,7 @@ export class Simulation {
     if (!this.capture.full && !this.muscleCapture.full) this.capturesStoppedBy = undefined;
   }
 
-  /** Whether the run has gone on past the newest captured tick, leaving a gap a resume cannot span. */
+  /** Whether the run has gone past the newest captured tick, a gap no resume can span. */
   private runPastCapture(): boolean {
     return (
       this.capture.frameCount > 0 &&
