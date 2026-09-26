@@ -32,6 +32,7 @@ import {
   jointsByName,
   readMjcf,
 } from '../../validate-external/src/mjcf.mjs';
+import { reportIsCurrent } from '../lib/report.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const REFERENCE = join(ROOT, 'tools/validate-external/myo_sim');
@@ -473,9 +474,16 @@ lines.push('');
 
 const path = join(ROOT, 'docs/validation/external.md');
 const report = `${lines.join('\n')}`;
+/** The report as committed, or undefined if there is none yet -- which is never current. */
+const existing = (() => {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return undefined;
+  }
+})();
 if (check) {
-  const existing = readFileSync(path, 'utf8');
-  if (existing.split('Generated ')[0] !== report.split('Generated ')[0]) {
+  if (!reportIsCurrent(existing, report)) {
     console.error(
       'External validation has changed and docs/validation/external.md is stale. ' +
         'Run `pnpm validate:external` and commit the result with the change that moved it.',
@@ -494,6 +502,9 @@ if (check) {
   console.error(
     `external validation: ${findings.length} comparisons, none unexplained, report current.`,
   );
+} else if (reportIsCurrent(existing, report)) {
+  // Nothing but the date would change, and a date that moves on every run is churn in a commit.
+  console.error(`${path} is current: ${findings.length} comparisons.`);
 } else {
   writeFileSync(path, report);
   console.error(

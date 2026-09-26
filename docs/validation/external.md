@@ -8,7 +8,7 @@ Reference: MyoSuite `myo_sim` at commit `eb327acbae`, vendored under
 `tools/validate-external/` with its Apache-2.0 licence. See that directory for how to verify
 or advance the pin.
 
-Generated 2026-09-15. 180 comparisons, 0 to investigate, 4 differing by a recorded decision, 67 values provisional and so not compared.
+Generated 2026-09-26. 190 comparisons, 0 to investigate, 4 differing by a recorded decision, 67 values provisional and so not compared.
 
 ## What is compared
 
@@ -125,6 +125,11 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | patellofemoral_r/rotation | [-1.79241, 0.010506] | [-1.79241, 0.010506] | as stated |
 | ok | talocrural_r/dorsiflexion | [-0.698132, 0.523599] | [-0.698132, 0.523599] | as stated |
 | ok | subtalar_r/inversion | [-0.349066, 0.349066] | [-0.349066, 0.349066] | as stated |
+| ok | mtp_1_r/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_2_r/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_3_r/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_4_r/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_5_r/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
 | ok | acromioclavicular_l/unrotate_clavicle_elevation | [-0.318, 0] | [-0.318, 0] | as stated |
 | ok | acromioclavicular_l/unrotate_clavicle_protraction | [0, 0.75] | [0, 0.75] | as stated |
 | ok | acromioclavicular_l/protraction | [-0.152, 0] | [-0.152, 0] | as stated |
@@ -153,6 +158,11 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | patellofemoral_l/rotation | [-1.79241, 0.010506] | [-1.79241, 0.010506] | as stated |
 | ok | talocrural_l/dorsiflexion | [-0.698132, 0.523599] | [-0.698132, 0.523599] | as stated |
 | ok | subtalar_l/inversion | [-0.349066, 0.349066] | [-0.349066, 0.349066] | as stated |
+| ok | mtp_1_l/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_2_l/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_3_l/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_4_l/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
+| ok | mtp_5_l/extension | [-0.523599, 0.523599] | [-0.523599, 0.523599] | as stated |
 | ok | lumbar_region_lower: flexion to lateral_bending_right | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | lumbar_region_lower: flexion to axial_rotation_left | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | lumbar_region_lower: lateral_bending_right to axial_rotation_left | 90.000 deg | 90.000 deg | same angle between the axes |
@@ -220,6 +230,6 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | acromioclavicular_l_dof2_follows_elevation | 0.00000 -0.0490000 0.00000 0.00000 0.00000 | 0 -0.049 0 0 0 | every coefficient as stated |
 | ok | acromioclavicular_l_dof3_follows_elevation | 0.00000 0.396000 0.00000 0.00000 0.00000 | 0 0.396 0 0 0 | every coefficient as stated |
 | ok | acromioclavicular_l_dof4_follows_elevation | 0.00000 0.178000 0.00000 0.00000 0.00000 | 0 0.178 0 0 0 | every coefficient as stated |
-| ok | thigh length | 0.4056 m | 0.4044 m | the two models are built at different subjects' sizes, so the absolute lengths differ; what follows compares proportions, which do not depend on that |
-| ok | shank length, as a fraction of the thigh | 0.9636 | 0.9894 | 2.6% apart; the two are different subjects, so a few per cent is expected |
+| ok | thigh length | 0.4069 m | 0.4044 m | the two models are built at different subjects' sizes, so the absolute lengths differ; what follows compares proportions, which do not depend on that |
+| ok | shank length, as a fraction of the thigh | 0.9474 | 0.9894 | 4.2% apart; the two are different subjects, so a few per cent is expected |
 | ok | passive moment curves | Riener and Edrich double exponential, per DoF | none | the reference models state damping and armature but no passive moment, so there is nothing to compare |

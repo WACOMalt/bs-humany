@@ -11,7 +11,7 @@ thing, by importing the package rather than grepping for a word. Where it is beh
 evidence is a named test, and the check confirms that test still exists by that name; whether
 it passes is the test suite's business, and CI runs both.
 
-Generated 2026-09-16. 10 of 10 obligations met.
+Generated 2026-09-26. 10 of 10 obligations met.
 
 ## 1. DelayLine primitive built and tested, unused.
 
@@ -20,13 +20,13 @@ Generated 2026-09-16. 10 of 10 obligations met.
 - `DelayLine` is exported from `@bs-humany/kernel`
 - `packages/kernel/src/delayLine.test.ts`: "returns the value from exactly k ticks ago"
 - `packages/kernel/src/delayLine.test.ts`: "does not allocate on push or read"
-- nothing outside the kernel uses it, as intended
+- held open in Phase 1; now used by `packages/modules-nerves/src/spinalModule.ts` (ADR-014: the spinal cord reads its afferents back from a conduction delay ago, per spec 10.5)
 
 ## 2. attachmentSites in HSDL, populated for major landmarks.
 
 **Met.**
 
-- 552 sites across 270 structures, as muscle_origin and muscle_insertion and tendon_via_point and ligament
+- 1016 sites across 519 structures, as muscle_origin and muscle_insertion and tendon_via_point and ligament
 - every site names a bone the document carries
 - every site carries a citation
 
@@ -36,7 +36,7 @@ Generated 2026-09-16. 10 of 10 obligations met.
 
 - `moduleNamespace` and `writeExtension` are exported
 - a value written under `bsums.xyz.bs-humany.audit` reads back
-- 608 collision proxies carry their provenance this way
+- 636 collision proxies carry their provenance this way
 - `docs/guides/hsdl-extensions.md` documents the convention
 
 ## 4. Realized (not just commanded) per-DoF force readable from both backends.
@@ -70,7 +70,7 @@ Generated 2026-09-16. 10 of 10 obligations met.
 **Met.**
 
 - the phase list is input, sense, control, actuate, solve, post
-- no module runs in it, which is the point: it is held open
+- held open in Phase 1; now used by `packages/modules-nerves/src/nervesModule.ts` (ADR-013: the trained policy, between the senses and the muscles), `packages/modules-nerves/src/noise.ts` (commit bc8fcfc: a slow tremor added onto the muscles alongside every other driver), `packages/modules-nerves/src/spinalModule.ts` (ADR-014: the reflex arcs add onto the same drive as the policy, beneath it)
 - `packages/kernel/src/kernel.test.ts`: "honours rateDivisor from tick zero"
 
 ## 8. actuation.* accumulator semantics work with 2+ simultaneous writers, tested.

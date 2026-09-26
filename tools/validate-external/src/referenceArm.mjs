@@ -53,6 +53,24 @@ export const ELBOW_TENDONS = Object.freeze({
   TRImed_tendon: 'triceps_brachii_medial_r',
 });
 
+/**
+ * The reference's forearm coordinate at the pose our forearm's zero is, radians.
+ *
+ * The two models do not put their forearms in the same place at zero. Our `radioulnar` 0 is the
+ * pose the skeleton was built in, which is the anatomical position: palm forward, fully
+ * supinated, the radial styloid forty millimetres lateral of the ulnar one. MyoSuite's
+ * `pro_sup_r` 0 is thumb-up, midway, and its range runs a quarter turn either way from there. So
+ * our zero is its quarter turn of supination, and the sign is the reference's own: negative
+ * `pro_sup_r` supinates.
+ *
+ * Anything that sets both forearms to "the same" pose goes through this, because a comparison
+ * made at two different poses is not a comparison. The biceps shows it plainly: it supinates as
+ * well as flexing, and its moment arm about the elbow moves by a centimetre and more with the
+ * forearm's turn, so measuring the reference thumb-up against ours palm-forward reports a
+ * disagreement neither model has.
+ */
+export const REFERENCE_FOREARM_AT_OUR_NEUTRAL = -Math.PI / 2;
+
 /** The forearm's, which share the arm's files with the elbow's. */
 export const FOREARM_TENDONS = Object.freeze({
   PT_tendon: 'pronator_teres_r',

@@ -44,7 +44,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { ELBOW_TENDONS, loadReferenceArm } from '../../validate-external/src/referenceArm.mjs';
+import {
+  ELBOW_TENDONS,
+  REFERENCE_FOREARM_AT_OUR_NEUTRAL,
+  loadReferenceArm,
+} from '../../validate-external/src/referenceArm.mjs';
+import { reportIsCurrent } from '../lib/report.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const COMMIT = 'eb327acbae0fad12279495040607f5235d962328';
@@ -73,12 +78,12 @@ const RECORDED = [
   {
     unit: 'biceps_brachii_long_r',
     question: 'OQ-015',
-    note: 'Agrees through the middle and upper range. The disagreement is at full extension, where ours sits at the trochlea\u2019s radius and the reference passes within a millimetre of the elbow axis -- which would leave a biceps unable to begin flexing from a straight arm, so the difference is not evidence against ours.',
+    note: 'Measured with both forearms supinated, ours runs up to six millimetres above the reference from full extension to 90 degrees, and within one of it at 80 and 90. What is left is deep flexion: past 90 degrees ours falls away faster than the reference\u2019s, to about 11 mm at 130 against its 22, and that end is where the worst row is. The mean is within tolerance, so this is context rather than an excuse; it stays here so a path change that widens the gap at the top of the range is seen as the same fault.',
   },
   {
     unit: 'biceps_brachii_short_r',
     question: 'OQ-015',
-    note: 'As the long head, and at the same place in the range.',
+    note: 'As the long head, and at the same place in the range: about 8 mm at 130 degrees against the reference\u2019s 18.',
   },
   {
     unit: 'brachialis_r',
@@ -135,7 +140,11 @@ const muscles = compileMuscleSet(
   document.wrappingSurfaces ?? [],
 );
 
-/** The sweep: the elbow's own range, at ten-degree steps, forearm neutral. */
+/**
+ * The sweep: the elbow's own range, at ten-degree steps, with our forearm at its zero -- the
+ * supinated pose the skeleton was built in. The reference is measured at the same pose, which in
+ * its own coordinate is a quarter turn of supination rather than its zero; see below.
+ */
 const FROM = 0;
 const TO = 130;
 const STEP = 10;
@@ -164,8 +173,12 @@ const mujoco = await loadMujoco();
 const reference = loadReferenceArm(mujoco);
 const referenceArms = new Map();
 for (const name of Object.keys(ELBOW_TENDONS)) referenceArms.set(name, []);
+// At our forearm's pose, not the reference's zero: its zero is thumb-up and ours is palm forward,
+// and the biceps -- a supinator as much as a flexor -- has a moment arm about the elbow that moves
+// by a centimetre and more between the two. Compared at its own zero, the reference put our biceps
+// three times as far from it as it is at the pose they share.
 for (const angle of angles) {
-  const arms = reference.momentArms(angle, 0);
+  const arms = reference.momentArms(angle, REFERENCE_FOREARM_AT_OUR_NEUTRAL);
   for (const [tendon, unit] of Object.entries(ELBOW_TENDONS)) {
     referenceArms.get(tendon).push(arms.get(tendon) ?? Number.NaN);
     void unit;
@@ -268,7 +281,8 @@ lines.push(
 lines.push('with the change that moved it.');
 lines.push('');
 lines.push(
-  `The elbow swept from ${FROM} to ${TO} degrees of flexion in ${STEP}-degree steps, forearm neutral, ` +
+  `The elbow swept from ${FROM} to ${TO} degrees of flexion in ${STEP}-degree steps, forearm ` +
+    'supinated: ours pronation 0, reference pro_sup_r -90°, ' +
     'against the vendored MyoSuite arm at commit `' +
     COMMIT.slice(0, 10) +
     '` loaded into MuJoCo and measured the same way. Both sides are computed here: nothing is ' +
@@ -321,9 +335,17 @@ lines.push('');
 const report = `${lines.join('\n')}`;
 const path = join(ROOT, 'docs/validation/moment-arms.md');
 
+/** The report as committed, or undefined if there is none yet -- which is never current. */
+function readReport(file) {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
 if (check) {
-  const existing = readFileSync(path, 'utf8');
-  if (existing.split('Generated ')[0] !== report.split('Generated ')[0]) {
+  if (!reportIsCurrent(readReport(path), report)) {
     console.error(
       'Moment arms have changed and docs/validation/moment-arms.md is stale. ' +
         'Run `pnpm validate:moment-arms` and commit the result with the change that moved it.',
@@ -349,6 +371,9 @@ if (check) {
       `${findings.filter((f) => f.status.startsWith('recorded')).length} recorded difference(s), ` +
       'report current.',
   );
+} else if (reportIsCurrent(readReport(path), report)) {
+  // Nothing but the date would change, and a date that moves on every run is churn in a commit.
+  console.error(`${relative(ROOT, path)} is current: ${findings.length} muscles.`);
 } else {
   writeFileSync(path, report);
   console.error(
