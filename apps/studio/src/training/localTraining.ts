@@ -11,7 +11,7 @@
  */
 
 import { type RigOptions, type TrainingRecipe, rigOptionsFor } from '@bs-humany/train/rig';
-import { type GenerationReport, train } from '@bs-humany/train/trainer';
+import { type GenerationReport, describeResult, train } from '@bs-humany/train/trainer';
 import { createWorkerPool } from './pool.js';
 import { createCheckpointStore } from './store.js';
 
@@ -82,12 +82,9 @@ export function startLocalTraining(options: LocalTrainingOptions): LocalRun {
         onNote: options.onNote,
         onGeneration: options.onGeneration,
       });
-      options.onDone?.(
-        result.generation === 0
-          ? `Stopped after ${result.episodes} episodes; nothing beat the record.`
-          : `Stopped: best ${result.fitness.toFixed(3)} (${result.alive.toFixed(2)} s up) ` +
-              `from generation ${result.generation}, ${result.episodes} episodes.`,
-      );
+      // The same line the terminal prints, so a run that beat nothing says so in both places
+      // rather than printing its record of minus infinity as a score.
+      options.onDone?.(`Stopped: ${describeResult(result)}.`);
     } catch (error) {
       options.onError?.(String(error));
     } finally {
