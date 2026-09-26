@@ -149,6 +149,9 @@ Four regions on a CSS grid, the viewport taking whatever is left:
   live), the scrubber, frame and time readouts, and the recording's size.
 - **Status bar** across the whole width: the simulation status on the left, the viewport hint
   on the right.
+  Beside `#sim-status`, the run readout the frame loop rewrites every frame, sits `#sim-event`,
+  the event line: one-off messages and errors (a file written, a failed hand-over, the full mesh
+  failing to load) written once through `announce()` and held until clicked or replaced.
 
 The narrow-screen rule stays: below 760 px the properties editor becomes a bottom sheet and the
 timeline sits above it.

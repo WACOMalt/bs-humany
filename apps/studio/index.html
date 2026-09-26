@@ -589,6 +589,12 @@
               <dl class="readout" id="capabilities"></dl>
               <ul id="sim-report" class="limitations"></ul>
             </details>
+            <details class="panel" id="body-validity-panel" open hidden>
+              <summary>Body validity</summary>
+              <p class="note">The resolved body failed the physical checks of spec section 6.4. It
+              still renders and still runs; it is simply wrong in the ways listed.</p>
+              <ul id="body-validity" class="limitations"></ul>
+            </details>
             <details class="panel">
               <summary>Inertia audit</summary>
               <p class="note">Compiled segment masses against the body mass, and the whole-body centre of mass at rest.</p>
@@ -602,6 +608,7 @@
             <details class="panel" open>
               <summary>Cost</summary>
               <dl class="readout">
+                <dt>Mesh</dt><dd id="stat-mesh">—</dd>
                 <dt>Bones</dt><dd id="stat-bones">—</dd>
                 <dt>Triangles</dt><dd id="stat-tris">—</dd>
                 <dt>Rebuild</dt><dd id="stat-build">—</dd>
@@ -640,7 +647,8 @@
 
       <!-- The status bar. ------------------------------------------------------------------------- -->
       <footer id="statusbar">
-        <p class="note live" id="sim-status">At rest.</p>
+        <p class="note live" id="sim-status" aria-live="off">At rest.</p>
+        <p id="sim-event" role="status" aria-live="polite" hidden></p>
         <div id="hint">drag to orbit · right- or Shift-drag to pan · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space start/pause</div>
         <label class="checkbox inline" title="Show the paragraphs that say why a control does what it does"><input type="checkbox" id="showNotes" /> Explain</label>
         <div id="attribution" hidden></div>

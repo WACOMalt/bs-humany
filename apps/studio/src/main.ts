@@ -244,6 +244,8 @@ const bridgeFollower = new BridgeFollower();
 let overlays: Overlays | null = null;
 let furniture: Group | null = null;
 let groundY = 0;
+/** Whether the full mesh pack is still on its way, for the readout at rest. */
+let fullDetailPending = false;
 
 // ---------------------------------------------------------------------------------------------
 // Controls
@@ -363,7 +365,14 @@ function currentMorphology(): Morphology {
 
 let buildMs = 0;
 
-function rebuild(): void {
+/**
+ * Rebuild the mesh and, when a run is going, restart it with its pose carried across.
+ *
+ * `cause` names what changed, for the message a carry restart owes: it keeps the pose, but the
+ * recording starts again, and a person who has been capturing for a minute should hear that from
+ * the page rather than find it out at Export.
+ */
+function rebuild(cause = 'Body changed'): void {
   if (!assets) return;
   const started = performance.now();
   // A running simulation survives a morphology change: its joint state is carried into the
@@ -371,15 +380,19 @@ function rebuild(): void {
   const carry = simulation
     ? { state: simulation.jointState(), ticks: simulation.ticks, paused: simulation.paused }
     : null;
+  const discarded = simulation?.capture.frameCount ?? 0;
 
   const morphology = currentMorphology();
   const resolved = resolveMorphology(morphology);
 
   // Spec section 6.4 step 5. A body that fails these checks would still render; it would simply be
-  // wrong, so the failure is surfaced rather than swallowed.
+  // wrong, so the failure is surfaced rather than swallowed: listed in Health, said in the event
+  // line, and kept on the console with the detail.
   const validation = validateResolvedBody(resolved);
+  showBodyValidity(validation.problems);
   if (!validation.valid) {
     console.error('Resolved body failed physical validity checks:', validation.problems);
+    announce('The resolved body failed its validity checks; see Health.', { error: true });
   }
 
   const quality = QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM;
@@ -403,7 +416,32 @@ function rebuild(): void {
   refreshSelection();
   updateReadouts(resolved.input.stature, resolved.input.mass);
   showValidation();
-  if (carry) void startSimulation(undefined, carry);
+  if (!carry) return;
+  void startSimulation(undefined, carry);
+  // After the start is under way, because a start clears the last run's notices as it begins.
+  if (discarded > 0) {
+    announce(
+      `${cause}: the run carried on from its pose; ${discarded} captured frames were ` +
+        'discarded — export first to keep them.',
+    );
+  }
+}
+
+/**
+ * The resolved body's validity problems, listed in Health above the inertia audit, or nothing.
+ *
+ * They used to reach the console and nowhere else, which in the desktop shell is nowhere at all.
+ */
+function showBodyValidity(problems: readonly string[]): void {
+  const list = must<HTMLUListElement>('#body-validity');
+  list.replaceChildren(
+    ...problems.map((problem) => {
+      const item = window.document.createElement('li');
+      item.textContent = problem;
+      return item;
+    }),
+  );
+  must<HTMLElement>('#body-validity-panel').hidden = problems.length === 0;
 }
 
 function updateReadouts(stature: number, mass: number): void {
@@ -423,9 +461,9 @@ function updateReadouts(stature: number, mass: number): void {
 }
 
 for (const input of [ui.sex, ui.stature, ui.mass, ui.crural, ui.brachial, ui.legLength]) {
-  input.addEventListener('input', rebuild);
+  input.addEventListener('input', () => rebuild());
 }
-ui.quality.addEventListener('change', rebuild);
+ui.quality.addEventListener('change', () => rebuild('Tessellation changed'));
 /**
  * View presets.
  *
@@ -550,10 +588,57 @@ function setText(element: HTMLElement, text: string): void {
   if (element.textContent !== text) element.textContent = text;
 }
 
+/**
+ * The run readout: what the run is doing right now, rewritten every frame.
+ *
+ * Only for the state of the run -- running, paused, at rest, following -- because anything else
+ * written here is gone a sixtieth of a second later, when the frame loop writes the readout over
+ * it. One-off messages and errors go to `announce`, which has a line of its own.
+ */
 function setSimulationStatus(text: string, error = false): void {
   const status = must<HTMLElement>('#sim-status');
   setText(status, text);
   status.classList.toggle('error', error);
+}
+
+/**
+ * Say something once, in the status bar's event line, and leave it there.
+ *
+ * The readout beside it is rewritten every frame, and everything that used to be written into it
+ * -- "Wrote the session", "Muscles start with the next run", a failed save, a checkpoint that
+ * would not load -- was on screen for one frame and then overwritten by "Running, 3.21 s
+ * simulated". So messages have their own line: it holds until the next message replaces it or
+ * somebody clicks it away. An error is marked as one and read out at once; the same message sent
+ * twice does not rewrite the line, so a log that repeats itself does not churn the page.
+ */
+function announce(text: string, options: { error?: boolean } = {}): void {
+  const slot = must<HTMLElement>('#sim-event');
+  const error = options.error === true;
+  if (!slot.hidden && slot.textContent === text && slot.classList.contains('error') === error) {
+    return;
+  }
+  slot.textContent = text;
+  slot.classList.toggle('error', error);
+  slot.setAttribute('role', error ? 'alert' : 'status');
+  slot.title = error
+    ? 'Stays until you click it or another message replaces it'
+    : 'Click to dismiss';
+  slot.hidden = false;
+}
+
+/** Clear the event line; with `noticesOnly`, leave an error where it is. */
+function dismissAnnouncement(noticesOnly = false): void {
+  const slot = must<HTMLElement>('#sim-event');
+  if (noticesOnly && slot.classList.contains('error')) return;
+  slot.hidden = true;
+  slot.textContent = '';
+  slot.classList.remove('error');
+}
+must<HTMLElement>('#sim-event').addEventListener('click', () => dismissAnnouncement());
+
+/** What the readout says with no run: at rest, and whether the full mesh is still on its way. */
+function restStatus(): string {
+  return fullDetailPending ? 'Loading full detail…' : 'At rest.';
 }
 
 /** Surface every warning from the compiler and the backend (spec section 9.3). */
@@ -599,7 +684,7 @@ function stopSimulation(): void {
   must<HTMLElement>('#timeline-control').hidden = true;
   skinned?.rest();
   setRunControls(false);
-  setSimulationStatus('At rest.');
+  setSimulationStatus(restStatus());
 }
 
 /**
@@ -864,9 +949,17 @@ async function startSimulation(
   restoreFrom?: SessionFile['simulation'],
   carry?: { state: ReturnType<Simulation['jointState']>; ticks: number; paused: boolean },
 ): Promise<void> {
-  if (!skeletonMesh || !skinned) return;
+  if (!skeletonMesh || !skinned) {
+    // Pressed before the bones arrived. It used to do nothing at all, which on a slow connection
+    // is indistinguishable from a Start button that does not work.
+    announce('The skeleton is still loading; Start works once it appears.');
+    return;
+  }
   if (bridgeFollower.active) stopFollowing();
   stopSimulation();
+  // What was said about the last run is not about this one. An error stays, because nobody has
+  // necessarily read it yet.
+  dismissAnnouncement(true);
   setSimulationStatus('Compiling…');
   try {
     const chosen = currentScenario();
@@ -905,8 +998,9 @@ async function startSimulation(
     applyFidelity(sim);
     showRates();
     if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
+    let unmatched: string[] = [];
     if (carry) {
-      const unmatched = sim.carryFrom(carry.state, carry.ticks);
+      unmatched = sim.carryFrom(carry.state, carry.ticks);
       sim.paused = carry.paused;
       if (unmatched.length > 0)
         console.warn('DoFs without a counterpart, left at neutral:', unmatched);
@@ -927,13 +1021,26 @@ async function startSimulation(
     must<HTMLElement>('#diagnostics').hidden = false;
     must<HTMLElement>('#timeline-control').hidden = false;
     showReports(sim);
+    // A body carried into a profile with other joints leaves some of the old pose behind. That
+    // is expected and not an error, but it is a difference in the body that is running, so it is
+    // listed with the other things the compile had to say rather than only on the console.
+    if (unmatched.length > 0) {
+      const item = window.document.createElement('li');
+      item.textContent =
+        `[carry] ${unmatched.length} DoFs had no counterpart in ${sim.recording.profile} ` +
+        `and start at neutral: ${unmatched.join(', ')}`;
+      must<HTMLUListElement>('#sim-report').appendChild(item);
+    }
     refreshSelection();
     setRunControls(true);
     setSimulationStatus('Running.');
   } catch (error) {
     console.error('The simulation failed to start.', error);
-    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+    announce(`The run failed to start: ${error instanceof Error ? error.message : String(error)}`, {
+      error: true,
+    });
     setRunControls(false);
+    setSimulationStatus(restStatus());
   }
 }
 
@@ -966,6 +1073,25 @@ function scrubTo(frame: number): void {
   applyOverlayVisibility();
   setRunControls(true);
   updateTimeline(simulation);
+}
+
+/**
+ * A tick threw: pause the run where it stopped and say so.
+ *
+ * Left alone, the frame loop would call the same tick again next frame and the one after, sixty
+ * times a second, each throwing into the console while the readout went on saying "Running" over
+ * a body that had not moved. Paused, what was computed up to the failure is still there to scrub
+ * and export, and the event line says what went wrong and when.
+ */
+function stalled(sim: Simulation, error: unknown): void {
+  sim.paused = true;
+  console.error('A simulation tick failed; the run is paused.', error);
+  announce(
+    `The simulation failed at ${(sim.ticks * sim.dt).toFixed(3)} s and is paused: ` +
+      `${error instanceof Error ? error.message : String(error)}. Reset or Restart to go on.`,
+    { error: true },
+  );
+  setRunControls(true);
 }
 
 /** Back to the newest frame, and following it again. */
@@ -1038,7 +1164,12 @@ ui.frameForward.addEventListener('click', (event) => {
   if (at >= frames - 1) {
     simulation.paused = true;
     const ticks = Math.max(1, Math.round(simulation.ticksPerOutputFrame));
-    for (let i = 0; i < ticks; i++) simulation.tick();
+    try {
+      for (let i = 0; i < ticks; i++) simulation.tick();
+    } catch (error) {
+      stalled(simulation, error);
+      return;
+    }
     simulation.pose.step();
     simulation.metrics.step();
     // The belly sweep runs on a divisor while the simulation is running; a hand-stepped frame
@@ -1404,7 +1535,7 @@ ui.muscles.addEventListener('change', () => {
   // The modules are registered when a run starts, so turning this on mid-run changes nothing
   // until the next one. Saying so beats a checkbox that appears to do nothing.
   if (simulation && ui.muscles.checked && !simulation.muscles) {
-    setSimulationStatus('Muscles start with the next run.');
+    announce('Muscles start with the next run.');
   }
 });
 // Explanatory text is off by default: the panel has thirteen paragraphs and a reader wants at
@@ -1721,10 +1852,12 @@ scenarioChanged();
  */
 async function saving(what: string, write: Promise<boolean>): Promise<void> {
   try {
-    if (await write) setSimulationStatus(`Wrote ${what}.`);
+    if (await write) announce(`Wrote ${what}.`);
   } catch (error) {
     console.error(`Writing ${what} failed.`, error);
-    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+    announce(`Writing ${what} failed: ${error instanceof Error ? error.message : String(error)}`, {
+      error: true,
+    });
   }
 }
 
@@ -1784,7 +1917,10 @@ async function loadSessionText(text: string): Promise<void> {
     if (parsed.simulation) await startSimulation(parsed.simulation);
   } catch (error) {
     console.error('The session failed to load.', error);
-    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+    announce(
+      `The session failed to load: ${error instanceof Error ? error.message : String(error)}`,
+      { error: true },
+    );
   }
 }
 
@@ -1814,7 +1950,14 @@ function showValidation(): void {
   let compiled: ReturnType<typeof compileArticulation>['articulation'];
   try {
     compiled = compileArticulation(document_, ui.profile.value, morphology).articulation;
-  } catch {
+  } catch (error) {
+    // Both tables say so, rather than go on showing the last body's numbers as though they were
+    // this one's -- which is what returning quietly here used to do.
+    const row = `<tbody><tr><td>Validation unavailable for ${escapeHtml(ui.profile.value)}: ${escapeHtml(
+      error instanceof Error ? error.message : String(error),
+    )}</td></tr></tbody>`;
+    must<HTMLTableElement>('#inertia-audit').innerHTML = row;
+    must<HTMLTableElement>('#joint-sweep').innerHTML = row;
     return;
   }
   const audit = inertiaAudit(compiled, morphology);
@@ -1983,7 +2126,11 @@ function animate(): void {
     if (following) {
       // The elapsed time is measurement only: what the frame advances is one output frame's worth
       // of simulated time, whatever the clock says.
-      simulation.advance(frameSeconds);
+      try {
+        simulation.advance(frameSeconds);
+      } catch (error) {
+        stalled(simulation, error);
+      }
     } else {
       // Playback is the other way round -- paced by the clock, because what is being watched is
       // finished and watching it should take the time it took.
@@ -2201,25 +2348,87 @@ Object.assign(window, {
   },
 });
 
-loadAssets('lod1')
-  .then((loaded) => {
+/** The Cost panel's Mesh row: which pack the bones on screen are from, and why. */
+function showMeshDetail(text: string, title = ''): void {
+  const row = must<HTMLElement>('#stat-mesh');
+  setText(row, text);
+  row.title = title;
+}
+
+/** The centre overlay, as an error: nothing else is on screen to carry one. */
+function loadFailed(message: string, error: unknown): void {
+  console.error(message, error);
+  const loading = must<HTMLElement>('#loading');
+  loading.hidden = false;
+  loading.textContent = `${message} See the console.`;
+  loading.classList.add('error');
+  announce(`${message} ${error instanceof Error ? error.message : String(error)}`, {
+    error: true,
+  });
+}
+
+/**
+ * The reduced pack went up and the full one did not: keep what is on screen and say so.
+ *
+ * The reduced bones are a whole skeleton, so this is a coarser picture rather than a broken one,
+ * and the run and the physics do not use the render mesh at all. It used to be said only on the
+ * console, and a studio showing coarse bones for no visible reason looks like a bug.
+ */
+function fullDetailFailed(error: unknown): void {
+  console.error('The full-detail bones failed to load; staying on the reduced set.', error);
+  const why = error instanceof Error ? error.message : String(error);
+  showMeshDetail('reduced (full detail failed to load)', why);
+  announce('Full-detail bones failed to load; showing the reduced set (see the console).', {
+    error: true,
+  });
+}
+
+loadAssets('lod1').then(
+  (loaded) => {
     assets = loaded;
     must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
     must<HTMLElement>('#attribution').hidden = false;
-    must<HTMLElement>('#loading').hidden = true;
-    rebuild();
-    if (STAY_ON_SMALL_PACK) return;
-    return loadAssets('full').then((full) => {
-      assets = full;
+    try {
       rebuild();
-    });
-  })
-  .catch((error: unknown) => {
-    console.error('The measured skeleton failed to load.', error);
-    const loading = must<HTMLElement>('#loading');
-    loading.textContent = 'The measured skeleton failed to load. See the console.';
-    loading.classList.add('error');
-  });
+    } catch (error) {
+      loadFailed('The measured skeleton loaded but failed to build.', error);
+      return;
+    }
+    // Only now: hidden before the first build, the overlay went away and a failure to build
+    // left an empty viewport with nothing in it to say why.
+    must<HTMLElement>('#loading').hidden = true;
+    if (STAY_ON_SMALL_PACK) {
+      showMeshDetail('reduced (this device stays on the small pack)');
+      return;
+    }
+    fullDetailPending = true;
+    showMeshDetail('reduced; loading full detail…');
+    if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
+    loadAssets('full')
+      .then((full) => {
+        const reduced = assets;
+        assets = full;
+        try {
+          rebuild('Full-detail bones arrived');
+          showMeshDetail('full');
+        } catch (error) {
+          // Back to the pack that built, so the viewport has a skeleton in it.
+          assets = reduced;
+          try {
+            rebuild();
+          } catch {
+            // Already said below; a second failure adds nothing a person can act on.
+          }
+          fullDetailFailed(error);
+        }
+      }, fullDetailFailed)
+      .finally(() => {
+        fullDetailPending = false;
+        if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
+      });
+  },
+  (error: unknown) => loadFailed('The measured skeleton failed to load.', error),
+);
 
 function must<T extends Element>(selector: string): T {
   const element = window.document.querySelector<T>(selector);
@@ -2493,7 +2702,7 @@ const vrHost = {
     }
   },
   log: (message: string) => {
-    setSimulationStatus(message);
+    announce(message);
     // And on the terminal, beside the viewer's own lines, where a failure can actually be read.
     void invoke('studio_log', { message }).catch(() => undefined);
   },
@@ -2507,7 +2716,7 @@ if (isTauri()) {
         await vrLink.disconnect();
         vrLink = null;
         connectVr.textContent = 'Connect VR viewer';
-        setSimulationStatus('VR viewer disconnected.');
+        announce('VR viewer disconnected.');
         return;
       }
       connectVr.disabled = true;
@@ -2517,7 +2726,10 @@ if (isTauri()) {
         vrLink = link;
         connectVr.textContent = 'Disconnect VR viewer';
       } catch (error) {
-        setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+        announce(
+          `The VR viewer did not connect: ${error instanceof Error ? error.message : String(error)}`,
+          { error: true },
+        );
       } finally {
         connectVr.disabled = false;
       }
@@ -2621,7 +2833,7 @@ function stopFollowing(): void {
   followButton.textContent = 'Follow bridge';
   // Back to whatever this page's own run is doing, which with nothing running is nothing.
   setMode(!simulation ? 'rest' : simulation.paused ? 'paused' : 'running');
-  setSimulationStatus('At rest.');
+  setSimulationStatus(restStatus());
 }
 
 followButton.addEventListener('click', () => {
@@ -2801,7 +3013,13 @@ brain = createBrainPanel({
     try {
       simulation.handOver(setup.policy, setup.authority);
     } catch (error) {
-      setSimulationStatus(String(error), true);
+      announce(
+        `The checkpoint could not be handed over: ${error instanceof Error ? error.message : String(error)}`,
+        { error: true },
+      );
+      // And back to the panel, whose Hand over catches it and says the checkpoint could not be
+      // loaded -- rather than "Policy chosen", which is what it said while nothing was in charge.
+      throw error;
     }
   },
   setReflex(gains) {
@@ -2852,6 +3070,9 @@ brain = createBrainPanel({
         slider.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
+    // Whether this lands on a running body, which the settings below restart with the body carried
+    // across, or waits for the next run: the message says which.
+    const running = simulation !== null;
     applySettings({
       ...currentSettings(),
       sex: recipe.morphology.sex,
@@ -2866,11 +3087,13 @@ brain = createBrainPanel({
       redistribute: recipe.redistribute,
       scenarioParameters: { ...recipe.parameters },
     });
-    setSimulationStatus(
+    announce(
       `Set from the checkpoint ${recipe.name}: its scene, body and joints` +
         (recipe.stepsPerSecond ? `, and its ${recipe.stepsPerSecond} steps a second` : '') +
         (recipe.feedforward.kind === 'none' ? ', with the muscle sliders back to zero' : '') +
-        '. They take effect on the next run.',
+        (running
+          ? '; the running body was restarted with them.'
+          : '. They take effect on the next run.'),
     );
   },
   fit() {
