@@ -1,10 +1,10 @@
 /**
  * Reading the vendored MyoSuite models: the parts more than one generator needs.
  *
- * Three sets come out of these files now -- the elbow, the shoulder and the knee -- by the same
- * two derivations, and the only things that differ are which model they read, which actuators they
- * name, and what prose goes at the top of the file they write. So the derivations live here and
- * the tables live with the generator that owns them.
+ * The nine region generators that read MyoSuite, and measure-source-travel, all come through
+ * here -- the same derivations for every set, and the only things that differ are which model they
+ * read, which actuators they name, and what prose goes at the top of the file they write. So the
+ * derivations live here and the tables live with the generator that owns them.
  *
  * ## What MuJoCo states and what has to be derived
  *
@@ -250,18 +250,6 @@ export function pathElements(unit, viaPointsFor, direction, model = ARM) {
 }
 
 /**
- * Every unit on both sides.
- *
- * The reference model is a right arm and there is no left one to take parameters from, so the
- * left side is the right side's parameters on the left side's geometry -- the ordinary assumption
- * of bilateral symmetry, whose only claim is that a person's two biceps are the same muscle.
- * Everything that is *geometry* stays bilateral and measured: attachment sites come from each
- * side's own markers, wrap surfaces from each side's own mesh, and via points are mirrored with
- * the dataset's symmetry checked.
- *
- * A `$` in an id takes the side. Names take ", right" or ", left".
- */
-/**
  * Refuse an actuator whose derived lengths are not a muscle.
  *
  * Called by each generator for the actuators it names, rather than when they are read, so that a
@@ -278,6 +266,18 @@ export function requirePhysical(actuator, parameters, model = ARM) {
   );
 }
 
+/**
+ * Every unit on both sides.
+ *
+ * The reference model is a right arm and there is no left one to take parameters from, so the
+ * left side is the right side's parameters on the left side's geometry -- the ordinary assumption
+ * of bilateral symmetry, whose only claim is that a person's two biceps are the same muscle.
+ * Everything that is *geometry* stays bilateral and measured: attachment sites come from each
+ * side's own markers, wrap surfaces from each side's own mesh, and via points are mirrored with
+ * the dataset's symmetry checked.
+ *
+ * A `$` in an id takes the side. Names take ", right" or ", left".
+ */
 export function sided(units) {
   const out = [];
   for (const s of ['r', 'l']) {
@@ -305,12 +305,6 @@ export function sided(units) {
 /** Six significant figures: more than the source states, and enough to round-trip it. */
 export const num = (v) => Number(v.toPrecision(6)).toString();
 
-/**
- * Render one group's worth of units as the muscle-data literal they become.
- *
- * The shape is HSDL's `MuscleGroup`, and both generators write the same shape; what differs is
- * which units go in it and the prose around it.
- */
 /** Biome's configured line width, which generated output has to respect to survive `--check`. */
 const LINE_WIDTH = 100;
 
@@ -330,6 +324,12 @@ function quoted(name, value) {
 /** The formatter's line width, from biome.json: past it, it breaks an object across lines. */
 const FORMATTER_WIDTH = 100;
 
+/**
+ * Render one group's worth of units as the muscle-data literal they become.
+ *
+ * The shape is HSDL's `MuscleGroup`, and every generator writes the same shape; what differs is
+ * which units go in it and the prose around it.
+ */
 export function renderGroups(units, viaPointsFor, direction, model = ARM) {
   const groups = new Map();
   for (const unit of units) {

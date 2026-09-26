@@ -6,6 +6,7 @@ import {
 } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { FOREARM_MUSCLES, FOREARM_UNITS } from './forearm.js';
+import { HAND_UNITS } from './hand.js';
 import { MUSCLE_SCHEMA_VERSION, type MuscleExtension, MuscleExtensionSchema } from './schema.js';
 import { validateMuscleExtension } from './validate.js';
 
@@ -66,14 +67,17 @@ describe('the forearm and wrist muscle set', () => {
     );
   });
 
-  it('leaves out the two the hand gives nowhere to put', () => {
-    // Extensor carpi ulnaris ends on the base of the fifth metacarpal and palmaris longus in the
-    // middle of the palm; the dataset marks neither, and the marked points nearby all belong to a
-    // muscle already here. The wrist gets two flexors, one radial and one ulnar, and two
-    // extensors, both radial.
+  it('leaves palmaris longus out, and ECU to the hand set', () => {
+    // Palmaris longus ends in the palmar aponeurosis, in the middle of the palm: soft tissue the
+    // dataset does not carry, and the nearest bony point is where flexor carpi radialis already
+    // passes. It is the one forearm muscle the body goes without. Extensor carpi ulnaris ends on
+    // the base of the fifth metacarpal, which nothing located until the digit bones were measured,
+    // and it went to the hand set when they were -- so it is missing from this set and not from
+    // the body, and the wrist has its ulnar extensor.
     expect(FOREARM_UNITS).toHaveLength(16);
     expect(FOREARM_UNITS.some((u) => u.id.startsWith('extensor_carpi_ulnaris'))).toBe(false);
     expect(FOREARM_UNITS.some((u) => u.id.startsWith('palmaris'))).toBe(false);
+    expect(HAND_UNITS.map((u) => u.id)).toContain('extensor_carpi_ulnaris_r');
   });
 
   it('takes the two ends of one ridge for two different muscles', () => {
@@ -90,6 +94,17 @@ describe('the forearm and wrist muscle set', () => {
     for (const unit of FOREARM_UNITS) {
       expect(unit.parameters.source.key, unit.id).toBe('caggiano2022');
       expect(unit.parameters.source.locator, unit.id).toContain('myoarm_r_muscle.xml');
+    }
+  });
+
+  it('says in the citation which fiber lengths are the stand-in', () => {
+    // Supinator and anconeus state an operating range and their fiber length is derived from it;
+    // the other six state none, and theirs is the length range over the typical travel. A unit's
+    // citation is the only place a reader of that unit sees which, so it has to say.
+    const derived = ['supinator', 'anconeus'];
+    for (const unit of FOREARM_UNITS) {
+      const standIn = !derived.some((stem) => unit.id.startsWith(stem));
+      expect((unit.parameters.source.locator ?? '').includes('stand-in'), unit.id).toBe(standIn);
     }
   });
 

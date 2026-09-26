@@ -538,8 +538,14 @@ digitorum to the fourth, the fibularis longus to the cuboid it grooves, the exte
 navicular. The heel's worst point went from 87 mm to 20. The phalanges are as unmarked as before.
 
 ### OQ-022 — The forearm's actuators do not state their architecture
-**Needed for:** the wrist and forearm set, ticket N2.5
-**Provisional value:** none. The set is not built, and this is why.
+**Needed for:** the wrist and forearm set, ticket N2.5, and the hand set
+**Provisional value:** a stand-in, in use in `forearm.ts` and `hand.ts`. For every actuator that
+states no operating range -- six of the forearm's eight and all nineteen of the hand's -- optimal
+fiber length is the stated `lengthrange` width over `TYPICAL_NORMALISED_TRAVEL` (0.667, in
+`tools/cli/lib/myoSuite.mjs`), and peak force is the source's `force` as stated. Each such unit
+cites `myoArmStandIn`, which says it is a stand-in good to about half. At compile,
+`deriveOptimalFiberLength` translates it to this skeleton by the OQ-020 travel ratio, as it does
+every set's. Supinator and anconeus state their range and are derived the ordinary way.
 
 The vendored arm model writes its actuators two ways. The upper arm's are `<general>` elements
 whose `gainprm` carries an operating range per actuator -- `0.759864 1.45381 ...` for supinator,
@@ -613,7 +619,7 @@ fifty-four units whose architecture the source does state -- it lands close:
 
     pronator teres        34 mm against 36     flexor carpi radialis   53 against 52
     pronator quadratus    23 against 23        flexor carpi ulnaris    59 against 51
-    supinator             36 against 33        ext. carpi rad. brevis  63 against 59
+    supinator             36 against 33        ext. carpi rad. brevis  47 against 59
     anconeus              26 against 27        ext. carpi rad. longus  42 against 81
 
 Supinator and anconeus are the control: their actuators state an operating range, so those two are
@@ -625,8 +631,9 @@ travel translation and the same tendon fit as every other set. Peak force is the
 throughout, and peak force is most of what a muscle does.
 **Closes when:** a source that states upper-limb architecture *and may be redistributed alongside
 CC BY-SA data* is found and vendored, and the stand-in is replaced by it.
-**Status:** answered for now, by a stand-in that is measured rather than assumed. The vendoring
-route stays closed until a permissively licensed model turns up. The hand is still not built.
+**Status:** stand-in, measured rather than assumed. The vendoring route stays closed until a
+permissively licensed model turns up. The hand's extrinsics are built on the same stand-in; its
+intrinsics are not built, for a different reason (`UNMODELLED_MUSCLES` in `@bs-humany/skeleton`).
 
 ### OQ-023 — The guard that refuses an actuator was written for a value no longer used
 **Needed for:** `tools/cli/lib/myoSuite.mjs`, the torso set, and five units in four other sets

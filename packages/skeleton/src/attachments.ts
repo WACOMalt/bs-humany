@@ -8,7 +8,7 @@
  *
  * Coverage is the major superficial and deep muscles of the limbs and trunk whose attachments
  * the dataset's markers can locate. Muscles whose features the dataset does not mark (the jaw,
- * most of the hand and foot intrinsics) are left out and listed by `attachmentGaps`.
+ * the hand and foot intrinsics) are left out and named in `UNMODELLED_MUSCLES`.
  */
 
 import surfaceJson from '@bs-humany/assets-anatomical/data/landmarks-surface.json' with {
@@ -625,8 +625,8 @@ const MUSCLES: readonly MuscleSpec[] = [
    *
    * The intrinsics are not here: the lumbricals and the interossei insert into that same dorsal
    * expansion, which is not bone and which the dataset does not carry, and the thenar and
-   * hypothenar muscles arise from the flexor retinaculum, likewise. The reference model has all
-   * of them and they are listed in `attachmentGaps`.
+   * hypothenar muscles arise from the flexor retinaculum, likewise. The reference model has
+   * parameters for most of them; they are named in `UNMODELLED_MUSCLES`.
    */
   ...HAND_EXTRINSICS,
   {
@@ -1326,7 +1326,86 @@ function side(bone: string, s: 'l' | 'r'): string {
   return bone.replace('$', s);
 }
 
-/** Muscles and features the dataset could not locate, so the omission is visible. */
+/**
+ * Whole muscles the body does not have, and why, so the omission is visible.
+ *
+ * This is a statement about what is *not* in `MUSCLES`, and nothing can compute that from what is,
+ * so it is written by hand. `attachmentGaps` answers a different question -- a feature of a muscle
+ * that *is* included and the dataset could not locate -- and a muscle with no entry at all never
+ * reaches it. The muscle-data tests hold this list against the whole-body set, so a muscle added
+ * without taking it off here fails rather than the studio going on saying the body lacks it.
+ *
+ * `muscles` are id stems, spelled the way a unit id would begin, so that check is a prefix match.
+ * No physical numbers here: it says what is missing, not what it would be.
+ */
+export const UNMODELLED_MUSCLES: readonly {
+  readonly group: string;
+  readonly muscles: readonly string[];
+  readonly reason: string;
+  readonly unblockedBy: string;
+}[] = [
+  {
+    group: "the hand's intrinsics",
+    muscles: [
+      'lumbrical',
+      'dorsal_interosseous',
+      'palmar_interosseous',
+      'abductor_pollicis_brevis',
+      'flexor_pollicis_brevis',
+      'opponens_pollicis',
+      'adductor_pollicis',
+      'abductor_digiti_minimi',
+      'flexor_digiti_minimi_brevis',
+      'opponens_digiti_minimi',
+    ],
+    reason:
+      'The lumbricals and interossei insert into the dorsal expansion, and the thenar and ' +
+      'hypothenar muscles arise largely from the flexor retinaculum. Both are soft tissue and the ' +
+      'dataset carries neither, so there is nothing on this skeleton to bind them to -- although ' +
+      'the reference arm model has parameters for opponens pollicis, the lumbricals and the ' +
+      'interossei.',
+    unblockedBy:
+      'docs/plans/dataset-correspondence.md 5.2: points for the dorsal expansion and the ' +
+      'retinaculum, measured or constructed from the bones they span.',
+  },
+  {
+    group: "the foot's intrinsics",
+    muscles: [
+      'extensor_digitorum_brevis',
+      'extensor_hallucis_brevis',
+      'abductor_hallucis',
+      'flexor_digitorum_brevis',
+      'abductor_digiti_minimi',
+      'quadratus_plantae',
+      'lumbrical',
+      'flexor_hallucis_brevis',
+      'adductor_hallucis',
+      'flexor_digiti_minimi_brevis',
+      'dorsal_interosseous',
+      'plantar_interosseous',
+    ],
+    reason:
+      'Most attach to the plantar aponeurosis, the long flexor tendons or the extensor ' +
+      'expansions, which are soft tissue the dataset does not carry, and the reference leg model ' +
+      'has no foot intrinsics at all, so there are no parameters to take either.',
+    unblockedBy:
+      'A redistributable source for their parameters, and attachment points for the soft ' +
+      'structures they run to.',
+  },
+  {
+    group: 'the jaw muscles',
+    muscles: ['masseter', 'temporalis', 'medial_pterygoid', 'lateral_pterygoid'],
+    reason:
+      'They insert on the ramus, angle and coronoid process of the mandible, none of which the ' +
+      'dataset marks, and the skeleton has no temporomandibular joint for them to move. No ' +
+      'vendored reference model carries them.',
+    unblockedBy:
+      'A temporomandibular joint, the mandible features measured off the bone, and a source for ' +
+      'their parameters.',
+  },
+];
+
+/** Features of included muscles the dataset could not locate. */
 export function attachmentGaps(): string[] {
   const gaps: string[] = [];
   for (const m of MUSCLES) {

@@ -6,28 +6,41 @@
  *
  * ## What is transcribed here and what is not
  *
- * Peak force is the source's for all nine. So is the fiber length of supinator and anconeus, whose
+ * Peak force is the source's for all eight. So is the fiber length of supinator and anconeus, whose
  * actuators state an operating range the fiber length can be derived from -- and which come out at
- * 36 mm and 26 mm against a published 33 and 27.
+ * 36 mm and 26 mm against a published 33 and 27. Those two cite `myoArm`.
  *
- * The other seven state no such range, so MuJoCo's default applies and no fiber length can be
- * derived from it: doing so gives 1.1 to 5.6 times published and one tendon of minus 16 mm. Those
- * seven carry `fiberLengthFromTravel`, and the compiler works out a fiber length from how far the
- * muscle travels on *this* skeleton, over the travel a muscle typically has. It is a stand-in good
- * to about half and it is labelled as one. OQ-022 has the argument, the numbers and the licence
- * reason the better source could not be vendored.
+ * The other six state no such range, so MuJoCo's default applies and no fiber length can be
+ * derived from it: doing so gives 1.1 to 5.6 times published and one tendon of minus 16 mm. What
+ * those six do state is a `lengthrange`, and their fiber length is its width over
+ * `TYPICAL_NORMALISED_TRAVEL` -- the travel a muscle typically has, measured on the source's
+ * units that do state their architecture. It is a stand-in good to about half, and each of those
+ * units cites `myoArmStandIn`, which says so. OQ-022 has the argument, the numbers and the
+ * licence reason the better source could not be vendored.
+ *
+ * Neither is the number the simulation runs. At compile `deriveOptimalFiberLength` translates
+ * every unit's fiber length to this skeleton by how much further the muscle travels here than on
+ * the source's (OQ-020), the same step every other set goes through.
  *
  * *Where a muscle attaches* is ours throughout, as everywhere: Gray's anatomical statement located
- * on this subject by the dataset's own markers.
+ * on this subject by the dataset's own markers, and where the dataset marks nothing, measured off
+ * the bone.
  *
- * ## The hand is nearly unmarked, and one muscle is missing because of it
+ * ## Two muscles are missing from this set, and one from the body
  *
  * Beyond the wrist the dataset marks four points: the tubercles of the scaphoid and trapezium, the
  * hook of the hamate, and the base and styloid of the third metacarpal -- and the trapezium's only
- * on the right hand. Extensor carpi radialis brevis ends exactly where it should; the others end at
- * the nearest marked point along their own anatomy. Extensor carpi ulnaris and palmaris longus are
- * left out for want of anywhere to put them that would leave them a line of their own. The wrist
- * has two flexors, one radial and one ulnar, and two extensors, both radial.
+ * on the right hand. Extensor carpi radialis brevis ends on the third metacarpal's styloid and
+ * flexor carpi ulnaris at the hook of the hamate. Flexor carpi radialis and extensor carpi
+ * radialis longus end on the base of the second metacarpal, which the dataset does not mark and
+ * `tools/ingest/src/derived.ts` measures off the bone.
+ *
+ * Extensor carpi ulnaris is in the hand set, not here: it ends on the base of the fifth
+ * metacarpal, which had nothing to locate it until derived.ts measured the digit bones. Palmaris
+ * longus alone is omitted. It ends in the palmar aponeurosis, soft tissue the dataset does not
+ * carry, and the nearest bony point is where flexor carpi radialis already passes. The wrist has
+ * two flexors, one radial and one ulnar, and three extensors, two radial here and the ulnar one
+ * in the hand set.
  */
 
 import { cite } from '@bs-humany/hsdl';
@@ -36,13 +49,21 @@ import type { MuscleGroup } from './schema.js';
 /** Anatomy: which bony feature a muscle attaches to. The sites themselves are cited in M5.3. */
 const gray = (muscle: string) => cite('gray1918', `Part IV, Myology: The ${muscle}`);
 
-/** Parameters: the actuator in the vendored arm model they were derived from. */
+/** Parameters, for an actuator that states its own operating range: both lengths are derived. */
 const myoArm = (actuator: string) =>
   cite(
     'caggiano2022',
-    `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated. Fiber length from the ` +
-      'operating range the actuator states where it has one, and otherwise from the travel ' +
-      'measured on this skeleton (OQ-022), which the unit marks with fiberLengthFromTravel',
+    `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated; fiber length derived ` +
+      'from the operating range the actuator states',
+  );
+
+/** Parameters, for an actuator that states no operating range: the fiber length is a stand-in. */
+const myoArmStandIn = (actuator: string) =>
+  cite(
+    'caggiano2022',
+    `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated; fiber length is the ` +
+      'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (0.667), a stand-in good to ' +
+      'about half (OQ-022); translated to this skeleton by travel ratio at compile (OQ-020)',
   );
 
 export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
@@ -68,7 +89,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0344243,
           tendonSlackLength: 0.126588,
           pennationAngle: 0,
-          source: myoArm('PT'),
+          source: myoArmStandIn('PT'),
         },
       },
     ],
@@ -91,7 +112,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0226202,
           tendonSlackLength: 0.00850706,
           pennationAngle: 0,
-          source: myoArm('PQ'),
+          source: myoArmStandIn('PQ'),
         },
       },
     ],
@@ -165,7 +186,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0534153,
           tendonSlackLength: 0.263817,
           pennationAngle: 0,
-          source: myoArm('FCR'),
+          source: myoArmStandIn('FCR'),
         },
       },
     ],
@@ -191,7 +212,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0589955,
           tendonSlackLength: 0.25796,
           pennationAngle: 0,
-          source: myoArm('FCU'),
+          source: myoArmStandIn('FCU'),
         },
       },
     ],
@@ -221,7 +242,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0418006,
           tendonSlackLength: 0.288111,
           pennationAngle: 0,
-          source: myoArm('ECRL'),
+          source: myoArmStandIn('ECRL'),
         },
       },
       {
@@ -239,7 +260,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0472639,
           tendonSlackLength: 0.241612,
           pennationAngle: 0,
-          source: myoArm('ECRB'),
+          source: myoArmStandIn('ECRB'),
         },
       },
     ],
@@ -266,7 +287,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0344243,
           tendonSlackLength: 0.126588,
           pennationAngle: 0,
-          source: myoArm('PT'),
+          source: myoArmStandIn('PT'),
         },
       },
     ],
@@ -289,7 +310,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0226202,
           tendonSlackLength: 0.00850706,
           pennationAngle: 0,
-          source: myoArm('PQ'),
+          source: myoArmStandIn('PQ'),
         },
       },
     ],
@@ -363,7 +384,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0534153,
           tendonSlackLength: 0.263817,
           pennationAngle: 0,
-          source: myoArm('FCR'),
+          source: myoArmStandIn('FCR'),
         },
       },
     ],
@@ -389,7 +410,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0589955,
           tendonSlackLength: 0.25796,
           pennationAngle: 0,
-          source: myoArm('FCU'),
+          source: myoArmStandIn('FCU'),
         },
       },
     ],
@@ -419,7 +440,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0418006,
           tendonSlackLength: 0.288111,
           pennationAngle: 0,
-          source: myoArm('ECRL'),
+          source: myoArmStandIn('ECRL'),
         },
       },
       {
@@ -437,7 +458,7 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0472639,
           tendonSlackLength: 0.241612,
           pennationAngle: 0,
-          source: myoArm('ECRB'),
+          source: myoArmStandIn('ECRB'),
         },
       },
     ],

@@ -21,6 +21,10 @@
  * 27. What the other six get instead is the one thing their elements do state, which is a length
  * range, divided by `TYPICAL_NORMALISED_TRAVEL` -- the travel a muscle typically has, measured
  * from the fifty-four actuators that do state architecture. Peak force is the source's throughout.
+ * Those six cite `myoArmStandIn` rather than `myoArm`, so the stand-in is named on the unit that
+ * carries it and not only here. At compile, `deriveOptimalFiberLength` then does to all eight what
+ * it does to every set: lengthens the fiber by how much further the muscle travels on this skeleton
+ * than on the source's (OQ-020).
  *
  * Checked against published architecture that lands well: 34 mm against 36 for pronator teres,
  * 23 against 23 for pronator quadratus, 53 against 52 for flexor carpi radialis, 59 against 51 for
@@ -34,30 +38,33 @@
  * published figures. The source's own length range is the better statement of how long these
  * muscles are.
  *
- * ## What the dataset marks in a hand, which is almost nothing
+ * ## What the dataset marks in a hand, and what had to be measured
  *
- * Four muscles here end past the wrist and the dataset marks four points beyond it: the tubercles
- * of the scaphoid and the trapezium, the hook of the hamate, and the base and styloid process of
- * the third metacarpal. Nothing on the first, second, fourth or fifth metacarpals, and nothing on
- * the pisiform.
- *
-Worse, the trapezium's tubercle
- * is marked on the right hand and not on the left.
+ * Four muscles here end past the wrist, and the dataset itself marks four points beyond it: the
+ * tubercles of the scaphoid and the trapezium, the hook of the hamate, and the base and styloid
+ * process of the third metacarpal. Nothing on the first, second, fourth or fifth metacarpals, and
+ * nothing on the pisiform. Worse, the trapezium's tubercle is marked on the right hand and not on
+ * the left.
  *
  * So extensor carpi radialis brevis ends exactly where it should, on the third metacarpal's
- * styloid, and the rest end at the nearest marked point along their own anatomy: flexor carpi
- * radialis at the scaphoid's tubercle, the radial anchor of the retinaculum its tendon passes
- * under; flexor carpi ulnaris at the hook of the hamate, which Gray gives it through the
- * pisohamate ligament; extensor carpi radialis longus at the third metacarpal's base, standing in
- * for the second's.
+ * styloid, and flexor carpi ulnaris at the hook of the hamate, which Gray gives it through the
+ * pisohamate ligament and which is the next marked thing along that chain. The other two end on
+ * the base of the second metacarpal, where Gray puts them, because `tools/ingest/src/derived.ts`
+ * now measures the base and head of every digit bone off the mesh: flexor carpi radialis keeps
+ * the scaphoid's tubercle as the point it passes over on the way, the radial anchor of the
+ * retinaculum its tendon runs under, and extensor carpi radialis longus passes the radial
+ * styloid.
  *
- * Two are left out for want of anywhere to put them. Extensor carpi ulnaris ends on the base of
- * the fifth metacarpal, unmarked and on the side of the hand nothing else here reaches, so no
- * nearby point would leave it an ulnar deviator rather than something else. Palmaris longus ends
- * in the middle of the palm, and the only marked points are at its two edges -- put at either it
- * would duplicate a muscle already there, and it is the weakest in the set and missing altogether
- * in about one person in seven. That leaves the wrist two flexors, one radial and one ulnar, and
- * two extensors, both radial.
+ * Two muscles of the forearm are not in this set, and only one of them is missing from the body.
+ * Extensor carpi ulnaris ends on the base of the fifth metacarpal, which was unmarked when this
+ * set was built; once derived.ts measured the digit bones it had somewhere to go, and it went to
+ * the hand set (`generate-hand-muscles.mjs`) rather than back here. Palmaris longus alone is
+ * omitted. It ends in the palmar aponeurosis, in the middle of the palm, which is soft tissue
+ * the dataset does not carry, and the nearest bony point is the scaphoid's tubercle where flexor
+ * carpi radialis already passes -- put there it would duplicate a muscle already here, and it is
+ * the weakest in the set and missing altogether in about one person in seven. That leaves the
+ * wrist two flexors, one radial and one ulnar, and three extensors, two radial here and the ulnar
+ * one in the hand set.
  *
  * ## One ridge, two muscles
  *
@@ -70,7 +77,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { ARM, readActuators, renderGroups, requirePhysical, sided } from '../lib/myoSuite.mjs';
+import {
+  ARM,
+  TYPICAL_NORMALISED_TRAVEL,
+  readActuators,
+  renderGroups,
+  requirePhysical,
+  sided,
+} from '../lib/myoSuite.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/forearm.ts');
@@ -189,6 +203,9 @@ function render() {
     return {
       ...unit,
       parameters,
+      // The citation says which of the two derivations made the fiber length, per unit, because a
+      // reader looking at one unit should not have to know which element kind its actuator was.
+      ...(parameters.architecture === 'not stated' ? { cite: 'myoArmStandIn' } : {}),
       ...(unit.side === undefined ? {} : { preferredSide: unit.side }),
     };
   });
@@ -202,28 +219,41 @@ function render() {
  *
  * ## What is transcribed here and what is not
  *
- * Peak force is the source's for all nine. So is the fiber length of supinator and anconeus, whose
+ * Peak force is the source's for all eight. So is the fiber length of supinator and anconeus, whose
  * actuators state an operating range the fiber length can be derived from -- and which come out at
- * 36 mm and 26 mm against a published 33 and 27.
+ * 36 mm and 26 mm against a published 33 and 27. Those two cite \`myoArm\`.
  *
- * The other seven state no such range, so MuJoCo's default applies and no fiber length can be
- * derived from it: doing so gives 1.1 to 5.6 times published and one tendon of minus 16 mm. Those
- * seven carry \`fiberLengthFromTravel\`, and the compiler works out a fiber length from how far the
- * muscle travels on *this* skeleton, over the travel a muscle typically has. It is a stand-in good
- * to about half and it is labelled as one. OQ-022 has the argument, the numbers and the licence
- * reason the better source could not be vendored.
+ * The other six state no such range, so MuJoCo's default applies and no fiber length can be
+ * derived from it: doing so gives 1.1 to 5.6 times published and one tendon of minus 16 mm. What
+ * those six do state is a \`lengthrange\`, and their fiber length is its width over
+ * \`TYPICAL_NORMALISED_TRAVEL\` -- the travel a muscle typically has, measured on the source's
+ * units that do state their architecture. It is a stand-in good to about half, and each of those
+ * units cites \`myoArmStandIn\`, which says so. OQ-022 has the argument, the numbers and the
+ * licence reason the better source could not be vendored.
+ *
+ * Neither is the number the simulation runs. At compile \`deriveOptimalFiberLength\` translates
+ * every unit's fiber length to this skeleton by how much further the muscle travels here than on
+ * the source's (OQ-020), the same step every other set goes through.
  *
  * *Where a muscle attaches* is ours throughout, as everywhere: Gray's anatomical statement located
- * on this subject by the dataset's own markers.
+ * on this subject by the dataset's own markers, and where the dataset marks nothing, measured off
+ * the bone.
  *
- * ## The hand is nearly unmarked, and one muscle is missing because of it
+ * ## Two muscles are missing from this set, and one from the body
  *
  * Beyond the wrist the dataset marks four points: the tubercles of the scaphoid and trapezium, the
  * hook of the hamate, and the base and styloid of the third metacarpal -- and the trapezium's only
- * on the right hand. Extensor carpi radialis brevis ends exactly where it should; the others end at
- * the nearest marked point along their own anatomy. Extensor carpi ulnaris and palmaris longus are
- * left out for want of anywhere to put them that would leave them a line of their own. The wrist
- * has two flexors, one radial and one ulnar, and two extensors, both radial.
+ * on the right hand. Extensor carpi radialis brevis ends on the third metacarpal's styloid and
+ * flexor carpi ulnaris at the hook of the hamate. Flexor carpi radialis and extensor carpi
+ * radialis longus end on the base of the second metacarpal, which the dataset does not mark and
+ * \`tools/ingest/src/derived.ts\` measures off the bone.
+ *
+ * Extensor carpi ulnaris is in the hand set, not here: it ends on the base of the fifth
+ * metacarpal, which had nothing to locate it until derived.ts measured the digit bones. Palmaris
+ * longus alone is omitted. It ends in the palmar aponeurosis, soft tissue the dataset does not
+ * carry, and the nearest bony point is where flexor carpi radialis already passes. The wrist has
+ * two flexors, one radial and one ulnar, and three extensors, two radial here and the ulnar one
+ * in the hand set.
  */
 
 import { cite } from '@bs-humany/hsdl';
@@ -232,13 +262,21 @@ import type { MuscleGroup } from './schema.js';
 /** Anatomy: which bony feature a muscle attaches to. The sites themselves are cited in M5.3. */
 const gray = (muscle: string) => cite('gray1918', \`Part IV, Myology: The \${muscle}\`);
 
-/** Parameters: the actuator in the vendored arm model they were derived from. */
+/** Parameters, for an actuator that states its own operating range: both lengths are derived. */
 const myoArm = (actuator: string) =>
   cite(
     'caggiano2022',
-    \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated. Fiber length from the \` +
-      'operating range the actuator states where it has one, and otherwise from the travel ' +
-      'measured on this skeleton (OQ-022), which the unit marks with fiberLengthFromTravel',
+    \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated; fiber length derived \` +
+      'from the operating range the actuator states',
+  );
+
+/** Parameters, for an actuator that states no operating range: the fiber length is a stand-in. */
+const myoArmStandIn = (actuator: string) =>
+  cite(
+    'caggiano2022',
+    \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated; fiber length is the \` +
+      'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (${TYPICAL_NORMALISED_TRAVEL}), a stand-in good to ' +
+      'about half (OQ-022); translated to this skeleton by travel ratio at compile (OQ-020)',
   );
 
 export const FOREARM_MUSCLES: readonly MuscleGroup[] = [

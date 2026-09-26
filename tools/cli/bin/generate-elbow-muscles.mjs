@@ -14,7 +14,7 @@
  *
  * ## What this file decides, and what it only assembles
  *
- * The derivations are in `tools/cli/lib/myoArm.mjs`, because the shoulder set comes out of the
+ * The derivations are in `tools/cli/lib/myoSuite.mjs`, because the shoulder set comes out of the
  * same two files by the same two steps: what MuJoCo states and what has to be derived from it,
  * and where a wrap belongs in a path. What is here is the part that is about the elbow -- which
  * actuator is which muscle, which of our attachment sites it binds to, which surface it turns
