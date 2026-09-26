@@ -17,6 +17,7 @@ import { createServer } from 'node:http';
 import { join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataHome, runsDir as runsHome, seedFromRepository } from './home.mjs';
+import { SEARCH_DEFAULTS, UI_RUN_DEFAULTS, recipeFrom, resumePreflight } from './recipe.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const dir = join(ROOT, 'tools/train');
@@ -90,8 +91,6 @@ const gone = (child) => child === null || child.exitCode !== null || child.signa
 
 function trainStatus() {
   const running = training !== null && !gone(training.trainer);
-  // The showcase plays the run on the bridge and outlives the trainer, so it is said separately:
-  // while it is up there is still something for Stop to stop.
   // The showcase plays the run on the bridge and outlives the trainer, so it is said
   // separately: while it is up there is still something for Stop to stop. `null` means it has
   // been asked for and not yet spawned, which counts as up.
@@ -146,97 +145,51 @@ function trainerElsewhere() {
     return false; // pgrep found nothing.
   }
 }
-/** A checkpoint's name: a file stem, nothing that could leave the policies folder. */
-const NAME = /^[a-z0-9][a-z0-9_-]{0,40}$/;
-const PROFILES = ['l0_ragdoll', 'l1_standard', 'l2_biomechanical', 'l3_anatomical'];
-/**
- * The recipe from the studio's request, every field checked: strings that are names or ids,
- * numbers that are finite, booleans that are booleans. What is not checked here -- that the
- * scenario exists, that its script exists when asked to play -- the trainer refuses on start and
- * the status says so.
- */
-function recipeFrom(body) {
-  const task = body.task === 'walk' ? 'walk' : body.task === 'balance' ? 'balance' : 'stand';
-  const name = typeof body.name === 'string' && NAME.test(body.name) ? body.name : task;
-  const r = body.recipe && typeof body.recipe === 'object' ? body.recipe : {};
-  const finite = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
-  const parameters = {};
-  if (r.parameters && typeof r.parameters === 'object')
-    for (const [k, v] of Object.entries(r.parameters))
-      if (/^[\w-]{1,40}$/.test(k) && Number.isFinite(Number(v))) parameters[k] = Number(v);
-  const proportions = {};
-  if (r.morphology?.proportions && typeof r.morphology.proportions === 'object')
-    for (const [k, v] of Object.entries(r.morphology.proportions))
-      if (/^\w{1,40}$/.test(k) && Number.isFinite(Number(v))) proportions[k] = Number(v);
-  const kind = r.feedforward?.kind;
-  const feedforward =
-    kind === 'script'
-      ? { kind: 'script' }
-      : kind === 'clip'
-        ? {
-            kind: 'clip',
-            clip: /^[\w-]{1,40}$/.test(String(r.feedforward.clip))
-              ? String(r.feedforward.clip)
-              : 'quiet-standing',
-          }
-        : { kind: 'none' };
-  return {
-    name,
-    task,
-    scenario: typeof r.scenario === 'string' && /^[\w-]{0,40}$/.test(r.scenario) ? r.scenario : '',
-    parameters,
-    profile: PROFILES.includes(r.profile) ? r.profile : 'l3_anatomical',
-    morphology: {
-      sex: Math.min(1, Math.max(0, finite(r.morphology?.sex, 0.5))),
-      stature: Math.min(2.5, Math.max(1, finite(r.morphology?.stature, 1.7))),
-      mass: Math.min(300, Math.max(20, finite(r.morphology?.mass, 70))),
-      ...(Object.keys(proportions).length ? { proportions } : {}),
-    },
-    passive: r.passive !== false,
-    redistribute: r.redistribute !== false,
-    feedforward,
-    authority: Math.min(1, Math.max(0, finite(body.authority, 0.3))),
-    // The tremor on the muscles and the grain on the senses. Capped well below the authority a
-    // policy has, because noise that drowns the controller is not a disturbance to ride, it is
-    // a body that cannot be controlled at all.
-    noise: {
-      motor: Math.min(0.5, Math.max(0, finite(r.noise?.motor, 0.05))),
-      sense: Math.min(0.5, Math.max(0, finite(r.noise?.sense, 0.01))),
-      tau: Math.min(5, Math.max(0.01, finite(r.noise?.tau, 0.25))),
-    },
-    // The cord under the brain. A stretch gain of zero is the body every checkpoint before the
-    // spinal module was trained in, so it stays reachable; the delay is capped at a fifth of a
-    // second because past that the loop is not a reflex arc, it is a correspondence.
-    reflex: {
-      stretch: Math.min(0.2, Math.max(0, finite(r.reflex?.stretch, 0))),
-      velocity: Math.min(10, Math.max(0, finite(r.reflex?.velocity, 1))),
-      setPoint: Math.min(0.5, Math.max(-0.5, finite(r.reflex?.setPoint, -0.1))),
-      inhibition: Math.min(1, Math.max(0, finite(r.reflex?.inhibition, 0.3))),
-      forceCeiling: Math.min(5, Math.max(0, finite(r.reflex?.forceCeiling, 1.2))),
-      forceInhibition: Math.min(5, Math.max(0, finite(r.reflex?.forceInhibition, 0.5))),
-      delaySeconds: Math.min(0.2, Math.max(0, finite(r.reflex?.delaySeconds, 0.03))),
-    },
-    // Context units. Capped because every one of them is a row and a column of new weights, and
-    // the search's cost grows with the length of the vector it is searching.
-    memory: Math.min(64, Math.max(0, Math.round(finite(r.memory, 0)))),
-  };
+/** A file under a checkpoint's name, parsed; undefined when there is none. Throws when there is
+ * one that cannot be read, which the request is then refused with rather than guessed around. */
+function readSaved(path) {
+  if (!existsSync(path)) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (e) {
+    throw new Error(`${path} is there and cannot be read: ${e instanceof Error ? e.message : e}`);
+  }
 }
 function trainStart(body) {
   // The same trap as everywhere else, and the one that bit hardest: a run stopped by a signal
   // left `exitCode` null, so this refused every later Start with "a run is already going" while
   // Stop refused to stop the thing that was not there. Both symptoms, one wrong question.
-  if (training && !gone(training.trainer)) return { error: 'a run is already going' };
+  if (training && !gone(training.trainer)) return { status: 409, error: 'a run is already going' };
   if (trainerElsewhere())
-    return { error: 'a trainer is already running on this machine, started from a terminal' };
-  const recipe = recipeFrom(body);
+    return {
+      status: 409,
+      error: 'a trainer is already running on this machine, started from a terminal',
+    };
+  // Everything is checked before anything is written: a refused request leaves every file under
+  // its name as it found it, the recipe file included.
+  const asked = recipeFrom(body);
+  if ('error' in asked) return asked;
+  const { recipe, clamped } = asked;
   const { task, name } = recipe;
   // A name is a checkpoint: starting afresh under one that exists would overwrite it. Resume
-  // continues it instead, with the recipe it was saved with.
+  // continues it instead -- its weights, under the recipe this request sends, which is how a
+  // policy is carried from one body to another -- and the response lists every way that recipe
+  // differs from the one the checkpoint was saved with, so nobody does that without seeing it.
   const policyPath = join(POLICIES, `${name}.json`);
   if (existsSync(policyPath) && !body.resume) {
     return {
+      status: 409,
       error: `a checkpoint named ${name} exists; tick Resume to continue it, or choose another name`,
     };
+  }
+  let recipeChanges;
+  if (body.resume) {
+    const preflight = resumePreflight(recipe, {
+      policy: readSaved(policyPath),
+      centre: readSaved(join(RUNS, `${name}-centre.json`)),
+    });
+    if ('error' in preflight) return preflight;
+    recipeChanges = preflight.recipeChanges;
   }
   const recipePath = join(RUNS, `${name}-recipe.json`);
   writeFileSync(recipePath, `${JSON.stringify(recipe, null, 2)}\n`);
@@ -245,15 +198,15 @@ function trainStart(body) {
     '--recipe',
     recipePath,
     '--generations',
-    String(number(body.generations, 600, 1, 100000)),
+    String(number(body.generations, UI_RUN_DEFAULTS.generations, 1, 100000)),
     '--population',
-    String(number(body.population, 64, 2, 1024) & ~1),
+    String(number(body.population, UI_RUN_DEFAULTS.population, 2, 1024) & ~1),
     '--workers',
     String(number(body.workers, 16, 1, 128)),
     '--seconds',
-    String(number(body.seconds, 6, 1, 60)),
+    String(number(body.seconds, SEARCH_DEFAULTS.seconds, 1, 60)),
     '--seeds',
-    String(number(body.seeds, 2, 1, 16)),
+    String(number(body.seeds, SEARCH_DEFAULTS.seeds, 1, 16)),
   ];
   if (body.resume) args.push('--resume');
   const trainer = spawn(process.execPath, args, {
@@ -296,7 +249,7 @@ function trainStart(body) {
   trainer.on('exit', () => {
     // The showcase keeps the last policy on the bridge; the studio can go on watching it.
   });
-  return { started: true, task, name, recipe, args: args.slice(1) };
+  return { started: true, task, name, recipe, clamped, recipeChanges, args: args.slice(1) };
 }
 function trainStop() {
   if (!training) return { stopped: false };
@@ -373,8 +326,12 @@ createServer((request, response) => {
     });
     request.on('end', () => {
       try {
-        const result = trainStart(JSON.parse(body || '{}'));
-        json(result.error ? 409 : 200, result);
+        // A refusal carries its own status: 400 for a request that is not a run -- a name that is
+        // not a checkpoint name, a task the rig does not score -- and 409 for one that is, but
+        // cannot start now or cannot continue what it names. The status is for the reply's line,
+        // not its body.
+        const { status, ...result } = trainStart(JSON.parse(body || '{}'));
+        json(status ?? (result.error ? 409 : 200), result);
       } catch (e) {
         json(400, { error: String(e) });
       }
