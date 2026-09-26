@@ -114,6 +114,15 @@ export interface SimulationOptions {
    * either way, because that is the scenario rather than the feedforward.
    */
   readonly scriptMuscleDrive?: boolean | undefined;
+  /**
+   * The cord's gains for this run: whatever the Spine panel shows, passed in by the studio when it
+   * starts a run, so every start, carry restart and session restore gets the cord the panel says.
+   *
+   * Left out, the cord is off -- stretch and damping both zero -- which is the body every headless
+   * caller (publish-pose, the tests) has always run and must keep running: a default that turned
+   * the reflexes on would change what they publish without anybody asking for it.
+   */
+  readonly reflex?: Partial<SpinalGains> | undefined;
 }
 
 export interface BoneTransformsView {
@@ -181,7 +190,15 @@ export class Simulation {
   readonly spine: SpinalModule | undefined;
   /** Whether a policy is in charge, rather than the nerves lying dormant. */
   brainActive = false;
-  readonly scenarioNerves: NervesSetup | undefined;
+  /**
+   * The policy file in charge of the body right now: the scenario's or the panel's at the start,
+   * whichever was handed over since, and nothing once it is released.
+   *
+   * Tracked here rather than read back off the setup the run was built with, because a policy
+   * handed over mid-run replaces that one and the panel describing the brain on screen has to
+   * describe this one -- its generations and fitness -- not the checkpoint the run opened with.
+   */
+  private policyFile: PolicyFile | undefined;
   readonly backendId: BackendId;
   readonly capabilities: BackendCapabilities;
   readonly scenario: Scenario | undefined;
@@ -354,13 +371,15 @@ export class Simulation {
       // charge of a running body live, between one control step and the next, with nothing
       // restarted and the recording unbroken.
       const setup = options.nerves ?? options.scenario?.nerves;
-      this.scenarioNerves = setup;
+      this.policyFile = setup?.policy;
       // The cord goes in before the brain, as in the trainer: it is the layer the brain
-      // corrects. Its gains start at zero, so a run with no policy behaves exactly as it did
-      // before the reflexes existed, and a checkpoint's recipe turns them up to what it knew.
+      // corrects. It starts at whatever the caller passes, which in the studio is the Spine
+      // panel's gains, so the panel and the body never disagree about which cord is running.
+      // With nothing passed there is no cord at all: stretch and damping both zero, which is the
+      // body every headless caller has always run.
       this.spine = new SpinalModule(this.muscles, {
         groups: reflexGroups(),
-        gains: { stretch: 0, velocity: 0 },
+        gains: { stretch: 0, velocity: 0, ...options.reflex },
         stepSeconds: 1 / rate,
       });
       this.kernel.register(this.spine);
@@ -746,13 +765,51 @@ export class Simulation {
    * Both get the same number rather than a split, because which of them binds depends on what is
    * loaded -- a muscle frame is twenty times a bone frame with the full set running and nothing
    * at all without it -- and a fixed split would waste whichever side was idle.
+   *
+   * Raising it on a capture that has already stopped keeps what is held, and that is the whole of
+   * what it can promise. The capture is contiguous in tick number, and by the time anybody reads
+   * the stop message and reaches for the slider the run has gone on past the last captured tick:
+   * the ticks in between were never taken, so the next append would find a gap and start the
+   * capture over from that tick, throwing away every frame it held. That is what "raise the
+   * budget and it carries on" used to do. So a stopped capture the run has moved past is stopped
+   * again, with its frames intact, and a longer capture is a new run -- which, the run being
+   * deterministic, is the same run given the same inputs. Only a stop the run has not moved past,
+   * a budget filled on a hand-stepped frame and raised before the next, resumes contiguously.
    */
   set captureBudgetBytes(bytes: number) {
+    const wasStopped =
+      this.capturesStoppedBy !== undefined || this.capture.full || this.muscleCapture.full;
     this.captureBudget = bytes;
     this.capture.setBudget(bytes);
     this.muscleCapture.setBudget(bytes);
+    if (wasStopped && this.runPastCapture()) {
+      this.capture.stop();
+      this.muscleCapture.stop();
+      // A bones-only run never sets this, because `keepCapturesLevel` has nothing to level; the
+      // bone capture is then the only one there is, and it is what stopped.
+      this.capturesStoppedBy ??= 'bones';
+      return;
+    }
     // Given room again, forget which one had run out: it may not be the same one next time.
     if (!this.capture.full && !this.muscleCapture.full) this.capturesStoppedBy = undefined;
+  }
+
+  /** Whether the run has gone on past the newest captured tick, leaving a gap a resume cannot span. */
+  private runPastCapture(): boolean {
+    return (
+      this.capture.frameCount > 0 &&
+      this.ticks !== this.capture.firstTick + this.capture.frameCount - 1
+    );
+  }
+
+  /**
+   * The capture stopped and the run went on without it: what is held is kept and still exports,
+   * and more of it takes a new run. The status line says so rather than promising a resume.
+   */
+  get captureBehindRun(): boolean {
+    const stopped =
+      this.capturesStoppedBy !== undefined || this.capture.full || this.muscleCapture.full;
+    return stopped && this.runPastCapture();
   }
 
   get captureBudgetBytes(): number {
@@ -779,22 +836,36 @@ export class Simulation {
   /**
    * Put a policy in charge of the running body, live: fitted to it by name, swapped into the
    * nerves between one control step and the next. Returns what the body could use of it.
+   *
+   * The cord is not touched. It used to be set here from the policy's recipe, which made the
+   * running body's reflexes something other than what the Spine panel showed the moment anything
+   * was handed over; now the panel is the one owner, the studio writes a recipe's cord onto its
+   * sliders, and the sliders set the body.
    */
-  handOver(
-    policy: PolicyFile,
-    authority: number,
-    reflex?: Partial<SpinalGains>,
-  ): { inputs: number; outputs: number } {
+  handOver(policy: PolicyFile, authority: number): { inputs: number; outputs: number } {
     const nerves = this.nerves;
     if (!nerves) throw new Error('This run has no muscles, so nothing for a policy to drive.');
     const carried = nerves.adopt(policy);
     nerves.authorityLevel = authority;
-    // The cord the policy was trained over, from its own recipe. A controller brought up on a
-    // body that answered its own stretch is not the same controller on a body that does not,
-    // so handing one over without its reflexes hands over something that never existed.
-    if (reflex) this.spine?.adjust(reflex);
+    this.policyFile = policy;
     this.brainActive = true;
     return carried;
+  }
+
+  /**
+   * Change how much say the policy in charge has, and nothing else.
+   *
+   * Separate from `handOver` because adopting a policy again is not free: it refits the weights
+   * by name and, for a policy with memory, starts its context over, so moving the Authority slider
+   * would quietly wipe what a remembering policy had built up.
+   */
+  setAuthority(level: number): void {
+    if (this.nerves) this.nerves.authorityLevel = level;
+  }
+
+  /** The policy file in charge, if one is; see `policyFile`. */
+  get policyInCharge(): PolicyFile | undefined {
+    return this.policyFile;
   }
 
   /** Set the cord's gains live, for a panel that offers them. */
@@ -805,6 +876,7 @@ export class Simulation {
   /** Take the policy out of the loop; the run carries on under the clip and the sliders. */
   releaseBrain(): void {
     this.nerves?.release();
+    this.policyFile = undefined;
     // The cord stays as it was: it is the body's own, not the policy's, and a person who turned
     // the reflexes up to watch them did not ask for them to go away with the brain.
     this.brainActive = false;

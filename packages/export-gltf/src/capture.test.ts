@@ -128,7 +128,10 @@ describe('BoneCapture', () => {
     expect(capture.frameCount).toBe(10);
 
     // Raised and resumed on the very next tick, so the frames stay contiguous and the ten it
-    // already had are still at the front. This is the case the panel asks for by pausing first.
+    // already had are still at the front. The studio's run never lands here by pausing: by the
+    // time a stop has been read the run is past the last captured tick, and the studio stops the
+    // capture again rather than let it restart (see `Simulation.captureBudgetBytes`). This is the
+    // contiguous resume only a budget raised before the next tick produces.
     capture.setBudget(perFrame * 30);
     expect(capture.full).toBe(false);
     for (let tick = 11; tick <= 25; tick++) {

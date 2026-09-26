@@ -28,6 +28,7 @@ import {
 } from '@bs-humany/export-gltf';
 import { transformPoint } from '@bs-humany/frames';
 import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
+import type { PolicyFile } from '@bs-humany/modules-nerves';
 import {
   QUALITY_HIGH,
   QUALITY_LOW,
@@ -536,9 +537,20 @@ function refreshSelection(): void {
 // Simulation
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Write an element's text only when it has changed.
+ *
+ * The frame loop writes its readouts sixty times a second, and most frames they say what they
+ * said the frame before. A write of the same string still replaces the text node, which a screen
+ * reader may announce again and which throws away a selection somebody was making in it.
+ */
+function setText(element: HTMLElement, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
+}
+
 function setSimulationStatus(text: string, error = false): void {
   const status = must<HTMLElement>('#sim-status');
-  status.textContent = text;
+  setText(status, text);
   status.classList.toggle('error', error);
 }
 
@@ -838,6 +850,9 @@ async function startSimulation(
       ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
       outputFramerate: Number(ui.outputFramerate.value),
       nerves: brain?.setup,
+      // The cord the Spine panel shows, so a Start, a Reset-and-Start, a carry restart and a
+      // restored session all run the reflexes the sliders say rather than none at all.
+      reflex: brain?.state().reflex,
       // A checkpoint trained with nothing under the brain has never felt a scenario's tone, so
       // the scenario's script does everything else it does and drives no muscle.
       scriptMuscleDrive: brain?.chosenRecipe()?.feedforward.kind !== 'none',
@@ -1912,15 +1927,25 @@ function animate(): void {
     const held = simulation.muscleVolume
       ? `muscles ${mb(rings.bytes)}, bones ${mb(capture.bytes)}, of ${mb(simulation.captureBudgetBytes)} each`
       : `${mb(capture.bytes)} of ${mb(simulation.captureBudgetBytes)}`;
-    must<HTMLElement>('#capture-status').textContent =
+    // Which capture stopped, if one has. A bones-only run has nothing to level the two captures
+    // against, so nothing records which one stopped; a full bone capture is then the one.
+    const stoppedBy = simulation.capturesStoppedBy ?? (capture.full ? 'bones' : undefined);
+    // What raising the budget does after a stop is keep what is held, never carry on: the run has
+    // gone past the last captured tick, and a capture with a gap in it is not one the export can
+    // write. So the text says what a longer capture takes, which is a new run -- and a new run of
+    // the same settings is the same run, unless somebody reached into this one.
+    const stoppedAt = (capture.firstTick + capture.frameCount - 1) * simulation.dt;
+    setText(
+      must<HTMLElement>('#capture-status'),
       `Captured ${capture.frameCount} frames for export (${held})` +
-      (simulation.capturesStoppedBy === undefined
-        ? '.'
-        : simulation.capturesStoppedBy === 'muscles'
-          ? ' — the muscle capture reached its budget and both stopped; earlier frames kept. ' +
-            'Pause, raise the budget below, and it carries on.'
-          : ' — capture budget reached; earlier frames kept. Pause, raise the budget below, and ' +
-            'it carries on.');
+        (stoppedBy === undefined
+          ? '.'
+          : ` — the ${stoppedBy === 'muscles' ? 'muscle' : 'bone'} budget reached at ` +
+            `${stoppedAt.toFixed(2)} s; the ${capture.frameCount} frames held are kept and still ` +
+            'export. For a longer capture raise the budget, then Reset and Start: the run is ' +
+            'deterministic and replays the same unless you grabbed, dragged or changed ' +
+            'drive/gravity during it.'),
+    );
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     // How fast, never whether anything was lost: nothing is. Below life speed the machine is
     // simply taking longer over the same ticks, and the run it produces is the same run.
@@ -2036,8 +2061,11 @@ function drawNerves(sim: Simulation | undefined): void {
   });
   context.putImageData(ui.image, 0, 0);
   if (local && sim) {
-    const trained = sim.scenarioNerves?.policy.trained;
+    // The policy in charge now, which after a hand-over is not the one the run opened with.
+    const inCharge = sim.policyInCharge;
+    const trained = inCharge?.trained;
     ui.note.textContent =
+      `${inCharge?.task ? `${inCharge.task}: ` : ''}` +
       `${local.policy.sizes.join(' × ')} weights, ${local.evaluationsSoFar} evaluations` +
       (trained
         ? `; trained ${trained.generations} generations to fitness ${trained.fitness.toFixed(2)}`
@@ -2612,19 +2640,59 @@ void loadSourceSites().then((data) => {
   if (data) align?.adopt(data);
 });
 
+/**
+ * Put a cord on the Spine sliders, as though somebody had moved them.
+ *
+ * The sliders are the one owner of the cord: each one's `input` event sets the running body's
+ * gains, and every run the studio starts is built with what they show. So a checkpoint's cord
+ * goes onto the sliders rather than into the body behind them, and the panel and the body cannot
+ * disagree about which reflexes are running.
+ */
+function putSpine(cord: NonNullable<NonNullable<PolicyFile['recipe']>['reflex']>): void {
+  const put = (selector: string, value: number): void => {
+    const input = document.querySelector<HTMLInputElement>(selector);
+    if (!input) return;
+    input.value = String(value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  put('#spine-stretch', cord.stretch);
+  put('#spine-velocity', cord.velocity);
+  put('#spine-setpoint', cord.setPoint);
+  put('#spine-inhibition', cord.inhibition);
+  put('#spine-delay', cord.delaySeconds);
+}
+
+/**
+ * The policy file last handed over from the panel, to tell a new hand-over from a change of
+ * authority. The panel sends both through `handOver` with the same setup shape; only a new file
+ * should bring its cord onto the sliders or be adopted again, because adopting refits the weights
+ * and starts a remembering policy's context over, and a person who moved the sliders after the
+ * hand-over did not ask for the checkpoint's cord back because they touched Authority.
+ */
+let handedPolicy: PolicyFile | undefined;
+
 brain = createBrainPanel({
   handOver(setup) {
+    if (!setup) {
+      handedPolicy = undefined;
+      simulation?.releaseBrain();
+      return;
+    }
+    const fresh = setup.policy !== handedPolicy;
+    handedPolicy = setup.policy;
+    // Onto the sliders before anything else, run or no run: the cord the checkpoint was trained
+    // over is part of the body it knows, and the next run is built with what the sliders say.
+    const cord = setup.policy.recipe?.reflex;
+    if (fresh && cord) putSpine(cord);
     // Live: the nerves are in every muscle run, so the policy goes in between one control step
     // and the next, and nothing restarts. A run that is not going takes it when it starts.
     if (!simulation) return;
-    if (!setup) {
-      simulation.releaseBrain();
+    if (!fresh) {
+      simulation.setAuthority(setup.authority);
       return;
     }
     try {
-      // The cord the checkpoint was trained over travels with it: a policy brought up on a body
-      // that answered its own stretch is not the same controller on a body that does not.
-      simulation.handOver(setup.policy, setup.authority, setup.policy.recipe?.reflex);
+      simulation.handOver(setup.policy, setup.authority);
     } catch (error) {
       setSimulationStatus(String(error), true);
     }
@@ -2663,20 +2731,7 @@ brain = createBrainPanel({
     }
     // The cord and the memory it was brought up with, onto their sliders, so the panel says
     // what this checkpoint knows rather than what the last one did.
-    const cord = recipe.reflex;
-    if (cord) {
-      const put = (selector: string, value: number): void => {
-        const input = document.querySelector<HTMLInputElement>(selector);
-        if (!input) return;
-        input.value = String(value);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      };
-      put('#spine-stretch', cord.stretch);
-      put('#spine-velocity', cord.velocity);
-      put('#spine-setpoint', cord.setPoint);
-      put('#spine-inhibition', cord.inhibition);
-      put('#spine-delay', cord.delaySeconds);
-    }
+    if (recipe.reflex) putSpine(recipe.reflex);
     const memory = document.querySelector<HTMLInputElement>('#train-memory');
     if (memory && recipe.memory !== undefined) {
       memory.value = String(recipe.memory);
