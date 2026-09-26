@@ -31,6 +31,14 @@
     "./es": {
       "types": "./src/es.ts",
       "default": "./src/es.ts"
+    },
+    "./recipe": {
+      "types": "./src/recipe.ts",
+      "default": "./src/recipe.ts"
+    },
+    "./checkpoint-name": {
+      "types": "./src/checkpointName.d.mts",
+      "default": "./src/checkpointName.mjs"
     }
   }
 }
