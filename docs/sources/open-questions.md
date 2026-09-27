@@ -482,6 +482,17 @@ that neither needs its fibre trimmed to fit.
 **Status:** addressed. Both lengths are derived from measurements on this skeleton rather than
 transcribed, with the cited values kept beside them, and the capped list is down from fourteen
 units to four.
+**2026-09-27:** the guard covers the hand, and is complete by construction. The measurement had
+quietly left out every unit no tendon table named -- coracobrachialis, the inferior gluteus
+maximus and all nineteen hand extrinsics a side -- so their fibres were never translated and the
+report had no row to say so. `measure-source-travel` now reads the units from the muscle data,
+every one whose parameters cite a MyoSuite model, and refuses any it neither measures nor names in
+`MEASUREMENT_EXCLUSIONS` (`tools/validate-external/src/referenceArm.mjs`) with a reason: the six
+trunk units on the arm's model need the torso chain, and the torso's four need a chain not
+assembled here. Of the 40 new rows, one fibre moved: flexor pollicis longus, which travels 1.32
+times as far here as on the source, from 85 to 112 mm. Coracobrachialis and the inferior gluteus
+maximus stay at the four-fifths cap they were already held at, and the other hand units travel
+less here than there, which the translation leaves alone.
 
 ### OQ-021 — The foot has no frame of its own, and no marked phalanx
 **Needed for:** `packages/muscle-data/src/ankle.ts`, `tools/cli/bin/generate-muscle-via-points.mjs`
@@ -639,6 +650,10 @@ CC BY-SA data* is found and vendored, and the stand-in is replaced by it.
 **Status:** stand-in, measured rather than assumed. The vendoring route stays closed until a
 permissively licensed model turns up. The hand's extrinsics are built on the same stand-in; its
 intrinsics are not built, for a different reason (`UNMODELLED_MUSCLES` in `@bs-humany/skeleton`).
+**2026-09-27:** the hand's stand-ins are translated like the forearm's now. The source-travel
+sweep measures their tendons on the source's model (OQ-020), compile lengthens a fibre where the
+muscle travels further here, and the hand's citation says so where it used to say the opposite.
+Flexor pollicis longus is the one that moved, from 85 to 112 mm.
 
 ### OQ-023 — The guard that refuses an actuator was written for a value no longer used
 **Needed for:** `tools/cli/lib/myoSuite.mjs`, the torso set, and five units in four other sets

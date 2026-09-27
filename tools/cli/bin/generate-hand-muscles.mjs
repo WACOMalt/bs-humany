@@ -22,13 +22,14 @@
  * because that one would deserve the ordinary derivation and the ordinary citation. OQ-022 has
  * the argument.
  *
- * The stand-in is not translated to this skeleton at compile either. `deriveOptimalFiberLength`
- * lengthens a fiber by how much further its muscle travels here than on the source's (OQ-020),
- * and the source's side of that ratio is `SOURCE_MUSCLE_TRAVEL`, which `measure-source-travel`
- * sweeps, in the arm, for the elbow, shoulder and forearm tendons and not for these.
- * With no row a unit keeps the number it was given, capped at four fifths of its path, which none
- * of these reaches. The citation says so, and this generator refuses to run once a hand unit has
- * a row, because the citation would then be false.
+ * The stand-in is translated to this skeleton at compile, as the forearm's six are.
+ * `deriveOptimalFiberLength` lengthens a fiber by how much further its muscle travels here than on
+ * the source's (OQ-020), and the source's side of that ratio is `SOURCE_MUSCLE_TRAVEL`, which
+ * `measure-source-travel` sweeps in the arm for these tendons as for the elbow's, the shoulder's
+ * and the forearm's. It did not until 2026-09-27, and this generator refused to run the day one of
+ * them was measured, because the citation then said they were not; the citation says what the
+ * forearm's says now, and the measurement refuses a unit citing the source that it neither
+ * measures nor excludes by name.
  *
  * ## Their paths are ours, and have to be
  *
@@ -64,9 +65,6 @@ const { check } = cliFlags('generate-hand-muscles');
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'),
-);
-const { sourceMuscleTravel } = await jiti.import(
-  join(ROOT, 'packages/muscle-data/src/sourceTravel.ts'),
 );
 // The site-id scheme and the wrist compartments, from the module `attachments.ts` builds the sites
 // with, so an id named here is the id the body carries. It imports nothing, so loading it is cheap.
@@ -264,15 +262,6 @@ function render() {
           'generate-forearm-muscles.mjs does for supinator and anconeus.',
       );
     }
-    // The same citation says the fiber is not translated at compile, which holds only while the
-    // source-travel sweep has no row for the unit. Once it has one, compile may lengthen it.
-    if (sourceMuscleTravel(unit.id) !== undefined) {
-      throw new Error(
-        `SOURCE_MUSCLE_TRAVEL now measures '${unit.id}', so compile may lengthen its fiber, ` +
-          'and the hand citation saying it is not translated would be false. Change the ' +
-          'citation, and the header, before regenerating.',
-      );
-    }
     return {
       ...unit,
       ...NOT_CARRIED,
@@ -316,11 +305,9 @@ function render() {
  * \`lengthrange\` width over \`TYPICAL_NORMALISED_TRAVEL\`: a stand-in good to about half, which
  * every unit's citation, \`myoArmStandIn\`, says. OQ-022 has the argument.
  *
- * That number is also the one the simulation runs. Compile lengthens a set's fibers where a
- * muscle travels further on this skeleton than on the source's (OQ-020), but the source-travel
- * sweep does not cover the hand's tendons, so
- * \`deriveOptimalFiberLength\` has nothing to translate by and keeps the stated fiber, capped at
- * four fifths of its path, which none of these reaches.
+ * Compile then lengthens a fiber where its muscle travels further on this skeleton than on the
+ * source's (OQ-020), as it does every set's: \`measure:source-travel\` sweeps these tendons on the
+ * source's model, and \`docs/validation/fiber-lengths.md\` says what that did to each.
  *
  * ## The paths are ours and have to be
  *
@@ -344,8 +331,8 @@ const myoArmStandIn = (actuator: string) =>
     'caggiano2022',
     \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated; fiber length is the \` +
       'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (${TYPICAL_NORMALISED_TRAVEL}), a stand-in good to ' +
-      'about half (OQ-022); not translated at compile, since the source-travel sweep does not ' +
-      'cover the hand (OQ-020)',
+      'about half (OQ-022); lengthened at compile only where the muscle travels further here ' +
+      'than on the source (OQ-020)',
   );
 
 export const HAND_MUSCLES: readonly MuscleGroup[] = [

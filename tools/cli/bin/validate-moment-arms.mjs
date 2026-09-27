@@ -38,7 +38,7 @@
  * couplings, and ours are a ball joint with couplings of its own. Until someone decides which of
  * our coordinates stands for which of theirs, and at what pose of the other two, a shoulder row
  * would be comparing two different motions. The trunk's tendons (latissimus, pectoralis) wait
- * longer still, on the arm and torso chains being joined (`TRUNK_TENDONS_NEED_THE_TORSO_CHAIN`).
+ * longer still, on the arm and torso chains being joined (`MEASUREMENT_EXCLUSIONS`).
  *
  * ## What fails
  *
@@ -292,6 +292,13 @@ const RECORDED = [
       0.0255,
       'OQ-015',
       'As the superior part: ours turns flexor at about 75 degrees and the reference’s at about 115, and ours is two thirds of the reference in extension.',
+    ],
+    [
+      'Hip flexion',
+      'gluteus_maximus_inferior_r',
+      0.015,
+      'OQ-015',
+      'An extensor in both, but ours is smaller throughout and falls to 3 mm at 30 degrees of extension where the reference’s is 37. First swept when its tendon joined LEG_TENDONS for the source-travel measurement, on its one carried point: the reference holds it on a pelvis point and a wrap as well, which the leg’s frames do not carry.',
     ],
     [
       'Hip flexion',

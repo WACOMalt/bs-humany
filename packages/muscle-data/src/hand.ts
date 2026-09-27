@@ -31,11 +31,9 @@
  * `lengthrange` width over `TYPICAL_NORMALISED_TRAVEL`: a stand-in good to about half, which
  * every unit's citation, `myoArmStandIn`, says. OQ-022 has the argument.
  *
- * That number is also the one the simulation runs. Compile lengthens a set's fibers where a
- * muscle travels further on this skeleton than on the source's (OQ-020), but the source-travel
- * sweep does not cover the hand's tendons, so
- * `deriveOptimalFiberLength` has nothing to translate by and keeps the stated fiber, capped at
- * four fifths of its path, which none of these reaches.
+ * Compile then lengthens a fiber where its muscle travels further on this skeleton than on the
+ * source's (OQ-020), as it does every set's: `measure:source-travel` sweeps these tendons on the
+ * source's model, and `docs/validation/fiber-lengths.md` says what that did to each.
  *
  * ## The paths are ours and have to be
  *
@@ -59,8 +57,8 @@ const myoArmStandIn = (actuator: string) =>
     'caggiano2022',
     `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated; fiber length is the ` +
       'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (0.667), a stand-in good to ' +
-      'about half (OQ-022); not translated at compile, since the source-travel sweep does not ' +
-      'cover the hand (OQ-020)',
+      'about half (OQ-022); lengthened at compile only where the muscle travels further here ' +
+      'than on the source (OQ-020)',
   );
 
 export const HAND_MUSCLES: readonly MuscleGroup[] = [
