@@ -95,7 +95,7 @@ import {
 import { attachmentSites, jointsOnSegment } from './align/ourBody.js';
 import { buildBlenderExport } from './blenderExport.js';
 import { boundsMidpoint, segmentComs, wholeBodyCom } from './bodyCom.js';
-import { IDLE_BRAIN_STATE, createBrainPanel } from './brain.js';
+import { createBrainPanel } from './brain.js';
 import { BridgeFollower } from './follow.js';
 import { FollowTissue } from './followTissue.js';
 import { createOrbitControls } from './orbit.js';
@@ -211,7 +211,7 @@ camera.position.set(1.5, 1.1, -2.6);
  */
 let gizmoDragging = false;
 const controls = createOrbitControls(camera, renderer.domElement, new Vector3(0, 0.9, 0), {
-  claimPointer: (event) => gizmoDragging || align?.overGizmo() === true || beginGrab(event),
+  claimPointer: (event) => gizmoDragging || align.overGizmo() || beginGrab(event),
 });
 
 scene.add(new HemisphereLight(0xb8c6e0, 0x2a2118, 0.55));
@@ -303,11 +303,6 @@ let shownPending = '';
  * `setRunControls` reads it, from the first frame on.
  */
 let exporting = false;
-// Declared up here with the run state, because the render loop reads it from its first frame
-// on, and that frame runs before the page script reaches the VR section at the bottom.
-let vrLink: VrLink | null = null;
-// Likewise the bridge follower, read by the loop from its first frame on.
-const bridgeFollower = new BridgeFollower();
 let overlays: Overlays | null = null;
 let furniture: Group | null = null;
 let groundY = 0;
@@ -1308,11 +1303,10 @@ function setPlaybackControls(running: boolean): void {
  *
  * The step rate only when somebody chose one, so a session saved with the slider left alone runs
  * at whatever profile it names. The cord, the authority and the chosen checkpoint are the Brain
- * panel's, read from its state rather than off its elements, and absent while it has not been
- * made.
+ * panel's, read from its state rather than off its elements.
  */
 function currentSettings(): NormalisedSettings {
-  const brainState = brain?.state();
+  const brainState = brain.state();
   const drive: Record<string, number> = {};
   for (const [id, input] of driveInputs) {
     const level = Number(input.value);
@@ -1339,13 +1333,9 @@ function currentSettings(): NormalisedSettings {
     outputFramerate: Number(ui.outputFramerate.value),
     captureBudgetMiB: Number(ui.captureBudget.value),
     drive,
-    ...(brainState
-      ? {
-          reflex: { ...brainState.reflex },
-          brainAuthority: brainState.authority,
-          ...(brainState.selected ? { checkpoint: brainState.selected } : {}),
-        }
-      : {}),
+    reflex: { ...brainState.reflex },
+    brainAuthority: brainState.authority,
+    ...(brainState.selected ? { checkpoint: brainState.selected } : {}),
   };
 }
 
@@ -1461,7 +1451,6 @@ function applySettings(settings: NormalisedSettings): string | undefined {
  * recipe that re-applies the panel's own values should not touch it.
  */
 function applyBrainSettings(settings: NormalisedSettings): void {
-  if (!brain) return;
   const state = brain.state();
   const cord = settings.reflex;
   if (cord) {
@@ -1684,10 +1673,10 @@ async function startSimulation(
           // was tuned for, which is the number that ought to win by default.
           ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
           outputFramerate: Number(ui.outputFramerate.value),
-          nerves: brain?.setup,
+          nerves: brain.setup,
           // The cord the Spine panel shows, so a Start, a Reset-and-Start, a carry restart and
           // a restored session all run the reflexes the sliders say rather than none at all.
-          reflex: brain?.state().reflex,
+          reflex: brain.state().reflex,
         });
         builtWith = runSettings();
         return built;
@@ -1809,7 +1798,7 @@ function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], ca
   showFurniture(sim.staticBoxes);
   // The Align tab draws our own joints and attachments, which are this body's: when the body
   // is rebuilt they are a different body's and have to be read again.
-  align?.refresh();
+  align.refresh();
   showCapabilities(sim);
   must<HTMLElement>('#diagnostics').hidden = false;
   must<HTMLElement>('#diagnostics-empty').hidden = true;
@@ -2767,12 +2756,6 @@ must<HTMLButtonElement>('#muscles-on').addEventListener('click', () => {
 // How many units a body has, from the table the runs are built from, rather than a number written
 // into the page that went stale with the next muscle added.
 must<HTMLElement>('#muscle-unit-count').textContent = String(ALL_MUSCLE_UNITS.length);
-// The brain panel is made once the follow code below exists; runs read its setup when they start.
-// biome-ignore lint/style/useConst: assigned once, but below the code that reads it, so a `const` there would be in its dead zone for the handlers above.
-let brain: ReturnType<typeof createBrainPanel> | undefined;
-// biome-ignore lint/style/useConst: as above -- assigned once, below the handlers that read it.
-let align: AlignPanel | undefined;
-
 // --- The editors' chrome: tabs, what the page remembers, the overlays popover ------------------
 
 // Explanatory text is off by default: every panel has paragraphs of it, and a reader wants at most
@@ -3376,7 +3359,6 @@ ui.save.addEventListener('click', () => {
  * start clears the notices before it, so a notice given here would be gone before anyone read it.
  */
 async function chooseSessionCheckpoint(id: string): Promise<boolean> {
-  if (!brain) return false;
   await brain.poll();
   const state = brain.state();
   if (state.selected === id) return false;
@@ -3896,30 +3878,18 @@ for (const limitation of modelLimitations()) {
 // The brain on screen: the policy's layers as pixels, redrawn every frame the nerves are in.
 // ---------------------------------------------------------------------------------------------
 
-/**
- * The panel's elements, found on first use rather than at module scope.
- *
- * The frame loop draws this panel and the loop's first frame is run as this file is evaluated,
- * which is before a `const` down here would exist. Looked up when first drawn, it does not
- * matter which of the two happens first.
- */
-let nervesUi: {
-  control: HTMLElement;
-  canvas: HTMLCanvasElement;
-  note: HTMLElement;
+/** The Activity panel's elements, and the picture it draws into, made once it is first drawn. */
+const nervesUi: {
+  readonly control: HTMLElement;
+  readonly canvas: HTMLCanvasElement;
+  readonly note: HTMLElement;
   image: ImageData | null;
-} | null = null;
-function nervesElements() {
-  if (!nervesUi) {
-    nervesUi = {
-      control: must<HTMLElement>('#nerves-control'),
-      canvas: must<HTMLCanvasElement>('#nerves-activity'),
-      note: must<HTMLElement>('#nerves-note'),
-      image: null,
-    };
-  }
-  return nervesUi;
-}
+} = {
+  control: must<HTMLElement>('#nerves-control'),
+  canvas: must<HTMLCanvasElement>('#nerves-activity'),
+  note: must<HTMLElement>('#nerves-note'),
+  image: null,
+};
 
 /**
  * The brain on screen, from whichever one is in a loop: this page's own policy when one has been
@@ -3928,9 +3898,9 @@ function nervesElements() {
  */
 function drawNerves(sim: Simulation | undefined): void {
   const local = sim?.brainActive ? sim.nerves : undefined;
-  const remote = local ? undefined : brain?.remoteActivity();
+  const remote = local ? undefined : brain.remoteActivity();
   const layers: readonly ArrayLike<number>[] | undefined = local?.policy.layers ?? remote?.layers;
-  const ui = nervesElements();
+  const ui = nervesUi;
   if (!layers || layers.length === 0) {
     if (!ui.control.hidden) ui.control.hidden = true;
     return;
@@ -3982,8 +3952,6 @@ function drawNerves(sim: Simulation | undefined): void {
   }
 }
 
-animate();
-
 // A handle for scripted checks of the running page; never used by the page itself.
 Object.assign(window, {
   __studio: {
@@ -4034,55 +4002,61 @@ function fullDetailFailed(error: unknown): void {
   });
 }
 
-loadAssets('lod1').then(
-  (loaded) => {
-    assets = loaded;
-    must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
-    must<HTMLElement>('#attribution').hidden = false;
-    try {
-      rebuildMesh();
-      rebuildBody();
-    } catch (error) {
-      loadFailed('The measured skeleton loaded but failed to build.', error);
-      return;
-    }
-    // Only now: hidden before the first build, the overlay went away and a failure to build
-    // left an empty viewport with nothing in it to say why.
-    must<HTMLElement>('#loading').hidden = true;
-    if (STAY_ON_SMALL_PACK) {
-      showMeshDetail('reduced (this device stays on the small pack)');
-      return;
-    }
-    fullDetailPending = true;
-    showMeshDetail('reduced; loading full detail…');
-    if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
-    loadAssets('full')
-      .then((full) => {
-        const reduced = assets;
-        assets = full;
-        // The mesh only: the bones on screen get finer and nothing about the body changes, so a
-        // run going when they arrive goes on, with its recording, drawn in the finer bones.
-        try {
-          rebuildMesh();
-          showMeshDetail('full');
-        } catch (error) {
-          // Back to the pack that built, so the viewport has a skeleton in it.
-          assets = reduced;
+/**
+ * Fetch the mesh pack and build the body from it: the reduced pack first, then, on a device that
+ * wants it, the full one behind it.
+ */
+function loadSkeleton(): void {
+  loadAssets('lod1').then(
+    (loaded) => {
+      assets = loaded;
+      must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
+      must<HTMLElement>('#attribution').hidden = false;
+      try {
+        rebuildMesh();
+        rebuildBody();
+      } catch (error) {
+        loadFailed('The measured skeleton loaded but failed to build.', error);
+        return;
+      }
+      // Only now: hidden before the first build, the overlay went away and a failure to build
+      // left an empty viewport with nothing in it to say why.
+      must<HTMLElement>('#loading').hidden = true;
+      if (STAY_ON_SMALL_PACK) {
+        showMeshDetail('reduced (this device stays on the small pack)');
+        return;
+      }
+      fullDetailPending = true;
+      showMeshDetail('reduced; loading full detail…');
+      if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
+      loadAssets('full')
+        .then((full) => {
+          const reduced = assets;
+          assets = full;
+          // The mesh only: the bones on screen get finer and nothing about the body changes, so a
+          // run going when they arrive goes on, with its recording, drawn in the finer bones.
           try {
             rebuildMesh();
-          } catch {
-            // Already said below; a second failure adds nothing a person can act on.
+            showMeshDetail('full');
+          } catch (error) {
+            // Back to the pack that built, so the viewport has a skeleton in it.
+            assets = reduced;
+            try {
+              rebuildMesh();
+            } catch {
+              // Already said below; a second failure adds nothing a person can act on.
+            }
+            fullDetailFailed(error);
           }
-          fullDetailFailed(error);
-        }
-      }, fullDetailFailed)
-      .finally(() => {
-        fullDetailPending = false;
-        if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
-      });
-  },
-  (error: unknown) => loadFailed('The measured skeleton failed to load.', error),
-);
+        }, fullDetailFailed)
+        .finally(() => {
+          fullDetailPending = false;
+          if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
+        });
+    },
+    (error: unknown) => loadFailed('The measured skeleton failed to load.', error),
+  );
+}
 
 function must<T extends Element>(selector: string): T {
   const element = window.document.querySelector<T>(selector);
@@ -4111,6 +4085,8 @@ function escapeHtml(value: string): string {
 // ---------------------------------------------------------------------------------------------
 
 const connectVr = must<HTMLButtonElement>('#connect-vr');
+/** The link to the headset while one is connected. */
+let vrLink: VrLink | null = null;
 
 /** The studio's diagnostics strip, as numbers, for the panel. */
 function diagnosticsOf(sim: Simulation): Record<string, number> {
@@ -4267,7 +4243,7 @@ const vrHost = {
       // and the newest tick's would tint a frame it does not belong to.
       tension: sim && following ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],
       tissue: sim ? tissueForBridge(sim) : { discs: [], bars: [] },
-      brain: brain?.state() ?? { ...IDLE_BRAIN_STATE, following: bridgeFollower.active },
+      brain: brain.state(),
       recordedSeconds: sim ? recordedSeconds(sim) : 0,
       playing: playback.playing,
       live: following,
@@ -4302,7 +4278,7 @@ const vrHost = {
         }
         break;
       case 'brain':
-        brain?.act(command.action, command.id, command.value);
+        brain.act(command.action, command.id, command.value);
         break;
       case 'drive': {
         const input = driveInputs.get(MUSCLE_GROUPS[command.group]?.id ?? '');
@@ -4433,7 +4409,7 @@ if (isTauri()) {
         connectVr.textContent = 'Disconnect VR viewer';
         // At once, rather than at the next three-second tick: the headset's Brain tab is drawn
         // from what the desktop's panel knows, and it should not open on a stale list.
-        void brain?.poll();
+        void brain.poll();
       } catch (error) {
         announce(`The VR viewer did not connect: ${messageOf(error)}`, { error: true });
       } finally {
@@ -4456,6 +4432,8 @@ if (isTauri()) {
 // Following the bridge: the body on screen is whoever is publishing, not a run of our own.
 // ---------------------------------------------------------------------------------------------
 
+/** The bridge's publisher, whose body the viewport shows while following. */
+const bridgeFollower = new BridgeFollower();
 const followButton = must<HTMLButtonElement>('#follow-bridge');
 let followTubes: RingTubes | null = null;
 /** The followed body's connective tissue, and what it was built for. */
@@ -4760,10 +4738,10 @@ const alignHost: AlignHost & AlignHostHooks = {
       : undefined,
   open: openAlignFile,
 };
-align = createAlignPanel(alignHost, camera, renderer);
+const align: AlignPanel = createAlignPanel(alignHost, camera, renderer);
 align.attach(world);
 void loadSourceSites().then((data) => {
-  if (data) align?.adopt(data);
+  if (data) align.adopt(data);
 });
 
 /**
@@ -4795,7 +4773,7 @@ function putSpine(cord: NonNullable<NonNullable<PolicyFile['recipe']>['reflex']>
  */
 let handedPolicy: PolicyFile | undefined;
 
-brain = createBrainPanel({
+const brain = createBrainPanel({
   handOver(setup) {
     if (!setup) {
       handedPolicy = undefined;
@@ -4918,7 +4896,26 @@ brain = createBrainPanel({
 // the console. A studio that reopens on the Brain tab is still asked at once, and opening the tab
 // later wakes the panel's own poll.
 const pollBrainIfRead = (): void => {
-  if (tabs.active === 'brain' || bridgeFollower.active || vrLink?.connected) void brain?.poll();
+  if (tabs.active === 'brain' || bridgeFollower.active || vrLink?.connected) void brain.poll();
 };
-pollBrainIfRead();
-window.setInterval(pollBrainIfRead, 3000);
+
+// ---------------------------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Set the page going, once everything it draws from has been made: the frame loop, the mesh pack,
+ * and the Brain panel's poll.
+ *
+ * Last, because each of them reaches into everything above. The frame loop's first frame runs as
+ * soon as it is called, and it draws the Brain panel's activity and relays the bridge to the
+ * headset; started any earlier, it would reach those before they exist.
+ */
+function boot(): void {
+  animate();
+  loadSkeleton();
+  pollBrainIfRead();
+  window.setInterval(pollBrainIfRead, 3000);
+}
+
+boot();
