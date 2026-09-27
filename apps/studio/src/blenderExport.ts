@@ -24,7 +24,7 @@ import {
 import { IDENTITY_TRANSFORM, type Transform, compose, transformPoint } from '@bs-humany/frames';
 import { type HsdlDocument, evaluate, param } from '@bs-humany/hsdl';
 import { computeWorldTransforms } from '@bs-humany/skeleton';
-import { Playback } from './playback.js';
+import { sweepRings } from './ringSweep.js';
 import type { Simulation } from './simulation.js';
 import {
   BEAD_RADIUS,
@@ -150,44 +150,48 @@ export interface MuscleVertexGroup {
 }
 
 /**
- * The ring capture's flat view, in the shape `Playback` reads a frame out of.
- *
- * The view is already one contiguous block per stream, so a frame is a subarray and this copies
- * it into the caller's buffers the way the live capture does. Written here rather than reaching
- * into the capture, because the export holds a view rather than the capture itself. The same
- * goes for `indexForTick`, the ring frame a bone tick was showing: the view carries each frame's
- * tick for it.
+ * The ring capture's flat view, and the one question the export asks of it: which ring frame was
+ * showing at a bone tick. The newest at or before it, which is what `MuscleRingCapture`'s own
+ * `indexForTick` answers; written against the view here because the export holds a view rather
+ * than the capture itself, and the view carries each frame's tick for it.
  */
-function capturedRings(view: {
+interface RingView {
   readonly frames: number;
   readonly rings: number;
   readonly ticks: Int32Array;
   readonly position: Float32Array;
   readonly orientation: Float32Array;
   readonly radius: Float32Array;
-}) {
-  const tickAt = (index: number): number => view.ticks[index] ?? -1;
-  return {
-    frameCount: view.frames,
-    ringCount: view.rings,
-    indexForTick(tick: number): number {
-      return newestAtOrBefore(view.frames, tickAt, tick);
-    },
-    frameInto(
-      index: number,
-      position: Float32Array,
-      orientation: Float32Array,
-      radius: Float32Array,
-    ): boolean {
-      if (index < 0 || index >= view.frames) return false;
-      position.set(view.position.subarray(index * view.rings * 3, (index + 1) * view.rings * 3));
-      orientation.set(
-        view.orientation.subarray(index * view.rings * 4, (index + 1) * view.rings * 4),
-      );
-      radius.set(view.radius.subarray(index * view.rings, (index + 1) * view.rings));
-      return true;
-    },
-  };
+}
+
+function ringIndexForTick(view: RingView, tick: number): number {
+  return newestAtOrBefore(view.frames, (index) => view.ticks[index] ?? -1, tick);
+}
+
+/**
+ * Sweep one ring frame of the view into belly vertices, with the studio's one sweep -- the one
+ * the playhead and the followed tubes use, so the cache holds what was on screen. The view is one
+ * contiguous block per stream, so a frame is a subarray and nothing is copied out of it first.
+ */
+function sweepRingFrame(
+  view: RingView,
+  index: number,
+  segments: number,
+  position: Float64Array,
+  normal: Float64Array,
+): boolean {
+  if (index < 0 || index >= view.frames) return false;
+  const rings = view.rings;
+  sweepRings(
+    view.position.subarray(index * rings * 3, (index + 1) * rings * 3),
+    view.orientation.subarray(index * rings * 4, (index + 1) * rings * 4),
+    view.radius.subarray(index * rings, (index + 1) * rings),
+    rings,
+    segments,
+    position,
+    normal,
+  );
+  return true;
 }
 
 export function buildBlenderExport(
@@ -402,14 +406,21 @@ export function buildBlenderExport(
     // The mesh itself is the first sample, because a Mesh Cache modifier replaces every vertex
     // anyway and a rest shape that is one of the real ones is the least surprising thing to find
     // when the modifier is turned off.
-    const replay = new Playback();
-    const template = { index: indices, verticesPerUnit: perUnit };
-    const held = capturedRings(muscleRings);
-    /** The ring frame showing at a bone frame of the capture. */
-    const ringsAt = (boneFrame: number): number => held.indexForTick(capture.firstTick + boneFrame);
-    const first = replay.bellyAt(held, ringsAt(0), template, volume.rings, volume.segments);
+    const swept = new Float64Array(vertices * 3);
+    // A PC2 cache is positions only, and Blender recomputes the normals from them; the sweep
+    // writes its normals here all the same and nothing reads them.
+    const sweptNormal = new Float64Array(vertices * 3);
+    /** Sweep the rings showing at a bone frame of the capture into `swept`. */
+    const sweepAt = (boneFrame: number): boolean =>
+      sweepRingFrame(
+        muscleRings,
+        ringIndexForTick(muscleRings, capture.firstTick + boneFrame),
+        volume.segments,
+        swept,
+        sweptNormal,
+      );
     const positions = new Float64Array(vertices * 3);
-    if (first) positions.set(first.position.subarray(0, vertices * 3));
+    if (sweepAt(0)) positions.set(swept);
 
     nodes.push({
       id: 'muscles',
@@ -438,8 +449,7 @@ export function buildBlenderExport(
       { points: vertices, samples: pointCacheSamples, startFrame: 0, sampleRate: 1 },
       (index, into) => {
         const at = Math.min(muscleAvailable - 1, Math.round((index * rate) / outputFramerate));
-        const frame = replay.bellyAt(held, ringsAt(at), template, volume.rings, volume.segments);
-        if (frame) toBlenderAxes(frame.position, into, vertices);
+        if (sweepAt(at)) toBlenderAxes(swept, into, vertices);
       },
     );
   }
