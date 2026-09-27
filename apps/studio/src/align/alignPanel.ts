@@ -7,35 +7,60 @@
  * made from; and a point that turns out to be misplaced is found the same way, by looking at it
  * against the bone it sits on.
  *
- * What comes out is two files, both with their provenance on them: a correspondence mapping that
- * says who decided each row, and a set of point overrides that record how far each point moved
- * and why. Neither is written by guesswork and neither is applied automatically -- they are
- * proposals a person made, for a generator to consume.
+ * What comes out is three files, each carrying the body and the reference data it was made
+ * against (`provenance.ts`): a correspondence mapping, a bone pairing whose rows say whether a
+ * person or a name match decided them, and a set of point overrides that record how far each
+ * point moved and why. Each can be opened back in, and a reload keeps them as a draft.
+ *
+ * They are proposals for a person to review, and nothing in the build reads them yet. Item 1.7 of
+ * `docs/plans/dataset-correspondence.md` is where the correspondence gets its reader, in
+ * `measure:source-travel`, and that reader must take a committed file: CI runs
+ * `measure:source-travel --check`, and a download lands wherever the browser puts it, which is no
+ * place a build can depend on.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
+import type { CompiledMuscleSet } from '@bs-humany/modules-muscle';
 import type { Camera, WebGLRenderer } from 'three';
-import { MathUtils, Object3D } from 'three';
+import { MathUtils, Object3D, type Vector3 } from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { DRAG_THRESHOLD } from '../orbit.js';
 import { keyOwnedByTarget } from '../shortcuts.js';
+import { createMemory } from '../ui/memory.js';
 import { TAB_CHANGE } from '../ui/tabs.js';
+import {
+  type MergeReport,
+  type StampedBonePair,
+  bonePairingDocument,
+  correspondenceDocument,
+  describeMerge,
+  mergeBonePairs,
+  mergeMoves,
+  mergePairs,
+  overridesDocument,
+  readAlignmentFile,
+  readDraft,
+  serialise,
+  writeDraft,
+} from './alignmentFiles.js';
 import { type Pair, missingSegments, pairLabel, pairedIn, unpairAt } from './correspondence.js';
 import { describeFits } from './fit.js';
-import { type Move, PointHandles } from './pointHandles.js';
+import { type Seat, seatReferenceModel, viaPoints } from './ourBody.js';
 import {
-  type BodyPair,
-  fitBodies,
-  fittedFromPlacement,
-  retargetPath,
-  suggestBodyPairs,
-} from './retarget.js';
+  type Handle,
+  type HandleKind,
+  KEPT_MATCH,
+  type Move,
+  PointHandles,
+} from './pointHandles.js';
+import { type BodyStamp, type SourceSitesStamp, fnv1a32 } from './provenance.js';
+import { fitBodies, fittedFromPlacement, retargetPath, suggestBodyPairs } from './retarget.js';
 import {
+  type MeshCount,
   NEUTRAL as NEUTRAL_PLACEMENT,
   type Placement,
   SourceOverlay,
   type SourceSites,
-  changeOfAxes,
 } from './sourceOverlay.js';
 
 export type { Pair } from './correspondence.js';
@@ -74,8 +99,25 @@ export interface AlignHost {
   }[];
   /** Light up one of our segments in the viewport, or clear it with undefined. */
   highlightSegment(id: string | undefined): void;
-  /** Hand a file to the user, however this studio does that. */
-  save(name: string, text: string): void;
+  /**
+   * Hand a file to the user through the studio's saving helper, which reports it in the status
+   * line like every other export. True once it is written; false when it was cancelled or failed,
+   * which the helper has already said.
+   */
+  save(name: string, text: string): Promise<boolean>;
+  /** Ask for a JSON file to open, however this studio asks; its text, or undefined if none. */
+  open(): Promise<string | undefined>;
+  /** Our compiled muscle set, for the via points, or undefined before a run is built. */
+  muscles(): CompiledMuscleSet | undefined;
+  /**
+   * Hold the body at rest while our points are shown, or let it go.
+   *
+   * Points are defined and recorded at rest, so a point is only judged fairly against its bone
+   * when the bone is at rest too. The host pauses a live run to do it and never resumes one.
+   */
+  holdRest(on: boolean): void;
+  /** The body a saved file was made against: the running one's profile and morphology. */
+  body(): BodyStamp | undefined;
   /**
    * Whether a gizmo is mid-drag, asked by the orbit controls before they take a pointer.
    *
@@ -124,8 +166,13 @@ export interface AlignPanel {
   setActive(active: boolean): void;
   /** Add the overlay and the handles to a scene graph. */
   attach(world: Object3D): void;
-  /** Take the reference sites once they have been fetched. */
+  /**
+   * Take the reference sites once they have been fetched. The panel fetches them itself the first
+   * time the tab opens; taking the same data twice does nothing.
+   */
   adopt(data: SourceSites): void;
+  /** Say the reference sites could not be loaded, and why, and shut the model list. */
+  unavailable(reason: string): void;
   /** Called when the body is rebuilt, so the handles follow it. */
   refresh(): void;
   dispose(): void;
@@ -135,6 +182,25 @@ export interface AlignPanel {
 type GizmoTarget = 'off' | 'model' | 'point';
 /** Moving or turning. Scaling is left out: a placement has one uniform scale, and its slider. */
 type GizmoMode = 'translate' | 'rotate';
+
+/** What a control that needs a body says before there is one. */
+const START_NOTE =
+  'Our segments and units appear once a run has started: press ▶ Start sim in the top bar.';
+/** What Our points says when a kind is chosen and there is no body to read it from. */
+const POINTS_NEED_BODY =
+  'Joint centres and attachment sites are read from a running body: press ▶ Start sim in the ' +
+  'top bar.';
+/**
+ * Why a reference model's bone meshes are missing, when some are.
+ *
+ * The meshes are served by the studio's own Vite plugin straight from the tracked originals, so a
+ * build that lacks them is one that does not serve that directory -- a static host that dropped
+ * it, or a server other than the studio's.
+ */
+const MESHES_MISSING = 'this build does not serve tools/validate-external/myo_sim/meshes';
+
+/** The Align lists that are saved, opened and kept as a draft, one each. */
+type Section = 'pairs' | 'bones' | 'moves';
 
 export function createAlignPanel(
   host: AlignHost,
@@ -182,7 +248,11 @@ export function createAlignPanel(
     pairs: must<HTMLSelectElement>('#align-pairs'),
     pairsCount: must<HTMLOutputElement>('#align-pairs-count'),
     savePairs: must<HTMLButtonElement>('#align-save-pairs'),
+    openPairs: must<HTMLButtonElement>('#align-open-pairs'),
     points: must<HTMLSelectElement>('#align-points'),
+    pointFind: must<HTMLInputElement>('#align-point-find'),
+    pointCount: must<HTMLOutputElement>('#align-point-count'),
+    pointList: must<HTMLSelectElement>('#align-point-list'),
     pointNote: must<HTMLElement>('#align-point-note'),
     reason: must<HTMLInputElement>('#align-reason'),
     keep: must<HTMLButtonElement>('#align-keep'),
@@ -201,26 +271,48 @@ export function createAlignPanel(
     retarget: must<HTMLButtonElement>('#align-retarget'),
     clearBones: must<HTMLButtonElement>('#align-clear-bones'),
     saveBones: must<HTMLButtonElement>('#align-save-bones'),
+    openBones: must<HTMLButtonElement>('#align-open-bones'),
     moves: must<HTMLSelectElement>('#align-moves'),
     movesCount: must<HTMLOutputElement>('#align-moves-count'),
     saveMoves: must<HTMLButtonElement>('#align-save-moves'),
+    openMoves: must<HTMLButtonElement>('#align-open-moves'),
   };
   const slider = (id: string) => must<HTMLInputElement>(`#align-${id}`);
   const PLACE: (keyof Placement)[] = ['x', 'y', 'z', 'rx', 'ry', 'rz', 'scale'];
+
+  /**
+   * Where each reference model starts, as last worked out, by model: its seat on our body and the
+   * sentence saying how it was reached, for the model note.
+   */
+  const seats = new Map<string, Seat>();
+  /** Work out a model's seat on the body as it stands, and remember how, for the note. */
+  const seatFor = (model: string): Seat => {
+    const seat = seatReferenceModel(model, overlay.model(model), host.articulation());
+    seats.set(model, seat);
+    return seat;
+  };
+  /**
+   * The models whose placement a person has changed, by slider or gizmo.
+   *
+   * Those are never seated again: a seat is a starting position, and replacing somebody's own
+   * placement with it -- because the body was rebuilt, say -- would undo work they did by eye.
+   * Reset placement takes a model off this list, which is how a person asks for the seat back.
+   */
+  const touched = new Set<string>();
 
   /**
    * Where each reference model has been put, by model.
    *
    * One placement for all of them meant a model picked after another arrived in the last one's
    * turn and place, and a Z-up model and a Y-up one need different turns just to stand up. So
-   * each model keeps its own, starting from its own change of axes the first time it is asked
-   * for, and going back to a model finds it where it was left.
+   * each model keeps its own, starting from its seat on our body the first time it is asked for
+   * (see `seatReferenceModel`), and going back to a model finds it where it was left.
    */
   const placements = new Map<string, Placement>();
   const placementOf = (model: string): Placement => {
     let p = placements.get(model);
     if (!p) {
-      p = changeOfAxes(model);
+      p = { ...seatFor(model).placement };
       placements.set(model, p);
     }
     return p;
@@ -241,9 +333,19 @@ export function createAlignPanel(
   let beforeRetarget: { model: string; placement: Placement } | undefined;
   const pairs: Pair[] = [];
   const moves: Move[] = [];
+  /**
+   * Moves of our points not kept yet, by point id: where each was dragged to.
+   *
+   * A redraw of the handles -- a rebuild, or a switch of kind and back -- used to put every point
+   * back where the body puts it, so a drag nobody had kept yet was lost without a word. They are
+   * drawn from here in their own colour until they are kept or put back.
+   */
+  const pending = new Map<string, Vector3>();
+  /** Kept moves stale on the body shown: their `from` is not where this body puts the point. */
+  let stale: string[] = [];
   /** Bone pairs per model, because each reference model has its own bones. */
-  const bonePairs = new Map<string, BodyPair[]>();
-  const bonesFor = (model: string): BodyPair[] => {
+  const bonePairs = new Map<string, StampedBonePair[]>();
+  const bonesFor = (model: string): StampedBonePair[] => {
     const list = bonePairs.get(model) ?? [];
     bonePairs.set(model, list);
     return list;
@@ -252,12 +354,97 @@ export function createAlignPanel(
    * The bone pairs Clear bone pairs took away, while they can still be put back.
    *
    * Clearing is undone by a second click rather than asked about first, because a confirmation
-   * dialog is not dependable in the desktop shell's webview, and because nothing else would bring
-   * them back: bone pairs are saved to a file but never read back from one. Anything that changes
-   * the pairs since -- a pair, an unpair, a suggestion, another model -- makes the old list a
-   * different decision, and the chance to restore it goes.
+   * dialog is not dependable in the desktop shell's webview. Anything that changes the pairs
+   * since -- a pair, an unpair, a suggestion, another model -- makes the old list a different
+   * decision, and the chance to restore it goes; a saved bone pairing can still be opened again.
    */
-  let cleared: { model: string; list: BodyPair[] } | undefined;
+  let cleared: { model: string; list: StampedBonePair[] } | undefined;
+
+  // ---- saved, opened, and kept as a draft ------------------------------------------------
+  /** The reference sites taken so far, so taking the same ones twice does nothing. */
+  let adopted: SourceSites | undefined;
+  /** Which extraction of the reference models is on screen, for the files' provenance. */
+  let sourceStamp: SourceSitesStamp | undefined;
+  /**
+   * What the model note says when no model is picked: that the reference data is loading, has
+   * loaded, could not be loaded, or that a draft was restored.
+   */
+  let idleNote = {
+    text: 'No reference model shown. Pick one to place it or pair with it.',
+    error: false,
+  };
+  /**
+   * Edits and saves, counted per list. A list is unsaved while it has been edited since the save
+   * last written; counting rather than flagging means a change made while a save dialog is open
+   * is not marked saved when that save lands.
+   */
+  const edits: Record<Section, number> = { pairs: 0, bones: 0, moves: 0 };
+  const saved: Record<Section, number> = { pairs: 0, bones: 0, moves: 0 };
+  const unsaved = (): boolean =>
+    (Object.keys(edits) as Section[]).some((section) => edits[section] !== saved[section]);
+  /**
+   * The page's memory, for the draft. An authoring draft is the one thing it keeps that is not
+   * layout: see `ui/memory.ts` for why it belongs there.
+   */
+  const memory = createMemory();
+  /**
+   * Whether a draft left by the last visit has had its chance to be restored.
+   *
+   * The draft is not written before then: a move kept before the reference data arrives would
+   * otherwise overwrite the draft it was about to be offered.
+   */
+  let draftChecked = false;
+  const documents = (): { pairs: string; bones: string; moves: string } => {
+    const body = host.body();
+    const decidedAt = new Date().toISOString();
+    return {
+      pairs: serialise(
+        correspondenceDocument({
+          pairs,
+          sourceSites: sourceStamp,
+          profile: body?.profile,
+          decidedAt,
+        }),
+      ),
+      bones: serialise(
+        bonePairingDocument({ models: bonePairs, body, sourceSites: sourceStamp, decidedAt }),
+      ),
+      moves: serialise(overridesDocument({ moves, body, decidedAt })),
+    };
+  };
+  /** Count an edit to one list and keep the draft up with it. */
+  const changed = (section: Section): void => {
+    edits[section] += 1;
+    if (!draftChecked) return;
+    const texts = documents();
+    writeDraft(memory, {
+      correspondence: texts.pairs,
+      bones: texts.bones,
+      overrides: texts.moves,
+    });
+  };
+  const FILE_NAMES: Record<Section, string> = {
+    pairs: 'sourceCorrespondence.json',
+    bones: 'bonePairing.json',
+    moves: 'pointOverrides.json',
+  };
+  /** Save one list through the host, and count it saved only once the host says it was written. */
+  const save = (section: Section): void => {
+    const at = edits[section];
+    void host.save(FILE_NAMES[section], documents()[section]).then((written) => {
+      if (written) saved[section] = at;
+    });
+  };
+  /**
+   * Warn before a reload or a closed tab takes unsaved work.
+   *
+   * The draft would bring it back on the next visit, but only in this browser; a person who meant
+   * to save it should hear that they have not.
+   */
+  const onBeforeUnload = (event: BeforeUnloadEvent): void => {
+    if (unsaved()) event.preventDefault();
+  };
+  window.addEventListener('beforeunload', onBeforeUnload);
 
   // ---- lists that keep what the person picked --------------------------------------------
   /**
@@ -305,6 +492,30 @@ export function createAlignPanel(
     highlighted = ui.ourBone.value || undefined;
     // Only while the tab is open: the tint is drawn on the body every tab shares.
     if (active) host.highlightSegment(highlighted);
+  };
+  /**
+   * Enable what can act now, and say what is missing for what cannot.
+   *
+   * Suggest by name and Redraw need our segments, which exist only once a run has started, and a
+   * reference model to match them to; with either missing they were enabled and did nothing when
+   * pressed. Now they are disabled, and the notes of the two sections that need a body say how to
+   * get one. The notes are cleared again only while they still say that, so a body arriving does
+   * not wipe what the last action said.
+   */
+  const syncReadiness = (): void => {
+    const body = host.articulation() !== undefined;
+    const model = ui.model.value !== '';
+    ui.suggest.disabled = !(body && model);
+    ui.retarget.disabled = !(body && model && bonesFor(ui.model.value).length > 0);
+    for (const note of [ui.boneNote, ui.pairNote]) {
+      if (!body) note.textContent = START_NOTE;
+      else if (note.textContent === START_NOTE) note.textContent = '';
+    }
+  };
+  /** Our unit ids, when there is a body to have any; a pair naming one it lacks is marked. */
+  const ourUnits = (): ReadonlySet<string> | undefined => {
+    const units = host.units();
+    return host.articulation() && units.length > 0 ? new Set(units) : undefined;
   };
 
   // ---- the gizmo ------------------------------------------------------------------------
@@ -355,10 +566,18 @@ export function createAlignPanel(
    * Put the gizmo on the whole model, first dropping a redraw if there is one.
    *
    * Moving the model while it is on our bones would take it back off them, so the gizmo drops the
-   * redraw the way a slider does and starts from the placement the person gave it.
+   * redraw the way a slider does and starts from the placement the person gave it. With nothing
+   * of the model on screen -- E pressed with both boxes unticked -- it says so rather than doing
+   * nothing.
    */
   const grabModel = (mode: GizmoMode): void => {
-    if (!modelMovable()) return;
+    if (!modelMovable()) {
+      ui.modelNote.textContent = ui.model.value
+        ? 'Nothing of the model is on screen for the gizmo to hold: tick Show their muscles or ' +
+          'Show their bones.'
+        : 'Pick a reference model first; the gizmo moves the whole model.';
+      return;
+    }
     if (beforeRetarget) showModel();
     setGizmo('model', mode);
   };
@@ -429,28 +648,74 @@ export function createAlignPanel(
       // Only the slider that moved is read. A slider can only hold values inside its range and
       // on its step, and the gizmo is under neither limit, so reading them all back snapped a
       // model dragged past a slider's end back inside it the moment another slider was touched.
+      touched.add(ui.model.value);
       applyPlacement({ ...placement(), [key]: value });
     });
   }
-  // The model's own change of axes, not one shared by all: a Z-up model and a Y-up one need
-  // different turns to stand up in ours, and one turn for both laid the arm on the floor.
+  // Back to the seat, worked out again on the body as it stands: the model's own change of axes,
+  // sized to us and sat on our body, which is where it started. Not the bare change of axes, which
+  // put every model at our origin and the legs' pelvis at our feet.
   ui.reset.addEventListener('click', () => {
     if (beforeRetarget) showModel();
-    applyPlacement(changeOfAxes(ui.model.value));
+    const model = ui.model.value;
+    touched.delete(model);
+    applyPlacement({ ...seatFor(model).placement });
+    writeModelNote();
   });
+  /**
+   * Seat again, on a rebuilt body, every model nobody has placed by hand.
+   *
+   * A seat is a function of our body, and a rebuild at another profile or stature moves the joints
+   * it sits on. A model a person has moved keeps their placement, whatever the body did.
+   */
+  const reseat = (): void => {
+    for (const model of placements.keys()) {
+      if (!model || touched.has(model)) continue;
+      const seat = { ...seatFor(model).placement };
+      if (beforeRetarget?.model === model) {
+        // On screen as a redraw at neutral; the seat is what dropping the redraw goes back to.
+        beforeRetarget = { model, placement: seat };
+        continue;
+      }
+      placements.set(model, seat);
+      if (model === ui.model.value) {
+        overlay.place(seat);
+        writeSliders(seat);
+      }
+    }
+  };
 
-  /** What the model note says: what is shown, and why the gizmo cannot take it if it cannot. */
+  /** Loads of their bones, counted, so a slow load does not report over a newer one. */
+  let meshLoad = 0;
+  /** How many of the picked model's bone meshes loaded, once its load has settled. */
+  let meshes: { model: string; count: MeshCount } | undefined;
+  /** What the note says about their bones: all there, some missing, none, or still loading. */
+  const bonesClause = (model: string): string => {
+    if (meshes?.model !== model) return '; loading its bones…';
+    const { total, loaded } = meshes.count;
+    if (loaded >= total) return ', and its bones.';
+    if (loaded === 0) return `; none of its ${total} bone meshes are served: ${MESHES_MISSING}.`;
+    return `; its bones: ${loaded} of ${total} meshes loaded: ${MESHES_MISSING}.`;
+  };
+  /**
+   * What the model note says: what is shown, how many of its bones arrived, whether the gizmo can
+   * take it, and how it was seated.
+   */
   const writeModelNote = (): void => {
     const model = ui.model.value;
     if (!model) {
-      ui.modelNote.textContent = 'No reference model shown. Pick one to place it or pair with it.';
+      ui.modelNote.textContent = idleNote.text;
+      ui.modelNote.classList.toggle('error', idleNote.error);
       return;
     }
+    ui.modelNote.classList.remove('error');
     const n = overlay.muscles(model).length;
-    ui.modelNote.textContent = modelMovable()
-      ? `${n} muscles on the reference ${model}, and its bones. Turn either on to compare.`
-      : `${n} muscles on the reference ${model}, and its bones. Turn either on to compare, ` +
-        'and to move it with the gizmo.';
+    const hint = modelMovable()
+      ? 'Untick either to hide it.'
+      : 'Tick either to see it, and to move it with the gizmo.';
+    const seat = touched.has(model) ? '' : ` ${seats.get(model)?.how ?? ''}`;
+    ui.modelNote.textContent =
+      `${n} muscles on the reference ${model}${bonesClause(model)} ${hint}${seat}`.trimEnd();
   };
   /** Let go of the model when there is nothing of it on screen to hold. */
   const settleGizmo = (): void => {
@@ -480,10 +745,26 @@ export function createAlignPanel(
     } else {
       ui.fitNote.textContent = '';
     }
+    // A model picked with both layers off would be picked and invisible, which reads as a model
+    // that failed to load. A redraw nobody can see is the same as no redraw, and so is a model.
+    if (model && !ui.show.checked && !ui.showBones.checked) {
+      ui.show.checked = true;
+      ui.showBones.checked = true;
+    }
     overlay.clear();
     if (model) overlay.show(model);
     overlay.visible = active && ui.show.checked && model !== '';
-    if (model) overlay.showBones(model);
+    if (model) {
+      // The count is only written for the load that is still the latest, and only while the
+      // model it was for is still the one picked.
+      if (meshes?.model !== model) meshes = undefined;
+      const load = ++meshLoad;
+      void overlay.showBones(model).then((count) => {
+        if (load !== meshLoad || ui.model.value !== model) return;
+        meshes = { model, count };
+        writeModelNote();
+      });
+    }
     overlay.bonesVisible = active && ui.showBones.checked && model !== '';
     overlay.place(placement());
     writeSliders(placement());
@@ -492,7 +773,7 @@ export function createAlignPanel(
     fillTheirs();
     fillBones();
   };
-  // A model picked for the first time starts from its own change of axes, and one picked before
+  // A model picked for the first time starts from its seat on our body, and one picked before
   // from wherever it was left (see `placements`).
   ui.model.addEventListener('change', () => {
     // Cleared here and not in `showModel`, because clearing the bone pairs goes through
@@ -518,9 +799,15 @@ export function createAlignPanel(
       if (beforeRetarget) return;
       // `place` moves the bones with the muscles, so reading one and applying both keeps the
       // skeleton and its muscles together under the gizmo.
+      touched.add(ui.model.value);
       applyPlacement(overlay.readPlacement());
     } else if (gizmo.object && handles.pickedHandle) {
+      const h = handles.pickedHandle;
       handles.moveTo(gizmo.object.position.clone());
+      // Where it was dragged, until it is kept or put back; nothing, once it is back where the
+      // body put it.
+      if (h.world.distanceTo(h.original) <= KEPT_MATCH) pending.delete(h.id);
+      else pending.set(h.id, h.world.clone());
       showPicked();
     }
   });
@@ -560,11 +847,17 @@ export function createAlignPanel(
 
   const fillPairs = (): void => {
     ui.pairsCount.textContent = `${pairs.length}`;
+    // A pair opened from a file may name a unit this body does not have -- units differ by
+    // profile -- and is kept, marked, rather than dropped.
+    const units = ourUnits();
     // A row is found again by its place in the list: one of theirs may be paired with several of
     // ours, so their muscle alone does not say which row was picked.
     refill(
       ui.pairs,
-      pairs.map((p, i) => ({ value: String(i), label: pairLabel(p) })),
+      pairs.map((p, i) => ({
+        value: String(i),
+        label: `${units && !units.has(p.ours) ? '? ' : ''}${pairLabel(p)}`,
+      })),
     );
     fillTheirs();
   };
@@ -585,6 +878,7 @@ export function createAlignPanel(
         ? `${theirs} → ${ours}. That is ${together} of theirs on this one of ours.`
         : `${theirs} → ${ours}.`;
     fillPairs();
+    changed('pairs');
   });
   ui.unpair.addEventListener('click', () => {
     if (!ui.pairs.value) return;
@@ -595,64 +889,135 @@ export function createAlignPanel(
     ui.pairs.selectedIndex = -1;
     ui.pairNote.textContent = `${gone.theirs} (${gone.model}) is no longer paired with ${gone.ours}.`;
     fillPairs();
+    changed('pairs');
   });
-  ui.savePairs.addEventListener('click', () => {
-    host.save(
-      'sourceCorrespondence.json',
-      `${JSON.stringify(
-        {
-          format: 'bs-humany.source-correspondence/1',
-          decidedAt: new Date().toISOString(),
-          note:
-            'Which muscle of the reference models is which of ours. Decided by eye in the studio ' +
-            'Align tab; many of theirs may map to one of ours. Consumed by measure:source-travel.',
-          pairs,
-        },
-        null,
-        2,
-      )}\n`,
-    );
-  });
+  ui.savePairs.addEventListener('click', () => save('pairs'));
 
   // ---- our points -----------------------------------------------------------------------
+  /** The kept moves by point id, as the handles read them. */
+  const keptMap = (): ReadonlyMap<string, Move> => new Map(moves.map((m) => [m.id, m]));
+  /** What Our points says when no point is picked: what is shown and how many of each. */
+  let pointSummary = 'No point picked.';
+  /** Millimetres for the eye, from the metres a move is kept in. */
+  const mm = (metres: number): string => (1000 * metres).toFixed(1);
   const showPicked = (): void => {
     const h = handles.pickedHandle;
     if (!h) {
-      ui.pointNote.textContent = 'No point picked.';
+      ui.pointNote.textContent = pointSummary;
       ui.keep.disabled = true;
+      ui.keep.title = '';
       ui.revert.disabled = true;
       return;
     }
     const moved = 1000 * h.world.distanceTo(h.original);
-    ui.pointNote.textContent =
-      `${h.id} on ${h.on} — ` +
-      `${h.world.x.toFixed(4)}, ${h.world.y.toFixed(4)}, ${h.world.z.toFixed(4)}` +
+    let note =
+      `${h.id} on ${h.on} — ${mm(h.world.x)}, ${mm(h.world.y)}, ${mm(h.world.z)} mm` +
       (moved > 0.01 ? `  ·  moved ${moved.toFixed(1)} mm` : '');
-    ui.keep.disabled = moved <= 0.01 || ui.reason.value.trim() === '';
-    ui.revert.disabled = moved <= 0.01;
+    if (h.kind === 'vias') {
+      // Read-only in this pass: an override names a site on a bone, and a via point's site is
+      // shared by the path solver in a way an override does not describe yet.
+      note += '  ·  via points can be inspected but not moved yet';
+      ui.keep.disabled = true;
+      ui.keep.title = 'Via points are read-only for now';
+      ui.revert.disabled = true;
+    } else {
+      // Keep asks for a reason, and a disabled button with no word of why looked broken.
+      const needsReason = moved > 0.01 && ui.reason.value.trim() === '';
+      const hint = 'write why it moved to keep it';
+      if (needsReason) note += `  ·  ${hint}`;
+      ui.keep.disabled = moved <= 0.01 || needsReason;
+      ui.keep.title = needsReason ? hint : '';
+      ui.revert.disabled = moved <= 0.01;
+    }
+    ui.pointNote.textContent = note;
   };
   ui.reason.addEventListener('input', showPicked);
 
+  /** Hold the body at rest exactly while points are shown on a body, in this tab. */
+  const syncHold = (): void => {
+    host.holdRest(Boolean(ui.points.value && host.articulation() && active));
+  };
+  const NOUNS: Record<HandleKind, string> = {
+    joints: 'joint centres',
+    sites: 'origins and insertions',
+    vias: 'via points',
+  };
+  /** The handles of one kind on a body, at rest. */
+  const handlesOf = (kind: HandleKind, articulation: CompiledArticulation): Handle[] =>
+    kind === 'joints'
+      ? PointHandles.jointsOf(articulation)
+      : kind === 'sites'
+        ? PointHandles.sitesOf(articulation, host.sites())
+        : PointHandles.viasOf(viaPoints(articulation, host.muscles()));
+  /**
+   * Kept moves made on a body other than the one shown, said in a sentence.
+   *
+   * They are not dropped: a move made on L3 is still a claim about L3, and it is saved with that
+   * body named. It is only not drawn where this body puts the point (see `stale`).
+   */
+  const otherBodies = (): string => {
+    const body = host.body();
+    if (!body) return '';
+    const elsewhere = moves.filter(
+      (m) =>
+        m.profile !== undefined &&
+        (m.profile !== body.profile ||
+          JSON.stringify(m.morphology) !== JSON.stringify(body.morphology)),
+    );
+    if (elsewhere.length === 0) return '';
+    const names = [...new Set(elsewhere.map((m) => m.profile))].join(', ');
+    return (
+      ` ${elsewhere.length} kept ${elsewhere.length === 1 ? 'move was' : 'moves were'} made on ` +
+      `${names} or at another size; they are saved with that body named.`
+    );
+  };
+  /** The list of points under What to show, filtered by name or by what each is on. */
+  const fillPointList = (): void => {
+    const filter = ui.pointFind.value.trim().toLowerCase();
+    const kept = keptMap();
+    const rows = handles.all.filter(
+      (h) => !filter || h.id.toLowerCase().includes(filter) || h.on.toLowerCase().includes(filter),
+    );
+    ui.pointCount.textContent = handles.all.length > 0 ? `${rows.length}` : '';
+    refill(
+      ui.pointList,
+      rows.map((h) => ({ value: h.id, label: `${kept.has(h.id) ? '· ' : ''}${h.id}  (${h.on})` })),
+    );
+  };
+  ui.pointFind.addEventListener('input', fillPointList);
   const showPoints = (): void => {
-    const kind = ui.points.value;
-    const model = host.articulation();
-    if (!kind || !model) {
+    const kind = ui.points.value as HandleKind | '';
+    const articulation = host.articulation();
+    syncHold();
+    if (!kind || !articulation) {
       handles.clear();
       handles.visible = false;
+      stale = [];
       // Only a gizmo on a point lets go: the model's gizmo has nothing to do with the points.
       if (gizmoTarget() === 'point') setGizmo('off');
+      pointSummary = (kind ? POINTS_NEED_BODY : 'No point picked.') + otherBodies();
+      fillPointList();
       showPicked();
       return;
     }
-    handles.show(
-      kind === 'joints' ? PointHandles.jointsOf(model) : PointHandles.sitesOf(model, host.sites()),
-    );
+    ({ stale } = handles.show(handlesOf(kind, articulation), keptMap(), pending));
     // Redrawing the handles forgets the pick, so a gizmo left on it would move nothing.
-    if (gizmoTarget() === 'point' && !handles.pickedHandle) setGizmo('off');
+    if (gizmoTarget() === 'point') setGizmo('off');
     // Not simply on: a rebuild in another tab runs this too (`refresh`), and must not bring the
     // handles back into a viewport that is not aligning anything.
     handles.visible = active;
-    ui.pointNote.textContent = `${handles.all.length} ${kind === 'joints' ? 'joint centres' : 'attachment sites'}. Click one in the viewport.`;
+    const shown = new Set(handles.all.map((h) => h.id));
+    const kept = moves.filter((m) => m.kind === kind && shown.has(m.id)).length - stale.length;
+    const moving = [...pending.keys()].filter((id) => shown.has(id)).length;
+    pointSummary =
+      `${handles.all.length} ${NOUNS[kind]}, ${kept} kept, ${moving} moved but not kept, ` +
+      `${stale.length} kept on another body. ` +
+      (kind === 'vias'
+        ? 'Via points are read-only for now: click one, or find it by name, to inspect it.'
+        : 'Click one, or find it by name.') +
+      otherBodies();
+    fillPointList();
+    showPicked();
   };
   ui.points.addEventListener('change', showPoints);
 
@@ -662,19 +1027,37 @@ export function createAlignPanel(
   // cloud and a cloud has no node per point for a gizmo to attach to.
   const proxy = new Object3D();
   proxy.name = 'align-gizmo-proxy';
+  /**
+   * Pick a handle by its place in the drawn list, from the viewport or from a list, and put the
+   * gizmo on it -- except on a via point, which is read-only and only inspected.
+   */
+  const selectHandle = (index: number): boolean => {
+    const h = handles.pick(index);
+    if (!h) return false;
+    // Only when the list shows it: a filter may have hidden the point picked in the viewport.
+    if ([...ui.pointList.options].some((option) => option.value === h.id)) {
+      ui.pointList.value = h.id;
+    }
+    if (h.kind === 'vias') {
+      if (gizmoTarget() === 'point') setGizmo('off');
+    } else {
+      proxy.position.copy(h.world);
+      setGizmo('point', 'translate');
+    }
+    showPicked();
+    return true;
+  };
   const pickPoint = (clientX: number, clientY: number): boolean => {
     // Over a gizmo handle the press belongs to the gizmo, not to picking a new point.
     if (!active || !handles.visible || gizmo.axis !== null || gizmo.dragging) return false;
     const rect = renderer.domElement.getBoundingClientRect();
     const at = handles.nearestOnScreen(camera, rect, clientX, clientY);
     if (at < 0) return false;
-    const h = handles.pick(at);
-    if (!h) return false;
-    proxy.position.copy(h.world);
-    setGizmo('point', 'translate');
-    showPicked();
-    return true;
+    return selectHandle(at);
   };
+  ui.pointList.addEventListener('change', () => {
+    selectHandle(handles.indexOf(ui.pointList.value));
+  });
 
   // A pick is a click, not a press. Picking on the press, as this did, took the first instant of
   // every orbit and pan that happened to start on a dot, and did it while the camera was being
@@ -722,51 +1105,59 @@ export function createAlignPanel(
   ui.keep.addEventListener('click', () => {
     const move = handles.keep(ui.reason.value.trim());
     if (!move) return;
+    // Stamped with the body it was made on, so a file of moves says what they were judged against
+    // and a rebuild at another body can say which moves belong elsewhere.
+    const stamped: Move = { ...move, ...host.body() };
+    pending.delete(move.id);
     const at = moves.findIndex((m) => m.id === move.id);
-    if (at >= 0) moves.splice(at, 1, move);
-    else moves.push(move);
+    if (at >= 0) moves.splice(at, 1, stamped);
+    else moves.push(stamped);
     ui.reason.value = '';
+    handles.recolour(keptMap());
     fillMoves();
+    fillPointList();
     showPicked();
+    changed('moves');
   });
   ui.revert.addEventListener('click', () => {
     const h = handles.revert();
     if (!h) return;
+    pending.delete(h.id);
     const at = moves.findIndex((m) => m.id === h.id);
     if (at >= 0) moves.splice(at, 1);
+    handles.recolour(keptMap());
     // The gizmo stays on the point, which is back where it started, so the gizmo goes with it.
     proxy.position.copy(h.world);
     fillMoves();
+    fillPointList();
     showPicked();
+    if (at >= 0) changed('moves');
   });
   const fillMoves = (): void => {
-    ui.moves.innerHTML = '';
-    for (const m of moves) {
-      const option = document.createElement('option');
-      option.value = m.id;
-      option.textContent = `${m.id}  ${m.moved.toFixed(1)} mm`;
-      ui.moves.appendChild(option);
-    }
+    const value = ui.moves.value;
+    ui.moves.replaceChildren(
+      ...moves.map((m) => {
+        const option = document.createElement('option');
+        option.value = m.id;
+        option.textContent = `${m.id}  ${m.moved.toFixed(1)} mm`;
+        return option;
+      }),
+    );
+    if (value && moves.some((m) => m.id === value)) ui.moves.value = value;
     ui.movesCount.textContent = `${moves.length}`;
   };
-  ui.saveMoves.addEventListener('click', () => {
-    host.save(
-      'pointOverrides.json',
-      `${JSON.stringify(
-        {
-          format: 'bs-humany.point-overrides/1',
-          decidedAt: new Date().toISOString(),
-          note:
-            'Points moved by eye in the studio Align tab, judged against our own meshes. The ' +
-            'reference model is context and was never the target. Each carries how far it moved ' +
-            'and why.',
-          moves,
-        },
-        null,
-        2,
-      )}\n`,
-    );
+  // A row of Moved so far goes to its point: switching to its kind when another is shown, so a
+  // kept move is one click from the gizmo on it.
+  ui.moves.addEventListener('change', () => {
+    const m = moves.find((move) => move.id === ui.moves.value);
+    if (!m) return;
+    if (m.kind !== ui.points.value) {
+      ui.points.value = m.kind;
+      showPoints();
+    }
+    selectHandle(handles.indexOf(m.id));
   });
+  ui.saveMoves.addEventListener('click', () => save('moves'));
 
   // ---- bone pairing, which is what actually registers the two bodies -------------------
   /**
@@ -785,7 +1176,7 @@ export function createAlignPanel(
    * Empty before a body is built: with no body there is nothing to be missing from, and marking
    * every pair would say they were all wrong.
    */
-  const unbuilt = (list: readonly BodyPair[]): Set<string> => {
+  const unbuilt = (list: readonly StampedBonePair[]): Set<string> => {
     const ids = segmentIds();
     return new Set(ids ? missingSegments(list, ids).map((p) => p.theirs) : []);
   };
@@ -823,7 +1214,6 @@ export function createAlignPanel(
     const list = bonesFor(ui.model.value);
     const missing = unbuilt(list);
     ui.bonesCount.textContent = `${list.length}`;
-    ui.retarget.disabled = list.length === 0;
     ui.clearBones.textContent = cleared
       ? `Restore ${cleared.list.length} bone pairs`
       : 'Clear bone pairs';
@@ -841,16 +1231,22 @@ export function createAlignPanel(
       ui.bones,
       list.map((p) => ({
         value: p.theirs,
-        label: `${p.theirs}  →  ${p.ours}${missing.has(p.theirs) ? ' (not in this body)' : ''}`,
+        label:
+          `${missing.has(p.theirs) ? '? ' : ''}${p.theirs}  →  ${p.ours}` +
+          `${missing.has(p.theirs) ? ' (not in this body)' : ''}` +
+          `${p.decidedBy === 'name' ? '  · by name' : ''}`,
       })),
     );
     fillTheirBones();
+    // Redraw's enabled state and the start-a-run note follow the list, so they are settled here.
+    syncReadiness();
   };
   /** Say what a bone pairing action did, and forget any clear that could still be restored. */
   const boneChanged = (note: string): void => {
     boneAction = note;
     cleared = undefined;
     fillBones();
+    changed('bones');
   };
   ui.theirBoneFind.addEventListener('input', fillTheirBones);
   ui.ourBoneFind.addEventListener('input', fillOurBones);
@@ -863,9 +1259,16 @@ export function createAlignPanel(
     if (!theirs || !ours) return;
     const list = bonesFor(ui.model.value);
     const at = list.findIndex((p) => p.theirs === theirs);
+    const profile = host.body()?.profile;
+    const pair: StampedBonePair = {
+      theirs,
+      ours,
+      decidedBy: 'eye',
+      ...(profile ? { profile } : {}),
+    };
     // One of their bones sits on exactly one of ours, so a second pairing replaces the first.
-    if (at >= 0) list.splice(at, 1, { theirs, ours });
-    else list.push({ theirs, ours });
+    if (at >= 0) list.splice(at, 1, pair);
+    else list.push(pair);
     boneChanged(`${theirs} → ${ours}.`);
   });
   ui.unpairBone.addEventListener('click', () => {
@@ -883,6 +1286,7 @@ export function createAlignPanel(
       boneAction = `${cleared.list.length} bone pairs restored.`;
       cleared = undefined;
       fillBones();
+      changed('bones');
       return;
     }
     const list = bonesFor(model);
@@ -890,29 +1294,43 @@ export function createAlignPanel(
     cleared = { model, list };
     bonePairs.set(model, []);
     boneAction = `${list.length} bone pairs cleared. Click Restore to put them back.`;
+    changed('bones');
     // A redraw made from the pairs is dropped with them; `showModel` redraws the list as well.
     showModel();
   });
   ui.suggest.addEventListener('click', () => {
     const model = overlay.model(ui.model.value);
     const articulation = host.articulation();
-    if (!model || !articulation) return;
+    // A second guard behind the disabled button, which says what is missing rather than nothing.
+    if (!articulation) {
+      ui.boneNote.textContent = START_NOTE;
+      return;
+    }
+    if (!model) {
+      ui.boneNote.textContent = 'Pick a reference model first: Suggest matches its bones by name.';
+      return;
+    }
     const suggested = suggestBodyPairs(
       model,
       articulation.segments.map((s) => s.id),
     );
     const list = bonesFor(ui.model.value);
+    const profile = host.body()?.profile;
     let added = 0;
     for (const p of suggested) {
       if (!list.some((existing) => existing.theirs === p.theirs)) {
-        list.push(p);
+        list.push({ ...p, decidedBy: 'name', ...(profile ? { profile } : {}) });
         added += 1;
       }
     }
+    if (added === 0) {
+      boneAction = 'Nothing further could be matched by name; the rest are yours to pair.';
+      cleared = undefined;
+      fillBones();
+      return;
+    }
     boneChanged(
-      added
-        ? `${added} pairs suggested by name. Check them: a wrong pair is worse than an absent one.`
-        : 'Nothing further could be matched by name; the rest are yours to pair.',
+      `${added} pairs suggested by name. Check them: a wrong pair is worse than an absent one.`,
     );
   });
 
@@ -922,7 +1340,21 @@ export function createAlignPanel(
     const model = overlay.model(name);
     const articulation = host.articulation();
     const list = bonesFor(name);
-    if (!model || !articulation || list.length === 0) return;
+    // A second guard behind the disabled button, which says what is missing rather than nothing.
+    if (!articulation) {
+      ui.fitNote.textContent = START_NOTE;
+      return;
+    }
+    if (!model) {
+      ui.fitNote.textContent = 'Pick a reference model first: a redraw carries its muscles over.';
+      return;
+    }
+    if (list.length === 0) {
+      ui.fitNote.textContent =
+        'Pair at least one of their bones with one of our segments first: a redraw goes through ' +
+        'the bone pairs.';
+      return;
+    }
     // Read before the placement goes to neutral below. A bone with nothing fitted above it takes
     // the model's placement, so it keeps the turn that stood the model up rather than the
     // identity, which left it lying in their axes.
@@ -974,24 +1406,195 @@ export function createAlignPanel(
       `. ${describeFits(result, model.bodies)}`;
   };
   ui.retarget.addEventListener('click', doRetarget);
-  ui.saveBones.addEventListener('click', () => {
-    host.save(
-      'bonePairing.json',
-      `${JSON.stringify(
-        {
-          format: 'bs-humany.bone-pairing/1',
-          decidedAt: new Date().toISOString(),
-          note:
-            'Which bone of each reference model is which of ours. A pair fixes an origin and an ' +
-            'orientation; the joints on that bone give it a scale. Decided by eye in the studio ' +
-            'Align tab.',
-          models: Object.fromEntries([...bonePairs].filter(([, v]) => v.length > 0)),
-        },
-        null,
-        2,
-      )}\n`,
-    );
+  ui.saveBones.addEventListener('click', () => save('bones'));
+
+  // ---- opening a file back in ----------------------------------------------------------
+  /** What the reference data and the body can say about names, for a merge to check against. */
+  const knownNames = (kind: 'muscles' | 'bones') => ({
+    theirs: (model: string): ReadonlySet<string> | undefined => {
+      const source = overlay.model(model);
+      if (!source) return undefined;
+      return new Set(
+        kind === 'muscles' ? source.muscles.map((m) => m.name) : source.bodies.map((b) => b.name),
+      );
+    },
+    ours: kind === 'muscles' ? ourUnits() : segmentIds(),
   });
+  /** Where each list reports what opening a file did. */
+  const noteOf: Record<Section, HTMLElement> = {
+    pairs: ui.pairNote,
+    bones: ui.boneNote,
+    moves: ui.pointNote,
+  };
+  const SECTION_NAMES: Record<Section, string> = {
+    pairs: 'Correspondence',
+    bones: 'Bone pairing',
+    moves: 'Our points',
+  };
+  /**
+   * Take a file's text into whichever list it belongs to, and say what that did in that list's
+   * note. Returns the list it landed in, or undefined when it could not be read.
+   */
+  const takeFile = (text: string, from: Section): Section | undefined => {
+    const file = readAlignmentFile(text);
+    if ('error' in file) {
+      noteOf[from].textContent = `That file could not be opened: ${file.error}.`;
+      return undefined;
+    }
+    let report: MergeReport;
+    let section: Section;
+    if (file.kind === 'correspondence') {
+      section = 'pairs';
+      report = mergePairs(pairs, file.pairs, knownNames('muscles'));
+      fillPairs();
+    } else if (file.kind === 'bones') {
+      section = 'bones';
+      cleared = undefined;
+      report = mergeBonePairs(bonePairs, file.models, knownNames('bones'));
+      boneAction = '';
+      fillBones();
+    } else {
+      section = 'moves';
+      report = mergeMoves(moves, file.moves);
+      fillMoves();
+      showPoints();
+    }
+    const rows = {
+      pairs: { one: 'pair', many: 'pairs' },
+      bones: { one: 'bone pair', many: 'bone pairs' },
+      moves: { one: 'move', many: 'moves' },
+    }[section];
+    let line = describeMerge(
+      report,
+      rows,
+      section === 'pairs' ? 'a muscle' : 'a bone',
+      section === 'pairs' ? 'a unit' : 'a segment',
+    );
+    if (section === 'moves' && stale.length > 0) {
+      line += ` ${stale.length} of the kept moves do not fit the points shown on this body.`;
+    }
+    if (section === 'bones') boneAction = line;
+    noteOf[section].textContent = line;
+    if (section !== from) {
+      noteOf[from].textContent =
+        `That was a ${rows.one} file; it went into ${SECTION_NAMES[section]}.`;
+    }
+    if (report.added + report.replaced > 0) changed(section);
+    return section;
+  };
+  /** Ask the host for a file and take it, whichever of the three Open buttons asked. */
+  const openFile = (from: Section): void => {
+    host.open().then(
+      (text) => {
+        if (text !== undefined) takeFile(text, from);
+      },
+      (error: unknown) => {
+        noteOf[from].textContent =
+          `That file could not be read: ${error instanceof Error ? error.message : String(error)}.`;
+      },
+    );
+  };
+  ui.openPairs.addEventListener('click', () => openFile('pairs'));
+  ui.openBones.addEventListener('click', () => openFile('bones'));
+  ui.openMoves.addEventListener('click', () => openFile('moves'));
+  /**
+   * Opening waits for the reference data, because a file is checked against it: a pair naming a
+   * muscle their model does not have is dropped, which cannot be decided before the model is here.
+   */
+  const setOpenable = (on: boolean): void => {
+    for (const button of [ui.openPairs, ui.openBones, ui.openMoves]) button.disabled = !on;
+  };
+  setOpenable(false);
+
+  /**
+   * Bring back the draft the last visit left, when nothing has been done here yet.
+   *
+   * Through the same merge an opened file goes through, so a draft naming a muscle the reference
+   * data no longer has is treated like such a file. Restored work is unsaved work: the lists are
+   * marked unsaved, and leaving warns until each is saved.
+   */
+  const restoreDraft = (): string => {
+    draftChecked = true;
+    const empty =
+      pairs.length === 0 &&
+      moves.length === 0 &&
+      [...bonePairs.values()].every((list) => list.length === 0);
+    const draft = empty ? readDraft(memory) : undefined;
+    if (!draft) return '';
+    const p = mergePairs(pairs, draft.pairs, knownNames('muscles'));
+    const b = mergeBonePairs(bonePairs, draft.bones, knownNames('bones'));
+    const m = mergeMoves(moves, draft.moves);
+    if (p.added) edits.pairs += 1;
+    if (b.added) edits.bones += 1;
+    if (m.added) edits.moves += 1;
+    fillPairs();
+    fillBones();
+    fillMoves();
+    showPoints();
+    return (
+      ` Restored the draft from your last visit: ${p.added} pairs, ${b.added} bone pairs and ` +
+      `${m.added} moves, none of them saved to a file yet.`
+    );
+  };
+
+  /** The reference sites as the tab loads them: once, when it is first opened. */
+  let sites: Promise<void> | undefined;
+  /**
+   * Fetch the reference sites the first time the tab is opened, and not before.
+   *
+   * A studio nobody aligns anything in never pays for them. A failed load is said in the model
+   * note and forgotten, so opening the tab again asks again -- after the file has been
+   * regenerated, say.
+   */
+  const ensureSites = (): Promise<void> => {
+    if (adopted) return Promise.resolve();
+    if (!sites) {
+      idleNote = { text: 'Loading reference models…', error: false };
+      writeModelNote();
+      sites = fetchSourceSites().then((result) => {
+        if ('data' in result) {
+          adopt(result.data);
+        } else {
+          sites = undefined;
+          unavailable(result.error);
+        }
+      });
+    }
+    return sites;
+  };
+  const adopt = (data: SourceSites): void => {
+    if (data === adopted) return;
+    adopted = data;
+    sourceStamp = provenanceOf.get(data);
+    overlay.load(data);
+    ui.model.innerHTML = '<option value="">None</option>';
+    for (const name of overlay.models) {
+      const option = document.createElement('option');
+      option.value = name;
+      const n = overlay.muscles(name).length;
+      option.textContent = `${name} — ${n} muscles`;
+      ui.model.appendChild(option);
+    }
+    ui.model.disabled = false;
+    setOpenable(true);
+    const restored = draftChecked ? '' : restoreDraft();
+    idleNote = {
+      text: `${overlay.models.length} reference models loaded.${restored}`,
+      error: false,
+    };
+    showModel();
+  };
+  const unavailable = (reason: string): void => {
+    idleNote = {
+      text:
+        `Reference models could not be loaded (sourceSites.json: ${reason}). Regenerate it with ` +
+        'pnpm generate:source-sites.',
+      error: true,
+    };
+    ui.model.disabled = true;
+    if (!adopted) ui.model.value = '';
+    writeModelNote();
+  };
 
   fillOurs();
   fillPairs();
@@ -1000,6 +1603,8 @@ export function createAlignPanel(
   fillBones();
   writeSliders(placement());
   settleGizmo();
+  showPicked();
+  syncReadiness();
 
   const setActive = (on: boolean): void => {
     if (on === active) return;
@@ -1016,13 +1621,17 @@ export function createAlignPanel(
       overlay.visible = false;
       overlay.bonesVisible = false;
       handles.visible = false;
+      // Another tab sees the run as it is; nothing there is judged against the rest pose.
+      host.holdRest(false);
       return;
     }
     gizmo.enabled = true;
+    void ensureSites();
     const model = ui.model.value !== '';
     overlay.visible = ui.show.checked && model;
     overlay.bonesVisible = ui.showBones.checked && model;
     handles.visible = ui.points.value !== '' && host.articulation() !== undefined;
+    syncHold();
     host.highlightSegment(highlighted);
     // The proxy only means something while the point it stood for is still picked: a rebuild
     // while the tab was closed redraws the handles and forgets the pick. The model only while
@@ -1058,30 +1667,28 @@ export function createAlignPanel(
       const section = document.querySelector<HTMLElement>('[data-panel="align"]');
       setActive(section !== null && !section.hidden);
     },
-    adopt(data: SourceSites): void {
-      overlay.load(data);
-      ui.model.innerHTML = '<option value="">None</option>';
-      for (const name of overlay.models) {
-        const option = document.createElement('option');
-        option.value = name;
-        const n = overlay.muscles(name).length;
-        option.textContent = `${name} — ${n} muscles`;
-        ui.model.appendChild(option);
-      }
-      ui.modelNote.textContent = `${overlay.models.length} reference models loaded.`;
-    },
+    adopt,
+    unavailable,
     refresh(): void {
       fillOurs();
       // The body is a new one: its segments, and which bone pairs it has no segment for.
       fillOurBones();
       fillBones();
+      // Which pairs name a unit this body lacks.
+      fillPairs();
+      // Every model nobody has placed by hand sits down on the new body.
+      reseat();
       showPoints();
+      syncReadiness();
+      writeModelNote();
     },
     dispose(): void {
       window.removeEventListener('click', onClick, { capture: true });
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener(TAB_CHANGE, onTab);
       host.highlightSegment(undefined);
+      host.holdRest(false);
       overlay.dispose();
       handles.dispose();
       gizmo.detach();
@@ -1090,20 +1697,74 @@ export function createAlignPanel(
   };
 }
 
+/** The reference sites as fetched: the data and what identifies it, or why there is none. */
+export type SourceSitesLoad =
+  | { readonly data: SourceSites; readonly stamp: SourceSitesStamp }
+  | { readonly error: string };
+
 /**
- * Load the extracted reference sites.
+ * Which extraction each loaded copy of the reference sites is, by the object it was parsed into.
  *
- * Fetched rather than bundled: it is a hundred kilobytes of authoring data that only this tab
- * reads, and every other viewer of the studio would otherwise carry it for nothing.
+ * Kept beside the data rather than in it, so `SourceSites` stays the shape the generator writes,
+ * and so whoever hands the data to `adopt` hands its provenance with it without knowing about it.
  */
-export async function loadSourceSites(): Promise<SourceSites | undefined> {
+const provenanceOf = new WeakMap<SourceSites, SourceSitesStamp>();
+
+/** The first fetch's outcome, for `loadSourceSites`: settled when the tab first loads them. */
+let settleFirstLoad: ((load: SourceSitesLoad) => void) | undefined;
+const firstLoad = new Promise<SourceSitesLoad>((resolve) => {
+  settleFirstLoad = resolve;
+});
+
+/**
+ * Fetch the extracted reference sites, or say why they could not be had.
+ *
+ * Fetched rather than bundled: it is a hundred kilobytes of authoring data that only the Align tab
+ * reads, and the panel asks for it the first time that tab is opened, so every other visit to the
+ * studio never carries it. The file is written by `pnpm generate:source-sites`; a failure names
+ * the HTTP status or the exception, which is what regenerating it or serving it will fix. Read as
+ * text before it is parsed, because the digest in every saved file's provenance is of the file's
+ * own bytes.
+ */
+export async function fetchSourceSites(): Promise<SourceSitesLoad> {
+  let load: SourceSitesLoad;
   try {
     // Not force-cached: this file is regenerated by `pnpm generate:source-sites` whenever the
     // vendored models are re-read, and a stale copy is indistinguishable from a broken one.
     const response = await fetch('sourceSites.json', { cache: 'no-cache' });
-    if (!response.ok) return undefined;
-    return (await response.json()) as SourceSites;
-  } catch {
-    return undefined;
+    if (!response.ok) {
+      load = {
+        error: `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`,
+      };
+    } else {
+      const text = await response.text();
+      const data = JSON.parse(text) as SourceSites;
+      if (typeof data !== 'object' || data === null || typeof data.models !== 'object') {
+        load = { error: 'it is not a set of reference models' };
+      } else {
+        const stamp = { format: String(data.format), digest: fnv1a32(text) };
+        provenanceOf.set(data, stamp);
+        load = { data, stamp };
+      }
+    }
+  } catch (error) {
+    load = { error: error instanceof Error ? error.message : String(error) };
   }
+  settleFirstLoad?.(load);
+  settleFirstLoad = undefined;
+  return load;
+}
+
+/**
+ * The reference sites, once the Align tab has loaded them; undefined if that load failed.
+ *
+ * This does not fetch anything. The panel loads the sites itself the first time its tab is
+ * opened, and this settles with that first load, so a caller that adopts what it returns -- the
+ * studio's entry file does -- hands the panel the data it already has, which `adopt` ignores. That
+ * caller is redundant now and can go; it is kept working rather than broken because the entry file
+ * is not this module's to change.
+ */
+export async function loadSourceSites(): Promise<SourceSites | undefined> {
+  const load = await firstLoad;
+  return 'data' in load ? load.data : undefined;
 }

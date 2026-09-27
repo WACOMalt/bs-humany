@@ -1,16 +1,19 @@
 /**
  * Our own points, as things you can pick and move.
  *
- * Two kinds, and they are wrong in different ways. A **joint centre** is where the articulation
- * turns; several of ours are taken from a single marker, and the dataset's markers are label
- * anchors -- placed out in the clear beside a feature so a text label can point at it -- which
- * makes them unusable as positions. The hip and the shoulder were fixed for exactly this; the
- * lumbosacral joint and the atlanto-occipital joint still sit 17 and 23 millimetres off the
- * midline, where every other spinal level sits at zero. An **attachment site** is where a muscle
- * starts or ends, and those are measured off the mesh already.
+ * Three kinds. A **joint centre** is where the articulation turns. Several of ours were taken from
+ * a single marker, and the dataset's markers are label anchors -- placed out in the clear beside a
+ * feature so a text label can point at it -- which made them unusable as positions. The hip and
+ * the shoulder were fitted from geometry for exactly this, and the lumbosacral and
+ * atlanto-occipital joints, which sat 17 and 23 millimetres off the midline where every other
+ * spinal level sat at zero, were moved to the discs they are named for in d4bbb4c. An **origin or
+ * insertion** is where a muscle starts or ends, measured off the mesh already. A **via point** is
+ * where a path is held on its way between them; those are shown to be inspected and cannot be
+ * kept as moves yet.
  *
- * What a handle is for is judging a point against the bone it sits on, by eye, and moving it when
- * it is plainly wrong. The reference model on screen beside it is context and never the target.
+ * The handles are for the points found wrong after all that: judging a point against the bone it
+ * sits on, by eye, and moving it when it is plainly wrong. The reference model on screen beside it
+ * is context and never the target.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
@@ -25,8 +28,9 @@ import {
   Vector3,
 } from 'three';
 import { restJointCentre } from './ourBody.js';
+import type { MorphologyInput } from './provenance.js';
 
-export type HandleKind = 'joints' | 'sites';
+export type HandleKind = 'joints' | 'sites' | 'vias';
 
 export interface Handle {
   readonly id: string;
@@ -49,11 +53,38 @@ export interface Move {
   /** Millimetres, for the eye. */
   readonly moved: number;
   readonly reason: string;
+  /**
+   * The body the move was made on, stamped by the panel when it is kept. Absent on a move read
+   * from a version-1 file, which recorded none.
+   */
+  readonly profile?: string;
+  readonly morphology?: MorphologyInput;
 }
 
-const LIT = new Color(0xe0864a);
-const REST = new Color(0x8c93a8);
-const MOVED = new Color(0x4fb4c8);
+/**
+ * How close, in metres, a kept move's `from` must be to a handle's own position for the move to
+ * apply to it: a tenth of a millimetre.
+ *
+ * A move says where a point went from, and a rebuild at another profile or stature puts the same
+ * id somewhere else. Drawing the old `to` there would show a displacement nobody made, so a move
+ * whose `from` no longer matches is reported as stale and the handle stays where the body put it.
+ * The tolerance only has to absorb the round trip through a saved file's decimal numbers.
+ */
+export const KEPT_MATCH = 0.0001;
+
+/**
+ * The handle colours: picked, untouched, kept, and moved but not kept yet.
+ *
+ * Pending is amber and not the picked orange, because the two have to be told apart at a glance
+ * when the picked point is itself one that was moved: the pick is the one lit, and every other
+ * amber dot is a move that will be lost unless it is kept.
+ */
+export const HANDLE_COLOURS = {
+  lit: new Color(0xe0864a),
+  rest: new Color(0x8c93a8),
+  kept: new Color(0x4fb4c8),
+  pending: new Color(0xe8c547),
+} as const;
 
 /**
  * CSS pixels from a dot's centre that still count as clicking it.
@@ -83,7 +114,8 @@ export class PointHandles {
   private handles: Handle[] = [];
   private cloud: Points | undefined;
   private picked = -1;
-  private readonly moved = new Set<string>();
+  /** The panel's kept moves as last handed over, for the colours; the panel's list is the record. */
+  private kept: ReadonlyMap<string, Move> = new Map();
   /** Reused by `nearestOnScreen`, which runs on every click in the viewport. */
   private readonly scratch = new Vector3();
 
@@ -141,15 +173,54 @@ export class PointHandles {
       });
   }
 
-  show(handles: Handle[]): void {
+  /**
+   * Via points as handles: where each muscle path is held between its ends, on the bone that
+   * carries it. Read-only in the panel for now; see `viaPoints` in `ourBody.ts`.
+   */
+  static viasOf(
+    vias: readonly { id: string; bone: string; world: { x: number; y: number; z: number } }[],
+  ): Handle[] {
+    return vias.map((v) => {
+      const world = new Vector3(v.world.x, v.world.y, v.world.z);
+      return { id: v.id, kind: 'vias' as const, on: v.bone, world, original: world.clone() };
+    });
+  }
+
+  /**
+   * Draw a set of handles, each where the moves made so far put it.
+   *
+   * A handle with a kept move of its own kind, whose `from` is still where the body puts it, is
+   * drawn at the move's `to`; one with a move not kept yet is drawn where it was dragged. A kept
+   * move whose `from` no longer matches -- the body was rebuilt at another profile or stature --
+   * is returned as stale and not applied. So a rebuild or a switch of kind loses nothing, where
+   * it used to put every point back and leave the list of kept moves describing a picture that
+   * was no longer on screen.
+   */
+  show(
+    handles: Handle[],
+    kept: ReadonlyMap<string, Move> = new Map(),
+    pending: ReadonlyMap<string, Vector3> = new Map(),
+  ): { stale: string[] } {
     this.clear();
     this.handles = handles;
-    if (handles.length === 0) return;
+    this.kept = kept;
+    const stale: string[] = [];
+    for (const h of handles) {
+      const m = kept.get(h.id);
+      const at = pending.get(h.id);
+      if (m && m.kind === h.kind && h.original.distanceTo(vector(m.from)) <= KEPT_MATCH) {
+        h.world.copy(at ?? vector(m.to));
+      } else {
+        if (m && m.kind === h.kind) stale.push(h.id);
+        if (at) h.world.copy(at);
+      }
+    }
+    if (handles.length === 0) return { stale };
     const position: number[] = [];
     const colour: number[] = [];
-    for (const h of handles) {
+    for (const [i, h] of handles.entries()) {
       position.push(h.world.x, h.world.y, h.world.z);
-      const c = this.moved.has(h.id) ? MOVED : REST;
+      const c = this.colourFor(i);
       colour.push(c.r, c.g, c.b);
     }
     const geometry = new BufferGeometry();
@@ -164,6 +235,25 @@ export class PointHandles {
     });
     this.cloud = new Points(geometry, material);
     this.group.add(this.cloud);
+    return { stale };
+  }
+
+  /** Take the panel's kept moves again after one was kept or put back, and recolour. */
+  recolour(kept: ReadonlyMap<string, Move>): void {
+    this.kept = kept;
+    this.repaint();
+  }
+
+  /** Where a handle is in the list, by id, or -1 when it is not drawn. */
+  indexOf(id: string): number {
+    return this.handles.findIndex((h) => h.id === id);
+  }
+
+  /** The colour a handle is drawn in now, for a test to read. */
+  colourAt(index: number): Color | undefined {
+    const colour = this.cloud?.geometry.getAttribute('color');
+    if (!colour || index < 0 || index >= colour.count) return undefined;
+    return new Color(colour.getX(index), colour.getY(index), colour.getZ(index));
   }
 
   get all(): readonly Handle[] {
@@ -239,8 +329,6 @@ export class PointHandles {
     if (!h) return undefined;
     const moved = h.world.distanceTo(h.original);
     if (moved < 1e-6) return undefined;
-    this.moved.add(h.id);
-    this.repaint();
     return {
       id: h.id,
       kind: h.kind,
@@ -256,17 +344,34 @@ export class PointHandles {
     const h = this.handles[this.picked];
     if (!h) return undefined;
     this.moveTo(h.original.clone());
-    this.moved.delete(h.id);
     this.repaint();
     return h;
+  }
+
+  /**
+   * A handle's colour: lit when picked; kept when it sits at its kept move's `to`; pending when it
+   * sits anywhere else than where the body or a kept move put it; at rest otherwise.
+   */
+  private colourFor(index: number): Color {
+    const h = this.handles[index];
+    if (!h) return HANDLE_COLOURS.rest;
+    if (index === this.picked) return HANDLE_COLOURS.lit;
+    const m = this.kept.get(h.id);
+    const keptHere =
+      m !== undefined &&
+      m.kind === h.kind &&
+      h.original.distanceTo(vector(m.from)) <= KEPT_MATCH &&
+      h.world.distanceTo(vector(m.to)) <= KEPT_MATCH;
+    if (keptHere) return HANDLE_COLOURS.kept;
+    if (h.world.distanceTo(h.original) > KEPT_MATCH) return HANDLE_COLOURS.pending;
+    return HANDLE_COLOURS.rest;
   }
 
   private repaint(): void {
     const colour = this.cloud?.geometry.getAttribute('color');
     if (!colour) return;
     for (let i = 0; i < this.handles.length; i++) {
-      const h = this.handles[i] as Handle;
-      const c = i === this.picked ? LIT : this.moved.has(h.id) ? MOVED : REST;
+      const c = this.colourFor(i);
       colour.setXYZ(i, c.r, c.g, c.b);
     }
     colour.needsUpdate = true;
@@ -298,4 +403,9 @@ export class PointHandles {
     this.clear();
     this.group.removeFromParent();
   }
+}
+
+/** A saved three-number position as a vector. */
+function vector(p: readonly [number, number, number]): Vector3 {
+  return new Vector3(p[0], p[1], p[2]);
 }
