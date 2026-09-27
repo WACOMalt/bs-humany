@@ -19,9 +19,16 @@
  * `TYPICAL_NORMALISED_TRAVEL`, a stand-in good to about half. There is no marker field on the
  * unit that says so; the citation does, since every unit here cites `myoArmStandIn`, and the
  * generator refuses to run if an actuator ever turns up that states its architecture after all,
- * because that one would deserve the ordinary derivation and the ordinary citation. At compile,
- * `deriveOptimalFiberLength` translates the fiber to this skeleton by travel ratio (OQ-020), as
- * it does every set's. OQ-022 has the argument.
+ * because that one would deserve the ordinary derivation and the ordinary citation. OQ-022 has
+ * the argument.
+ *
+ * The stand-in is not translated to this skeleton at compile either. `deriveOptimalFiberLength`
+ * lengthens a fiber by how much further its muscle travels here than on the source's (OQ-020),
+ * and the source's side of that ratio is `SOURCE_MUSCLE_TRAVEL`, which `measure-source-travel`
+ * sweeps, in the arm, for the elbow, shoulder and forearm tendons and not for these.
+ * With no row a unit keeps the number it was given, capped at four fifths of its path, which none
+ * of these reaches. The citation says so, and this generator refuses to run once a hand unit has
+ * a row, because the citation would then be false.
  *
  * ## Their paths are ours, and have to be
  *
@@ -55,6 +62,9 @@ const check = process.argv.includes('--check');
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'),
+);
+const { sourceMuscleTravel } = await jiti.import(
+  join(ROOT, 'packages/muscle-data/src/sourceTravel.ts'),
 );
 
 /**
@@ -256,6 +266,15 @@ function render() {
           'generate-forearm-muscles.mjs does for supinator and anconeus.',
       );
     }
+    // The same citation says the fiber is not translated at compile, which holds only while the
+    // source-travel sweep has no row for the unit. Once it has one, compile may lengthen it.
+    if (sourceMuscleTravel(unit.id) !== undefined) {
+      throw new Error(
+        `SOURCE_MUSCLE_TRAVEL now measures '${unit.id}', so compile may lengthen its fiber, ` +
+          'and the hand citation saying it is not translated would be false. Change the ' +
+          'citation, and the header, before regenerating.',
+      );
+    }
     return {
       ...unit,
       parameters,
@@ -296,9 +315,13 @@ function render() {
  * hand. *What a muscle can do* is MyoSuite's. Every actuator here is a \`<muscle>\` element with
  * no operating range of its own, so peak force is as stated and every fiber length is the stated
  * \`lengthrange\` width over \`TYPICAL_NORMALISED_TRAVEL\`: a stand-in good to about half, which
- * every unit's citation, \`myoArmStandIn\`, says. At compile \`deriveOptimalFiberLength\`
- * translates it to this skeleton by how much further the muscle travels here than on the
- * source's (OQ-020). OQ-022 has the argument.
+ * every unit's citation, \`myoArmStandIn\`, says. OQ-022 has the argument.
+ *
+ * That number is also the one the simulation runs. Compile lengthens a set's fibers where a
+ * muscle travels further on this skeleton than on the source's (OQ-020), but the source-travel
+ * sweep does not cover the hand's tendons, so
+ * \`deriveOptimalFiberLength\` has nothing to translate by and keeps the stated fiber, capped at
+ * four fifths of its path, which none of these reaches.
  *
  * ## The paths are ours and have to be
  *
@@ -322,7 +345,8 @@ const myoArmStandIn = (actuator: string) =>
     'caggiano2022',
     \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated; fiber length is the \` +
       'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (${TYPICAL_NORMALISED_TRAVEL}), a stand-in good to ' +
-      'about half (OQ-022); translated to this skeleton by travel ratio at compile (OQ-020)',
+      'about half (OQ-022); not translated at compile, since the source-travel sweep does not ' +
+      'cover the hand (OQ-020)',
   );
 
 export const HAND_MUSCLES: readonly MuscleGroup[] = [

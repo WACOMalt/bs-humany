@@ -22,21 +22,27 @@
  * range, divided by `TYPICAL_NORMALISED_TRAVEL` -- the travel a muscle typically has, measured
  * from the fifty-four actuators that do state architecture. Peak force is the source's throughout.
  * Those six cite `myoArmStandIn` rather than `myoArm`, so the stand-in is named on the unit that
- * carries it and not only here. At compile, `deriveOptimalFiberLength` then does to all eight what
- * it does to every set: lengthens the fiber by how much further the muscle travels on this skeleton
- * than on the source's (OQ-020).
+ * carries it and not only here.
  *
  * Checked against published architecture that lands well: 34 mm against 36 for pronator teres,
  * 23 against 23 for pronator quadratus, 53 against 52 for flexor carpi radialis, 59 against 51 for
  * flexor carpi ulnaris, 47 against 59 for extensor carpi radialis brevis. Extensor carpi radialis
  * longus is the outlier at 42 against 81. It is a stand-in and OQ-022 says so, but it is a good
- * one, and it goes through the same travel translation every other set does rather than round it.
+ * one.
  *
  * Deriving from *our* travel instead was tried and is worse: our wrist flexes 45 degrees where a
  * real one does 80, and our forearm attachments sit nearer their joint axes, so the muscles travel
  * less here than they should and the fibers came out at 18, 5, 20 and 23 mm against the same
  * published figures. The source's own length range is the better statement of how long these
  * muscles are.
+ *
+ * That same shortfall is why the number written here is the number the simulation runs. Compile
+ * passes all eight through `deriveOptimalFiberLength` as it does every set, and that step only
+ * ever lengthens a fiber, by how much further the muscle travels on this skeleton than on the
+ * source's (OQ-020). Every one of these travels less here -- at 1.7 m from 3 per cent of the
+ * source's travel for anconeus to 72 for flexor carpi radialis, and still no more than 85 at
+ * 2 m -- so none is lengthened. What the step can still do is cap a fiber at four fifths of its
+ * path, which only a short body's anconeus reaches.
  *
  * ## What the dataset marks in a hand, and what had to be measured
  *
@@ -231,9 +237,11 @@ function render() {
  * units cites \`myoArmStandIn\`, which says so. OQ-022 has the argument, the numbers and the
  * licence reason the better source could not be vendored.
  *
- * Neither is the number the simulation runs. At compile \`deriveOptimalFiberLength\` translates
- * every unit's fiber length to this skeleton by how much further the muscle travels here than on
- * the source's (OQ-020), the same step every other set goes through.
+ * Both kinds are the number the simulation runs. Compile's \`deriveOptimalFiberLength\` lengthens a
+ * fiber only where the muscle travels further on this skeleton than on the source's (OQ-020), and
+ * every one of these eight travels less here, for the reason OQ-022 gives: our wrist's range is
+ * short and our forearm attachments sit near their joint axes. The step's other effect, a cap at
+ * four fifths of the path, reaches only a short body's anconeus.
  *
  * *Where a muscle attaches* is ours throughout, as everywhere: Gray's anatomical statement located
  * on this subject by the dataset's own markers, and where the dataset marks nothing, measured off
@@ -276,7 +284,8 @@ const myoArmStandIn = (actuator: string) =>
     'caggiano2022',
     \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated; fiber length is the \` +
       'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (${TYPICAL_NORMALISED_TRAVEL}), a stand-in good to ' +
-      'about half (OQ-022); translated to this skeleton by travel ratio at compile (OQ-020)',
+      'about half (OQ-022); lengthened at compile only where the muscle travels further here ' +
+      'than on the source (OQ-020)',
   );
 
 export const FOREARM_MUSCLES: readonly MuscleGroup[] = [

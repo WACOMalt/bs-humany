@@ -29,9 +29,13 @@
  * hand. *What a muscle can do* is MyoSuite's. Every actuator here is a `<muscle>` element with
  * no operating range of its own, so peak force is as stated and every fiber length is the stated
  * `lengthrange` width over `TYPICAL_NORMALISED_TRAVEL`: a stand-in good to about half, which
- * every unit's citation, `myoArmStandIn`, says. At compile `deriveOptimalFiberLength`
- * translates it to this skeleton by how much further the muscle travels here than on the
- * source's (OQ-020). OQ-022 has the argument.
+ * every unit's citation, `myoArmStandIn`, says. OQ-022 has the argument.
+ *
+ * That number is also the one the simulation runs. Compile lengthens a set's fibers where a
+ * muscle travels further on this skeleton than on the source's (OQ-020), but the source-travel
+ * sweep does not cover the hand's tendons, so
+ * `deriveOptimalFiberLength` has nothing to translate by and keeps the stated fiber, capped at
+ * four fifths of its path, which none of these reaches.
  *
  * ## The paths are ours and have to be
  *
@@ -55,7 +59,8 @@ const myoArmStandIn = (actuator: string) =>
     'caggiano2022',
     `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated; fiber length is the ` +
       'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (0.667), a stand-in good to ' +
-      'about half (OQ-022); translated to this skeleton by travel ratio at compile (OQ-020)',
+      'about half (OQ-022); not translated at compile, since the source-travel sweep does not ' +
+      'cover the hand (OQ-020)',
   );
 
 export const HAND_MUSCLES: readonly MuscleGroup[] = [

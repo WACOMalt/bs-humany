@@ -18,9 +18,11 @@
  * units cites `myoArmStandIn`, which says so. OQ-022 has the argument, the numbers and the
  * licence reason the better source could not be vendored.
  *
- * Neither is the number the simulation runs. At compile `deriveOptimalFiberLength` translates
- * every unit's fiber length to this skeleton by how much further the muscle travels here than on
- * the source's (OQ-020), the same step every other set goes through.
+ * Both kinds are the number the simulation runs. Compile's `deriveOptimalFiberLength` lengthens a
+ * fiber only where the muscle travels further on this skeleton than on the source's (OQ-020), and
+ * every one of these eight travels less here, for the reason OQ-022 gives: our wrist's range is
+ * short and our forearm attachments sit near their joint axes. The step's other effect, a cap at
+ * four fifths of the path, reaches only a short body's anconeus.
  *
  * *Where a muscle attaches* is ours throughout, as everywhere: Gray's anatomical statement located
  * on this subject by the dataset's own markers, and where the dataset marks nothing, measured off
@@ -63,7 +65,8 @@ const myoArmStandIn = (actuator: string) =>
     'caggiano2022',
     `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated; fiber length is the ` +
       'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (0.667), a stand-in good to ' +
-      'about half (OQ-022); translated to this skeleton by travel ratio at compile (OQ-020)',
+      'about half (OQ-022); lengthened at compile only where the muscle travels further here ' +
+      'than on the source (OQ-020)',
   );
 
 export const FOREARM_MUSCLES: readonly MuscleGroup[] = [

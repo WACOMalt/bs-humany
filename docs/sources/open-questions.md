@@ -543,9 +543,13 @@ navicular. The heel's worst point went from 87 mm to 20. The phalanges are as un
 states no operating range -- six of the forearm's eight and all nineteen of the hand's -- optimal
 fiber length is the stated `lengthrange` width over `TYPICAL_NORMALISED_TRAVEL` (0.667, in
 `tools/cli/lib/myoSuite.mjs`), and peak force is the source's `force` as stated. Each such unit
-cites `myoArmStandIn`, which says it is a stand-in good to about half. At compile,
-`deriveOptimalFiberLength` translates it to this skeleton by the OQ-020 travel ratio, as it does
-every set's. Supinator and anconeus state their range and are derived the ordinary way.
+cites `myoArmStandIn`, which says it is a stand-in good to about half. Supinator and anconeus
+state their range and are derived the ordinary way. For all of them the number in the file is the
+number the simulation runs: the OQ-020 translation in `deriveOptimalFiberLength` only lengthens a
+fiber whose muscle travels further here than on the source's, the forearm's all travel less, and
+the hand's are not in `SOURCE_MUSCLE_TRAVEL` at all, so there is nothing to translate by. What
+compile still applies is its cap at four fifths of the path, which only a short body's anconeus
+reaches.
 
 The vendored arm model writes its actuators two ways. The upper arm's are `<general>` elements
 whose `gainprm` carries an operating range per actuator -- `0.759864 1.45381 ...` for supinator,
@@ -627,8 +631,9 @@ transcribed the ordinary way, and they agree with published architecture to with
 millimetres. Extensor carpi radialis longus is the one that misses, at half.
 
 So the number is a stand-in, it is labelled one, and it is a good one. It passes through the same
-travel translation and the same tendon fit as every other set. Peak force is the source's
-throughout, and peak force is most of what a muscle does.
+compile step and the same tendon fit as every other set, and the travel translation leaves it as
+it is, because these muscles travel less here than on the source's and the translation only
+lengthens. Peak force is the source's throughout, and peak force is most of what a muscle does.
 **Closes when:** a source that states upper-limb architecture *and may be redistributed alongside
 CC BY-SA data* is found and vendored, and the stand-in is replaced by it.
 **Status:** stand-in, measured rather than assumed. The vendoring route stays closed until a
