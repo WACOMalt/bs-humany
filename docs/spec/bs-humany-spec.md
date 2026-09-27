@@ -698,10 +698,12 @@ The user-facing accuracy/performance control. Each profile is a named HSDL `segm
 
 | Profile | Segments | Approx. DoF | Anatomical bones | Default backend | Target |
 |---|---|---|---|---|---|
-| `L0-ragdoll` | ~15 | ~40 | 206 (followers + redistribution) | Rapier | 60 fps, mobile-capable |
-| `L1-standard` | ~25 | ~65 | 206 | Rapier | 60 fps desktop |
-| `L2-biomechanical` | ~50 | ~110 | 206 | Rapier or MuJoCo | 60 fps desktop, MuJoCo ~30 fps |
+| `L0-ragdoll` | ~15 | ~40 | 206 (followers + redistribution) | MuJoCo | 60 fps, mobile-capable |
+| `L1-standard` | ~25 | ~65 | 206 | MuJoCo | 60 fps desktop |
+| `L2-biomechanical` | ~50 | ~110 | 206 | MuJoCo | 60 fps desktop |
 | `L3-anatomical` | ~135 | ~220+ | 206 | MuJoCo | Non-real-time acceptable |
+
+The default backend is MuJoCo for every profile since the reassessment of 2026-09-13 (§3, ADR-003, "Reassessed 2026-09-13"), and the only backend since Rapier was deleted on 2026-09-26. What each profile costs, the skeleton alone and the whole body, is measured in `docs/validation/benchmarks.md`.
 
 Independently adjustable beyond profile selection: physics rate (240 / 500 / 1000 Hz), solver iterations or substeps, self-collision granularity, constraint softness, and equality-constraint enforcement on/off.
 
@@ -1002,7 +1004,7 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M5.8` `assets-anatomical` pack hardening: decimated LODs, convex hulls for collision proxies, streaming, attribution and CC BY-SA notices propagated (ADR-005, ADR-009). *The pack is a measurement source as of ADR-011; the 0.4 one-way-consumer criterion is withdrawn.*
 `M5.9` Module authoring guide + a worked example module. ✅ `docs/guides/module-authoring.md`, worked through `VestibularModule` in `@bs-humany/modules-sensing`, which implements the `sense.vestibular` channel of §14.1.
 `M5.10` §14.5 audit: verify all ten obligations, with evidence, as a documented gate. ✅ `pnpm audit:obligations`, report in `docs/validation/obligations.md`, `--check` in CI. Obligation 10 needed a change policy, now in CONTRIBUTING.
-`M5.11` Performance pass against M3.19 baselines. ✅ Measured in `docs/validation/benchmarks.md`: every module this project wrote is 5% of an L3 tick and collision against the hull proxies is 55% of the rest, so L3 runs at 0.8x real time and that is accepted rather than fixed. L0 to L2 run in real time.
+`M5.11` Performance pass against M3.19 baselines. ✅ Measured in `docs/validation/benchmarks.md`: on the skeleton alone every module this project wrote was 5% of an L3 tick and collision against the hull proxies 55% of the rest, so the skeleton runs at under 1x real time at L3, which is accepted rather than fixed, and in real time at L0 to L2. Re-measured on the whole body on 2026-09-27: with the muscles, the cord and the nerves, the body the studio runs costs nearly twice the skeleton's L3 tick, and this project's modules — muscle dynamics and the swept bellies above all — are nearly half of it. Below L3 the muscles set the pace, and the whole body runs at about real time at L1 and at four fifths of it or a little better at L2.
 `M5.12` Documentation and validation report publication.
 
 ### Critical path

@@ -399,7 +399,7 @@ export const L3_ANATOMICAL: SegmentationDef = {
   displayName: 'L3 — Anatomical',
   description:
     'Per-vertebra spine, ribs on pump-handle hinges, articulated fingers and thumbs, patellae, ' +
-    'talus and calcaneus apart. About a hundred and ten rigid bodies.',
+    'talus and calcaneus apart. About a hundred and thirty-five rigid bodies.',
   defaultBackend: 'mujoco',
   solver: { rate: 1000, iterations: 24, equalityConstraints: true, selfCollision: 'full' },
   limitations: [
