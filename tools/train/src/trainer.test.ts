@@ -537,6 +537,64 @@ describe('train, what it writes', () => {
     expect(store.log[0]).toMatchObject({ kind: 'header', startGeneration: 0, target: 3 });
     expect(store.rows()).toHaveLength(3);
   });
+
+  it('never says a record was saved when the store could not keep it', async () => {
+    // A store that answers false for the record: a host that could not write it and chose to go
+    // on training rather than stop the run. The studio's store does this when the disk or the
+    // browser refuses; a line saying "saved" over that is the lie this guards against.
+    const inner = new MemoryStore();
+    const refusing: CheckpointStore = {
+      read: (kind) => inner.read(kind),
+      write: async (kind, value) => {
+        if (kind === 'policy') return false;
+        await inner.write(kind, value);
+      },
+      appendLog: (line) => inner.appendLog(line),
+    };
+    const reports: GenerationReport[] = [];
+    await train(
+      options(new FakePool(), refusing, {
+        generations: 10,
+        onGeneration: (r) => reports.push(r),
+      }),
+    );
+    const notes = reports.map((r) => r.note).filter((n) => n !== '');
+    expect(notes.some((n) => n.startsWith('  saved'))).toBe(false);
+    expect(notes.some((n) => n.includes('not saved'))).toBe(true);
+    // The search still holds its record in memory, and goes on from it.
+    expect(inner.centre()?.trained?.generations).toBe(10);
+  });
+
+  it('still says saved when the store answers nothing, as every store did before', async () => {
+    const reports: GenerationReport[] = [];
+    await train(
+      options(new FakePool(), new MemoryStore(), {
+        generations: 1,
+        onGeneration: (r) => reports.push(r),
+      }),
+    );
+    expect(reports[0]?.note.startsWith('  saved (')).toBe(true);
+  });
+
+  it('reports each episode as it lands, the candidates and then the centre', async () => {
+    const seen: { generation: number; done: number; total: number; centre: boolean }[] = [];
+    await train(
+      options(new FakePool(), new MemoryStore(), {
+        generations: 1,
+        population: 4,
+        seedsPerCandidate: 2,
+        onEpisode: (p) => seen.push({ ...p }),
+      }),
+    );
+    const candidates = seen.filter((p) => !p.centre);
+    const centre = seen.filter((p) => p.centre);
+    expect(candidates.map((p) => p.done)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(candidates.every((p) => p.total === 8 && p.generation === 1)).toBe(true);
+    expect(centre.map((p) => p.done)).toEqual([1, 2]);
+    expect(centre.every((p) => p.total === 2 && p.generation === 1)).toBe(true);
+    // In that order: the whole population, then the centre on its fresh seeds.
+    expect(seen.map((p) => p.centre)).toEqual([...Array(8).fill(false), true, true]);
+  });
 });
 
 describe('describeResult and formatRemaining', () => {
