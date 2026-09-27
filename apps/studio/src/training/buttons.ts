@@ -30,6 +30,12 @@ export interface BrainButtonInputs {
   readonly handingOver: boolean;
   /** A policy has been handed over and not released. */
   readonly policySet: boolean;
+  /**
+   * The name on the form may be trained under as the form stands: a checkpoint name, and one
+   * Start would not refuse -- not taken without Resume, not empty of anything to resume, not
+   * shipped with the studio when there is no server. The recipe note says which when it is not.
+   */
+  readonly nameOk: boolean;
 }
 
 export interface BrainButtons {
@@ -43,7 +49,10 @@ export function brainButtons(s: BrainButtonInputs): BrainButtons {
   return {
     // Without a server there is nothing to ask permission of: Start trains here, once at a time.
     // With one, the server decides, and a trainer it cannot see into refuses a second beside it.
-    canStart: s.serverUp ? !s.trainingRunning && !s.elsewhere && !s.localRun : !s.localRun,
+    // Either way a name Start would refuse leaves it off, on both paths alike, so the button and
+    // the note under the name never disagree about whether pressing it would do anything.
+    canStart:
+      s.nameOk && (s.serverUp ? !s.trainingRunning && !s.elsewhere && !s.localRun : !s.localRun),
     // A run in this window is stopped here and only here, whatever the server says; otherwise it
     // is the server's to stop, and without one there is nothing to stop.
     canStop: s.localRun ? !s.localStopping : s.serverUp && s.trainingStoppable,

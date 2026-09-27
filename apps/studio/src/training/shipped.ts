@@ -11,6 +11,7 @@
  */
 
 import type { PolicyFile } from '@bs-humany/modules-nerves';
+import { MUSCLE_GROUPS } from '@bs-humany/scenarios';
 
 const FILES = import.meta.glob<{ default: PolicyFile }>(
   '../../../../packages/modules-nerves/policies/*.json',
@@ -44,4 +45,47 @@ export async function shippedCheckpoints(): Promise<
 /** One shipped checkpoint by name, or nothing when the studio does not carry it. */
 export async function shippedCheckpoint(name: string): Promise<PolicyFile | undefined> {
   return (await shippedCheckpoints()).find((row) => row.name === name)?.file;
+}
+
+/**
+ * The two changes to the body since the shipped checkpoints were trained, by the commits that made
+ * them. A checkpoint trained before either was scored in a body that no longer runs: its fitness
+ * is that body's, and what it does in this one is only the part of it that still fits.
+ *
+ * - The hand muscles, ed636ed ("The fingers and toes get muscles, and joints their muscles can
+ *   work"): four new drive groups for the fingers and thumb, and two for the toes, that an older
+ *   policy has no weights for, so they start silent under it.
+ * - The cord as it is now, ba50a95 ("The stretch reflex reacts to stretch"): before it the
+ *   afferent was normalised twice and read every muscle as hugely stretched, so a policy trained
+ *   over that cord, or over none, learned to stand on a body that did not answer its own stretch.
+ */
+const HANDS_ARRIVED = Date.parse('2026-09-22T16:01:39-04:00');
+const CORD_MEASURED = Date.parse('2026-09-22T18:53:58-04:00');
+
+/** The drive groups of the hand, by the id a policy's outputs are named for. */
+const HAND_DRIVES = new Set(MUSCLE_GROUPS.filter((g) => g.section === 'Hand').map((g) => g.id));
+
+/**
+ * What a checkpoint was trained before, in words for the list -- `the current cord and the hand
+ * muscles` -- or undefined when it was trained in the body as it is.
+ *
+ * By when it was trained, where its file says, against the two commits above. A file that does
+ * not say when is read by what it carries instead: no cord in its recipe, no hand drive among its
+ * outputs. Nothing about the file is changed; the studio only says what it is. The owner has
+ * chosen to retrain and recommit the shipped set, and a retrained file carries a date after both,
+ * so the words go away on their own when that lands.
+ */
+export function trainedBefore(
+  file: Pick<PolicyFile, 'trained' | 'recipe' | 'outputs'>,
+): string | undefined {
+  const at = file.trained ? Date.parse(file.trained.at) : Number.NaN;
+  const dated = Number.isFinite(at);
+  const beforeCord = dated ? at < CORD_MEASURED : !file.recipe?.reflex;
+  const beforeHands = dated
+    ? at < HANDS_ARRIVED
+    : !(file.outputs ?? []).some((o) => HAND_DRIVES.has(o.split(':')[0] ?? ''));
+  const what = [beforeCord ? 'the current cord' : '', beforeHands ? 'the hand muscles' : ''].filter(
+    (w) => w !== '',
+  );
+  return what.length === 0 ? undefined : what.join(' and ');
 }
