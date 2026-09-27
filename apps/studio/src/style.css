@@ -501,6 +501,14 @@ select {
   cursor: default;
 }
 
+/* A button that stands for a state, pressed while that state holds: the Align gizmo's Off,
+   Move and Rotate. Filled rather than outlined, so it does not read as a hover. */
+.buttons button.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
 #topbar .buttons button {
   flex: none;
 }
