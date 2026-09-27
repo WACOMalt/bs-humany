@@ -130,11 +130,11 @@ export interface ContactBuffer {
   /** `3 * capacity`, from A toward B */
   readonly normal: Float64Array;
   /**
-   * `capacity`, N*s. Named for the normal impulse, but currently the first constraint row of the
-   * last substep's contact force times the substep dt: with the default pyramidal friction cone
-   * that is one edge of the pyramid, about a quarter of the normal impulse. It is left as it is
-   * because trained policies sense it through the foot-load observation, and what they sense
-   * changes only with a retrain; read it as a contact's presence and rough scale, not its load.
+   * `capacity`, N*s: the normal impulse through the contact over the tick, taken as the last
+   * substep's normal force held for the whole tick, so it does not change with the substeps. The
+   * policy's foot-load sense divides it by the body's weight times the tick. Until 2026-09-27 it was
+   * the first constraint row times the substep, which with MuJoCo's pyramidal friction cone was one
+   * edge of the pyramid, about a quarter of the normal impulse.
    */
   readonly impulse: Float64Array;
   /** `capacity` */

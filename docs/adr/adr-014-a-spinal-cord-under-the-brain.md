@@ -58,6 +58,12 @@ phase runs the motor tremor, then the nerves, then the cord. Each adds and clamp
 the cord's drive lands on the brain's correction rather than under it. Nothing in the decision
 depended on the order; `spinalModule.test.ts` now pins it.
 
+*Amended 2026-09-27 — one clamp.* The writers no longer clamp. Each adds its term, and the muscle
+dynamics, the channel's one reader, clamp the whole sum to [0, 1] once. Clamping in turn made the
+total depend on the order: the brain's inhibition was clamped at zero before the cord's excitation
+arrived, so the brain could not take a reflex back. The order above still runs and is still
+pinned; it now changes nothing but the last bit of a sum.
+
 *Built 2026-09-27 — per side and per unit.* Until this date the cord did not do what the paragraph
 above says. The reflex was worked out per reflex group, both sides of the body together, and the
 group's mean applied to every unit in it; only the afferents were per unit, so a stretched left

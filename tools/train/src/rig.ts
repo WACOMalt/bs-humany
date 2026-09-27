@@ -410,8 +410,8 @@ export class StandRig {
     // The cord, one side of one drive group a reflex group, each unit answering its own spindle.
     // Registered first, but it runs last of the control phase's three writers -- the kernel
     // orders them by module id, so the tremor, then the brain, then the cord (SpinalModule's
-    // header) -- and its drive lands on the brain's correction. Its gains at zero leave the
-    // excitation exactly as it was.
+    // header). None of the three clamps, so its drive and the brain's correction meet in one sum
+    // that the muscles clamp once. Its gains at zero leave the excitation exactly as it was.
     const spine = new SpinalModule(muscles, {
       groups: reflexGroups(),
       gains: reflex,
@@ -429,8 +429,8 @@ export class StandRig {
       memory: options.memory ?? 0,
     });
     kernel.register(nerves);
-    // After the nerves, so the tremor lands on top of the policy's correction and the clamp to
-    // [0, 1] is the last thing done to a unit's excitation.
+    // Registered after the nerves, though the kernel runs it before them by its id; neither
+    // clamps, so the tremor and the policy's correction are one sum, clamped once by the muscles.
     const tremor = new MotorNoiseModule(muscles, {
       outputs,
       level: noise.motor,

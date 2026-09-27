@@ -5,12 +5,14 @@
  * Nothing here is invented for the controller; every number is one the simulation carries
  * anyway. Joint angles and rates are proprioception. The pelvis's sense of down and of its own
  * motion is meant as the body's stable reference for standing, and the head's as a stand-in for
- * the vestibular one, because the balance task is scored on the head. Neither is the vestibular
- * sense proper: `down` is world -Y, an idealised, gravity-independent direction that does not
- * follow `sim.gravity`, not the otoliths' specific force, and the otolith-accurate signal is
- * `sense.vestibular` (the `VestibularModule`), which the policy does not read. And the rotation
- * that is meant to carry these into the segment's own frame does not, as `rotateIntoFrame` sets
- * out, so today they are world-frame. The feet's contact is the sole.
+ * the vestibular one, because the balance task is scored on the head. Both are in the segment's
+ * own frame: `localDown` is world -Y as the segment sees it, so a pelvis tipped forward feels
+ * down tip back, and `localSpin` and `localVelocity` are its motion about and along its own
+ * axes. Neither is the vestibular sense proper: `down` is world -Y, an idealised,
+ * gravity-independent direction that does not follow `sim.gravity`, not the otoliths' specific
+ * force, and the otolith-accurate signal is `sense.vestibular` (the `VestibularModule`), which
+ * the policy does not read. The feet's contact is the sole, and its load is a share of the body's
+ * weight.
  *
  * The muscles give the three afferents section 14.1 of the specification names. Fibre length
  * past optimal is the spindle's group II, length-sensitive. Fibre velocity is its group Ia,
@@ -88,27 +90,27 @@ const ROOT_NQ = 7;
 const ROOT_NV = 6;
 
 /**
- * Write `v` "into the frame" of the unit quaternion `q` at `out[at..at + 3]`.
+ * Write `v` into the frame of the unit quaternion `q` at `out[at..at + 3]`: conj(q) * v * q, the
+ * world vector `v` expressed in the frame of a segment whose orientation is `q`.
  *
- * Meant as conj(q) * v * q, which is v expressed in the frame q turns the world into. It is not
- * that. The first half is conj(q) * v; the second multiplies that by q with the cross product
- * the wrong way round, which makes it q * (conj(q) * v) = v. So what comes out is `v` itself,
- * to a rounding in the last bits, whatever `q` is: the pelvis's and the head's `down` read
- * (0, -1, 0) always, and their spins and the pelvis's velocity are world-frame.
+ * A pose's orientation turns the segment's own axes into the world's (q * v * conj(q), which is
+ * `qRotate` in the mechanics), so its conjugate turns them back. The first half is conj(q) * v,
+ * a pure quaternion times a unit one; the second multiplies that by q.
  *
- * It is kept exactly so -- same expression, same order of operations -- because every shipped
- * policy was trained on these numbers, rounding and all, and the observation test pins them
- * bit for bit. Correcting it changes what a sense means, so it belongs with the sense fixes and
- * the retrain that goes with them, not with a refactor. Do not swap in `qRotate` from the
- * mechanics either: it is a different formula, turning a vector the other way (q v conj(q),
- * local into world), and not bit-identical.
+ * Until 2026-09-27 the second half took its cross product the wrong way round, which made it
+ * q * (conj(q) * v) = v: whatever the segment's orientation, the pelvis's and the head's down
+ * read (0, -1, 0) and their spins and the pelvis's velocity were world-frame. Correcting it
+ * changed what those senses mean, so they were renamed (`localDown`, `localSpin`,
+ * `localVelocity`), and a checkpoint trained before the fix reports them as not carried rather
+ * than being fed senses it never learnt. `qRotate` is not used here because it turns a vector the
+ * other way, local into world, and would need a conjugate built for every call.
  *
  * A function at module scope writing into the caller's array, rather than a closure returning
  * a tuple, because `fill` runs at every control step and must not allocate (rule 9). module-lint
  * holds `fill` to that, through its `@stepPath` tag, but it does not follow a call out of it into
  * a function like this one, so this one keeps to the rule by construction.
  */
-function rotateIntoFrame(
+export function rotateIntoFrame(
   out: Float64Array,
   at: number,
   qx: number,
@@ -119,13 +121,15 @@ function rotateIntoFrame(
   vy: number,
   vz: number,
 ): void {
+  // conj(q) * v: the scalar part, and the vector part qw v - q x v.
   const ix = qw * vx - qy * vz + qz * vy;
   const iy = qw * vy - qz * vx + qx * vz;
   const iz = qw * vz - qx * vy + qy * vx;
   const iw = qx * vx + qy * vy + qz * vz;
-  out[at] = ix * qw + iw * qx - iy * qz + iz * qy;
-  out[at + 1] = iy * qw + iw * qy - iz * qx + ix * qz;
-  out[at + 2] = iz * qw + iw * qz - ix * qy + iy * qx;
+  // (conj(q) * v) * q: the vector part iw q + qw i + i x q. Its scalar part is zero.
+  out[at] = ix * qw + iw * qx + iy * qz - iz * qy;
+  out[at + 1] = iy * qw + iw * qy + iz * qx - ix * qz;
+  out[at + 2] = iz * qw + iw * qz + ix * qy - iy * qx;
 }
 
 export class ObservationBuilder {
@@ -139,14 +143,21 @@ export class ObservationBuilder {
   private readonly goalSize: number;
   private channels: ObservationChannels | undefined;
 
-  /** Per group: the unit indices in it; and every unit's optimal fibre length. */
+  /** Per group: the unit indices in it. */
   private readonly groupUnits: Int32Array[];
   private readonly groupIds: readonly string[];
-  private readonly optimal: Float64Array;
   /** Per unit: the force at which the tendon reads 1, and the speed at which velocity reads 1. */
   private readonly maxForce: Float64Array;
   /** Every joint degree of freedom by name, in slot order: `<joint>:<axis>`. */
   private readonly dofNames: readonly string[];
+  /** The body's weight, N, at the gravity it was compiled for. */
+  private readonly weight: number;
+  /**
+   * The impulse one tick of standing puts through the soles, N s: the body's weight times the
+   * tick. A foot's contact impulse over this is the share of the body's weight it carries. Known
+   * once bound, when the tick is.
+   */
+  private weightImpulse = 0;
 
   constructor(
     articulation: CompiledArticulation,
@@ -167,17 +178,20 @@ export class ObservationBuilder {
     }
     this.dofNames = dofs;
     this.goalSize = goalSize;
+    const g = articulation.gravity;
+    this.weight = articulation.totalMass * Math.hypot(g.x, g.y, g.z);
     const unitIndex = new Map(muscles.units.map((u, i) => [u.id, i]));
     this.groupIds = groups.map((g) => g.id);
     this.groupUnits = groups.map((g) =>
       Int32Array.from(g.units.map((u) => unitIndex.get(u.id) ?? -1).filter((i) => i >= 0)),
     );
-    this.optimal = Float64Array.from(muscles.units, (u) => u.parameters.optimalFiberLength || 0.1);
     this.maxForce = Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce || 1);
   }
 
-  bind(channels: ObservationChannels): void {
+  /** Bind to the channels, with the length of a tick in seconds, which the foot load needs. */
+  bind(channels: ObservationChannels, tickSeconds: number): void {
     this.channels = channels;
+    this.weightImpulse = tickSeconds > 0 ? this.weight * tickSeconds : 0;
     const nq = (channels.joints.fields.q as Float64Array).length;
     const nv = (channels.joints.fields.qdot as Float64Array).length;
     if (nq - ROOT_NQ !== this.dofNames.length || nv - ROOT_NV !== this.dofNames.length) {
@@ -188,20 +202,33 @@ export class ObservationBuilder {
     const names: string[] = [];
     for (const dof of this.dofNames) names.push(`angle:${dof}`);
     for (const dof of this.dofNames) names.push(`rate:${dof}`);
-    names.push('pelvis.down.x', 'pelvis.down.y', 'pelvis.down.z');
-    names.push('pelvis.spin.x', 'pelvis.spin.y', 'pelvis.spin.z');
-    names.push('pelvis.velocity.x', 'pelvis.velocity.y', 'pelvis.velocity.z');
+    // Policies are matched to a body by these names, so a sense whose meaning changes is given
+    // a new name, and a checkpoint trained on the old meaning reports it as not carried instead
+    // of reading the new numbers with weights learnt on the old. The fixes of 2026-09-27 did that
+    // four times: the pelvis's and the head's down, spin and velocity came into the segment's
+    // own frame (they had been world-frame, and were `pelvis.down` and so on); the soles' load
+    // became a share of body weight (it had been one edge of a friction pyramid's impulse, and
+    // was `foot.<side>.load`); and the group II spindle sense became the strain it was always
+    // described as (it had divided by the optimal length twice and sat at its clamp, and was
+    // `stretch:<group>`). `observation.test.ts` pins the list.
+    names.push('pelvis.localDown.x', 'pelvis.localDown.y', 'pelvis.localDown.z');
+    names.push('pelvis.localSpin.x', 'pelvis.localSpin.y', 'pelvis.localSpin.z');
+    names.push('pelvis.localVelocity.x', 'pelvis.localVelocity.y', 'pelvis.localVelocity.z');
     names.push('pelvis.height', 'head.height');
-    // The head's down and spin, named for the vestibular sense they stand in for but not it:
-    // down is world -Y, not the otoliths' specific force, and it does not follow `sim.gravity`;
-    // the spin is the head's angular velocity. Both were meant to be in the head's frame and
-    // are world-frame (see `rotateIntoFrame`). The real sense is `sense.vestibular`, which the
-    // policy does not read. The names stay as they are, because policies are matched by name.
-    names.push('head.down.x', 'head.down.y', 'head.down.z');
-    names.push('head.spin.x', 'head.spin.y', 'head.spin.z');
-    names.push('foot.left.contacts', 'foot.left.load', 'foot.right.contacts', 'foot.right.load');
+    // The head's down and spin, in its own frame, named for the vestibular sense they stand in
+    // for but not it: down is world -Y, not the otoliths' specific force, and it does not follow
+    // `sim.gravity`; the spin is the head's angular velocity. The real sense is
+    // `sense.vestibular`, which the policy does not read.
+    names.push('head.localDown.x', 'head.localDown.y', 'head.localDown.z');
+    names.push('head.localSpin.x', 'head.localSpin.y', 'head.localSpin.z');
+    names.push(
+      'foot.left.contacts',
+      'foot.left.weight',
+      'foot.right.contacts',
+      'foot.right.weight',
+    );
     for (const id of this.groupIds) names.push(`activation:${id}`);
-    for (const id of this.groupIds) names.push(`stretch:${id}`);
+    for (const id of this.groupIds) names.push(`strain:${id}`);
     for (const id of this.groupIds) names.push(`shorten:${id}`);
     for (const id of this.groupIds) names.push(`load:${id}`);
     for (let g = 0; g < this.goalSize; g++) names.push(`goal[${g}]`);
@@ -224,8 +251,8 @@ export class ObservationBuilder {
     for (let i = ROOT_NQ; i < q.length; i++) out[at++] = q[i] as number;
     for (let i = ROOT_NV; i < qdot.length; i++) out[at++] = 0.1 * (qdot[i] as number);
 
-    // The pelvis: world down, its angular and linear velocity, meant to be in its own frame and
-    // world-frame as `rotateIntoFrame` is written. The spin is scaled after the rotation.
+    // The pelvis: world down, its angular and linear velocity, all in its own frame. The spin is
+    // scaled after the rotation.
     const position = c.pose.fields.position as Float64Array;
     const orientation = c.pose.fields.orientation as Float64Array;
     const linear = c.velocity.fields.linear as Float64Array;
@@ -267,8 +294,8 @@ export class ObservationBuilder {
     out[at++] = position[3 * p + 1] as number;
     out[at++] = position[3 * this.head + 1] as number;
 
-    // The head: down and spin by the head's own quaternion, in the same way and with the same
-    // caveat -- a stand-in for the vestibular sense, not the sense itself.
+    // The head: down and spin in the head's own frame, in the same way -- a stand-in for the
+    // vestibular sense, not the sense itself.
     const h0 = this.head;
     const hqx = orientation[4 * h0] as number;
     const hqy = orientation[4 * h0 + 1] as number;
@@ -292,7 +319,11 @@ export class ObservationBuilder {
     out[at + 2] = 0.2 * (out[at + 2] as number);
     at += 3;
 
-    // The feet: how many contacts each has, and the impulse they carry, scaled.
+    // The feet: how many contacts each has, and the share of the body's weight they carry -- the
+    // normal impulse through their contacts this tick over the impulse the body's weight puts
+    // through a tick. So 0.5 a side is standing still on both feet, whatever the body's mass,
+    // the step rate or the substeps, and a landing reads past 1. Clamped at twice the body's
+    // weight, where a landing has said all it needs to.
     const pair = c.contacts.fields.pair as Int32Array;
     const impulse = c.contacts.fields.impulse as Float64Array;
     let leftCount = 0;
@@ -316,15 +347,15 @@ export class ObservationBuilder {
         rightLoad += j;
       }
     }
+    const perWeight = this.weightImpulse > 0 ? 1 / this.weightImpulse : 0;
     out[at++] = Math.min(1, leftCount / 8);
-    out[at++] = Math.min(2, leftLoad);
+    out[at++] = Math.min(2, leftLoad * perWeight);
     out[at++] = Math.min(1, rightCount / 8);
-    out[at++] = Math.min(2, rightLoad);
+    out[at++] = Math.min(2, rightLoad * perWeight);
 
-    // Muscles by group: the mean activation, and the mean stretch past optimal, of the units in
-    // each. A stretch of 0 is a fibre at its optimal length; 0.5 is half again as long. Per
-    // group rather than per unit, because a hundred and forty-eight of each swamped the rest,
-    // and fibre lengths scaled tenfold saturated the first policy before it sensed anything.
+    // Muscles by group: the mean activation, and the mean strain past optimal, of the units in
+    // each. A strain of 0 is a fibre at its optimal length; 0.5 is half again as long. Per
+    // group rather than per unit, because a hundred and forty-eight of each swamped the rest.
     const activation = c.muscles.fields.activation as Float64Array;
     const fibre = c.muscles.fields.fiberLength as Float64Array;
     for (const units of this.groupUnits) {
@@ -336,7 +367,11 @@ export class ObservationBuilder {
       let sum = 0;
       for (let k = 0; k < units.length; k++) {
         const u = units[k] as number;
-        sum += (fibre[u] as number) / (this.optimal[u] as number) - 1;
+        // `muscle.state` publishes fibre length already in optimal fibre lengths, so this is the
+        // strain. It used to be divided by the optimal length in metres a second time, the fault
+        // ba50a95 found in the cord: a signal that runs from about -0.44 to 0 read from 2.3 to
+        // 41, and the clamp below held nearly every group at 2 whatever the body did.
+        sum += (fibre[u] as number) - 1;
       }
       out[at++] = units.length ? Math.max(-1, Math.min(2, sum / units.length)) : 0;
     }

@@ -476,8 +476,10 @@ export class Simulation {
       // charge of a running body live, between one control step and the next, with nothing
       // restarted and the recording unbroken.
       this.policyFile = setup?.policy;
-      // The cord goes in before the brain, as in the trainer: it is the layer the brain
-      // corrects. It starts at whatever the caller passes, which in the studio is the Spine
+      // The cord is registered before the brain, as in the trainer: it is the layer the brain
+      // corrects. The kernel runs it after the brain, by module id, and since neither clamps
+      // its share of the drive -- the muscles clamp the sum once -- that order changes nothing
+      // but the last bit of a sum (SpinalModule's header). It starts at whatever the caller passes, which in the studio is the Spine
       // panel's gains, so the panel and the body never disagree about which cord is running.
       // With nothing passed there is no cord at all: stretch and damping both zero, which is the
       // body every headless caller has always run.

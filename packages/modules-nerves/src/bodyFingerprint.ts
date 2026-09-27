@@ -29,38 +29,42 @@ export const BODY_FINGERPRINT_VERSION = 1;
  * What each sense means, as a version number, beside the observation it describes.
  *
  * Keyed by the sense's family -- the part of its name before the joint, group or axis:
- * `angle` for every `angle:<joint>:<axis>`, `pelvis.spin` for its three axes, `goal` for every
- * `goal[<n>]` -- or by a single sense's whole name, which wins over its family. Every sense the
- * observation (`observation.ts`) builds today is meaning 1.
+ * `angle` for every `angle:<joint>:<axis>`, `pelvis.localSpin` for its three axes, `goal` for
+ * every `goal[<n>]` -- or by a single sense's whole name, which wins over its family. Every sense
+ * the observation (`observation.ts`) builds today is meaning 1.
  *
- * This table is what a sense fix bumps. Correcting `rotateIntoFrame` so the pelvis's spin is in
- * its own frame is a change of what `pelvis.spin.*` means, and the commit that does it changes
- * `'pelvis.spin': 1` to `2` here. Every checkpoint written before it then says, when handed to
- * the fixed body, that it was trained on the old meaning of those three senses, by name -- which
- * is the one thing `MlpPolicy.fit`, matching by name alone, could never have noticed. A sense
- * renamed instead needs no bump: the fit already drops what it cannot find, and says how many.
+ * This table is what a sense fix bumps when it keeps the sense's name. Every checkpoint written
+ * before the bump then says, when handed to the fixed body, that it was trained on the old meaning
+ * of those senses, by name -- which is the one thing `MlpPolicy.fit`, matching by name alone,
+ * could never have noticed. A sense renamed instead needs no bump: the fit already drops what it
+ * cannot find, and says how many. The sense fixes of 2026-09-27 renamed: `pelvis.down`,
+ * `pelvis.spin`, `pelvis.velocity`, `head.down` and `head.spin` became `localDown`, `localSpin`
+ * and `localVelocity` when the rotation into the segment's frame was corrected, `foot.<side>.load`
+ * became `foot.<side>.weight` when it became a share of body weight, and `stretch` became `strain`
+ * when it stopped dividing by the optimal length twice.
  */
 export const SENSE_MEANINGS: Readonly<Record<string, number>> = {
   // Proprioception: joint angles, and their rates scaled by a tenth.
   angle: 1,
   rate: 1,
-  // The pelvis: world down, spin and velocity (world-frame today, see `rotateIntoFrame`), height.
-  'pelvis.down': 1,
-  'pelvis.spin': 1,
-  'pelvis.velocity': 1,
+  // The pelvis: world down, spin and velocity in its own frame, and its height.
+  'pelvis.localDown': 1,
+  'pelvis.localSpin': 1,
+  'pelvis.localVelocity': 1,
   'pelvis.height': 1,
-  // The head: height, and the world-frame down and spin that stand in for the vestibular sense.
+  // The head: height, and the down and spin in its own frame that stand in for the vestibular
+  // sense.
   'head.height': 1,
-  'head.down': 1,
-  'head.spin': 1,
-  // The soles: how many contacts, and the impulse they carry.
+  'head.localDown': 1,
+  'head.localSpin': 1,
+  // The soles: how many contacts, and the share of the body's weight they carry.
   'foot.left.contacts': 1,
-  'foot.left.load': 1,
+  'foot.left.weight': 1,
   'foot.right.contacts': 1,
-  'foot.right.load': 1,
+  'foot.right.weight': 1,
   // Per muscle group: efference copy, spindle II, spindle Ia, Golgi Ib.
   activation: 1,
-  stretch: 1,
+  strain: 1,
   shorten: 1,
   load: 1,
   // What the person wants the body doing, and the policy's own context units.

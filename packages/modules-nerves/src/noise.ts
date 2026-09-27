@@ -206,19 +206,21 @@ export interface MotorNoiseOptions {
  *
  * Adds onto `efferent.alphaMotor` rather than setting it, like every other writer of that
  * channel: the clip's tone, the person's slider, the policy's correction and this tremor all
- * land on the same accumulator, and the unit's excitation is clamped to [0, 1] on the way in.
- * Spread over a group's units by their weights, so a group half-driven by the policy is
- * half-wobbled too.
+ * land on the same accumulator, and the sum is clamped to [0, 1] once, by the muscle dynamics
+ * that read it, not by each writer in turn. Spread over a group's units by their weights, so a
+ * group half-driven by the policy is half-wobbled too.
  *
  * One consequence worth knowing: a resting body given a tremor does not stay perfectly slack.
  * Excitation cannot go below zero, so the downward half of a zero-mean wander on a resting
- * muscle is clipped away and the upward half is not, and what is left is a small tone -- about
- * `0.4 * level` on a muscle that is otherwise silent. That is the muscle, not the noise: a
- * slack muscle cannot be relaxed further. A body that is meant to be limp wants `level` 0.
+ * muscle is clipped away where the sum is read and the upward half is not, and what is left is a
+ * small tone -- about `0.4 * level` on a muscle that is otherwise silent. (On a muscle something
+ * else is driving, a downward swing still takes its share off, because nothing is clipped until
+ * every writer has added.) That is the muscle, not the noise: a slack muscle cannot be relaxed
+ * further. A body that is meant to be limp wants `level` 0.
  *
  * `bias` rides along the same path for a disturbance that is aimed rather than random -- the
  * trainer's twitch, a burst on one group at one moment -- so a nudge is added to the muscles
- * and clamped with everything else, instead of overriding a layer the feedforward is also
+ * and summed with everything else, instead of overriding a layer the feedforward is also
  * writing and having to be taken back afterwards.
  */
 export class MotorNoiseModule implements SimModule, Stateful {
@@ -344,8 +346,7 @@ export class MotorNoiseModule implements SimModule, Stateful {
       const weights = this.outputWeights[o] as Float64Array;
       for (let k = 0; k < units.length; k++) {
         const at = units[k] as number;
-        const next = (excitation[at] as number) + delta * (weights[k] as number);
-        excitation[at] = next < 0 ? 0 : next > 1 ? 1 : next;
+        excitation[at] = (excitation[at] as number) + delta * (weights[k] as number);
       }
     }
   }

@@ -254,11 +254,11 @@ describe('SpinalModule', () => {
   });
 
   it('runs after the tremor and the nerves in the control phase, by module id', async () => {
-    // The three writers of `efferent.alphaMotor` in the loop each add and then clamp to [0, 1],
-    // so the order they run in decides what a clamp eats. None of them declares a dependency on
-    // another; the kernel breaks the tie by id, which puts the cord last. The documents that
-    // describe the loop (this module's header, ADR-014's amendment) say so, and this holds them to
-    // it: a renamed module or a new `order` on one of them changes what they describe.
+    // None of the three writers of `efferent.alphaMotor` in the loop declares a dependency on
+    // another; the kernel breaks the tie by id, which puts the cord last. Since none of them
+    // clamps, the order decides nothing but the last bit of a sum, but the documents that describe
+    // the loop (this module's header, ADR-014's amendment) name it, and this holds them to it: a
+    // renamed module or a new `order` on one of them changes what they describe.
     const { kernel } = rig({ stretch: 3.5, velocity: 0.25 });
     const outputs: DriveOutput[] = [
       { id: 'plantar', units: plantar.map((id) => ({ id, weight: 1 })) },
@@ -335,17 +335,39 @@ describe('a stretched right soleus, one tick of the cord with nothing in the way
     // Per side: a group holding both legs let the right soleus's stretch excite the left leg. Per
     // unit: a group's mean applied to all of it let the soleus's stretch excite the gastrocnemii
     // beside it, which were not stretched at all. A real stretch reflex does neither, and this cord
-    // now does neither: the one stretched spindle drives the one muscle it is in.
+    // now does neither: the one stretched spindle drives the one muscle it is in. The right
+    // dorsiflexors are the only other units it touches, and it takes from them, through their
+    // interneuron; with nothing clamping the efferent that shows below zero here.
     const { excitation } = tick(0);
     const soleus = at('soleus_r');
     expect(excitation[soleus]).toBeCloseTo(MEASURED_SPINAL_GAINS.stretch * STRETCH, 12);
+    const inhibited = new Set(onSide(dorsi, 'r'));
     for (const unit of muscles.units) {
       if (unit.id === 'soleus_r') continue;
+      if (inhibited.has(unit.id)) {
+        expect(excitation[at(unit.id)], `${unit.id} is inhibited`).toBeLessThan(0);
+        continue;
+      }
       expect(excitation[at(unit.id)], `${unit.id} was not stretched`).toBe(0);
     }
     for (const id of muscles.units.map((u) => u.id).filter((u) => u.endsWith('_l'))) {
       expect(excitation[at(id)], `${id} is on the other leg`).toBe(0);
     }
+  });
+
+  it('adds without clamping, so the brain can cancel it and the muscles clamp the sum once', () => {
+    // Every unit starts at -0.3, what a brain asking the leg to let go leaves on the efferent now
+    // that it does not clamp its own share. The cord adds its reflex on top, and the soleus's sum
+    // is the two together: the brain's inhibition takes the reflex back, which it could not when
+    // every writer clamped its running sum -- the brain's -0.3 became 0 before the cord ran, and
+    // the reflex then stood whole. Nothing here clamps either end; the muscle dynamics do, once.
+    const { excitation } = tick(-0.3);
+    const reflex = MEASURED_SPINAL_GAINS.stretch * STRETCH;
+    expect(excitation[at('soleus_r')]).toBeCloseTo(-0.3 + reflex, 12);
+    expect(excitation[at('soleus_l')]).toBe(-0.3);
+    // And past the top: a unit already at full excitation keeps the reflex added to it.
+    const { excitation: high } = tick(1);
+    expect(high[at('soleus_r')]).toBeCloseTo(1 + reflex, 12);
   });
 
   it('inhibits the right shin through its interneuron, and leaves the left leg alone', () => {
