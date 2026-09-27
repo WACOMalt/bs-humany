@@ -141,7 +141,10 @@ Drag to orbit, right- or Shift-drag to pan, scroll or pinch to zoom; click a bon
 and Ctrl-drag one to pull it during a run. Space starts, pauses and resumes a run; the arrows
 step a frame, Home goes live, and 1, 3, 7 and 9 pick the front, left, three-quarter and back
 views. The views, and F (or the Frame button) which keeps the angle, aim at the body wherever it
-is and stand off in proportion to its stature.
+is and stand off in proportion to its stature. The top bar's first button is the same toggle as
+Space, and never throws a run away; Reset, the Sim tab's restart with changed settings, Load
+session, Follow bridge and a checkpoint's set-up do, and each asks first when the recording it
+would throw away is longer than about five seconds.
 
 The Brain tab hands a checkpoint control of the running body and trains new ones. With no
 dashboard running it trains in the window itself: the desktop build reads and writes the same
@@ -225,8 +228,10 @@ way, and ADR-014 is the cord under it.
    **Tilting floor** scene is the one for a brain that has to react: the floor pitches and rolls
    in random pulses, and a posture held still goes over at the first. **Start training** goes
    through the dashboard when one is running, starting the trainer and the showcase and
-   following them, and trains in the window when none is. Choosing a checkpoint sets those tabs
-   up the way it was trained.
+   following them, and trains in the window when none is. Choosing a checkpoint only shows how
+   it was trained and what differs from the tabs; **Set up as trained** puts that on the tabs,
+   Authority included, and **Undo set-up** takes it back once. **Hand over control** sets them up
+   first when they differ.
 
 ## Naming
 

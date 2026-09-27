@@ -25,8 +25,7 @@
         </div>
         <div class="transport buttons">
           <button type="button" id="simStart" title="Start a run with the current settings (Space)">&#9654; Start sim</button>
-          <button type="button" id="simPause" disabled title="Stop computing; everything computed stays (Space)">&#10074;&#10074; Pause sim</button>
-          <button type="button" id="reset" disabled title="Back to the starting pose; the recording is thrown away">&#8634; Reset</button>
+          <button type="button" id="reset" disabled title="Back to the starting pose; the recording is thrown away, after asking when it is longer than a few seconds">&#8634; Reset</button>
         </div>
         <div class="mode" id="mode-indicator" title="Whether the viewport shows a run of your own, or follows a run published to the bridge">
           <span class="dot"></span><span id="mode-label">Own run</span>
@@ -213,11 +212,16 @@
               <summary>Readout</summary>
               <div class="note live" id="pending-changes" hidden>
                 Changed since this run started: <span id="pending-changes-list"></span>.
-                <button type="button" id="pending-restart" title="Start a new run with the settings as they are now; this run and its recording are thrown away">Restart to apply</button>
+                <button type="button" id="pending-restart" title="Start a new run with the settings as they are now; this run and its recording are thrown away, after asking when the recording is longer than a few seconds">Restart with current settings</button>
               </div>
-              <p class="note">Start begins a run, or carries one on from wherever it was left; Pause stops
-              computing and leaves everything that has been computed where it is. Reset takes the body
-              back to the pose it started in and throws the recording away. They live in the top bar.</p>
+              <p class="note">The first button in the top bar starts a run, pauses it, and carries it on
+              from wherever it was left; pausing stops computing and leaves everything that has been
+              computed where it is, and nothing that button does throws anything away. Reset takes the
+              body back to the pose it started in and throws the recording away. When a setting has
+              changed since the run started, a line above lists it, with the button that restarts the
+              run with the settings as they now are. Reset, that restart,
+              Load session, Follow bridge and a checkpoint's Set up as trained each ask first when the
+              recording they would throw away is longer than a few seconds.</p>
               <p class="note live" id="diagnostics-empty">Start a run to see energy, joint drift, contacts and tick rate.</p>
               <dl class="readout" id="diagnostics" hidden>
                 <dt>Kinetic</dt><dd id="diag-kinetic">—</dd>
@@ -297,7 +301,12 @@
                   </select>
                   <button type="button" id="brain-forget" hidden title="Delete this checkpoint from this browser: its record, its search centre and its history">Forget</button>
                 </div>
-                <p class="note live" id="brain-policy-note">No dashboard server: run <code>pnpm train:dashboard</code> to list checkpoints.</p>
+                <p class="note live" id="brain-policy-note">Looking for checkpoints…</p>
+                <div class="buttons">
+                  <button type="button" id="brain-setup" disabled title="Set the Scene, Body and World tabs, the step rate, the cord, Authority and the training form as the chosen checkpoint was trained; a running body is restarted when its scene or body changes">Set up as trained</button>
+                  <button type="button" id="brain-undo-setup" disabled title="Nothing to undo: Set up as trained has not been used">Undo set-up</button>
+                </div>
+                <p class="note">Choosing a checkpoint only shows it: the line above says how it was trained and what differs from the tabs. Set up as trained makes that change, and Undo takes it back once. Hand over makes it first when anything differs, because a policy only makes sense in the body it was trained in.</p>
               </div>
               <div class="control">
                 <label for="brain-authority">Authority <output id="brain-authority-value">0.30</output></label>
@@ -305,7 +314,7 @@
                 <p class="note">The most one output may add to or take from a group's excitation.</p>
               </div>
               <div class="buttons">
-                <button type="button" id="brain-handover" disabled title="Put the chosen policy in charge of the running body; the run carries on with its state">Hand over control</button>
+                <button type="button" id="brain-handover" disabled title="Put the chosen policy in charge of the running body, live. When the tabs differ from how it was trained they are set up as it was trained first, as Set up as trained does, which restarts a running body whose scene or body changes">Hand over control</button>
                 <button type="button" id="brain-release" disabled title="Take the policy out of the loop; the run carries on">Release</button>
               </div>
               <p class="note live" id="brain-fit-note"></p>

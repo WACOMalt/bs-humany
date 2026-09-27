@@ -13,6 +13,14 @@
  *
  * Handing over needs no server. The studio holds what it trained itself and ships others, and a
  * checkpoint the server listed is found again under its bare name when the server goes away.
+ *
+ * Choosing a checkpoint in the list only shows it: what it was trained in, and how that differs
+ * from the tabs. It used to set the tabs up there and then -- a running body restarted in the
+ * checkpoint's scene and body, the muscle sliders went to zero and the training form changed, with
+ * no way back, from the headset's list as much as the desktop's -- so browsing the list was not
+ * safe. Set up as trained makes that change, Authority included, and one Undo takes it back; Hand
+ * over makes it first when the tabs differ, because a policy only makes sense in the body it was
+ * trained in. The headset has the same buttons.
  */
 
 import {
@@ -56,6 +64,7 @@ import {
   nameAllowsStart,
   nameVerdict,
 } from './training/recipe.js';
+import { type SetUpDifference, describeSetUpDifferences } from './training/setUp.js';
 import { shippedCheckpoint, shippedCheckpoints, trainedBefore } from './training/shipped.js';
 import {
   type TrainingStatus,
@@ -143,16 +152,36 @@ export type { TrainingStatus } from './training/statusLine.js';
  */
 export type HandOverResult = 'live' | 'deferred' | { readonly error: string };
 
+/** What Set up as trained would change on the tabs, and whether that restarts a running body. */
+export interface RecipeChange {
+  readonly differences: readonly SetUpDifference[];
+  /** Whether a running body is restarted for it, which throws its recording away. */
+  readonly restarts: boolean;
+}
+
+/**
+ * What a set-up, or its Undo, did to the run: restarted a running body in the new scene and body;
+ * changed only what a running body takes live (the cord, the authority, the muscle sliders); or,
+ * with no run, set the tabs up for the next.
+ */
+export type SetUpEffect = 'restarted' | 'live' | 'nextRun';
+
+/** The one level of Undo a set-up leaves: the tabs as they were before it. */
+export interface RecipeUndo {
+  /** Whether putting them back now would restart a running body. */
+  restarts(): boolean;
+  /** Put them back. */
+  apply(): SetUpEffect;
+}
+
 export interface BrainHost {
   /**
    * Put this policy in the running body's loop, live, between one control step and the next; or
    * take it out, with undefined. Says what became of it: `'live'` when the running body took it,
    * `'deferred'` when there is no run for it to go into yet (it goes in with the next), and the
-   * error when the run refused it. A host that returns nothing is taken to have done it, and the
-   * panel reads what it can from `fit` instead.
+   * error when the run refused it.
    */
-  // biome-ignore lint/suspicious/noConfusingVoidType: a host that predates the result returns nothing.
-  handOver(setup: NervesSetup | undefined): HandOverResult | void;
+  handOver(setup: NervesSetup | undefined): HandOverResult;
   /**
    * Whether the next run will have muscles for a policy to drive. Optional, and when a host does
    * not say, the panel does not guess: it says the policy goes in with the next run.
@@ -171,13 +200,26 @@ export interface BrainHost {
    */
   publishedTrainingName(): string | undefined;
   /**
-   * Set the tabs up from a checkpoint's recipe, so the body handed over is the one it knows. Says
-   * what that did to the run: `'restarted'` when one was going and was restarted in the new scene
-   * and body, `'nextRun'` when there was none and the settings wait for the next. A host that
-   * returns nothing leaves the panel saying only what was set.
+   * What setting the tabs up from a checkpoint's recipe would change: its scene, body, joints and
+   * step rate, its cord and authority, and the muscle sliders for one that learnt with nothing
+   * under it. Compared as the controls would hold the recipe, so a value no slider can hold
+   * exactly is not a difference that never goes away.
    */
-  // biome-ignore lint/suspicious/noConfusingVoidType: a host that predates the result returns nothing.
-  applyRecipe(recipe: TrainingRecipe): 'restarted' | 'nextRun' | void;
+  recipeChange(recipe: TrainingRecipe): RecipeChange;
+  /**
+   * Set the tabs up from a checkpoint's recipe, so the body handed over is the one it knows, and
+   * say what that did to the run. A running body is restarted only when something it is built
+   * with changed; the cord, the authority and the muscle sliders reach it live. The training
+   * form is the panel's own, and is not touched. What comes back holds the tabs as they were, for
+   * one Undo.
+   */
+  applyRecipe(recipe: TrainingRecipe): { readonly effect: SetUpEffect; readonly undo: RecipeUndo };
+  /**
+   * Resolve true when it is all right to throw away the running body's recording: there is none,
+   * it is short, or the person said so. `what` names the act the way its button does. Only for a
+   * press at the desktop: nothing the headset asks for waits on a dialog it cannot see.
+   */
+  confirmDiscard(what: string): Promise<boolean>;
   /**
    * What the running body could use of the policy, once it is in. `carried.body` is the nerves'
    * own comparison of the body the checkpoint was trained in with this one (`NervesModule.carried`),
@@ -253,7 +295,14 @@ export interface BrainState {
   readonly canStop: boolean;
   readonly canHandOver: boolean;
   readonly canRelease: boolean;
-  /** The line under the checkpoint list, as the desktop has it. */
+  /** Set up as trained: a checkpoint is chosen that says how it was trained. */
+  readonly canSetUp: boolean;
+  /** Undo of the last set-up: there is one to take back. */
+  readonly canUndoSetUp: boolean;
+  /**
+   * The line under the checkpoint list, as the desktop has it: where the list comes from, or, with
+   * a checkpoint chosen, how it was trained and how that differs from the tabs.
+   */
   readonly policyNote: string;
   /** What the Spine panel says of the cord as it is set, for the headset to show as it is. */
   readonly spineNote: string;
@@ -283,6 +332,8 @@ export const IDLE_BRAIN_STATE: BrainState = {
   canStop: false,
   canHandOver: false,
   canRelease: false,
+  canSetUp: false,
+  canUndoSetUp: false,
   policyNote: '',
   spineNote: '',
 };
@@ -290,6 +341,8 @@ export const IDLE_BRAIN_STATE: BrainState = {
 /** The headset's hands on the panel: every button and slider it can press or move. */
 export type BrainAction =
   | 'select'
+  | 'setup'
+  | 'undoSetup'
   | 'handover'
   | 'release'
   | 'authority'
@@ -350,6 +403,21 @@ function trainedPhrase(name: string, t: NonNullable<CheckpointRow['trained']>): 
   return `gen ${t.generations}, fitness ${fitness.toFixed(2)}`;
 }
 
+/**
+ * The training form as Set up as trained finds it, for its Undo: the name and whether somebody
+ * chose it, what is scored, what plays under the brain, the noise and the memory. As the controls
+ * hold them, strings and all, so putting them back is putting back exactly what was there.
+ */
+interface FormState {
+  readonly name: string;
+  readonly nameTouched: boolean;
+  readonly task: string;
+  readonly feedforward: string;
+  readonly noiseMotor: string;
+  readonly noiseSense: string;
+  readonly memory: string;
+}
+
 const must = <T extends Element>(selector: string): T => {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`Missing element: ${selector}`);
@@ -365,6 +433,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     authorityValue: must<HTMLOutputElement>('#brain-authority-value'),
     handover: must<HTMLButtonElement>('#brain-handover'),
     release: must<HTMLButtonElement>('#brain-release'),
+    setUp: must<HTMLButtonElement>('#brain-setup'),
+    undoSetUp: must<HTMLButtonElement>('#brain-undo-setup'),
     fitNote: must<HTMLElement>('#brain-fit-note'),
     idleNote: must<HTMLElement>('#brain-idle-note'),
     generations: must<HTMLInputElement>('#train-generations'),
@@ -474,6 +544,23 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let rowsLoaded = false;
   /** The row whose policy is in the loop, for what the fit note says about where it came from. */
   let handedRow: CheckpointRow | undefined;
+  /**
+   * The one Undo the last Set up as trained left: the tabs as they were, from the host, and the
+   * training form as it was, from here. One level, because what a person reaches for after a
+   * set-up they did not mean is the state they were in a moment before, not a history.
+   */
+  let undoSetUp:
+    | { readonly name: string; readonly form: FormState; readonly tabs: RecipeUndo }
+    | undefined;
+  /** A set-up, an Undo or a hand-over is waiting on the person's answer: one at a time. */
+  let settingUp = false;
+  /**
+   * The policy went in with no run for it to go into: none was going (`next`), or the set-up
+   * before it restarted the one that was (`restart`). The fit note says which until a run takes
+   * it, and is looked at again as soon as one does rather than at the next poll, which with the
+   * Brain tab shut may never come.
+   */
+  let fitPending: 'restart' | 'next' | undefined;
   /** The checkpoints this browser holds of its own, by name: the only ones Forget can forget. */
   let browserHeld = new Set<string>();
   /**
@@ -744,17 +831,39 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       trainingStoppable,
       elsewhere,
       selected: ui.policy.value,
-      handingOver,
+      // A set-up waiting on its question is a hand-over's first half, and holds the button too.
+      handingOver: handingOver || settingUp,
       policySet: setup !== undefined,
       // Not until the list has been read: a name cannot be judged against a list not yet seen.
       nameOk: rowsLoaded && nameAllowsStart(verdictOf(formRecipe()).verdict),
     });
+  /** The chosen checkpoint's row, when the list has it. */
+  const chosenRow = (): CheckpointRow | undefined => rows.find((r) => r.id === ui.policy.value);
+  /**
+   * Set up as trained, for a checkpoint that says how it was trained, and its Undo, for a set-up
+   * there is to take back; neither while another is waiting on its question or a hand-over is
+   * loading. Beside the rules `brainButtons` keeps, and sent to the headset beside them.
+   */
+  const setUpButtons = (): { canSetUp: boolean; canUndoSetUp: boolean } => {
+    const busy = handingOver || settingUp;
+    return {
+      canSetUp: !busy && Boolean(chosenRow()?.recipe),
+      canUndoSetUp: !busy && undoSetUp !== undefined,
+    };
+  };
   const setButtons = (): void => {
     const b = buttons();
     ui.start.disabled = !b.canStart;
     ui.stop.disabled = !b.canStop;
     ui.handover.disabled = !b.canHandOver;
     ui.release.disabled = !b.canRelease;
+    const s = setUpButtons();
+    ui.setUp.disabled = !s.canSetUp;
+    ui.undoSetUp.disabled = !s.canUndoSetUp;
+    const undoTitle = undoSetUp
+      ? `Put the tabs and the training form back as they were before ${undoSetUp.name} was set up`
+      : 'Nothing to undo: Set up as trained has not been used';
+    if (ui.undoSetUp.title !== undoTitle) ui.undoSetUp.title = undoTitle;
     showForget();
   };
 
@@ -841,60 +950,172 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     }
     // The same checkpoint in the new list, by name when its id is not there: a server that
     // starts or stops swaps one list for the other, and `policies/stand.json` is `stand`. No
-    // 'change' is sent, because nothing was chosen -- the tabs are already set up for it.
+    // 'change' is sent, because nothing was chosen.
     ui.policy.value = reselect(rows, chosen, chosenKey);
     chosenLost = chosenKey !== '' && ui.policy.value === '';
-    ui.policyNote.textContent = listNote(chosenLost);
+    showPolicyNote();
     setButtons();
   };
+
+  /** The name a checkpoint goes by in what the panel says: the one it is saved under. */
+  const nameOfRow = (row: CheckpointRow): string =>
+    checkpointNameOf(row) ?? row.recipe?.name ?? row.name;
+  /** Whether this panel can score a task, which is what putting it on the form needs. */
+  const scorable = (task: string): boolean =>
+    isTask(task) && [...ui.task.options].some((o) => o.value === task);
+
   /**
-   * Choosing a checkpoint sets the tabs up the way it was trained -- its scenario, its body, its
-   * joints -- when its file says, so what is handed over is the body it knows, and puts its name
-   * in the name box so Resume continues it. An older checkpoint without a recipe changes nothing.
+   * The line under the list. With nothing chosen, or the choice gone from the list, where the
+   * list comes from. With a checkpoint chosen, how it differs from the tabs as they are now --
+   * what Set up as trained, and Hand over before it hands over, would change -- worked out again
+   * at every poll, so it follows the tabs as they are moved.
+   */
+  const choiceNote = (): string => {
+    const row = chosenRow();
+    if (!row) return listNote(chosenLost);
+    const name = nameOfRow(row);
+    const recipe = row.recipe;
+    if (!recipe) {
+      return (
+        `${name} does not say what it was trained in, so there is nothing to set up: Hand over ` +
+        'fits it to the body the tabs describe.'
+      );
+    }
+    const unscored = scorable(recipe.task)
+      ? ''
+      : ` This panel cannot score '${recipe.task}', so setting it up leaves Scored on as it is, and a Resume of it would be refused.`;
+    const change = host.recipeChange(recipe);
+    if (change.differences.length === 0) return `The tabs are as ${name} was trained.${unscored}`;
+    return (
+      `${name} was trained with ${describeSetUpDifferences(change.differences)}. ` +
+      `Set up as trained puts that on the tabs${change.restarts ? ' and restarts a run that is going' : ''}; ` +
+      `Hand over does the same first.${unscored}`
+    );
+  };
+  const showPolicyNote = (): void => {
+    const text = choiceNote();
+    if (ui.policyNote.textContent !== text) ui.policyNote.textContent = text;
+  };
+
+  /**
+   * Choosing a checkpoint only shows it. Nothing on the tabs, the sliders or the training form
+   * changes until Set up as trained or Hand over is pressed; the note says what they would change.
    */
   ui.policy.addEventListener('change', () => {
     chosenKey = ui.policy.value === '' ? '' : checkpointKey(ui.policy.value);
     chosenLost = false;
+    showPolicyNote();
     setButtons();
-    const row = rows.find((r) => r.id === ui.policy.value);
-    if (row?.recipe) {
-      const done = host.applyRecipe(row.recipe);
-      // The name the checkpoint is saved under, which is what Resume looks for; a name somebody
-      // chose, so the panel stops offering its own over it.
-      ui.name.value = checkpointNameOf(row) ?? row.recipe.name;
-      nameTouched = true;
-      ui.feedforward.value = row.recipe.feedforward.kind;
-      // A task this panel can score is set; one it cannot is left alone rather than turned into
-      // a stand, which made Resume continue a checkpoint on a score it never learnt.
-      const task = row.recipe.task;
-      const scorable = isTask(task) && [...ui.task.options].some((o) => o.value === task);
-      if (scorable) ui.task.value = task;
-      // The noise it was brought up in, so continuing a checkpoint continues the conditions
-      // rather than quietly training the next generations in a different body's world. A
-      // checkpoint saved before there was any noise says nothing, and gets the default.
-      const noise = row.recipe.noise;
-      ui.noiseMotor.value = String(noise?.motor ?? DEFAULT_NOISE.motor);
-      ui.noiseSense.value = String(noise?.sense ?? DEFAULT_NOISE.sense);
-      for (const input of [ui.noiseMotor, ui.noiseSense]) {
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      // What really happened to the run, which the host knows and the panel does not: a scene
-      // or body change restarts one that is going, and only waits when none is.
-      const set = `Scene, body and joints set from ${row.recipe.name}`;
-      const unscored = scorable
-        ? ''
-        : ` This panel cannot score '${task}', so Resume would be refused; a new name trains it on the task chosen here.`;
-      ui.policyNote.textContent =
-        (done === 'restarted'
-          ? `${set}. The run was restarted in its scene and body.`
-          : done === 'nextRun'
-            ? `${set}. Set up for the next run.`
-            : `${set}.`) + unscored;
-    } else {
-      ui.policyNote.textContent = listNote();
+  });
+
+  /** The training form as it stands, for a set-up's Undo. */
+  const formState = (): FormState => ({
+    name: ui.name.value,
+    nameTouched,
+    task: ui.task.value,
+    feedforward: ui.feedforward.value,
+    noiseMotor: ui.noiseMotor.value,
+    noiseSense: ui.noiseSense.value,
+    memory: ui.memory.value,
+  });
+
+  /**
+   * The training form as a checkpoint was trained.
+   *
+   * Its name, the one it is saved under, which is what Resume looks for, and marked as chosen so
+   * the panel stops offering its own over it. A task this panel can score, and otherwise the one
+   * on the form, rather than a stand, which made Resume continue a checkpoint on a score it never
+   * learnt. The noise and the memory it was brought up with, so continuing it continues its
+   * conditions; a checkpoint from before either existed was trained with the default noise and no
+   * memory, and gets those.
+   */
+  const formOf = (row: CheckpointRow, recipe: TrainingRecipe): FormState => ({
+    name: checkpointNameOf(row) ?? recipe.name,
+    nameTouched: true,
+    task: scorable(recipe.task) ? recipe.task : ui.task.value,
+    feedforward: recipe.feedforward.kind,
+    noiseMotor: String(recipe.noise?.motor ?? DEFAULT_NOISE.motor),
+    noiseSense: String(recipe.noise?.sense ?? DEFAULT_NOISE.sense),
+    memory: String(recipe.memory ?? 0),
+  });
+
+  /** Put a form on the panel, and tell its readouts and the recipe note. */
+  const putForm = (form: FormState): void => {
+    ui.name.value = form.name;
+    nameTouched = form.nameTouched;
+    ui.task.value = form.task;
+    ui.feedforward.value = form.feedforward;
+    ui.noiseMotor.value = form.noiseMotor;
+    ui.noiseSense.value = form.noiseSense;
+    ui.memory.value = form.memory;
+    for (const input of [ui.noiseMotor, ui.noiseSense, ui.memory]) {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     }
     reconsider();
-  });
+  };
+
+  /**
+   * Set the tabs and the form up as a checkpoint was trained, keeping what they were for Undo.
+   * Synchronous, so a hand-over can put its policy in the panel's setup in the same turn: a run
+   * this restarts is built a frame later, from that setup.
+   */
+  const setUpNow = (row: CheckpointRow, recipe: TrainingRecipe): SetUpEffect => {
+    const form = formState();
+    const { effect, undo } = host.applyRecipe(recipe);
+    putForm(formOf(row, recipe));
+    undoSetUp = { name: nameOfRow(row), form, tabs: undo };
+    showPolicyNote();
+    setButtons();
+    return effect;
+  };
+
+  /**
+   * Set up as trained. A function rather than a click, because the headset asks for it through
+   * `act`. `ask` is for a press at the desktop, which asks before a restart throws a long
+   * recording away; the headset's never does.
+   */
+  async function setUpChosen(ask: boolean): Promise<void> {
+    const row = chosenRow();
+    const recipe = row?.recipe;
+    if (!row || !recipe || handingOver || settingUp) return;
+    settingUp = true;
+    setButtons();
+    try {
+      if (ask && host.recipeChange(recipe).restarts) {
+        if (!(await host.confirmDiscard('Setting up as trained'))) return;
+        // The list may have moved on while the question was open.
+        if (ui.policy.value !== row.id) return;
+      }
+      setUpNow(row, recipe);
+    } finally {
+      settingUp = false;
+      setButtons();
+    }
+  }
+
+  /** Put back what the last set-up changed, once. A function for the same reason. */
+  async function undoLastSetUp(ask: boolean): Promise<void> {
+    const undo = undoSetUp;
+    if (!undo || handingOver || settingUp) return;
+    settingUp = true;
+    setButtons();
+    try {
+      if (ask && undo.tabs.restarts() && !(await host.confirmDiscard('Undoing the set-up'))) {
+        return;
+      }
+      if (undoSetUp !== undo) return;
+      undoSetUp = undefined;
+      undo.tabs.apply();
+      putForm(undo.form);
+      showPolicyNote();
+    } finally {
+      settingUp = false;
+      setButtons();
+    }
+  }
+
+  ui.setUp.addEventListener('click', () => void setUpChosen(true));
+  ui.undoSetUp.addEventListener('click', () => void undoLastSetUp(true));
 
   /**
    * What the panel says of the body the checkpoint in the loop was trained in: nothing when it is
@@ -934,7 +1155,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         ? ''
         : host.musclesNextRun?.() === false
           ? 'Policy chosen, but the next run has no muscles for it to drive: tick Muscles or pick a muscle scene.'
-          : 'Policy chosen; it goes in with the next run.';
+          : fitPending === 'restart'
+            ? 'Policy chosen; it goes in as the run restarts in the scene and body it was trained in.'
+            : 'Policy chosen; it goes in with the next run.';
       ui.fitNote.title = '';
       // A showcase's brain is a brain in the loop, even though it is not this page's: the panel
       // draws it, so the idle note would be saying the opposite of what is on the screen.
@@ -979,13 +1202,16 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * that throws is refusing as much as one that answers with an error: either way the panel must
    * not go on to claim a policy the body never took.
    */
-  const handOverRefused = (next: NervesSetup | undefined): string | undefined => {
+  const tryHandOver = (next: NervesSetup | undefined): HandOverResult => {
     try {
-      const result = host.handOver(next);
-      return typeof result === 'object' ? result.error : undefined;
+      return host.handOver(next);
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return { error: error instanceof Error ? error.message : String(error) };
     }
+  };
+  const handOverRefused = (next: NervesSetup | undefined): string | undefined => {
+    const result = tryHandOver(next);
+    return typeof result === 'object' ? result.error : undefined;
   };
 
   /** The policy file for a checkpoint, from the server when there is one, else from this studio. */
@@ -1021,16 +1247,39 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * Hand the chosen checkpoint over. A function rather than a click, because the headset asks for
    * it through `act`, and a button a stale status had disabled would swallow the click and say
    * nothing about it.
+   *
+   * When the tabs differ from how the checkpoint was trained, they are set up as it was trained
+   * first, as Set up as trained would, with the same Undo: a policy only makes sense in the body
+   * it learnt in. `ask` is for a press at the desktop, which asks before that set-up restarts a
+   * run and throws a long recording away; the headset's press never waits on a question.
    */
-  async function handOverChosen(): Promise<void> {
+  async function handOverChosen(ask: boolean): Promise<void> {
     const id = ui.policy.value;
-    if (!id || handingOver) return;
+    if (!id || handingOver || settingUp) return;
     handingOver = true;
     setButtons();
     try {
+      const recipe = rows.find((r) => r.id === id)?.recipe ?? undefined;
+      if (ask && recipe && host.recipeChange(recipe).restarts) {
+        if (
+          !(await host.confirmDiscard('Handing over, which sets the tabs up as it was trained,'))
+        ) {
+          return;
+        }
+      }
       const policy = await loadPolicy(id);
+      // After the load and immediately before the hand-over, in the same turn: a set-up that
+      // restarts the running body builds the new run a frame later, from the panel's setup,
+      // which is assigned below before that frame comes. Asked again, because the tabs are the
+      // person's to move while the checkpoint loads.
+      const row = rows.find((r) => r.id === id);
+      const restarted =
+        row?.recipe && host.recipeChange(row.recipe).differences.length > 0
+          ? setUpNow(row, row.recipe) === 'restarted'
+          : false;
       const next: NervesSetup = {
         policy,
+        // As the set-up left it: the authority the checkpoint was trained at, when it said.
         authority: Number(ui.authority.value),
         goal: 0,
         // No divisor: the run works it out from the rate it steps at and the one the checkpoint
@@ -1038,13 +1287,14 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         // trained control period. A tick count copied from the recipe would be the wrong period
         // at any other rate, and the panel does not know the rate a run will step at.
       };
-      const why = handOverRefused(next);
-      if (why !== undefined) {
+      const result = tryHandOver(next);
+      if (typeof result === 'object') {
         // Refused: the panel keeps what it had before rather than claiming the new one.
-        ui.fitNote.textContent = `Could not put the policy in: ${why}`;
+        ui.fitNote.textContent = `Could not put the policy in: ${result.error}`;
       } else {
         setup = next;
-        handedRow = rows.find((r) => r.id === id);
+        handedRow = row;
+        fitPending = result === 'deferred' ? (restarted ? 'restart' : 'next') : undefined;
         showFit();
       }
     } catch (error) {
@@ -1059,6 +1309,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   function releasePolicy(): void {
     setup = undefined;
     handedRow = undefined;
+    fitPending = undefined;
     // Taking a policy out of a run that has none leaves it out, so there is nothing to report.
     handOverRefused(undefined);
     ui.fitNote.textContent = '';
@@ -1067,7 +1318,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     setButtons();
   }
 
-  ui.handover.addEventListener('click', () => void handOverChosen());
+  ui.handover.addEventListener('click', () => void handOverChosen(true));
   ui.release.addEventListener('click', releasePolicy);
   ui.authority.addEventListener('change', () => {
     if (!setup) return;
@@ -1227,7 +1478,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * Start and stop are functions, not clicks: the headset asks for them through `act`, and a
    * button disabled by a status the desktop has not polled since would swallow the click.
    */
-  async function startTraining(): Promise<void> {
+  async function startTraining(ask: boolean): Promise<void> {
     // The name first, before either path: a name the note refuses is refused here, whichever
     // way Start was pressed, and nothing is fetched, spawned or written for it.
     const resolved = recipeFromUi();
@@ -1238,6 +1489,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       return;
     }
     const { recipe } = resolved;
+    // A run on the dashboard is followed as it starts, which throws this page's own run away, so
+    // a press at the desktop asks first when that run has a long recording. The headset's Start
+    // does not wait on a question it cannot see.
+    if (ask && serverUp && !host.following()) {
+      if (!(await host.confirmDiscard('Starting training, which follows its showcase,'))) return;
+    }
     ui.start.disabled = true;
     startNote = '';
     startNoteFor = undefined;
@@ -1437,7 +1694,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     await poll();
   }
 
-  ui.start.addEventListener('click', () => void startTraining());
+  ui.start.addEventListener('click', () => void startTraining(true));
   ui.stop.addEventListener('click', () => void stopTraining());
 
   /**
@@ -1516,7 +1773,16 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           : 0;
     }
   };
-  window.setInterval(() => void pollActivity(), 100);
+  window.setInterval(() => {
+    void pollActivity();
+    // A policy waiting for a run says it is in as soon as one takes it: a set-up's restart lands
+    // a compile later, and a Start whenever somebody presses it. Nothing else would say so until
+    // the next poll, and none comes while the Brain tab is shut and no headset is asking.
+    if (fitPending !== undefined && host.fit() !== undefined) {
+      fitPending = undefined;
+      showFit();
+    }
+  }, 100);
 
   /** The checkpoints this studio holds itself, in the shape the list draws. */
   async function localRows(): Promise<CheckpointRow[]> {
@@ -1674,6 +1940,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     }
     showFit();
     showRecipe();
+    // How the chosen checkpoint differs from the tabs, which may have been moved since.
+    showPolicyNote();
     // Whether the readout says what a run here would do depends on whether there is a server.
     showWorkers();
   }
@@ -1710,6 +1978,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         canStop: !ui.stop.disabled,
         canHandOver: !ui.handover.disabled,
         canRelease: !ui.release.disabled,
+        canSetUp: !ui.setUp.disabled,
+        canUndoSetUp: !ui.undoSetUp.disabled,
         policyNote: ui.policyNote.textContent ?? '',
         spineNote: spineNote({
           stretch: Number(ui.spineStretch.value),
@@ -1721,8 +1991,17 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     act(action, id, value) {
       switch (action) {
         case 'select':
+          // Only shows it, as on the desktop.
           ui.policy.value = id ?? '';
           ui.policy.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        // The headset's presses never ask: a question would open on the desktop's screen, which
+        // the person in the headset cannot see, and the button would do nothing they could see.
+        case 'setup':
+          void setUpChosen(false);
+          break;
+        case 'undoSetup':
+          void undoLastSetUp(false);
           break;
         case 'handover':
           if (id !== undefined) {
@@ -1730,7 +2009,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
             ui.policy.dispatchEvent(new Event('change', { bubbles: true }));
           }
           // The function, not the button: see handOverChosen.
-          void handOverChosen();
+          void handOverChosen(false);
           break;
         case 'release':
           releasePolicy();
@@ -1741,7 +2020,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           ui.authority.dispatchEvent(new Event('change', { bubbles: true }));
           break;
         case 'trainStart':
-          void startTraining();
+          void startTraining(false);
           break;
         case 'trainStop':
           void stopTraining();

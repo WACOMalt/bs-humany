@@ -45,6 +45,11 @@ export interface FollowView {
   frame(): void;
   /** Stop following, and put back whatever this page's own run is doing. */
   stop(): void;
+  /**
+   * Follow the bridge, or stop, without asking: the headset's Follow and a training start's. A
+   * press of the button asks first when following would throw away a long recording.
+   */
+  toggle(): void;
   /** A new skin was built: pose it on the publisher's next frame, whatever tick that is. */
   skinRebuilt(): void;
 }
@@ -186,11 +191,7 @@ export function createFollowView(host: FollowViewHost): FollowView {
     blurAfterMouse(event);
     if (follower.active) button.click();
   });
-  button.addEventListener('click', () => {
-    if (follower.active) {
-      stop();
-      return;
-    }
+  const begin = (): void => {
     // A run of our own and a followed one cannot share the skeleton.
     host.runs.stop();
     host.setRunControls(false);
@@ -198,10 +199,27 @@ export function createFollowView(host: FollowViewHost): FollowView {
     button.textContent = 'Stop following';
     transport.setMode('following');
     status.setSimulationStatus('Following the bridge…');
+  };
+  const toggle = (): void => {
+    if (follower.active) stop();
+    else begin();
+  };
+  button.addEventListener('click', () => {
+    if (follower.active) {
+      stop();
+      return;
+    }
+    // Following throws this page's own run away, so a person's press asks first when that run
+    // has recorded more than a few seconds. The headset's Follow comes through `toggle` instead:
+    // the question would open on a screen the person in the headset cannot see.
+    void transport.confirmDiscard('Following the bridge').then((go) => {
+      if (go && !follower.active) begin();
+    });
   });
 
   return {
     button,
+    toggle,
     frame() {
       // The publisher's body first, so the pose below lands on the skin it belongs to. `body`
       // keeps its identity while the body does, so this builds only when the publisher changes

@@ -253,6 +253,7 @@ function boot(): void {
     status,
     boxes: controls,
     fullDetailPending: () => body.fullDetailPending,
+    following: () => follower.active,
     setRunControls,
   });
   const timeline = createTimeline({ runs, stalled: transport.stalled });
@@ -293,6 +294,7 @@ function boot(): void {
     muscles,
     brain: () => brain.panel,
     setRunControls,
+    confirmDiscard: transport.confirmDiscard,
   });
   const follow = createFollowView({
     follower,
@@ -429,14 +431,19 @@ function boot(): void {
   });
   const align = createAlign({ runs, scene, body, status, saving: session.saving });
   const brain = createBrain({
+    document: document_,
     runs,
     controls,
     follower,
     body,
     sim,
+    muscles,
     session,
     status,
-    followButton: follow.button,
+    follow,
+    // A press at the desktop asks before a set-up's restart throws a long recording away; the
+    // headset's presses reach the panel through `act`, which never asks.
+    confirmDiscard: transport.confirmDiscard,
     pollIsRead: () => tabs.active === 'brain' || follower.active || vr.link()?.connected === true,
   });
   const nerves = createNervesView(brain.panel);

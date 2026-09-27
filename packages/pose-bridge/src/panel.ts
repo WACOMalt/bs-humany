@@ -192,7 +192,14 @@ export interface PanelBrain {
   readonly canStop: boolean;
   readonly canHandOver: boolean;
   readonly canRelease: boolean;
-  /** The line under the checkpoint list. */
+  /** Set up as trained: the tabs as the chosen checkpoint was trained, Authority included. */
+  readonly canSetUp: boolean;
+  /** Undo of the last set-up. */
+  readonly canUndoSetUp: boolean;
+  /**
+   * The line under the checkpoint list: where the list comes from, or how the chosen checkpoint
+   * was trained and how that differs from the tabs. Choosing one only shows it.
+   */
   readonly policyNote: string;
   /** What the Spine panel says of the cord as it is set. */
   readonly spineNote: string;
@@ -267,7 +274,12 @@ export interface PanelStatus {
 
 /** The headset's hands on the Brain tab: every button and slider it can press or move. */
 export type PanelBrainAction =
+  /** Choose a checkpoint in the list, which only shows it. */
   | 'select'
+  /** Set the tabs up as the chosen checkpoint was trained. */
+  | 'setup'
+  /** Put back what the last set-up changed. */
+  | 'undoSetup'
   | 'handover'
   | 'release'
   | 'authority'

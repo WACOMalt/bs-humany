@@ -3,34 +3,60 @@
  *
  * The panel (`brain.ts`) owns its checkpoint list, the cord's sliders and the training; this is
  * what it needs of the studio -- the running body to hand a policy to, the scene and body a
- * checkpoint's recipe puts on the panels, and the follow mode the showcase is watched in.
+ * checkpoint's recipe puts on the panels and the one Undo that takes them off again, and the
+ * follow mode the showcase is watched in.
  */
 
+import type { HsdlDocument } from '@bs-humany/hsdl';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
-import { type BrainPanel, createBrainPanel } from './brain.js';
+import { profileRateHz } from '@bs-humany/scenarios';
+import { REFERENCE_PROFILE } from '@bs-humany/skeleton';
+import {
+  type BrainPanel,
+  type RecipeChange,
+  type SetUpEffect,
+  type TrainingRecipe,
+  createBrainPanel,
+} from './brain.js';
 import type { BridgeFollower } from './follow.js';
+import type { FollowView } from './followView.js';
 import type { StudioRuns } from './runController.js';
+import type { NormalisedSettings } from './session.js';
 import type { Controls, SessionWiring } from './sessionWiring.js';
+import {
+  type SetUpNames,
+  type StudioSetUp,
+  setUpDifferences,
+  setUpRestarts,
+} from './training/setUp.js';
 import type { BodyPanel } from './ui/bodyPanel.js';
-import { messageOf, setControl } from './ui/dom.js';
+import { messageOf, must, setControl } from './ui/dom.js';
+import type { MusclePanel } from './ui/musclePanel.js';
 import type { SimPanel } from './ui/simPanel.js';
 import type { StatusLine } from './ui/transport.js';
 
 export interface BrainStudioHost {
+  readonly document: HsdlDocument;
   readonly runs: StudioRuns;
   readonly controls: Controls;
   readonly follower: BridgeFollower;
   readonly body: BodyPanel;
   readonly sim: SimPanel;
+  readonly muscles: MusclePanel;
   readonly session: SessionWiring;
   readonly status: StatusLine;
-  /** The Follow button, which starts and stops following the bridge. */
-  readonly followButton: HTMLButtonElement;
+  /** Following the bridge, started and stopped without the button's question. */
+  readonly follow: Pick<FollowView, 'toggle'>;
   /**
    * Whether anything will read what a poll brings back: the Brain tab open, the follow mode, or
    * a headset whose Brain tab is drawn from this panel.
    */
   pollIsRead(): boolean;
+  /**
+   * Whether it is all right to throw the running body's recording away; asks when it is long.
+   * @see Transport.confirmDiscard
+   */
+  confirmDiscard(what: string): Promise<boolean>;
 }
 
 export interface StudioBrain {
@@ -49,8 +75,29 @@ export interface StudioBrain {
   startPolling(): void;
 }
 
+/**
+ * A slider's value as the slider would hold it: its min, its max and its step applied the way the
+ * browser applies them when a value is set. A recipe's stature of 1.7532 m lands on a slider that
+ * holds 1.755, and compared as 1.7532 it would be a difference that no set-up ever removes -- so
+ * every Hand over would set the tabs up again and restart the run.
+ */
+function held(input: HTMLInputElement, value: number): number {
+  const probe = input.cloneNode(false) as HTMLInputElement;
+  probe.value = String(value);
+  const read = Number(probe.value);
+  return Number.isFinite(read) ? read : value;
+}
+
 export function createBrain(host: BrainStudioHost): StudioBrain {
   const { runs, controls: ui, follower, status } = host;
+  const spine = {
+    stretch: must<HTMLInputElement>('#spine-stretch'),
+    velocity: must<HTMLInputElement>('#spine-velocity'),
+    setPoint: must<HTMLInputElement>('#spine-setpoint'),
+    inhibition: must<HTMLInputElement>('#spine-inhibition'),
+    delaySeconds: must<HTMLInputElement>('#spine-delay'),
+  };
+  const authority = must<HTMLInputElement>('#brain-authority');
 
   /**
    * Put a cord on the Spine sliders, as though somebody had moved them.
@@ -60,16 +107,12 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
    * goes onto the sliders rather than into the body behind them, and the panel and the body cannot
    * disagree about which reflexes are running.
    */
-  const putSpine = (cord: NonNullable<NonNullable<PolicyFile['recipe']>['reflex']>): void => {
-    const put = (selector: string, value: number): void => {
-      const input = document.querySelector<HTMLInputElement>(selector);
-      if (input) setControl(input, value);
-    };
-    put('#spine-stretch', cord.stretch);
-    put('#spine-velocity', cord.velocity);
-    put('#spine-setpoint', cord.setPoint);
-    put('#spine-inhibition', cord.inhibition);
-    put('#spine-delay', cord.delaySeconds);
+  const putSpine = (cord: NonNullable<NormalisedSettings['reflex']>): void => {
+    setControl(spine.stretch, cord.stretch);
+    setControl(spine.velocity, cord.velocity);
+    setControl(spine.setPoint, cord.setPoint);
+    setControl(spine.inhibition, cord.inhibition);
+    setControl(spine.delaySeconds, cord.delaySeconds);
   };
 
   /**
@@ -81,13 +124,138 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
    */
   let handedPolicy: PolicyFile | undefined;
 
+  /** The scene and the profile as the pickers name them. */
+  const names: SetUpNames = {
+    scenario: (id) =>
+      [...ui.scenario.options].find((o) => o.value === id)?.textContent?.trim() ?? id,
+    profile: (id) => id.replace(/_.*/, '').toUpperCase(),
+  };
+
+  /**
+   * The part of a set of settings a checkpoint's recipe reaches, for comparing. The step rate is
+   * the one a run would step at: the one chosen, or the profile's own when none was, which is
+   * what the slider shows while it is left alone.
+   */
+  const setUpOf = (s: NormalisedSettings): StudioSetUp => ({
+    scenario: s.scenario,
+    parameters: s.scenarioParameters ?? {},
+    profile: s.profile,
+    sex: s.sex,
+    stature: s.stature,
+    mass: s.mass,
+    passive: s.passive,
+    redistribute: s.redistribute,
+    stepsPerSecond:
+      s.stepsPerSecond ?? profileRateHz(host.document.segmentation.find((p) => p.id === s.profile)),
+    cord: s.reflex,
+    authority: s.brainAuthority ?? Number(authority.value),
+    driving: Object.values(s.drive).some((level) => level !== 0),
+  });
+
+  /**
+   * The settings a checkpoint's recipe leaves on the panels: the ones there now, with its scene,
+   * body, joints, step rate, cord and authority in place of theirs, each as its control would hold
+   * it. A profile this studio lacks becomes the reference one, as applying it does; its limb
+   * proportions, if it has any, are left out, because nothing follows them yet.
+   */
+  const settingsFor = (recipe: TrainingRecipe): NormalisedSettings => {
+    const now = host.session.currentSettings();
+    const known = [...ui.profile.options].some((o) => o.value === recipe.profile);
+    const cord = recipe.reflex;
+    return {
+      ...now,
+      sex: held(ui.sex, recipe.morphology.sex),
+      stature: held(ui.stature, recipe.morphology.stature),
+      mass: held(ui.mass, recipe.morphology.mass),
+      profile: known ? recipe.profile : REFERENCE_PROFILE,
+      scenario: recipe.scenario,
+      passive: recipe.passive,
+      redistribute: recipe.redistribute,
+      scenarioParameters: { ...recipe.parameters },
+      // The timescale it was trained at. A policy learned against one timestep behaves
+      // differently against another -- the contacts and the muscles' own dynamics both follow
+      // the step -- so this is set rather than offered, and the Sim tab shows what it was set to.
+      ...(recipe.stepsPerSecond
+        ? { stepsPerSecond: held(ui.stepsPerSecond, recipe.stepsPerSecond) }
+        : {}),
+      // Trained with nothing under the brain: the sliders start where the training had them, at
+      // zero, so what the body does is the policy's doing and not the policy plus a held pose.
+      ...(recipe.feedforward.kind === 'none' ? { drive: {} } : {}),
+      // The cord it was brought up over, so the panel says what this checkpoint knows rather
+      // than what the last one did.
+      ...(cord
+        ? {
+            reflex: {
+              stretch: held(spine.stretch, cord.stretch),
+              velocity: held(spine.velocity, cord.velocity),
+              setPoint: held(spine.setPoint, cord.setPoint),
+              inhibition: held(spine.inhibition, cord.inhibition),
+              delaySeconds: held(spine.delaySeconds, cord.delaySeconds),
+            },
+          }
+        : {}),
+      brainAuthority: held(authority, recipe.authority),
+    };
+  };
+
+  const changeTo = (target: NormalisedSettings): RecipeChange => {
+    const differences = setUpDifferences(
+      setUpOf(host.session.currentSettings()),
+      setUpOf(target),
+      names,
+    );
+    return { differences, restarts: setUpRestarts(differences) };
+  };
+
+  /**
+   * Put a set of settings on the panels, restarting a running body only when something it is
+   * built with changed. The settings as a whole go on through the session's own way of applying
+   * them, which always restarts a running body; so when only what a running body takes live
+   * differs -- the cord, the authority, the muscle sliders -- those are set on their own controls
+   * instead, and a run somebody has been recording for a minute is not thrown away for a cord.
+   */
+  const put = (
+    target: NormalisedSettings,
+    restarts: boolean,
+  ): { effect: SetUpEffect; unapplied?: string | undefined } => {
+    const running = runs.simulation !== null;
+    if (restarts) {
+      const unapplied = host.session.applySettings(target);
+      return { effect: running ? 'restarted' : 'nextRun', unapplied };
+    }
+    const now = host.session.currentSettings();
+    if (target.reflex) {
+      const cord = target.reflex;
+      const same =
+        now.reflex &&
+        (Object.keys(cord) as (keyof typeof cord)[]).every((k) => now.reflex?.[k] === cord[k]);
+      if (!same) putSpine(cord);
+    }
+    if (target.brainAuthority !== undefined && target.brainAuthority !== now.brainAuthority) {
+      panel.act('authority', undefined, target.brainAuthority);
+    }
+    for (const [id, input] of host.muscles.driveInputs) {
+      const level = target.drive[id] ?? 0;
+      if (Number(input.value) !== level) setControl(input, level);
+    }
+    return { effect: running ? 'live' : 'nextRun' };
+  };
+
+  /** What a set-up or its Undo did to the run, in the words the event line ends with. */
+  const effectPhrase = (effect: SetUpEffect): string =>
+    effect === 'restarted'
+      ? '; the running body was restarted with them.'
+      : effect === 'live'
+        ? '; the running body took them as it goes.'
+        : '. They take effect on the next run.';
+
   const panel = createBrainPanel({
     handOver(setup) {
       const simulation = runs.simulation;
       if (!setup) {
         handedPolicy = undefined;
         simulation?.releaseBrain();
-        return;
+        return 'live';
       }
       const fresh = setup.policy !== handedPolicy;
       handedPolicy = setup.policy;
@@ -96,33 +264,39 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
       const cord = setup.policy.recipe?.reflex;
       if (fresh && cord) putSpine(cord);
       // Live: the nerves are in every muscle run, so the policy goes in between one control step
-      // and the next, and nothing restarts. A run that is not going takes it when it starts.
-      if (!simulation) return;
+      // and the next, and nothing restarts. A run that is not going -- none yet, or one a set-up
+      // is restarting -- takes it when it starts.
+      if (!simulation) return 'deferred';
       if (!fresh) {
         simulation.setAuthority(setup.authority);
-        return;
+        return 'live';
       }
       try {
         simulation.handOver(setup.policy, setup.authority);
+        return 'live';
       } catch (error) {
         status.announce(`The checkpoint could not be handed over: ${messageOf(error)}`, {
           error: true,
         });
-        // And back to the panel, whose Hand over catches it and says the checkpoint could not be
-        // loaded -- rather than "Policy chosen", which is what it said while nothing was in charge.
-        throw error;
+        // And back to the panel, whose Hand over says it could not put the policy in -- rather
+        // than "Policy chosen", which is what it said while nothing was in charge.
+        return { error: messageOf(error) };
       }
+    },
+    musclesNextRun() {
+      // As a run is built: the box, or a scenario that drives muscles whatever the box says.
+      return ui.muscles.checked || host.sim.currentScenario()?.muscles === true;
     },
     setReflex(gains) {
       runs.simulation?.setReflex(gains);
     },
     startFollowing() {
-      if (!follower.active) host.followButton.click();
+      if (!follower.active) host.follow.toggle();
     },
-    // The headset's Follow is the desktop's button, both ways: without this there is no way to
-    // stop following from in there.
+    // The headset's Follow is the desktop's, both ways: without this there is no way to stop
+    // following from in there. Through `toggle`, which never asks: see `FollowView.toggle`.
     toggleFollowing() {
-      host.followButton.click();
+      host.follow.toggle();
     },
     recipe() {
       return {
@@ -134,47 +308,42 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
         redistribute: ui.redistribute.checked,
       };
     },
-    // A checkpoint's recipe is a session's settings for the scene and the body; the rest stays.
+    recipeChange(recipe) {
+      return changeTo(settingsFor(recipe));
+    },
+    // A checkpoint's recipe is a session's settings for the scene, the body and the cord; the
+    // rest stays. What was there before is kept for one Undo, which goes back the same way.
     applyRecipe(recipe) {
-      // The cord and the memory it was brought up with, onto their sliders, so the panel says
-      // what this checkpoint knows rather than what the last one did. Before the settings are read
-      // back below, so that they carry this cord rather than put the last one back.
-      if (recipe.reflex) putSpine(recipe.reflex);
-      const memory = document.querySelector<HTMLInputElement>('#train-memory');
-      if (memory && recipe.memory !== undefined) setControl(memory, recipe.memory);
-      // Whether this lands on a running body, which the settings below restart with the body
-      // carried across, or waits for the next run: the message says which.
-      const running = runs.simulation !== null;
-      // Its limb proportions, if it has any, are left out: nothing follows them yet.
-      const unapplied = host.session.applySettings({
-        ...host.session.currentSettings(),
-        sex: recipe.morphology.sex,
-        stature: recipe.morphology.stature,
-        mass: recipe.morphology.mass,
-        profile: recipe.profile,
-        scenario: recipe.scenario,
-        passive: recipe.passive,
-        redistribute: recipe.redistribute,
-        scenarioParameters: { ...recipe.parameters },
-        // The timescale it was trained at. A policy learned against one timestep behaves
-        // differently against another -- the contacts and the muscles' own dynamics both follow
-        // the step -- so this is set rather than offered, and the Sim tab shows what it was set to.
-        ...(recipe.stepsPerSecond ? { stepsPerSecond: recipe.stepsPerSecond } : {}),
-        // Trained with nothing under the brain: the sliders start where the training had them, at
-        // zero, so what the body does is the policy's doing and not the policy plus a held pose.
-        ...(recipe.feedforward.kind === 'none' ? { drive: {} } : {}),
-      });
+      const before = host.session.currentSettings();
+      const target = settingsFor(recipe);
+      const { restarts } = changeTo(target);
+      const { effect, unapplied } = put(target, restarts);
+      // Said once, with what could not be put on the panels as asked at the end of it and the
+      // whole of it marked as an error then, because a second message would replace the first.
       status.announce(
-        `Set from the checkpoint ${recipe.name}: its scene, body and joints` +
+        `Set up as ${recipe.name} was trained: its scene, body, joints, cord and authority` +
           (recipe.stepsPerSecond ? `, and its ${recipe.stepsPerSecond} steps a second` : '') +
           (recipe.feedforward.kind === 'none' ? ', with the muscle sliders back to zero' : '') +
-          (running
-            ? '; the running body was restarted with them.'
-            : '. They take effect on the next run.') +
+          effectPhrase(effect) +
+          ' Undo on the Brain tab puts back what was there.' +
           (unapplied ? ` ${unapplied}` : ''),
         unapplied ? { error: true } : {},
       );
+      return {
+        effect,
+        undo: {
+          restarts: () => changeTo(before).restarts,
+          apply() {
+            const back = put(before, changeTo(before).restarts);
+            status.announce(
+              `Put back the settings from before ${recipe.name} was set up${effectPhrase(back.effect)}`,
+            );
+            return back.effect;
+          },
+        },
+      };
     },
+    confirmDiscard: host.confirmDiscard,
     fit() {
       const simulation = runs.simulation;
       const nerves = simulation?.nerves;

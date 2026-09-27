@@ -198,19 +198,21 @@ export function createVrHost(host: VrHostHost): StudioVr {
    * follows.
    */
   const command = (command: VrCommand): void => {
-    const transport = host.transport.buttons;
     const timeline = host.timeline.buttons;
     switch (command.kind) {
       case 'pause':
-        transport.pause.click();
+        // The desktop's toggle would resume a paused run; the headset's Pause only ever pauses.
+        runs.pause();
         break;
       case 'resume':
         // Carry on, or start when nothing is running -- the headset shows no run as paused, so
-        // its Resume is Start there. Never the Restart a click on Start is on a live run.
+        // its Resume is Start there.
         runs.startOrResume();
         break;
       case 'reset':
-        transport.reset.click();
+        // Not the desktop's button, which asks before it throws a long recording away: the
+        // question would open on a screen the person in the headset cannot see.
+        host.transport.reset();
         break;
       case 'step':
         (command.frames > 0 ? timeline.frameForward : timeline.frameBack).click();
