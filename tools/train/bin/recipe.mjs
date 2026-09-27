@@ -1,0 +1,203 @@
+/**
+ * The recipe a request to the dashboard asks for, checked, and whether a Resume it asks for has
+ * anything to continue.
+ *
+ * Its own file rather than a function inside `dashboard.mjs`, because the dashboard starts a server
+ * the moment it is imported and so nothing in it can be tested. This was where a run started from
+ * the studio quietly stopped being the run the studio showed: every default and every cap here was
+ * a literal of its own, and when the cord was measured again its stretch cap was left at a fifth
+ * while the sliders went to eight. Now every default, limit and rule comes from
+ * `tools/train/src/recipe.ts`, loaded through jiti the way the trainer loads the rig -- but that
+ * module alone, which loads nothing that runs, so the dashboard still starts without MuJoCo.
+ *
+ * Two kinds of wrong are treated differently, on purpose. A number out of range is brought into it
+ * and the request is told, value by value, what was asked and what was used: the run still starts,
+ * and nobody is surprised by it. A name or a task that is not one is refused, because the only
+ * thing to substitute is a different checkpoint -- and a substituted name has trained over, and
+ * lost, a checkpoint somebody wanted.
+ */
+
+import { fileURLToPath } from 'node:url';
+import { createJiti } from 'jiti';
+
+const jiti = createJiti(import.meta.url);
+const {
+  AUTHORITY_LIMIT,
+  DEFAULT_AUTHORITY,
+  DEFAULT_NOISE,
+  DEFAULT_PROFILE,
+  DEFAULT_REFLEX,
+  MEMORY_LIMIT,
+  MORPHOLOGY_LIMITS,
+  NOISE_LIMITS,
+  PROFILES,
+  REFERENCE_MORPHOLOGY,
+  REFLEX_FIELDS,
+  REFLEX_LIMITS,
+  SEARCH_DEFAULTS: searchDefaults,
+  TASKS,
+  UI_RUN_DEFAULTS: uiRunDefaults,
+  checkpointNameProblem,
+  formatRecipeChanges,
+  isTask,
+  recipeChanges,
+} = await jiti.import(fileURLToPath(new URL('../src/recipe.ts', import.meta.url)));
+
+/** The search and run defaults a dashboard-started run falls back on, from the same module. */
+export const SEARCH_DEFAULTS = searchDefaults;
+export const UI_RUN_DEFAULTS = uiRunDefaults;
+
+const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+/** A number as a request can send one: a number, or a string that is one. Nothing else. */
+const numberIn = (v) =>
+  typeof v === 'number' || (typeof v === 'string' && v.trim() !== '') ? Number(v) : Number.NaN;
+
+/**
+ * The recipe from the studio's request, every field checked: strings that are names or ids,
+ * numbers that are finite and in range, booleans that are booleans. What is not checked here --
+ * that the scenario exists, that its script exists when asked to play -- the trainer refuses on
+ * start and the status says so.
+ *
+ * `{ recipe, clamped }`, where `clamped` lists every value the request sent that is not the value
+ * the run will use, as `{ field, asked, used }`; or `{ status: 400, error }` for a request that
+ * names no checkpoint or no task the rig can score. A field the request leaves out takes its
+ * default silently, because nothing was asked.
+ *
+ * The cord is the one field whose absence means something other than its default. A recipe with no
+ * `reflex` is a body with no cord -- that is how `rigOptionsFor` has always read one, and how every
+ * checkpoint trained before the spinal module is still reloaded -- so a request without one gets a
+ * recipe without one. A request with one gets every missing number from `DEFAULT_REFLEX`, so
+ * asking for a stretch of 3.5 is the measured cord with a stretch of 3.5 rather than a stretch of
+ * 3.5 on a cord of guesses.
+ */
+export function recipeFrom(body) {
+  const task = body.task === undefined || body.task === '' ? 'stand' : body.task;
+  if (!isTask(task)) {
+    return {
+      status: 400,
+      error: `unknown task '${String(body.task)}'; known: ${TASKS.join(', ')}`,
+    };
+  }
+  const name = body.name === undefined || body.name === '' ? task : body.name;
+  const nameProblem = checkpointNameProblem(name);
+  if (nameProblem) return { status: 400, error: nameProblem };
+  const r = isObject(body.recipe) ? body.recipe : {};
+  if (r.reflex != null && !isObject(r.reflex)) {
+    return { status: 400, error: `the cord is an object of its ${REFLEX_FIELDS.length} numbers` };
+  }
+
+  const clamped = [];
+  /**
+   * `raw` as a number inside `limit`, or `fallback` when it is not a number at all, and a line in
+   * `clamped` whenever what was sent is not what is used.
+   */
+  const bounded = (field, raw, fallback, limit, round = false) => {
+    const asked = numberIn(raw);
+    const wanted = Number.isFinite(asked) ? asked : fallback;
+    const used = Math.min(limit.max, Math.max(limit.min, round ? Math.round(wanted) : wanted));
+    if (raw !== undefined && used !== asked) clamped.push({ field, asked: raw, used });
+    return used;
+  };
+
+  const parameters = {};
+  if (r.parameters && typeof r.parameters === 'object')
+    for (const [k, v] of Object.entries(r.parameters))
+      if (/^[\w-]{1,40}$/.test(k) && Number.isFinite(Number(v))) parameters[k] = Number(v);
+  const proportions = {};
+  if (r.morphology?.proportions && typeof r.morphology.proportions === 'object')
+    for (const [k, v] of Object.entries(r.morphology.proportions))
+      if (/^\w{1,40}$/.test(k) && Number.isFinite(Number(v))) proportions[k] = Number(v);
+  const kind = r.feedforward?.kind;
+  const feedforward =
+    kind === 'script'
+      ? { kind: 'script' }
+      : kind === 'clip'
+        ? {
+            kind: 'clip',
+            clip: /^[\w-]{1,40}$/.test(String(r.feedforward.clip))
+              ? String(r.feedforward.clip)
+              : 'quiet-standing',
+          }
+        : { kind: 'none' };
+  const profile = PROFILES.includes(r.profile) ? r.profile : DEFAULT_PROFILE;
+  if (r.profile !== undefined && profile !== r.profile) {
+    clamped.push({ field: 'profile', asked: r.profile, used: profile });
+  }
+  const morphology = {};
+  for (const k of ['sex', 'stature', 'mass']) {
+    morphology[k] = bounded(
+      `morphology.${k}`,
+      r.morphology?.[k],
+      REFERENCE_MORPHOLOGY[k],
+      MORPHOLOGY_LIMITS[k],
+    );
+  }
+  const noise = {};
+  for (const k of ['motor', 'sense', 'tau']) {
+    noise[k] = bounded(`noise.${k}`, r.noise?.[k], DEFAULT_NOISE[k], NOISE_LIMITS[k]);
+  }
+  let reflex;
+  if (isObject(r.reflex)) {
+    reflex = {};
+    for (const k of REFLEX_FIELDS) {
+      reflex[k] = bounded(`reflex.${k}`, r.reflex[k], DEFAULT_REFLEX[k], REFLEX_LIMITS[k]);
+    }
+  }
+  const recipe = {
+    name,
+    task,
+    scenario: typeof r.scenario === 'string' && /^[\w-]{0,40}$/.test(r.scenario) ? r.scenario : '',
+    parameters,
+    profile,
+    morphology: {
+      ...morphology,
+      ...(Object.keys(proportions).length ? { proportions } : {}),
+    },
+    passive: r.passive !== false,
+    redistribute: r.redistribute !== false,
+    feedforward,
+    // Read from the top of the request, beside the task and the name, not from inside the recipe:
+    // that is where the studio has always sent it.
+    authority: bounded('authority', body.authority, DEFAULT_AUTHORITY, AUTHORITY_LIMIT),
+    noise,
+    ...(reflex ? { reflex } : {}),
+    memory: bounded('memory', r.memory, 0, MEMORY_LIMIT, true),
+  };
+  return { recipe, clamped };
+}
+
+/**
+ * Whether a Resume has anything to continue, checked before anything is written or spawned.
+ *
+ * `saved` is what is on disk under the recipe's name: the policy file and the search's centre,
+ * each parsed, or undefined when there is none. The trainer used to be the one to find out, after
+ * the recipe file had been overwritten, and what it found was nothing to resume -- so it started a
+ * fresh policy under a Resume that said otherwise. A checkpoint trained for another task would be
+ * continued on a score it never learnt, which is a fresh start that keeps the old one's name.
+ *
+ * `{ status: 409, error }`, or `{ recipeChanges }`: how the recipe the run is about to use differs
+ * from the one the checkpoint was saved with, as one line (empty when nothing differs), or
+ * undefined when the checkpoint saved none. A Resume continues the checkpoint's weights under the
+ * recipe this request sends, which is how a policy is carried from one body to another; the list
+ * is so that nobody does that without seeing it.
+ */
+export function resumePreflight(recipe, saved) {
+  const { name, task } = recipe;
+  if (!saved.policy && !saved.centre) {
+    return {
+      status: 409,
+      error: `nothing saved under ${name} to resume; untick Resume to start it`,
+    };
+  }
+  for (const file of [saved.policy, saved.centre]) {
+    if (file && typeof file.task === 'string' && file.task !== task) {
+      return { status: 409, error: `${name} was trained for ${file.task}, not ${task}` };
+    }
+  }
+  const savedRecipe = saved.policy?.recipe ?? saved.centre?.recipe;
+  return {
+    recipeChanges: savedRecipe
+      ? formatRecipeChanges(recipeChanges(savedRecipe, recipe))
+      : undefined,
+  };
+}
