@@ -846,7 +846,7 @@ function applySettings(settings: SessionSettings): void {
   ui.brachial.value = String(settings.brachial);
   ui.legLength.value = String(settings.legLength);
   ui.profile.value = settings.profile;
-  // Rapier is disabled and hidden (ADR-003 reassessment); a saved session naming it falls back.
+  // Rapier was deleted on 2026-09-26 (ADR-003); a saved session naming it runs on MuJoCo.
   ui.backend.value = settings.backend === 'rapier' ? 'mujoco' : settings.backend;
   ui.scenario.value = settings.scenario;
   ui.passive.checked = settings.passive;
@@ -3275,11 +3275,15 @@ brain = createBrainPanel({
     return typeof name === 'string' && name !== '' ? name : undefined;
   },
 });
-void brain.poll();
 // Three things read what the poll refreshes: the Brain tab while it is open; the follow mode,
 // whose status names the checkpoint the showcase plays; and the headset while the VR link is
 // live, whose Brain tab is drawn from this panel's state whichever desktop tab is showing. With
-// none of them there is nobody to ask for, and an absent dashboard is not asked every 3 s.
-window.setInterval(() => {
+// none of them there is nobody to ask for, and an absent dashboard is not asked every 3 s -- nor
+// at startup, where an unconditional first poll made every page open with two refused requests in
+// the console. A studio that reopens on the Brain tab is still asked at once, and opening the tab
+// later wakes the panel's own poll.
+const pollBrainIfRead = (): void => {
   if (tabs.active === 'brain' || bridgeFollower.active || vrLink?.connected) void brain?.poll();
-}, 3000);
+};
+pollBrainIfRead();
+window.setInterval(pollBrainIfRead, 3000);

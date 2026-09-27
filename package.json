@@ -52,7 +52,7 @@
     "train:nerves": "node tools/train/bin/train-nerves.mjs",
     "train:showcase": "node tools/train/bin/showcase.mjs",
     "train:where": "node tools/train/bin/where.mjs",
-    "typecheck": "tsc --build --force",
+    "typecheck": "tsc --build --force && tsc -p apps/studio/e2e",
     "validate:external": "node tools/cli/bin/external-validate.mjs",
     "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs",
     "verify": "pnpm lint && pnpm typecheck && pnpm cite:lint && pnpm module:lint && pnpm check:generated && pnpm test && pnpm build:studio"

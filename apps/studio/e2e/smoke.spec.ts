@@ -6,34 +6,18 @@
  */
 
 import type { ConsoleMessage } from '@playwright/test';
-import {
-  DASHBOARD_ORIGIN,
-  expect,
-  simulatedSeconds,
-  startRun,
-  test,
-  timeAdvancesPast,
-} from './studio.js';
+import { expect, simulatedSeconds, startRun, test, timeAdvancesPast } from './studio.js';
 
 /** How long after opening the page a console error still counts as part of booting. */
 const BOOT_WATCH_MS = 10_000;
 
 /**
- * The console errors a clean boot is allowed, each with the reason it cannot be avoided.
- *
- * - The Brain panel asks the dashboard once as the page opens: main.ts polls the panel at startup,
- *   which asks `/policies` and `/train/status` together. With nothing on the port the browser logs
- *   each refused request as an error, and no script on the page can stop it doing so; only not
- *   asking would. It is allowed as that one probe and no more: the boot test counts the requests
- *   separately and fails on a third, which is what the polling used to do every three seconds
- *   before it backed off. When the startup poll stops asking a dashboard nobody opened the Brain
- *   tab for, this entry should go.
+ * The console errors a clean boot is allowed, each with the reason it cannot be avoided. None
+ * today: the Brain panel used to ask the dashboard once as every page opened, and with nothing on
+ * the port the browser logged both refused requests as errors. It now asks only when something
+ * reads the answer (the Brain tab, the follow mode or the VR link), and a fresh page opens on Body.
  */
-const ALLOWED_CONSOLE_ERRORS: readonly ((message: ConsoleMessage) => boolean)[] = [
-  (message) =>
-    message.location().url.startsWith(`${DASHBOARD_ORIGIN}/`) &&
-    /ERR_CONNECTION_REFUSED/.test(message.text()),
-];
+const ALLOWED_CONSOLE_ERRORS: readonly ((message: ConsoleMessage) => boolean)[] = [];
 
 /** A console message in a form a failure can print. */
 const describe = (message: ConsoleMessage): string =>
@@ -78,9 +62,9 @@ test('boots with a live WebGL canvas, cross-origin isolated, and a clean console
     .map(describe);
   expect(unexpected, 'console errors in the first ten seconds').toEqual([]);
   expect(
-    studio.dashboardRequests.length,
-    `the dashboard was asked more than once while booting: ${studio.dashboardRequests.join(', ')}`,
-  ).toBeLessThanOrEqual(2);
+    studio.dashboardRequests,
+    'the dashboard was asked while booting, with no Brain tab, follow or headset to read it',
+  ).toEqual([]);
 });
 
 test('Start compiles and runs the body; Space pauses and resumes it', async ({ studio }) => {
