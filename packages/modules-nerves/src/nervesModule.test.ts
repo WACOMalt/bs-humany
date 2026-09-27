@@ -109,6 +109,14 @@ describe('NervesModule', () => {
     expect(nerves.authorityLevel).toBe(0);
     kernel.run(5);
     expect(nerves.lastCommand[0]).toBe(0);
+
+    // Handed over with a divisor of its own -- a policy trained at another rate, whose period the
+    // caller keeps -- it runs at that one from the next tick, not at the one the body was built
+    // with: a hundred ticks at ten are ten evaluations, where at five they would be twenty.
+    nerves.adopt(file, { divisor: 10 });
+    expect(nerves.divisor).toBe(10);
+    kernel.run(100);
+    expect(nerves.evaluationsSoFar).toBe(10);
     kernel.dispose();
   });
 });

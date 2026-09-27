@@ -10,6 +10,7 @@
 
 import type { DriveOutput, PolicyFile } from '@bs-humany/modules-nerves';
 import { MUSCLE_GROUPS } from './muscleGroups.js';
+import { defaultControlDivisor } from './solverRate.js';
 
 /** One-hot: stand, walk, flail. */
 export const GOAL_SIZE = 3;
@@ -36,6 +37,34 @@ export interface NervesSetup {
   readonly authority: number;
   /** Which behaviour to ask for, by index into `GOALS`. */
   readonly goal: number;
-  /** Ticks between evaluations; five at 500 Hz is a hundred hertz. */
-  readonly controlDivisor: number;
+  /**
+   * Ticks between evaluations; five at 500 Hz is a hundred hertz. Left out, it is worked out from
+   * the rate the run steps at and what the policy says it was trained at (`controlDivisorFor`),
+   * which is what every caller should want; a number here is for a scenario that pins its own.
+   */
+  readonly controlDivisor?: number | undefined;
+}
+
+/**
+ * Ticks between evaluations for a policy running at `stepsPerSecond`, keeping the control PERIOD
+ * it was trained at rather than its tick count.
+ *
+ * A policy is a controller of a certain speed: it was scored on how the body answered a command
+ * held for so many milliseconds, and a command held for twice as long is a different controller
+ * with the same weights. So when the checkpoint recorded both its step rate and its divisor, the
+ * divisor here is whatever makes the same period at this rate -- ten ticks at 1000 Hz is five at
+ * 500. With either number missing there is no trained period to keep, and the policy gets the
+ * default hundred hertz (`defaultControlDivisor`), which is what the training rig runs a policy at
+ * when nothing says otherwise.
+ */
+export function controlDivisorFor(
+  stepsPerSecond: number,
+  trained?: { readonly stepsPerSecond?: number; readonly controlDivisor?: number } | undefined,
+): number {
+  const rate = trained?.stepsPerSecond;
+  const divisor = trained?.controlDivisor;
+  if (rate !== undefined && rate > 0 && divisor !== undefined) {
+    return Math.max(1, Math.round((stepsPerSecond * divisor) / rate));
+  }
+  return defaultControlDivisor(stepsPerSecond);
 }

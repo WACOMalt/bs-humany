@@ -44,8 +44,10 @@ import {
   GOAL_SIZE,
   type Scenario,
   type ScenarioApi,
+  controlDivisorFor,
   driveOutputs,
   placeArticulation,
+  profileRateHz,
 } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 
@@ -120,7 +122,7 @@ export async function runScenario(
     scenario.clearance,
     scenario.ground.height,
   );
-  const rate = profile.solver?.rate ?? 500;
+  const rate = profileRateHz(profile);
   const dt = 1 / rate;
   // The audit is passed explicitly rather than left to the environment, which turns it on for
   // every test run. A golden is up to ten seconds of a whole body at up to a kilohertz, and
@@ -175,7 +177,11 @@ export async function runScenario(
           outputs: driveOutputs(),
           goalSize: GOAL_SIZE,
           goal: () => goal,
-          controlDivisor: scenario.nerves.controlDivisor,
+          // The scenario's own when it pins one; otherwise the period the policy was trained at,
+          // at this rate -- the rule the studio and the trainer follow too.
+          controlDivisor:
+            scenario.nerves.controlDivisor ??
+            controlDivisorFor(rate, scenario.nerves.policy.recipe),
           authority: scenario.nerves.authority,
         }),
       );

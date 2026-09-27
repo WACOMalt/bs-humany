@@ -226,7 +226,14 @@ import standPolicy from '@bs-humany/modules-nerves/policies/stand.json' with { t
 import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
 import type { NervesSetup } from './nerves.js';
 import { PLATFORM_TOP, platformBox, tiltingFloor } from './tiltingFloor.js';
-export { GOAL_SIZE, GOALS, driveOutputs, type NervesSetup } from './nerves.js';
+export {
+  GOAL_SIZE,
+  GOALS,
+  controlDivisorFor,
+  driveOutputs,
+  type NervesSetup,
+} from './nerves.js';
+export { defaultControlDivisor, profileRateHz } from './solverRate.js';
 
 /**
  * The activation clips, compiled once against the units they name. That every one of those is a
@@ -924,7 +931,6 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
         policy: standPolicy as unknown as PolicyFile,
         authority: v.authority as number,
         goal: 0,
-        controlDivisor: 10,
       },
       script: playClip(clipCalled('quiet-standing'), v.gain as number, 1),
     }),
