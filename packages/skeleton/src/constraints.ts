@@ -12,7 +12,8 @@
  *     of glenohumeral elevation. This is how the scapula rides the thorax without a gliding
  *     surface (spec 7.2), and it is what keeps the shoulder girdle from flopping.
  *
- * MuJoCo solves these natively; on Rapier the CouplingModule enforces them softly.
+ * MuJoCo solves these natively; on a backend that cannot, the CouplingModule enforces them
+ * softly.
  */
 
 import { type ConstraintDef, type JointDef, cite, provisional } from '@bs-humany/hsdl';

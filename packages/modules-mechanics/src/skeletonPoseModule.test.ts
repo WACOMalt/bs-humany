@@ -1,5 +1,5 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
-import { RapierBackend } from '@bs-humany/backend-rapier';
+import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { ROOT_NQ, compileArticulation } from '@bs-humany/compiler';
 import {
   angleBetween,
@@ -144,7 +144,7 @@ describe('poseBones', () => {
 describe('SkeletonPoseModule in a kernel', () => {
   it('publishes finite transforms for every bone with anchors matching body.pose', async () => {
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
-    const physics = new PhysicsModule(new RapierBackend(), articulation, { ground: { height: 0 } });
+    const physics = new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } });
     const pose = new SkeletonPoseModule(document.bones, articulation);
     kernel.register(physics);
     kernel.register(pose);

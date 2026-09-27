@@ -1236,7 +1236,8 @@
         },
         "defaultBackend": {
           "type": "string",
-          "enum": ["rapier", "mujoco"]
+          "enum": ["mujoco", "rapier"],
+          "description": "The backend this profile runs on. Only 'mujoco' exists; 'rapier' is a deprecated alias, read as 'mujoco', kept so that documents written before Rapier was removed still load."
         },
         "solver": {
           "type": "object",

@@ -27,7 +27,6 @@ Reference models, vendored under tools/validate-external/ for the validation of 
 
 Third-party software dependencies:
 
-  - Rapier (dimforge) - Apache-2.0
   - MuJoCo (Google DeepMind) - Apache-2.0
   - three.js - MIT
 

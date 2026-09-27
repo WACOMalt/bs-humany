@@ -2,17 +2,19 @@
 /**
  * Benchmark suite -- milestone M3.19.
  *
- * ms per step by profile x backend x physics rate, on the standing-collapse scenario, written as
- * a committed table to docs/validation/benchmarks.md. Feeds the ADR-003 reassessment: the numbers
- * say whether Rapier still earns its place as the interactive default.
+ * ms per step by profile x physics rate on MuJoCo, on the standing-collapse scenario, written as
+ * a committed table to docs/validation/benchmarks.md. These numbers fed the ADR-003
+ * reassessment, which left MuJoCo the only backend; Rapier was deleted on 2026-09-26.
  *
  * Run: pnpm bench
  *
- * Both backends are measured although only MuJoCo is enabled (ADR-003 reassessment,
- * 2026-09-13): the Rapier rows are the evidence for that decision and the baseline for revisiting it.
+ * Only the top of the report is this script's. Everything after the END_OF_OUTPUT line is kept
+ * as it was written -- the per-module breakdown at L3, and Rapier's last figures as history --
+ * because those were measured once, by hand or by a backend that no longer exists, and a rerun
+ * that dropped them would destroy the only record of them.
  */
 
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
@@ -26,11 +28,13 @@ const { buildDocument } = await jiti.import(join(ROOT, 'packages/skeleton/src/in
 const { Kernel } = await jiti.import(join(ROOT, 'packages/kernel/src/index.ts'));
 const { PhysicsModule, PassiveJointModule, SkeletonPoseModule, MetricsModule, CouplingModule } =
   await jiti.import(join(ROOT, 'packages/modules-mechanics/src/index.ts'));
-const { RapierBackend } = await jiti.import(join(ROOT, 'packages/backend-rapier/src/index.ts'));
 const { MujocoBackend } = await jiti.import(join(ROOT, 'packages/backend-mujoco/src/index.ts'));
 
+/** The line that ends this script's output in the report; what follows it is kept as written. */
+const END_OF_OUTPUT = '<!-- End of pnpm bench output. Everything below is kept as written. -->';
+
 const PROFILES = ['l0_ragdoll', 'l1_standard', 'l2_biomechanical', 'l3_anatomical'];
-const BACKENDS = { rapier: () => new RapierBackend(), mujoco: () => new MujocoBackend() };
+const BACKENDS = { mujoco: () => new MujocoBackend() };
 const RATES = [240, 500, 1000];
 const SECONDS = 2;
 
@@ -126,9 +130,9 @@ const lines = [
   '',
   'Milestone M3.19. Milliseconds per kernel tick (physics, passive joints, skeleton pose and',
   'metrics modules) on the standing-collapse drop, two simulated seconds after a warm-up, by',
-  'fidelity profile, backend and physics rate. "Real time" is how many times faster than wall',
+  'fidelity profile and physics rate, on MuJoCo. "Real time" is how many times faster than wall',
   'clock the tick rate runs. Regenerate with `pnpm bench`; commit the result with the change that',
-  'motivated it.',
+  'motivated it. The script rewrites only this part of the file, down to the line that says so.',
   '',
   `Generated ${new Date().toISOString().slice(0, 10)} on ${process.platform}-${process.arch}, Node ${process.version}.`,
   '',
@@ -149,6 +153,11 @@ const lines = [
   '|---|---|---|',
   ...restoreRows.map((r) => `| ${r.profile} | ${r.backend} | ${r.ms.toFixed(1)} |`),
   '',
+  END_OF_OUTPUT,
 ];
-writeFileSync(join(ROOT, 'docs/validation/benchmarks.md'), `${lines.join('\n')}`);
+const REPORT = join(ROOT, 'docs/validation/benchmarks.md');
+const previous = existsSync(REPORT) ? readFileSync(REPORT, 'utf8') : '';
+const at = previous.indexOf(END_OF_OUTPUT);
+const kept = at < 0 ? '\n' : previous.slice(at + END_OF_OUTPUT.length);
+writeFileSync(REPORT, `${lines.join('\n')}${kept}`);
 console.log('wrote docs/validation/benchmarks.md');

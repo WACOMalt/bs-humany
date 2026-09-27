@@ -5,9 +5,9 @@
  * across levels in roughly fixed proportions rather than each level moving independently. Without
  * it, a per-vertebra spine is a chain of free joints that folds in implausible places.
  *
- * MJCF supports this natively through `<equality>`. Rapier does not, and its backend MUST
- * implement these as a soft post-solve corrective module and MUST report them as approximated in
- * its capability report (ADR-002: silent approximation is forbidden).
+ * MJCF supports this natively through `<equality>`. A backend that does not MUST implement these
+ * as a soft corrective module (the CouplingModule) and MUST report them as approximated in its
+ * capability report (ADR-002: silent approximation is forbidden).
  */
 
 import { z } from 'zod';

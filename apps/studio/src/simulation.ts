@@ -9,7 +9,6 @@
 
 import type { ResolvedMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
-import { RapierBackend } from '@bs-humany/backend-rapier';
 import {
   type BackendCapabilities,
   type CompileReport,
@@ -64,11 +63,18 @@ import {
   reflexGroups,
 } from '@bs-humany/scenarios';
 
-export type BackendId = 'rapier' | 'mujoco';
+/** The physics backend a run is on. MuJoCo is the only one. */
+export type BackendId = 'mujoco';
+/**
+ * What a session saved before Rapier was deleted (ADR-003, 2026-09-26) may still say. Accepted
+ * and run on MuJoCo, so that an old session file or a bug report's attachment still opens.
+ */
+export type LegacyBackendId = 'rapier';
 
 export interface SimulationOptions {
   readonly profileId: string;
-  readonly backend: BackendId;
+  /** Always MuJoCo in practice; a legacy 'rapier' is run on MuJoCo too. @see makeBackend */
+  readonly backend: BackendId | LegacyBackendId;
   readonly passiveJoints: boolean;
   readonly redistribute: boolean;
   /** A committed scenario, or a free drop from `dropHeight` in the rest pose. */
@@ -150,23 +156,20 @@ export interface Recording {
   readonly samples: RecordedSample[];
 }
 
-/**
- * MuJoCo is the only enabled backend. Rapier is kept as a vestigial remnant behind this switch
- * (ADR-003 reassessment, 2026-09-13): the studio never offers it, but nothing stops a scripted
- * session from asking for it.
- */
-/**
- * Ticks one rendered frame may run in simulated-time mode.
- *
- * The same guard the wall-clock path has, for the same reason: without a ceiling a slow frame
- * schedules more work, which makes the next frame slower still. Sixty at 1000 Hz is 60 ms of
- * simulated time in one frame, which is far more than a display can use and still bounded.
- */
 /** Frames a second of output is divided into, when nobody has said otherwise. */
 export const DEFAULT_OUTPUT_FRAMERATE = 60;
 
-function makeBackend(id: BackendId): IPhysicsBackend {
-  return id === 'rapier' ? new RapierBackend() : new MujocoBackend();
+/**
+ * The backend for a run, which is MuJoCo whatever was asked for.
+ *
+ * MuJoCo became the only enabled backend at the ADR-003 reassessment of 2026-09-13, and the
+ * owner deleted Rapier on 2026-09-26, so the studio no longer bundles its 2.7 MB of wasm. A saved
+ * session or a script that still asks for 'rapier' is run on MuJoCo rather than refused, because
+ * the body it describes runs the same on either; only its trajectory differs, and nothing
+ * restores a Rapier trajectory into a new run.
+ */
+function makeBackend(_requested: BackendId | LegacyBackendId): IPhysicsBackend {
+  return new MujocoBackend();
 }
 
 export class Simulation {
@@ -220,6 +223,21 @@ export class Simulation {
   /** Ticks run so far, and the wall-clock cost of the last frame's ticks. */
   ticks = 0;
   paused = false;
+  /**
+   * Why the run stopped on its own, if it did: the message of whatever threw during a tick, and
+   * the tick it was on. A tick that throws leaves the kernel part-way through a step, so the run
+   * pauses there rather than stepping on from a state nobody can vouch for, and the viewport
+   * keeps showing the last good frame. The first failure of the run; it is not cleared.
+   */
+  failure: { readonly message: string; readonly tick: number } | undefined;
+  /**
+   * The tick at which the backend reset the body on its own, if it did -- MuJoCo's autoreset
+   * after a bad acceleration. The body is then back at its reference and the run would carry on
+   * as if it had started again, which is exactly what must not pass unremarked, so it pauses.
+   */
+  divergedAt: number | undefined;
+  /** The backend's reset count when last looked at, so a new reset is the only thing noticed. */
+  private resetsSeen = 0;
   lastStepMs = 0;
   /**
    * Frames a second of simulated time is divided into for playback and for the export.
@@ -305,8 +323,8 @@ export class Simulation {
     // panel starts a new run rather than bending this one.
     const rate = options.stepsPerSecond ?? profile.solver?.rate ?? 500;
     this.dt = 1 / rate;
-    this.backendId = options.backend;
     const backend = makeBackend(options.backend);
+    this.backendId = backend.id;
     this.capabilities = backend.capabilities;
     // The declared-access audit stays opt-in here even under vitest, which turns it on for every
     // kernel that does not choose. The studio carries the whole body with its render channels, and
@@ -410,7 +428,7 @@ export class Simulation {
     this.recording = {
       scenario: options.scenario?.id ?? 'free-drop',
       profile: options.profileId,
-      backend: options.backend,
+      backend: this.backendId,
       morphology: morphology.input,
       dt: this.dt,
       segments: this.articulation.segments.map((s) => s.id),
@@ -498,10 +516,31 @@ export class Simulation {
     const ticks = Math.floor(this.owedTicks);
     this.owedTicks -= ticks;
     const started = performance.now();
-    for (let i = 0; i < ticks; i++) this.tick();
-    if (ticks > 0) this.lastStepMs = (performance.now() - started) / ticks;
-    this.measureRate(elapsedSeconds, ticks);
-    return { ticks, alpha: 0, remainder: this.owedTicks, clamped: false };
+    let ran = 0;
+    try {
+      while (ran < ticks) {
+        this.tick();
+        ran += 1;
+        const resets = this.physics.backendResets;
+        if (resets !== this.resetsSeen) {
+          this.resetsSeen = resets;
+          this.divergedAt ??= this.ticks;
+          this.paused = true;
+          break;
+        }
+      }
+    } catch (error) {
+      // Caught here so that one bad tick stops the run instead of the frame loop: the caller
+      // renders after this returns, and an exception out of it would take the viewport too.
+      this.failure ??= {
+        message: error instanceof Error ? error.message : String(error),
+        tick: this.ticks,
+      };
+      this.paused = true;
+    }
+    if (ran > 0) this.lastStepMs = (performance.now() - started) / ran;
+    this.measureRate(elapsedSeconds, ran);
+    return { ticks: ran, alpha: 0, remainder: this.owedTicks, clamped: false };
   }
 
   /**

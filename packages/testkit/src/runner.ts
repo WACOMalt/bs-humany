@@ -1,6 +1,6 @@
 /**
- * Scenario runner -- the shared substrate of the conformance harness (13.3), the plausibility
- * suite (13.4), the goldens (13.2) and the benchmarks (M3.19).
+ * Scenario runner -- the shared substrate of the plausibility suite (13.4), the goldens (13.2)
+ * and the benchmarks (M3.19).
  *
  * Builds the articulation, places it as the scenario asks, assembles a kernel with the physics,
  * passive-joint, grab and metrics modules on the given backend, and samples the channels at a

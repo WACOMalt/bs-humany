@@ -32,10 +32,10 @@ import { AngleSchema, IdSchema, TransformExprSchema, Vec3Schema } from './primit
  *
  *   tau = -(k_lo * exp(-a_lo * (q - q_lo))) + (k_hi * exp(a_hi * (q - q_hi))) - c * q - d * qdot
  *
- * **This model MUST behave identically on both backends** (spec section 7.3). MuJoCo expresses it
- * natively through soft joint limits and per-DoF stiffness; Rapier needs an explicit module
- * writing to `actuation.jointTorque`. Ragdoll plausibility depends on this more than on the choice
- * of solver.
+ * **This model MUST behave identically whatever the backend** (spec section 7.3). MuJoCo could
+ * express it natively through soft joint limits and per-DoF stiffness; it is applied instead by
+ * an explicit module writing to `actuation.jointTorque`, so that it is one model rather than one
+ * per engine. Ragdoll plausibility depends on this more than on the choice of solver.
  */
 export const StiffnessCurveSchema = z
   .object({

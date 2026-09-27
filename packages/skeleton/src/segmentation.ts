@@ -239,8 +239,7 @@ export const L2_BIOMECHANICAL: SegmentationDef = {
   displayName: 'L2 — Biomechanical',
   description:
     'Forty-nine rigid bodies. Per-level lumbar spine, three thoracic blocks, atlas and axis ' +
-    'separate, shoulder girdle split, patellae, and articulated digits. Targets 60 fps on desktop ' +
-    'with Rapier, about 30 fps with MuJoCo.',
+    'separate, shoulder girdle split, patellae, and articulated digits. Targets 60 fps on desktop.',
   defaultBackend: 'mujoco',
   solver: { rate: 500, iterations: 16, equalityConstraints: true, selfCollision: 'full' },
   limitations: [
@@ -400,7 +399,7 @@ export const L3_ANATOMICAL: SegmentationDef = {
   displayName: 'L3 — Anatomical',
   description:
     'Per-vertebra spine, ribs on pump-handle hinges, articulated fingers and thumbs, patellae, ' +
-    'talus and calcaneus apart. About a hundred and ten rigid bodies; MuJoCo recommended.',
+    'talus and calcaneus apart. About a hundred and ten rigid bodies.',
   defaultBackend: 'mujoco',
   solver: { rate: 1000, iterations: 24, equalityConstraints: true, selfCollision: 'full' },
   limitations: [

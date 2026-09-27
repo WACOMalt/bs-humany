@@ -3,8 +3,8 @@
  *
  * FNV-1a over the exact bit patterns of every sampled position, orientation and joint
  * coordinate. Any change in behaviour, however small, changes the hash; that is the point. The
- * hash is platform-specific to the extent the backend is (Rapier's WASM is deterministic on one
- * platform, MuJoCo's across them), which the goldens file records.
+ * hash is platform-specific to the extent the backend is -- MuJoCo's WASM is deterministic across
+ * platforms -- and the goldens file records the platform each was produced on regardless.
  */
 
 import type { Trajectory } from './runner.js';

@@ -85,7 +85,23 @@ export const SegmentationDefSchema = z
     segments: z.array(SegmentDefSchema).min(1),
     /** Joints active in this profile. A joint whose two bones share a segment is dropped. */
     joints: z.array(IdSchema).optional(),
-    defaultBackend: z.enum(['rapier', 'mujoco']).optional(),
+    /**
+     * The backend this profile is meant to run on. MuJoCo is the only one since Rapier was
+     * deleted (ADR-003, 2026-09-26), but documents written before then say 'rapier', and a
+     * document somebody else wrote is not ours to break (CONTRIBUTING: bone ids are an ABI, and
+     * the same courtesy applies to the rest of the schema). So 'rapier' is still accepted on the
+     * way in, as a deprecated alias, and read as 'mujoco': the parsed document says what will
+     * actually run it. The published schema keeps both values until a version that drops it.
+     */
+    defaultBackend: z
+      .enum(['mujoco', 'rapier'])
+      .meta({
+        description:
+          "The backend this profile runs on. Only 'mujoco' exists; 'rapier' is a deprecated alias, " +
+          "read as 'mujoco', kept so that documents written before Rapier was removed still load.",
+      })
+      .transform((): 'mujoco' => 'mujoco')
+      .optional(),
     solver: SolverSettingsSchema.optional(),
     /**
      * What this profile gives up, in plain language, surfaced in the UI.

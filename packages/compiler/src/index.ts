@@ -2,9 +2,9 @@
  * `@bs-humany/compiler` -- HSDL to `CompiledArticulation`, the backend contract, and the MJCF
  * emitter.
  *
- * The compiler is where names become indices. Everything downstream of it -- both backends, the
- * physics module, the pose module -- works in the index space it defines, and that space is the
- * same whichever backend is loaded.
+ * The compiler is where names become indices. Everything downstream of it -- the backend, the
+ * physics module, the pose module -- works in the index space it defines, and that space belongs
+ * to the articulation rather than to whichever backend is loaded.
  */
 
 export * from './articulation.js';

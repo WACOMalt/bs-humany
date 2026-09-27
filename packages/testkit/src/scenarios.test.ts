@@ -5,19 +5,17 @@ import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import type { IPhysicsBackend } from '@bs-humany/compiler';
 import { SCENARIOS, SCENARIO_DEFINITIONS, type Scenario } from '@bs-humany/scenarios';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFORMANCE, compareTrajectories } from './conformance.js';
 import { trajectoryHash } from './hash.js';
-import { DEFAULT_TOLERANCES, MUJOCO_TOLERANCES, checkPlausibility } from './plausibility.js';
+import { DEFAULT_TOLERANCES, checkPlausibility } from './plausibility.js';
 import { type Trajectory, runScenario } from './runner.js';
 
 /**
- * The enabled backends. Rapier is disabled and hidden (ADR-003 reassessment, 2026-09-13):
- * with convex-hull proxies it injects energy and tears joints in three scenarios, and it is
- * five times slower than MuJoCo. Its factory stays here, commented, for the day it is revisited.
+ * The backends every scenario runs on, by the name its golden is filed under. MuJoCo is the only
+ * one since Rapier was deleted (ADR-003, 2026-09-26); the table stays because a golden's key
+ * names its backend, and a second backend would join here and get goldens of its own.
  */
 const BACKENDS: Record<string, () => IPhysicsBackend> = {
   mujoco: () => new MujocoBackend(),
-  // rapier: () => new RapierBackend(),
 };
 
 const cache = new Map<string, Promise<Trajectory>>();
@@ -48,10 +46,7 @@ describe.each(PINNED.map((s) => [s.id, s] as const))('scenario %s', (_id, scenar
       const t = await trajectory(scenario, backend);
       const findings = checkPlausibility(
         t,
-        {
-          ...(backend === 'mujoco' ? MUJOCO_TOLERANCES : DEFAULT_TOLERANCES),
-          ...scenario.plausibility,
-        },
+        { ...DEFAULT_TOLERANCES, ...scenario.plausibility },
         {
           passiveSystem: scenario.passiveSystem,
           expectRest: true,
@@ -86,23 +81,6 @@ describe.each(PINNED.map((s) => [s.id, s] as const))('scenario %s', (_id, scenar
       ).toBe(golden?.hash);
     });
   });
-
-  // Cross-backend conformance needs two enabled backends; it resumes with Rapier.
-  it.skipIf(Object.keys(BACKENDS).length < 2)(
-    'agrees across backends within the documented tolerances',
-    async () => {
-      const [first, second] = Object.keys(BACKENDS);
-      if (!first || !second) throw new Error('two backends');
-      const [a, b] = await Promise.all([trajectory(scenario, first), trajectory(scenario, second)]);
-      const disagreements = compareTrajectories(
-        a,
-        b,
-        { ...DEFAULT_CONFORMANCE, ...scenario.conformance },
-        { expectRest: true },
-      );
-      expect(disagreements.map((d) => `${d.check}: ${d.message}`)).toEqual([]);
-    },
-  );
 });
 
 /**

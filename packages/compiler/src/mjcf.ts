@@ -85,8 +85,8 @@ export function emitMjcf(model: CompiledArticulation, options: MjcfOptions = {})
       severity: 'info',
       feature: 'passiveStiffness',
       message:
-        'Per-DoF passive terms are left to the PassiveJointModule so both backends apply the ' +
-        'same model; the emitted joints carry ranges only.',
+        'Per-DoF passive terms are left to the PassiveJointModule, so the passive model is the ' +
+        'same whatever the backend; the emitted joints carry ranges only.',
     });
   } else if (model.dofs.some((d) => d.passiveStiffness)) {
     notes.push({

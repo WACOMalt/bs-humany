@@ -21,7 +21,6 @@
   },
   "devDependencies": {
     "@bs-humany/anthropometry": "workspace:*",
-    "@bs-humany/backend-rapier": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
     "@bs-humany/backend-mujoco": "workspace:*"
   }

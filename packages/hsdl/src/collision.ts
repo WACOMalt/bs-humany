@@ -62,7 +62,7 @@ export const CollisionProxySchema = z
         })
         .strict(),
     ]),
-    /** Collision group bitmask. Both backends support this natively. */
+    /** Collision group bitmask. MuJoCo supports this natively. */
     group: z.number().int().nonnegative().optional(),
     /** Which groups this proxy collides with. */
     mask: z.number().int().nonnegative().optional(),

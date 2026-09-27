@@ -1,5 +1,5 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
-import { RapierBackend } from '@bs-humany/backend-rapier';
+import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { ROOT_NQ, ROOT_NV, compileArticulation, dofPassiveInertia } from '@bs-humany/compiler';
 import { passiveMoment } from '@bs-humany/hsdl';
 import { Kernel } from '@bs-humany/kernel';
@@ -83,25 +83,34 @@ describe('PassiveJointModule', () => {
     expect(torque[ROOT_NV + knee.index] ?? 0).toBeGreaterThan(1);
   });
 
-  it('calms the collapsing ragdoll: less joint speed after a second than without it', async () => {
-    const speedAfter = async (passive: boolean) => {
+  it('calms the collapsing ragdoll: it settles sooner than without it', async () => {
+    // Joint speed averaged over the third second, once the body is down. A single instant was
+    // enough on Rapier, but on MuJoCo the first second of a collapse is when the end-range
+    // curves are loaded hardest, and at any one tick of it the passive body can be moving faster
+    // than the limp one (54 against 45 rad/s summed at 1 s). What the passive terms are for is
+    // what happens after: over the third second the limp body is still moving at about four
+    // times the speed.
+    const settlingSpeed = async (passive: boolean) => {
       const kernel = new Kernel({ rateHz: 500, seed: 1 });
-      const physics = new PhysicsModule(new RapierBackend(), articulation, {
+      const physics = new PhysicsModule(new MujocoBackend(), articulation, {
         ground: { height: 0 },
       });
       kernel.register(physics);
       if (passive) kernel.register(new PassiveJointModule(articulation));
       await kernel.init();
-      kernel.run(500);
+      kernel.run(1000);
       const state = kernel.channels.view(physics.manifest.id, BODY_JOINT_STATE, 'write');
       const qdot = state.fields.qdot as Float64Array;
       let sum = 0;
-      for (let i = ROOT_NV; i < qdot.length; i++) sum += Math.abs(qdot[i] ?? 0);
+      for (let t = 0; t < 500; t++) {
+        kernel.step();
+        for (let i = ROOT_NV; i < qdot.length; i++) sum += Math.abs(qdot[i] ?? 0);
+      }
       kernel.dispose();
-      return sum;
+      return sum / 500;
     };
-    const withPassive = await speedAfter(true);
-    const without = await speedAfter(false);
-    expect(withPassive).toBeLessThan(without);
-  });
+    const withPassive = await settlingSpeed(true);
+    const without = await settlingSpeed(false);
+    expect(withPassive).toBeLessThan(without / 2);
+  }, 60_000);
 });

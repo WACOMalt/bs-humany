@@ -2,9 +2,8 @@
  * `@bs-humany/hsdl` -- the HumanSim Description Language.
  *
  * The single source of truth for a body (ADR-002). Declarative, versioned, JSON-serializable,
- * diffable in git, and containing no code. Backend representations -- MJCF for MuJoCo, builder
- * calls for Rapier -- are compile targets generated from this, never hand-edited and never
- * round-tripped back.
+ * diffable in git, and containing no code. Backend representations -- MJCF for MuJoCo -- are
+ * compile targets generated from this, never hand-edited and never round-tripped back.
  *
  * HSDL's dynamics semantics are deliberately a **superset of MJCF's**, so the accuracy ceiling is
  * set by the most capable backend rather than by the intersection of all of them.

@@ -14,7 +14,6 @@
     { "path": "../scenarios" },
     { "path": "../anthropometry" },
     { "path": "../skeleton" },
-    { "path": "../backend-rapier" },
     { "path": "../backend-mujoco" }
   ]
 }

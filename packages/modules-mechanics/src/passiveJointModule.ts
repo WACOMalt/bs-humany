@@ -7,9 +7,10 @@
  * into `actuation.jointTorque`. It runs in the `actuate` phase and reads the previous tick's
  * joint state, which at 500 Hz is 2 ms stale and inconsequential.
  *
- * The passive model MUST be identical on both backends, which is why it is a module rather than
- * a backend feature: the Rapier backend reports its per-DoF stiffness as `emulated` and this is
- * the emulation. A MuJoCo backend with native support must produce the same moments.
+ * The passive model MUST be the same whatever the backend, which is why it is a module rather
+ * than a backend feature: it depends on nothing but the joint state, so any backend without
+ * native per-DoF stiffness -- MuJoCo reports it as `emulated`, and this is the emulation -- gets
+ * exactly the same moments, and one that has it natively must leave it switched off.
  *
  * DoFs without curves of their own get a default derived from their range and inertia. That is a
  * recorded gap (OQ-008), not a hidden one: the module lists which DoFs run on the default.

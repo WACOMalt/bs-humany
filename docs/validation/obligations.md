@@ -11,7 +11,7 @@ thing, by importing the package rather than grepping for a word. Where it is beh
 evidence is a named test, and the check confirms that test still exists by that name; whether
 it passes is the test suite's business, and CI runs both.
 
-Generated 2026-09-26. 10 of 10 obligations met.
+Generated 2026-09-27. 10 of 10 obligations met.
 
 ## 1. DelayLine primitive built and tested, unused.
 
@@ -45,7 +45,7 @@ Generated 2026-09-26. 10 of 10 obligations met.
 
 - `BackendCapabilities.realizedDofForce` declares what each can do
 - `JointStateBuffer.force` carries it, filled by `readJointState`
-- `packages/testkit/src/realizedForce.test.ts`: "%s reports the motor torque that holds the arm against gravity"
+- `packages/testkit/src/realizedForce.test.ts`: "mujoco reports the motor torque that holds the arm against gravity"
 - `packages/testkit/src/realizedForce.test.ts`: "mujoco reports the stop’s constraint torque natively"
 
 ## 5. contact.manifolds published with per-contact impulse from Phase 1.

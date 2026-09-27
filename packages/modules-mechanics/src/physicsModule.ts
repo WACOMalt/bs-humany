@@ -125,8 +125,12 @@ export class PhysicsModule implements SimModule, Stateful {
   }
 
   async init(ctx: ModuleInitContext): Promise<void> {
+    // The backend is given the whole tick and divides it by the substeps it is asked for in
+    // `step`. Dividing here as well divided twice, so at n substeps a tick advanced only 1/n of
+    // a tick of simulated time; nobody saw it because every caller runs one substep, where the
+    // two are the same.
     await this.backend.init({
-      dt: ctx.dt / this.substeps,
+      dt: ctx.dt,
       iterations: this.options.iterations,
       gravity: this.gravity,
       ground: this.options.ground,
@@ -139,6 +143,15 @@ export class PhysicsModule implements SimModule, Stateful {
 
   reset(ctx: ModuleInitContext): void {
     this.bind(ctx);
+  }
+
+  /**
+   * How many times the backend has reset the state on its own since it was compiled (MuJoCo's
+   * autoreset after a bad acceleration). A plain getter, not a channel: it is for the host that
+   * shows the run, and keeping it out of the channels keeps it out of every state hash.
+   */
+  get backendResets(): number {
+    return this.backend.resets ?? 0;
   }
 
   /** Turn contact with the ground plane on or off. The ground stays where it is. */
