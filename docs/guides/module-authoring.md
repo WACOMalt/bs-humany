@@ -47,11 +47,39 @@ from the manifests alone.
 
 - **`id`** is reverse-DNS and unique. It also seeds this module's random stream, so two modules
   never draw the same numbers.
-- **`phase`** is `input`, `actuate`, `solve` or `post`. Modules that push forces run in
-  `actuate`, before the solver; modules that read the result run in `post`, after it. The
-  vestibular module reads this tick's pose and velocity, so it is `post`.
-- **`dependsOn`** orders modules within a phase. Leave it empty unless you genuinely need to run
-  after a particular module rather than after a particular channel is written.
+- **`phase`** is one of six, run in this order every tick (`PHASES` in the kernel's `types.ts`).
+  The modules named are every one that ships in that phase today:
+  - `input`, what arrives from outside the body: `MuscleTestDriveModule`, the studio's per-muscle
+    sliders and the scenarios' scripted drive.
+  - `sense`, for a module that reads last tick's state and writes afferents. Nothing runs here
+    yet. A sense module sees the pose the previous tick's solve produced, and that one-tick lag is
+    intended (spec 10.2): sensing lags actuation in a body too, and it leaves no doubt about
+    whether a sensor saw the state before the step or after it.
+  - `control`, the nervous system: `SpinalModule` (the cord), `NervesModule` (the policy) and
+    `MotorNoiseModule` (the tremor), all adding into the `efferent.alphaMotor` accumulator.
+  - `actuate`, whatever turns drive and state into force before the solver: `MusclePathModule`,
+    `MuscleDynamicsModule`, `MuscleMomentModule`, `PassiveJointModule`, `CouplingModule` and
+    `GrabModule`.
+  - `solve`, `PhysicsModule` alone. It steps the backend and writes the new pose.
+  - `post`, whatever reads the result: `VestibularModule`, `MetricsModule`,
+    `SkeletonPoseModule` and `MuscleVolumeModule`.
+
+  The vestibular module reads this tick's pose and velocity, which only exist once the solver
+  has run, so it is `post`.
+- **`dependsOn`** is the one thing that orders modules within a phase. The kernel places each
+  module after every module it depends on in the same phase, then breaks the remaining ties by
+  `order`, then by id, so the result never depends on registration order. Declared reads and
+  writes order nothing: a module that reads a channel another module in its phase writes may run
+  before that writer and see last tick's value. If it must see this tick's, it declares
+  `dependsOn` on the writer, as `MuscleDynamicsModule` does on `MusclePathModule`, or the two go
+  in different phases. A dependency on a module in another phase orders nothing either (the phase
+  order already has), and is checked only for existence and version.
+- **`order`** is optional, and breaks ties within a phase once dependencies are placed. Lower
+  runs first; absent counts as 0. Nothing ships with one set: reach for it only when two
+  independent modules must run in a fixed order and neither depends on the other.
+- **`rateDivisor`** is optional, a positive integer: the module runs on the ticks whose number is
+  a multiple of it and is skipped on the rest. `MuscleMomentModule` has 10. See "Running slower
+  than the tick" below before you set one.
 - **`reads`**, **`writes`**, **`accumulates`**: a channel has exactly one writer, so two modules
   cannot both write `body.pose`. An accumulator is the exception, summed from many writers and
   zeroed each tick, which is how several modules can all push joint torque at once.
@@ -148,6 +176,68 @@ samples. Publishing a plausible wrong number is worse than publishing nothing.
 
 If your module holds state that must survive a save, implement `Stateful` as `PhysicsModule`
 does, and the kernel will include it in the snapshot.
+
+## Running slower than the tick
+
+Some modules need not run every tick. `MuscleMomentModule` publishes each muscle's moment arms, a
+diagnostic nothing in the loop reads back, and sets `rateDivisor: 10`. `MuscleVolumeModule`
+sweeps the muscles' render mesh, and asks `rateDivisorFor(simulationRateHz, updateHz)` for the
+divisor that keeps it at or above the display rate. Both only write single-writer channels, and a
+single-writer channel keeps its last value on the ticks its writer skips, so a reader sees a value
+that is at most a few ticks old and never a hole.
+
+Two things follow from how the kernel skips a module, and both are easy to get wrong:
+
+- **`ctx.dt` is the kernel tick, whatever your divisor.** A module that runs every tenth tick is
+  handed the same `dt` as one that runs every tick, and spans ten of them between calls. If it
+  integrates anything, it scales by its divisor itself.
+- **Accumulators are zeroed at the top of every tick.** A divided module that adds to one
+  contributes only on the ticks it runs; on the others its share is simply gone, and the body
+  feels a pulse. A module that decides slowly but must push every tick runs at divisor 1 and keeps
+  its own counter instead: `NervesModule` runs its policy every `controlDivisor` ticks and adds
+  the command it is holding on every tick between, and `MotorNoiseModule` draws every `divisor`
+  ticks the same way (advancing its noise by `divisor * ctx.dt` when it does).
+
+## Configuration
+
+A module is configured through its constructor. What it is given there holds for the session: the
+kernel's rate is fixed (spec 10.6), and a module whose parameters changed under it mid-run would
+make the run impossible to reproduce. To change a module's configuration, build a new kernel.
+(A module may still offer a setter for something a person steers live, as `SpinalModule` does for
+its gains; that is an input to the run, like a slider, not a change to what the module is.)
+
+`ModuleInitContext.config` and `KernelOptions.config` exist, but are reserved for data-driven
+configuration: spec 10.1's `configSchema`, and a host that builds its modules inside a worker and
+cannot hand them constructor arguments. No module reads `ctx.config` today, and yours should not
+start.
+
+## Channel versions
+
+A channel's version is the promise a reader is written against. A reader names a version range in
+its `ChannelRef` (`1.0.0` exact, `^1.0.0` for anything in major 1, `~1.0.0` within 1.0), and the
+kernel refuses at init to run a reader whose range the channel does not satisfy. That turns a
+layout change into an error at start-up instead of a reader silently misreading someone's buffer.
+
+So give a new channel's version a meaning, and move it when the channel changes:
+
+- **Minor** for an added field. A reader that never asked for the new field is unaffected, and
+  one that declares `^1.0.0` keeps running.
+- **Major** for a changed meaning, unit, frame, dtype or component count, or a removed or renamed
+  field. Every reader has to be looked at, and the range it declares says it was.
+- **Patch** when nothing a reader could observe changes: a comment, a clarified doc.
+
+Today every channel is 1.0.0, and the readers name it exactly through the package constants
+(`CHANNEL_VERSION`, `MUSCLE_CHANNEL_VERSION`). A bump therefore means giving the changed channel a
+version of its own and moving the ranges of the readers that are fine with it, which is the point:
+the readers get looked at.
+
+`packages/testkit/goldens/channel-abi.json` records every channel's version and a hash of its
+shape (id, layout, mode, and each field's name, dtype and components in order), and
+`packages/testkit/src/channelAbi.test.ts` fails when a shape changes under the same version, or
+when a channel appears or disappears without the table changing too. Once the version is bumped,
+update the table with
+`UPDATE_GOLDENS=1 pnpm vitest run packages/testkit/src/channelAbi.test.ts` and commit it with the
+reason. The update will not record a new shape under an old version.
 
 ## Say what the model is not
 

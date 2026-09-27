@@ -58,9 +58,23 @@ export interface ModuleManifest {
   readonly id: string;
   readonly version: string;
   readonly phase: Phase;
-  /** Tie-break within a phase after dependency order. Lower runs first. */
+  /** Tie-break within a phase after dependency order. Lower runs first; absent counts as 0. */
   readonly order?: number;
-  /** 1 runs every tick; 10 runs every tenth. */
+  /**
+   * How often the module runs, in ticks: it steps on every tick whose number is a multiple of
+   * this, so 1 (the default) runs every tick and 10 every tenth, starting with tick 0. On the
+   * other ticks it is skipped outright, and nothing it wrote is touched.
+   *
+   * That suits a module whose output is only written -- a diagnostic, a render mesh -- because a
+   * single-writer channel keeps its last value until the next write. It does not suit one that
+   * adds to an accumulator: accumulators are zeroed at the top of every tick, so a divided module's
+   * contribution exists only on the ticks it runs, and the body feels it as a pulse. A module that
+   * must push every tick but decide less often runs at divisor 1 and keeps its own counter, adding
+   * the held value on the ticks between, as `NervesModule` does with its `controlDivisor`.
+   *
+   * `ModuleStepContext.dt` is the kernel tick whatever this is; a divided module that integrates
+   * scales by the divisor itself.
+   */
   readonly rateDivisor?: number;
   readonly dependsOn: readonly ModuleRef[];
   /** Declared and enforced. A module that touches an undeclared channel fails at init. */
@@ -91,12 +105,25 @@ export interface ModuleInitContext {
   accumulate(channelId: string): ChannelView;
   /** Deterministic random stream derived from the session seed and the module id. */
   readonly random: Prng;
+  /** The kernel tick, seconds: 1 / rateHz, fixed for the session. */
   readonly dt: number;
+  /**
+   * Reserved for data-driven module configuration: spec 10.1's `configSchema`, and the WorkerHost
+   * path, where modules are built inside the worker and cannot be handed constructor arguments.
+   * No module reads it today, and the kernel passes an empty object unless a host supplies
+   * `KernelOptions.config`. Configure a module through its constructor; what it is given there
+   * holds for the session.
+   */
   readonly config: Readonly<Record<string, unknown>>;
 }
 
 export interface ModuleStepContext {
   readonly tick: number;
+  /**
+   * The kernel tick, 1 / rateHz. Every module sees this value, whatever its `rateDivisor`: a
+   * module that runs every N ticks spans N * dt between calls and must scale any integration by
+   * its divisor itself.
+   */
   readonly dt: number;
   readonly simTime: number;
 }
