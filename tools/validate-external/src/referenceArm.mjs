@@ -1,10 +1,11 @@
 /**
- * The reference arm, made to run.
+ * The reference models, made to run.
  *
- * `mjcf.mjs` reads the vendored model as text, which answers questions about what it *says*. This
- * one loads it into MuJoCo and asks what it *does* -- specifically, what moment arm each elbow
- * muscle has at each joint angle, which is the comparison muscle spec 13.2 calls the most
- * important test in the module.
+ * `mjcf.mjs` reads the vendored models as text, which answers questions about what they *say*.
+ * This loads one into MuJoCo and asks what it *does* -- how long each tendon is in a pose, and so
+ * what moment arm each muscle has about each coordinate, which is the comparison muscle spec 13.2
+ * calls the most important test in the module. It began with the arm and the elbow, and the name
+ * stayed; `loadReference` takes any model the registry in `models.mjs` names.
  *
  * ## Why the model has to be rebuilt to load it
  *
@@ -18,8 +19,8 @@
  *
  * What is dropped: mesh geoms, the `<asset>` block, and every muscle actuator (the tendons are
  * kept; only their actuators go). What is kept: the whole body tree, every joint, every site,
- * every wrap geom, the class defaults that give those elements their attributes, and the seven
- * elbow tendons this project has units for.
+ * every wrap geom, the class defaults that give those elements their attributes, and the tendons
+ * the caller asks for -- the ones this project has units for.
  *
  * ## Why the moment arms are differenced rather than read off
  *
@@ -240,49 +241,102 @@ ${defaults}
 }
 
 /**
- * Load the reference arm and hand back a way to measure it.
+ * Central difference step for a moment arm, radians. A ten-thousandth of a radian is small enough
+ * that the second-order term is far below the millimetre this is reported to, and large enough
+ * that the difference of two lengths keeps its significant figures in double precision.
+ */
+const STEP = 1e-4;
+
+/**
+ * Load one reference model and hand back a way to pose it and measure it.
  *
  * `mujoco` is the loaded module; the caller owns it, because loading it is slow and a caller
- * measuring two things should do it once.
+ * measuring two things should do it once. `tendons` are the spatial tendons to keep, by name.
+ *
+ * Posing goes through the model's own couplings (`couplings` above): setting a coordinate sets
+ * every coordinate that follows it, by the model's polynomial, because `mj_forward` does not
+ * project an equality and a pose written without them is one the model does not have. That is the
+ * shoulder rhythm in the arm and the patella in the legs; a coordinate that follows another is
+ * never set on its own.
  */
-export function loadReferenceArm(mujoco) {
-  const model = mujoco.MjModel.from_xml_string(referenceArmXml());
-  const data = new mujoco.MjData(model);
-  const jointId = (name) => mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, name);
+export function loadReference(mujoco, model = MODELS.arm, tendons = Object.keys(ELBOW_TENDONS)) {
+  const m = mujoco.MjModel.from_xml_string(referenceArmXml(tendons, model));
+  const data = new mujoco.MjData(m);
   const names = [];
-  for (let t = 0; t < model.ntendon; t++) {
-    names.push(mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_TENDON.value, t));
+  for (let t = 0; t < m.ntendon; t++) {
+    names.push(mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_TENDON.value, t));
   }
-
-  const elbow = jointId('elbow_flexion_r');
-  const forearm = jointId('pro_sup_r');
-  if (elbow < 0) throw new Error('referenceArm: no elbow_flexion_r joint in the reference model.');
-  const qposAdr = model.jnt_qposadr;
-
-  /** Tendon lengths at one pose, metres, indexed the way `names` is. */
-  const lengthsAt = (flexion, rotation) => {
-    data.qpos[qposAdr[elbow]] = flexion;
-    if (forearm >= 0) data.qpos[qposAdr[forearm]] = rotation;
-    mujoco.mj_forward(model, data);
-    return Array.from(data.ten_length);
+  const address = m.jnt_qposadr;
+  const jointId = (name) => mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT.value, name);
+  /** A joint that must be there: a pose naming one the model lacks is a mapping gone stale. */
+  const requireJoint = (name) => {
+    const id = jointId(name);
+    if (id < 0) throw new Error(`referenceArm: no ${name} joint in ${model.chain}.`);
+    return id;
   };
 
-  /**
-   * Central difference in the elbow coordinate. A ten-thousandth of a radian is small enough
-   * that the second-order term is far below the millimetre this is reported to, and large enough
-   * that the difference of two lengths keeps its significant figures in double precision.
-   */
-  const STEP = 1e-4;
+  // The model's own couplings, by joint index.
+  const follows = [];
+  const dependent = new Set();
+  for (const c of couplings(model)) {
+    const to = jointId(c.dependent);
+    const from = jointId(c.driver);
+    if (to < 0 || from < 0) continue;
+    follows.push({ to, from, polycoef: c.polycoef });
+    dependent.add(to);
+  }
+  /** Carry a driver's followers to where its value puts them. */
+  const follow = (joint, value) => {
+    for (const f of follows) {
+      if (f.from !== joint) continue;
+      let total = 0;
+      for (let power = f.polycoef.length - 1; power >= 0; power--) {
+        total = total * value + (f.polycoef[power] ?? 0);
+      }
+      data.qpos[address[f.to]] = total;
+    }
+  };
+  /** Set one coordinate by joint index, and whatever follows it. */
+  const setIndex = (joint, value) => {
+    data.qpos[address[joint]] = value;
+    follow(joint, value);
+  };
+
+  const neutral = Float64Array.from(data.qpos);
+  /** Tendon lengths at the pose `qpos` holds now, metres, indexed the way `names` is. */
+  const lengths = () => {
+    mujoco.mj_forward(m, data);
+    return Array.from(data.ten_length);
+  };
+  /** Tendon lengths at neutral with the named coordinates set, in the order given. */
+  const lengthsAt = (pose) => {
+    data.qpos.set(neutral);
+    for (const [name, value] of Object.entries(pose)) setIndex(requireJoint(name), value);
+    return lengths();
+  };
 
   return {
-    model,
+    model: m,
     data,
     tendonNames: names,
+    jointId,
+    address,
+    neutral,
+    /** Joint indices that follow another and are never set on their own. */
+    dependent,
+    follow,
+    lengths,
     lengthsAt,
-    /** Moment arm per tendon at one pose, metres, sign `-dL/dq`. */
-    momentArms(flexion, rotation = 0) {
-      const plus = lengthsAt(flexion + STEP, rotation);
-      const minus = lengthsAt(flexion - STEP, rotation);
+    /**
+     * Moment arm per tendon about one coordinate, metres, sign `-dL/dq`.
+     *
+     * `hold` sets other coordinates first, by name -- the pose the sweep is taken in -- and the
+     * swept coordinate is set last, so a hold can never overwrite it.
+     */
+    momentArms(joint, value, hold = {}) {
+      requireJoint(joint);
+      const plus = lengthsAt({ ...hold, [joint]: value + STEP });
+      const minus = lengthsAt({ ...hold, [joint]: value - STEP });
       const out = new Map();
       for (let t = 0; t < names.length; t++) {
         out.set(names[t], -(plus[t] - minus[t]) / (2 * STEP));
@@ -291,7 +345,23 @@ export function loadReferenceArm(mujoco) {
     },
     dispose() {
       data.delete();
-      model.delete();
+      m.delete();
     },
+  };
+}
+
+/**
+ * The reference arm with the elbow's tendons, measured about the elbow.
+ *
+ * What the elbow sweep has always called, kept so it reads the same: `momentArms(flexion,
+ * rotation)` is `loadReference`'s about `elbow_flexion_r` with `pro_sup_r` held. Neither is a
+ * driver of any coupling, so the numbers are the ones a direct write of both gave.
+ */
+export function loadReferenceArm(mujoco) {
+  const reference = loadReference(mujoco, MODELS.arm, Object.keys(ELBOW_TENDONS));
+  return {
+    ...reference,
+    momentArms: (flexion, rotation = 0) =>
+      reference.momentArms('elbow_flexion_r', flexion, { pro_sup_r: rotation }),
   };
 }

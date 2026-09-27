@@ -56,8 +56,7 @@ import {
   LEG_TENDONS,
   MODELS,
   SHOULDER_TENDONS,
-  couplings,
-  referenceArmXml,
+  loadReference,
 } from '../../validate-external/src/referenceArm.mjs';
 import { ARM, LEGS, readActuators } from '../lib/myoSuite.mjs';
 
@@ -86,46 +85,19 @@ const backendJiti = createJiti(
 );
 const mujoco = await (await backendJiti.import('@mujoco/mujoco')).default();
 
-/** Every tendon's rest length and travel on one reference model, keyed by the unit it becomes. */
+/**
+ * Every tendon's rest length and travel on one reference model, keyed by the unit it becomes.
+ *
+ * The model, its couplings and its neutral pose come from `loadReference`, which the moment arm
+ * validation poses the same model with, so the two cannot disagree about which coordinate carries
+ * which. What is here is the sweep: every free hinge and slider through its own range.
+ */
 function travelOn(tendons, model) {
-  const m = mujoco.MjModel.from_xml_string(referenceArmXml(Object.keys(tendons), model));
-  const d = new mujoco.MjData(m);
-  const names = [];
-  for (let t = 0; t < m.ntendon; t++) {
-    names.push(mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_TENDON.value, t));
-  }
+  const reference = loadReference(mujoco, model, Object.keys(tendons));
+  const { model: m, data: d, tendonNames: names, neutral, dependent, follow, lengths } = reference;
   const address = m.jnt_qposadr;
   const range = m.jnt_range;
   const type = m.jnt_type;
-  const jointId = (name) => mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT.value, name);
-
-  // The model's own couplings, by joint index. A coordinate that follows another is never swept
-  // on its own -- it does not move on its own -- and sweeping a driver carries its followers.
-  const follows = [];
-  const dependent = new Set();
-  for (const c of couplings(model)) {
-    const to = jointId(c.dependent);
-    const from = jointId(c.driver);
-    if (to < 0 || from < 0) continue;
-    follows.push({ to, from, polycoef: c.polycoef });
-    dependent.add(to);
-  }
-  const follow = (joint, value) => {
-    for (const f of follows) {
-      if (f.from !== joint) continue;
-      let total = 0;
-      for (let power = f.polycoef.length - 1; power >= 0; power--) {
-        total = total * value + (f.polycoef[power] ?? 0);
-      }
-      d.qpos[address[f.to]] = total;
-    }
-  };
-
-  const neutral = Float64Array.from(d.qpos);
-  const lengths = () => {
-    mujoco.mj_forward(m, d);
-    return Array.from(d.ten_length);
-  };
 
   d.qpos.set(neutral);
   const rest = lengths();
@@ -136,6 +108,8 @@ function travelOn(tendons, model) {
     // Hinges and sliders only. A free or ball joint has no range to sweep, and the models state
     // an unlimited joint's range as an empty interval rather than flagging it.
     if (type[j] !== mjtJNT_HINGE && type[j] !== mjtJNT_SLIDE) continue;
+    // A coordinate that follows another is never swept on its own -- it does not move on its own
+    // -- and sweeping a driver carries its followers.
     if (dependent.has(j)) continue;
     const low = range[2 * j];
     const high = range[2 * j + 1];
@@ -170,8 +144,7 @@ function travelOn(tendons, model) {
     if (unit === undefined) continue;
     found.set(unit, { rest: rest[t], minimum: minimum[t], maximum: maximum[t] });
   }
-  d.delete();
-  m.delete();
+  reference.dispose();
   return found;
 }
 
