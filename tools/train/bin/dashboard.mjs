@@ -9,30 +9,38 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
  * Also the studio's way to the brain: `GET /policies` lists the saved checkpoints, and
  * `POST /train/start`, `POST /train/stop` and `GET /train/status` start, stop and watch a
  * training run -- the trainer and the showcase, as the terminal would start them -- so the
- * brain panel in a browser tab can do what a terminal does on this machine. Bound to
- * 127.0.0.1 only; the only things it will ever spawn are those two scripts, with numeric
- * arguments checked here, and one run at a time.
+ * brain panel in a browser tab can do what a terminal does on this machine. The only things it
+ * will ever spawn are those two scripts, with numeric arguments checked here, and one run at a
+ * time.
+ *
+ * Who may ask is decided by `origin.mjs`, at the top of every request. Listening on 127.0.0.1
+ * is not what protects it: that keeps other machines out, but a page from anywhere, opened in a
+ * browser on this machine, can still send requests to localhost. This used to answer them all
+ * with `access-control-allow-origin: *`, so any page could start and stop runs and read the
+ * checkpoints. Now a request is answered only when its Host is a loopback name on this port --
+ * which a DNS-rebinding page cannot give -- and its Origin, when it has one, is a page served
+ * from this machine or the desktop studio. A request with no Origin, such as curl or the command
+ * line, passes. An allowed origin is echoed back rather than `*`, which also satisfies the
+ * studio's `require-corp` embedder policy, whose fetches here are CORS-mode. Nothing is served
+ * from disk but this page, the run files, the bridge and the checkpoints. The studio container
+ * runs no dashboard, and a studio served from a public name is refused like any other page: only
+ * a studio served from this machine, the container's included, can drive one.
  */
 import { createServer } from 'node:http';
 import { join, normalize, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataHome, runsDir as runsHome, seedFromRepository } from './home.mjs';
+import { corsHeaders, refusal } from './origin.mjs';
 import { SEARCH_DEFAULTS, UI_RUN_DEFAULTS, recipeFrom, resumePreflight } from './recipe.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const dir = join(ROOT, 'tools/train');
+const PAGE = join(ROOT, 'tools/train/dashboard.html');
 const port = Number(process.argv[2] ?? 5280);
-const types = {
-  '.html': 'text/html; charset=utf-8',
-  '.json': 'application/json',
-  '.jsonl': 'text/plain',
-};
 const BRIDGE = '/dev/shm/bs-humany-pose';
 // The same directory the trainer and the studio binary use, so all three see one set of
 // checkpoints rather than three. The repository's own are copied in once on a fresh machine.
 const POLICIES = seedFromRepository(join(ROOT, 'packages/modules-nerves/policies'));
 const RUNS = runsHome();
-const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' };
 
 /** Every saved policy and every run's record and centre, with what their files say of them. */
 function listPolicies() {
@@ -286,18 +294,32 @@ const bridgeFiles = {
   '/bridge/muscles': ['-muscles', 'application/octet-stream'],
   '/bridge/status': ['-status.json', 'application/json'],
 };
-createServer((request, response) => {
-  const url = new URL(request.url ?? '/', 'http://localhost');
+/**
+ * Answer one request. Everything a request can make this server do is in here, behind the Host
+ * and Origin check at the top, and nothing in here is allowed to throw out of it: an exception
+ * that escaped the handler used to take the whole server down, and with it a run's showcase.
+ */
+function serve(request, response) {
+  // Only the Origin the browser sent is echoed, and only when it is allowed; a request from no
+  // page gets no allow-origin at all, because it has no use for one.
+  const origin = request.headers.origin;
+  const cors = corsHeaders(origin);
   const json = (status, value) => {
     response.writeHead(status, {
       'content-type': 'application/json',
       'cache-control': 'no-store',
-      ...CORS,
+      ...cors,
     });
     response.end(JSON.stringify(value));
   };
+  const refused = refusal({ host: request.headers.host, origin }, port);
+  if (refused) {
+    const { status, ...body } = refused;
+    return json(status, body);
+  }
+  const url = new URL(request.url ?? '/', 'http://localhost');
   if (request.method === 'OPTIONS') {
-    response.writeHead(204, { ...CORS, 'access-control-allow-methods': 'GET, POST' }).end();
+    response.writeHead(204, { ...cors, 'access-control-allow-methods': 'GET, POST' }).end();
     return;
   }
   if (url.pathname === '/policies') return json(200, { policies: listPolicies() });
@@ -311,12 +333,14 @@ createServer((request, response) => {
     response.writeHead(200, {
       'content-type': 'application/json',
       'cache-control': 'no-store',
-      ...CORS,
+      ...cors,
     });
     response.end(readFileSync(full));
     return;
   }
   if (url.pathname === '/train/status') return json(200, trainStatus());
+  // No content type is asked of Stop: the studio's Stop posts nothing, and the Origin check above
+  // is what keeps other pages from posting it.
   if (url.pathname === '/train/stop' && request.method === 'POST') return json(200, trainStop());
   if (url.pathname === '/train/start' && request.method === 'POST') {
     let body = '';
@@ -344,13 +368,13 @@ createServer((request, response) => {
   if (bridge) {
     const [suffix, type] = bridge;
     if (!existsSync(`${BRIDGE}${suffix}`)) {
-      response.writeHead(404, { 'access-control-allow-origin': '*' }).end('no publisher');
+      response.writeHead(404, cors).end('no publisher');
       return;
     }
     response.writeHead(200, {
       'content-type': type,
       'cache-control': 'no-store',
-      'access-control-allow-origin': '*',
+      ...cors,
     });
     response.end(readFileSync(`${BRIDGE}${suffix}`));
     return;
@@ -363,31 +387,45 @@ createServer((request, response) => {
     const name = normalize(url.pathname.slice('/runs/'.length)).replace(/^[/.]+/, '');
     const full = join(RUNS, name);
     if (!full.startsWith(RUNS) || !name.endsWith('.json') || !existsSync(full)) {
-      response.writeHead(404, CORS).end('not here');
+      response.writeHead(404, cors).end('not here');
       return;
     }
     response.writeHead(200, {
       'content-type': 'application/json',
       'cache-control': 'no-store',
-      ...CORS,
+      ...cors,
     });
     response.end(readFileSync(full));
     return;
   }
-  const file =
-    url.pathname === '/' ? 'dashboard.html' : normalize(url.pathname).replace(/^\/+/, '');
-  const full = join(dir, file);
-  if (!full.startsWith(dir) || !existsSync(full)) {
-    response.writeHead(404).end('not here');
+  // The page itself, and nothing else. This used to serve whatever lay under `tools/train` by
+  // path -- its package.json, its sources -- and the path of a directory there threw EISDIR out
+  // of the handler, which stopped the server.
+  if (url.pathname === '/' || url.pathname === '/dashboard.html') {
+    response.writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      ...cors,
+    });
+    response.end(readFileSync(PAGE));
     return;
   }
-  const ext = file.slice(file.lastIndexOf('.'));
-  // CORS on the run files too: the studio draws the showcase's brain from `runs/<name>-activity
-  // .json`, and it is served from its own origin.
-  response.writeHead(200, {
-    'content-type': types[ext] ?? 'application/octet-stream',
-    'cache-control': 'no-store',
-    ...CORS,
-  });
-  response.end(readFileSync(full));
+  response.writeHead(404, cors).end('not here');
+}
+
+createServer((request, response) => {
+  try {
+    serve(request, response);
+  } catch (e) {
+    // A request the handler could not answer -- a malformed escape in a policy id, a file gone
+    // between the check and the read -- is that request's failure, not the server's.
+    if (response.headersSent) response.destroy();
+    else
+      response
+        .writeHead(500, {
+          'content-type': 'application/json',
+          ...corsHeaders(request.headers.origin),
+        })
+        .end(JSON.stringify({ error: String(e) }));
+  }
 }).listen(port, '127.0.0.1', () => console.log(`dashboard: http://localhost:${port}/`));
