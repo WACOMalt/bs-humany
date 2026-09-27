@@ -393,6 +393,45 @@ const ui = {
 };
 
 /**
+ * The elements the frame loop and the run's readouts write to, found once when the page is put
+ * together. They are written up to sixty times a second, and a lookup by selector for each of
+ * them every frame was work done over and over for the same answer.
+ */
+const readouts = {
+  simStatus: must<HTMLElement>('#sim-status'),
+  simEvent: must<HTMLElement>('#sim-event'),
+  stopFollowing: must<HTMLButtonElement>('#stop-following'),
+  overlaysAtRest: must<HTMLElement>('#overlays-at-rest'),
+  modeIndicator: must<HTMLElement>('#mode-indicator'),
+  modeLabel: must<HTMLElement>('#mode-label'),
+  exportWhy: must<HTMLElement>('#export-why'),
+  pendingList: must<HTMLElement>('#pending-changes-list'),
+  pending: must<HTMLElement>('#pending-changes'),
+  timelineValue: must<HTMLOutputElement>('#timeline-value'),
+  playbackNote: must<HTMLElement>('#playback-note'),
+  captureEstimate: must<HTMLElement>('#capture-estimate'),
+  captureStatus: must<HTMLElement>('#capture-status'),
+  diagnostics: must<HTMLElement>('#diagnostics'),
+  kinetic: must<HTMLElement>('#diag-kinetic'),
+  potential: must<HTMLElement>('#diag-potential'),
+  drift: must<HTMLElement>('#diag-drift'),
+  limits: must<HTMLElement>('#diag-limits'),
+  contacts: must<HTMLElement>('#diag-contacts'),
+  rate: must<HTMLElement>('#diag-rate'),
+  resets: must<HTMLElement>('#diag-resets'),
+  cost: must<HTMLElement>('#diag-cost'),
+  readoutNote: must<HTMLElement>('#readout-note'),
+  muscleReadout: must<HTMLElement>('#muscle-readout'),
+  muscleReadoutNote: must<HTMLElement>('#muscle-readout-note'),
+  muscleDrives: must<HTMLDivElement>('#muscle-drives'),
+  muscleLoaded: must<HTMLElement>('#muscle-loaded'),
+  muscleWrapping: must<HTMLElement>('#muscle-wrapping'),
+  muscleStrained: must<HTMLElement>('#muscle-strained'),
+  statFrame: must<HTMLElement>('#stat-frame'),
+  statDraws: must<HTMLElement>('#stat-draws'),
+};
+
+/**
  * The overlays a followed run has nothing to draw with, what they said before following, and
  * whether they are greyed now; see `setFollowOverlayAvailability`.
  *
@@ -414,7 +453,7 @@ const unfollowedOverlays = {
 // and the headset's panel offer the same groups at the same ids.
 const driveInputs = new Map<string, HTMLInputElement>();
 {
-  const host = must<HTMLDivElement>('#muscle-drives');
+  const host = readouts.muscleDrives;
   const sections = new Map<string, HTMLElement>();
   for (const group of MUSCLE_GROUPS) {
     let section = sections.get(group.section);
@@ -927,7 +966,7 @@ function setText(element: HTMLElement, text: string): void {
  * it. One-off messages and errors go to `announce`, which has a line of its own.
  */
 function setSimulationStatus(text: string, error = false): void {
-  const status = must<HTMLElement>('#sim-status');
+  const status = readouts.simStatus;
   setText(status, text);
   status.classList.toggle('error', error);
 }
@@ -943,7 +982,7 @@ function setSimulationStatus(text: string, error = false): void {
  * twice does not rewrite the line, so a log that repeats itself does not churn the page.
  */
 function announce(text: string, options: { error?: boolean } = {}): void {
-  const slot = must<HTMLElement>('#sim-event');
+  const slot = readouts.simEvent;
   const error = options.error === true;
   if (!slot.hidden && slot.textContent === text && slot.classList.contains('error') === error) {
     return;
@@ -959,13 +998,13 @@ function announce(text: string, options: { error?: boolean } = {}): void {
 
 /** Clear the event line; with `noticesOnly`, leave an error where it is. */
 function dismissAnnouncement(noticesOnly = false): void {
-  const slot = must<HTMLElement>('#sim-event');
+  const slot = readouts.simEvent;
   if (noticesOnly && slot.classList.contains('error')) return;
   slot.hidden = true;
   slot.textContent = '';
   slot.classList.remove('error');
 }
-must<HTMLElement>('#sim-event').addEventListener('click', () => dismissAnnouncement());
+readouts.simEvent.addEventListener('click', () => dismissAnnouncement());
 
 /**
  * Say something without taking the line from whatever is already on it.
@@ -975,7 +1014,7 @@ must<HTMLElement>('#sim-event').addEventListener('click', () => dismissAnnouncem
  * What stands keeps its place, and its standing as an error, and the new text follows it.
  */
 function announceAlongside(text: string): void {
-  const slot = must<HTMLElement>('#sim-event');
+  const slot = readouts.simEvent;
   if (slot.hidden || !slot.textContent) {
     announce(text);
     return;
@@ -1122,7 +1161,7 @@ function forgetRun(): void {
   overlays = null;
   clearFurniture();
   followFurnitureKey = '';
-  must<HTMLElement>('#diagnostics').hidden = true;
+  readouts.diagnostics.hidden = true;
   must<HTMLElement>('#diagnostics-empty').hidden = false;
   must<HTMLElement>('#timeline-control').hidden = true;
   setCompileReportEmpty(true);
@@ -1146,14 +1185,14 @@ function forgetRun(): void {
  * it, because every overlay in it draws from a run and at rest they are all empty.
  */
 function setMode(mode: 'rest' | 'running' | 'paused' | 'following'): void {
-  const stop = must<HTMLElement>('#stop-following');
+  const stop = readouts.stopFollowing;
   if (stop.hidden !== (mode !== 'following')) stop.hidden = mode !== 'following';
-  const atRest = must<HTMLElement>('#overlays-at-rest');
+  const atRest = readouts.overlaysAtRest;
   if (atRest.hidden !== (mode !== 'rest')) atRest.hidden = mode !== 'rest';
-  const indicator = must<HTMLElement>('#mode-indicator');
+  const indicator = readouts.modeIndicator;
   indicator.classList.toggle('running', mode === 'running');
   indicator.classList.toggle('following', mode === 'following');
-  must<HTMLElement>('#mode-label').textContent =
+  readouts.modeLabel.textContent =
     mode === 'following'
       ? 'Following the bridge'
       : mode === 'running'
@@ -1268,7 +1307,7 @@ function setRunControls(running: boolean): void {
     const want = running ? title : EXPORT_NEEDS_RUN;
     if (button.title !== want) button.title = want;
   }
-  const why = must<HTMLElement>('#export-why');
+  const why = readouts.exportWhy;
   if (why.hidden !== running) why.hidden = running;
   setPlaybackControls(running);
   showPendingChanges();
@@ -1495,8 +1534,8 @@ function showPendingChanges(): void {
   const text = changed.join(', ');
   if (text === shownPending) return;
   shownPending = text;
-  must<HTMLElement>('#pending-changes-list').textContent = text;
-  must<HTMLElement>('#pending-changes').hidden = changed.length === 0;
+  readouts.pendingList.textContent = text;
+  readouts.pending.hidden = changed.length === 0;
 }
 
 /**
@@ -1507,8 +1546,16 @@ function showPendingChanges(): void {
  * that makes a real force look like a trick of the rendering.
  */
 function followFurniture(sim: Simulation): void {
+  placeBoxes(sim.staticBoxes);
+}
+
+/**
+ * Move the drawn boxes to where these say, one mesh a box in order, without building anything:
+ * a run's own scenery and a followed publisher's both come through here.
+ */
+function placeBoxes(boxes: readonly DrawnBox[]): void {
   if (!furniture) return;
-  sim.staticBoxes.forEach((box, at) => {
+  boxes.forEach((box, at) => {
     const mesh = furniture?.children[at];
     if (!mesh) return;
     mesh.position.set(box.position.x, box.position.y, box.position.z);
@@ -1598,15 +1645,7 @@ function followedFurniture(): void {
     showFurniture(boxes);
     return;
   }
-  if (!furniture) return;
-  boxes.forEach((box, at) => {
-    const mesh = furniture?.children[at];
-    if (!mesh) return;
-    mesh.position.set(box.position.x, box.position.y, box.position.z);
-    if (box.rotation) {
-      mesh.quaternion.set(box.rotation.x, box.rotation.y, box.rotation.z, box.rotation.w);
-    }
-  });
+  placeBoxes(boxes);
 }
 
 /** Capabilities as a definition list (spec section 9.3). */
@@ -1800,7 +1839,7 @@ function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], ca
   // is rebuilt they are a different body's and have to be read again.
   align.refresh();
   showCapabilities(sim);
-  must<HTMLElement>('#diagnostics').hidden = false;
+  readouts.diagnostics.hidden = false;
   must<HTMLElement>('#diagnostics-empty').hidden = true;
   must<HTMLElement>('#timeline-control').hidden = false;
   showReports(sim);
@@ -2009,11 +2048,11 @@ function updateTimeline(sim: Simulation): void {
       ? ' · live'
       : ` · recording stopped; run at ${(sim.ticks * sim.dt).toFixed(2)} s`;
   setText(
-    must<HTMLOutputElement>('#timeline-value'),
+    readouts.timelineValue,
     frames === 0 ? '—' : `frame ${frame} of ${frames - 1} · ${seconds.toFixed(2)} s${edge}`,
   );
   setText(
-    must<HTMLElement>('#playback-note'),
+    readouts.playbackNote,
     frames === 0
       ? ''
       : `${frames} frames recorded at ${fps} fps, ${(frames / fps).toFixed(2)} s` +
@@ -2332,7 +2371,7 @@ function showCaptureEstimate(): void {
   const seconds = perTick > 0 && rate > 0 ? budget / perTick / rate : 0;
   const kilobytes = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`;
   setText(
-    must<HTMLElement>('#capture-estimate'),
+    readouts.captureEstimate,
     `${sim ? 'This run captures' : 'A run would capture'} ${kilobytes(bones)} a tick for the bones` +
       (muscles > 0 ? ` and ${kilobytes(muscles)} for the muscles` : '') +
       `: the budget holds about ${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} s ` +
@@ -2562,7 +2601,7 @@ function muscleReadoutText(r: MuscleReadout | null): Record<string, string> {
 // The section rows, made from the same table as the sliders and put above the three counts.
 const sectionReadouts: HTMLElement[] = [];
 {
-  const list = must<HTMLElement>('#muscle-readout');
+  const list = readouts.muscleReadout;
   const first = list.firstElementChild;
   for (const section of DRIVE_SECTIONS) {
     const term = window.document.createElement('dt');
@@ -2614,20 +2653,20 @@ function updateMuscles(sim: Simulation): void {
     showForce(element, r.sectionForce[at] as number, shownSectionForce, at);
   }
   if (shownCounts[0] !== r.loaded || shownCounts[3] !== r.units) {
-    must<HTMLElement>('#muscle-loaded').textContent = loadedText(r);
+    readouts.muscleLoaded.textContent = loadedText(r);
   }
   // How many tendons are in contact with a bone right now. A muscle that is wrapping has its
   // path bent over a surface rather than cutting through it, so this is also the quickest way to
   // tell whether the overlay's curves are curves.
   if (shownCounts[1] !== r.contacts) {
-    must<HTMLElement>('#muscle-wrapping').textContent = wrappingText(r);
+    readouts.muscleWrapping.textContent = wrappingText(r);
   }
   // Units whose equilibrium did not solve cleanly. It is on screen rather than in a log because
   // it is the one number that says "the force you are reading is a fallback": a muscle whose path
   // is longer than its parameters expect sits at the top of its tendon curve, where the model
   // holds it rather than extrapolating, and the force it reports is the cap.
   if (shownCounts[2] !== r.strained || shownCounts[3] !== r.units) {
-    must<HTMLElement>('#muscle-strained').textContent = strainedText(r);
+    readouts.muscleStrained.textContent = strainedText(r);
   }
   shownCounts[0] = r.loaded;
   shownCounts[1] = r.contacts;
@@ -2648,10 +2687,69 @@ function clearMuscleReadout(): void {
   shownCounts.fill(Number.NaN);
   for (const element of groupReadouts) element.textContent = '';
   for (const element of sectionReadouts) element.textContent = '—';
-  for (const id of ['#muscle-loaded', '#muscle-wrapping', '#muscle-strained']) {
-    must<HTMLElement>(id).textContent = '—';
+  for (const element of [readouts.muscleLoaded, readouts.muscleWrapping, readouts.muscleStrained]) {
+    element.textContent = '—';
   }
 }
+
+/**
+ * The run's diagnostics strip, as numbers: what the Sim tab formats and the headset is sent.
+ *
+ * One reading for both, so the two cannot disagree about what the energies or the joint limits
+ * are. A type rather than an interface, so it goes into the headset's status as the plain record
+ * of numbers the status declares.
+ */
+type Diagnostics = {
+  kinetic: number;
+  potential: number;
+  /** Energy drift, in millimetres of height. */
+  driftMm: number;
+  /** The joint nearest its stop, as a fraction of its range. */
+  limitsWorst: number;
+  /** DoFs past a stop. */
+  violations: number;
+  contacts: number;
+  costMs: number;
+};
+
+/** Read the diagnostics off the run's newest tick; into `out` when given, so a frame allocates nothing. */
+function diagnosticsOf(sim: Simulation, out?: Diagnostics): Diagnostics {
+  const energy = sim.channel('diagnostics.energy').fields;
+  const limits = sim.channel('diagnostics.limits').fields;
+  let worst = 0;
+  let violations = 0;
+  const proximity = limits.proximity as Float64Array;
+  const violation = limits.violation as Uint8Array;
+  for (let i = 0; i < proximity.length; i++) {
+    worst = Math.max(worst, proximity[i] ?? 0);
+    violations += violation[i] ?? 0;
+  }
+  const reading = out ?? emptyDiagnostics();
+  reading.kinetic = (energy.kinetic as Float64Array)[0] ?? 0;
+  reading.potential = (energy.potential as Float64Array)[0] ?? 0;
+  reading.driftMm = ((energy.drift as Float64Array)[0] ?? 0) * 1000;
+  reading.limitsWorst = worst;
+  reading.violations = violations;
+  reading.contacts = sim.channel('contact.manifolds').count;
+  reading.costMs = sim.lastStepMs;
+  return reading;
+}
+
+/** A reading of nothing yet, with its keys in the order the headset has always been sent them. */
+function emptyDiagnostics(): Diagnostics {
+  return {
+    kinetic: 0,
+    potential: 0,
+    driftMm: 0,
+    limitsWorst: 0,
+    violations: 0,
+    contacts: 0,
+    costMs: 0,
+  };
+}
+
+/** The one reading the frame loop fills. */
+const diagnosticsScratch = emptyDiagnostics();
 
 /**
  * The Run tab's diagnostics and the Muscles tab's readout, from the run's newest tick.
@@ -2663,29 +2761,18 @@ function clearMuscleReadout(): void {
  */
 function updateDiagnostics(sim: Simulation, live: boolean): void {
   showReadoutsLive(sim, live);
-  const energy = sim.channel('diagnostics.energy').fields;
-  const limits = sim.channel('diagnostics.limits').fields;
-  const contacts = sim.channel('contact.manifolds');
-  let worst = 0;
-  let violations = 0;
-  const proximity = limits.proximity as Float64Array;
-  const violation = limits.violation as Uint8Array;
-  for (let i = 0; i < proximity.length; i++) {
-    worst = Math.max(worst, proximity[i] ?? 0);
-    violations += violation[i] ?? 0;
-  }
-  must<HTMLElement>('#diag-kinetic').textContent =
-    `${((energy.kinetic as Float64Array)[0] ?? 0).toFixed(1)} J`;
-  must<HTMLElement>('#diag-potential').textContent =
-    `${((energy.potential as Float64Array)[0] ?? 0).toFixed(1)} J`;
-  must<HTMLElement>('#diag-drift').textContent =
-    `${(((energy.drift as Float64Array)[0] ?? 0) * 1000).toFixed(1)} mm`;
-  must<HTMLElement>('#diag-limits').textContent =
-    violations > 0 ? `${violations} past a stop` : `${Math.round(worst * 100)}% of range`;
-  must<HTMLElement>('#diag-contacts').textContent =
-    sim.physics.contactsSeen > contacts.count
-      ? `${contacts.count} shown of ${sim.physics.contactsSeen}`
-      : String(contacts.count);
+  const d = diagnosticsOf(sim, diagnosticsScratch);
+  readouts.kinetic.textContent = `${d.kinetic.toFixed(1)} J`;
+  readouts.potential.textContent = `${d.potential.toFixed(1)} J`;
+  readouts.drift.textContent = `${d.driftMm.toFixed(1)} mm`;
+  readouts.limits.textContent =
+    d.violations > 0
+      ? `${d.violations} past a stop`
+      : `${Math.round(d.limitsWorst * 100)}% of range`;
+  readouts.contacts.textContent =
+    sim.physics.contactsSeen > d.contacts
+      ? `${d.contacts} shown of ${sim.physics.contactsSeen}`
+      : String(d.contacts);
   // How fast simulated time is coming out, against how finely it is divided. Below the step rate
   // means the run is taking longer in wall-clock seconds than the time it covers -- not that
   // anything was skipped, because nothing is: every step is taken and every step is captured.
@@ -2693,7 +2780,7 @@ function updateDiagnostics(sim: Simulation, live: boolean): void {
   const achieved = sim.achievedRateHz;
   // Paused, nothing is being produced, and the last half-second's rate would read as though it
   // still were.
-  must<HTMLElement>('#diag-rate').textContent = sim.paused
+  readouts.rate.textContent = sim.paused
     ? `${declared.toFixed(0)} Hz steps · paused`
     : achieved > 0
       ? `${achieved.toFixed(0)} Hz of ${declared.toFixed(0)} steps · ${(achieved / declared).toFixed(2)}x life`
@@ -2702,7 +2789,7 @@ function updateDiagnostics(sim: Simulation, live: boolean): void {
   // and the run pauses at the first so it cannot carry on as if it had just begun.
   const resets = sim.physics.backendResets;
   setText(
-    must<HTMLElement>('#diag-resets'),
+    readouts.resets,
     resets === 0
       ? 'none'
       : `${resets}${sim.divergedAt === undefined ? '' : `, first at ${(sim.divergedAt * sim.dt).toFixed(3)} s`}`,
@@ -2716,14 +2803,13 @@ function updateDiagnostics(sim: Simulation, live: boolean): void {
  */
 function showReadoutsLive(sim: Simulation | null, live: boolean): void {
   const stale = sim !== null && !live;
-  must<HTMLElement>('#diagnostics').classList.toggle('stale', stale);
-  must<HTMLElement>('#muscle-readout').classList.toggle('stale', stale);
-  must<HTMLElement>('#muscle-drives').classList.toggle('forces-stale', stale);
+  readouts.diagnostics.classList.toggle('stale', stale);
+  readouts.muscleReadout.classList.toggle('stale', stale);
+  readouts.muscleDrives.classList.toggle('forces-stale', stale);
   const caption = stale
     ? `Readings are at the newest frame (t = ${((sim?.ticks ?? 0) * (sim?.dt ?? 0)).toFixed(2)} s), not the replayed one.`
     : '';
-  for (const id of ['#readout-note', '#muscle-readout-note']) {
-    const note = must<HTMLElement>(id);
+  for (const note of [readouts.readoutNote, readouts.muscleReadoutNote]) {
     setText(note, caption);
     if (note.hidden !== !stale) note.hidden = !stale;
   }
@@ -3693,8 +3779,8 @@ function animate(): void {
 
   renderer.render(scene, camera);
 
-  must<HTMLElement>('#stat-frame').textContent = `${frameMs.toFixed(1)} ms`;
-  must<HTMLElement>('#stat-draws').textContent = String(renderer.info.render.calls);
+  readouts.statFrame.textContent = `${frameMs.toFixed(1)} ms`;
+  readouts.statDraws.textContent = String(renderer.info.render.calls);
 }
 
 /** The last message `frameFailed` logged, so a frame that throws every frame logs it once. */
@@ -3796,7 +3882,7 @@ function runFrame(simulation: Simulation, skinned: SkinnedSkeleton, elapsed: num
   }
   updateDiagnostics(simulation, atLiveEdge);
   updateTimeline(simulation);
-  must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
+  readouts.cost.textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
   const capture = simulation.capture;
   // Both captures, because the muscle one is what usually stops first and it used to stop
   // invisibly: with the whole muscle set running, a frame of rings is dozens of times a frame
@@ -3821,7 +3907,7 @@ function runFrame(simulation: Simulation, skinned: SkinnedSkeleton, elapsed: num
   // the same settings is the same run, unless somebody reached into this one.
   const stoppedAt = (capture.firstTick + capture.frameCount - 1) * simulation.dt;
   setText(
-    must<HTMLElement>('#capture-status'),
+    readouts.captureStatus,
     `Captured ${capture.frameCount} frames for export (${held})` +
       (stoppedBy === undefined
         ? '.'
@@ -4090,30 +4176,6 @@ function escapeHtml(value: string): string {
 const connectVr = must<HTMLButtonElement>('#connect-vr');
 /** The link to the headset while one is connected. */
 let vrLink: VrLink | null = null;
-
-/** The studio's diagnostics strip, as numbers, for the panel. */
-function diagnosticsOf(sim: Simulation): Record<string, number> {
-  const energy = sim.channel('diagnostics.energy').fields;
-  const limits = sim.channel('diagnostics.limits').fields;
-  const contacts = sim.channel('contact.manifolds');
-  let worst = 0;
-  let violations = 0;
-  const proximity = limits.proximity as Float64Array;
-  const violation = limits.violation as Uint8Array;
-  for (let i = 0; i < proximity.length; i++) {
-    worst = Math.max(worst, proximity[i] ?? 0);
-    violations += violation[i] ?? 0;
-  }
-  return {
-    kinetic: (energy.kinetic as Float64Array)[0] ?? 0,
-    potential: (energy.potential as Float64Array)[0] ?? 0,
-    driftMm: ((energy.drift as Float64Array)[0] ?? 0) * 1000,
-    limitsWorst: worst,
-    violations,
-    contacts: contacts.count,
-    costMs: sim.lastStepMs,
-  };
-}
 
 /** A slider or checkbox set from the headset, told about it the way the mouse would tell it. */
 function setFromPanel(input: HTMLInputElement | HTMLSelectElement, value: unknown): void {
@@ -4599,7 +4661,7 @@ function stopFollowing(): void {
 
 // The mode indicator's own way out of following, which is the Follow button pressed again: one
 // path in and out, so the headset's Follow toggle (`toggleFollowing`) and this stay the same act.
-must<HTMLButtonElement>('#stop-following').addEventListener('click', (event) => {
+readouts.stopFollowing.addEventListener('click', (event) => {
   blurAfterMouse(event);
   if (bridgeFollower.active) followButton.click();
 });
