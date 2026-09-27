@@ -21,13 +21,18 @@ comparison is reproducible from the repository alone.
   than keeping one, so a model that starts using another bone is followed without anyone
   remembering. `--check` verifies without fetching.
 
-The arm muscle and tendon files are here for a second reason beyond validation. The muscle file
-is the source of the elbow Hill-type parameters in `packages/muscle-data`, which are extracted by
-`pnpm generate:elbow-muscles` rather than transcribed, and checked in CI. That is a value source
-in the sense of section 5.3 and it is allowed here because `caggiano2022` is T1: the models are
-Apache-2.0, so unlike MyoSkeleton they may be used in core packages as well as in tooling. Only
-the *scalar* parameters cross -- peak force and the two lengths. Nothing in the source's own body
-frames does, because a coordinate is only meaningful in the frame it was measured in.
+The muscle and tendon files are here for a second reason beyond validation. The muscle files are
+the source of the Hill-type parameters in `packages/muscle-data` for every region cited to
+`caggiano2022` -- the elbow first, then the forearm, hand, shoulder, trunk, torso, hip, knee and
+ankle. Each region's `pnpm generate:<region>-muscles` extracts them rather than transcribing them,
+and CI checks the result. That is a value source in the sense of section 5.3 and it is allowed
+here because `caggiano2022` is T1: the models are Apache-2.0, so unlike MyoSkeleton they may be
+used in core packages as well as in tooling. Only the *scalar* parameters cross -- peak force and
+the two lengths. Nothing in the source's own body frames does, because a coordinate is only
+meaningful in the frame it was measured in. The via points in
+`packages/skeleton/src/muscleViaPoints.ts` are the only positions a package takes from here, and
+`pnpm generate:via-points` does not copy their coordinates: it builds the same anatomical frame in
+both models and carries each point across.
 
 Every file is byte-identical to that commit. To check, or to move to a newer one:
 
@@ -39,15 +44,18 @@ git hash-object tools/validate-external/myo_sim/myolegs_chain.xml
 Both print the same object id for a matching file, because GitHub's blob sha and git's are the
 same hash. Update the commit above whenever the files change, and re-run the validation.
 
-These are a *reference*, not a source of values in the sense of section 5.3: values transcribed
-from them are cited to `caggiano2022` at the point of use.
+Every value taken from these models, whether extracted or transcribed, is cited to
+`caggiano2022` at the point of use.
 
-Nothing here is compiled into a published package, with one stated exception: the studio's Align
-tab loads `meshes/` and the extracted muscle paths at runtime so the two skeletons can be seen
-side by side, which is what makes pairing our bones to theirs possible by eye. They are fetched
-from `public/`, not bundled, so a studio nobody aligns anything in never carries them. Apache-2.0
-permits the redistribution; the licence and the attribution above travel with the files, and the
-pinned commit is what makes the copy checkable.
+The studio also distributes parts of this model, and the root `NOTICE` lists each of them. Its
+Align tab shows `meshes/` beside our skeleton, with the muscle paths extracted from these models
+(`apps/studio/public/sourceSites.json`), so that our bones can be paired to theirs by eye. The
+meshes reach the studio through the `refMeshes` plugin in `apps/studio/vite.config.ts`, from this
+directory and nowhere else. In development it serves them from here. Every build -- the web build,
+the container and the desktop app -- gets a copy of them in `refMeshes/`, with `myo_sim/LICENSE`
+beside them as `refMeshes/LICENSE`. The page fetches them only when somebody chooses a reference
+model in the Align tab. Apache-2.0 permits the redistribution; the licence and the attribution
+above travel with the files, and the pinned commit is what makes the copy checkable.
 
 ## MyoSkeleton
 
