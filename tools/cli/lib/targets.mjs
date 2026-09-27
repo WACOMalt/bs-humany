@@ -37,18 +37,26 @@ const STAGES = ['generate:', 'measure:', 'validate:', 'audit:'];
 const FIRST = ['generate:via-points', 'measure:muscle-ranges', 'measure:source-travel'];
 
 /**
+ * Measurements that print their tables and write nothing, so there is nothing to check or
+ * regenerate: the evidence behind a page that quotes them, tracked so it can be re-run. They are
+ * named `measure:` because that is what they do, and left out here because running them would
+ * compare nothing -- and the reflex sweep alone takes half an hour of simulation.
+ */
+const PRINT_ONLY = ['measure:dataset-gap', 'measure:reflex-gains'];
+
+/**
  * The scripts to run, in dependency order.
  *
  * @param {Record<string, string>} scripts the root package.json `scripts` block
  * @returns {string[]} script names, for `pnpm <name>`
  */
 export function orderedTargets(scripts) {
-  const names = Object.keys(scripts);
-  for (const name of FIRST) {
+  const names = Object.keys(scripts).filter((name) => !PRINT_ONLY.includes(name));
+  for (const name of [...FIRST, ...PRINT_ONLY]) {
     if (!(name in scripts)) {
       throw new Error(
         `tools/cli/lib/targets.mjs names '${name}', which the root package.json has no script ` +
-          'for. If it was renamed, update the list there so it is still checked.',
+          'for. If it was renamed, update the list there so it is still ordered or left out.',
       );
     }
   }

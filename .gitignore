@@ -11,7 +11,10 @@ tools/*/dist/
 dist-release/
 # The VR viewer copied in as a Tauri sidecar by `pnpm desktop:sidecar`.
 apps/studio/src-tauri/binaries/
-# Training logs, one line a generation; the policy that results is committed, the log is not.
+# Legacy local scratch from before the move to the data directory: run files now live there
+# (`pnpm train:where` prints it), and what was left here is old logs and local probe scripts. A
+# measurement anything cites is tracked instead -- `pnpm measure:reflex-gains`,
+# `pnpm measure:dataset-gap`, `tools/train/probes/`.
 tools/train/runs/
 
 # Obsolete local copies of the Align tab's reference meshes, from the manual sync step there used

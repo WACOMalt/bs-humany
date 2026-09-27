@@ -8,8 +8,13 @@
  *   pnpm train:nerves --force                      # start a checkpoint that exists afresh
  *   pnpm train:nerves --profile l1_standard        # a coarser body; L3, the reference, is the default
  *   pnpm train:nerves --reflex none                # no cord; `--reflex default` the measured one
- *   pnpm train:nerves --recipe <data>/runs/<name>-recipe.json  # the studio's way
+ *   pnpm train:nerves --recipe <data>/runs/<name>-recipe.json  # the studio's way (pnpm train:where prints <data>)
  *   pnpm train:nerves --help                       # every flag, and its default
+ *
+ * A number outside the range the recipe module holds it to is moved to the nearer end of that
+ * range, with a line saying what it became, and the run goes on -- what the dashboard does with a
+ * value the studio sends it. Anything that is not a number, a flag that does not exist and a flag
+ * with no value are refused before anything starts.
  *
  * A recipe names the checkpoint and says what it is trained in: the scenario and its parameter
  * values, the body, whether the joints resist, and what plays under the brain -- nothing, the
@@ -45,7 +50,7 @@ import { cpus } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { REFLEX_FLAGS, formatHelp, parse, trainFlags } from './flags.mjs';
+import { REFLEX_FLAGS, describeClamp, formatHelp, parse, trainFlags } from './flags.mjs';
 import {
   dataHome,
   formerRunFile,
@@ -85,7 +90,16 @@ const TRAIN_FLAGS = trainFlags(RECIPE);
  * naming the run and was in fact overwriting the policy of that name with three generations of a
  * fresh one. Recipes are named in their files; the flags cannot rename a run, and say so.
  */
-const { values: flags, given, errors, unknown } = parse(process.argv.slice(2), TRAIN_FLAGS);
+const {
+  values: flags,
+  given,
+  errors,
+  unknown,
+  clamped,
+} = parse(process.argv.slice(2), TRAIN_FLAGS, { clamp: true });
+
+/** Notes said while the recipe is settled, kept off stdout when stdout is the recipe. */
+const say = (text) => (flags['print-recipe'] ? console.error(text) : console.log(text));
 
 /** The recipes the dashboard has written, by name; read without making the directory. */
 function recipesHere() {
@@ -129,6 +143,9 @@ if (flags.help) {
   );
   process.exit(0);
 }
+// Said once each, before anything else, so the value the run records is never a surprise: the
+// recipe printed or saved has the clamped number in it, not the one typed.
+for (const c of clamped) say(`train-nerves: ${describeClamp(c)}; carrying on`);
 if (flags.recipe !== undefined) {
   // A recipe says these; a flag beside it would be one or the other, silently.
   for (const name of ['profile', 'task']) {
@@ -148,9 +165,6 @@ function savedRecipe(path) {
     return { found: false };
   }
 }
-
-/** Notes said while the recipe is settled, kept off stdout when stdout is the recipe. */
-const say = (text) => (flags['print-recipe'] ? console.error(text) : console.log(text));
 
 /**
  * What is trained, in what: the recipe file; or, resuming without one, the recipe the checkpoint
