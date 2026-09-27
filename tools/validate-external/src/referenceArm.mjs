@@ -303,14 +303,31 @@ export function loadReference(mujoco, model = MODELS.arm, tendons = Object.keys(
   };
 
   const neutral = Float64Array.from(data.qpos);
+  // The neutral pose with every follower carried to where its driver's neutral value puts it.
+  // `qpos0` is not that pose: the patella's couplings have constant terms, so at a straight knee
+  // the model's patella sits about 5 cm from where `qpos0` leaves it, and a sweep of the hip or
+  // the ankle that never names the knee would otherwise be measured with the patella somewhere the
+  // model never puts it -- the rectus femoris's hip arm read 10.4 mm at -30 degrees that way,
+  // against 13.5 coupled. `neutral` itself stays `qpos0`, because the source-travel measurement
+  // sets every coordinate it moves through `follow` and its output is pinned byte for byte.
+  data.qpos.set(neutral);
+  for (const driver of new Set(follows.map((f) => f.from))) {
+    follow(driver, neutral[address[driver]]);
+  }
+  const coupledNeutral = Float64Array.from(data.qpos);
+  data.qpos.set(neutral);
   /** Tendon lengths at the pose `qpos` holds now, metres, indexed the way `names` is. */
   const lengths = () => {
     mujoco.mj_forward(m, data);
     return Array.from(data.ten_length);
   };
-  /** Tendon lengths at neutral with the named coordinates set, in the order given. */
+  /**
+   * Tendon lengths at the coupled neutral with the named coordinates set, in the order given.
+   * Every coordinate the pose leaves out is at its neutral, and every one that follows another is
+   * where the model's couplings put it, so no pose this measures is one the model does not have.
+   */
   const lengthsAt = (pose) => {
-    data.qpos.set(neutral);
+    data.qpos.set(coupledNeutral);
     for (const [name, value] of Object.entries(pose)) setIndex(requireJoint(name), value);
     return lengths();
   };

@@ -27,7 +27,7 @@ Moment arms in millimetres, positive toward the named motion. Mean and worst are
 
 ## Elbow flexion
 
-Swept from 0 to 130 degrees in 10-degree steps, forearm supinated. Ours: `elbow_r` flexion, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `elbow_flexion_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral.
+Swept from 0 to 130 degrees in 10-degree steps, forearm supinated. Ours: `elbow_r` flexion, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `elbow_flexion_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
@@ -89,7 +89,7 @@ Swept from 0 to 130 degrees in 10-degree steps, forearm supinated. Ours: `elbow_
 
 ## Forearm pronation
 
-Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar_r` pronation. Reference (`myoarm_r_chain.xml`): `pro_sup_r` at ours - 90°; every other coordinate at its neutral.
+Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar_r` pronation. Reference (`myoarm_r_chain.xml`): `pro_sup_r` at ours - 90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
@@ -143,7 +143,7 @@ Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar
 
 ## Wrist flexion
 
-Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` flexion, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `flexion_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral.
+Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` flexion, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `flexion_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
@@ -189,7 +189,7 @@ Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinat
 
 ## Wrist ulnar deviation
 
-Swept from -10 to 25 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral.
+Swept from -10 to 25 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
@@ -233,7 +233,7 @@ Swept from -10 to 25 degrees in 5-degree steps, elbow straight, forearm supinate
 
 ## Hip flexion
 
-Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. Ours: `hip_r` flexion. Reference (`myolegs_chain.xml`): `hip_flexion_r` at ours + 0°; every other coordinate at its neutral.
+Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. Ours: `hip_r` flexion. Reference (`myolegs_chain.xml`): `hip_flexion_r` at ours + 0°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
@@ -257,7 +257,7 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 | tensor_fasciae_latae_r | 98.2 at 120° | 97.1 at 120° | 2.1 | 4.8 at -30° | sign change, awaiting the owner |
 | gracilis_r | 32.5 at 10° | -51.5 at 100° | 32.6 | 51.9 at 60° | recorded (OQ-015) |
 | sartorius_r | 98.9 at 70° | 71.4 at 70° | 19.0 | 28.2 at 80° | recorded (OQ-015) |
-| rectus_femoris_r | 51.0 at 60° | 51.0 at 50° | 1.0 | 2.6 at 10° | ok |
+| rectus_femoris_r | 51.0 at 60° | 51.1 at 50° | 2.3 | 3.9 at 120° | ok |
 | biceps_femoris_long_r | -63.7 at 40° | -62.3 at 40° | 3.6 | 9.2 at 10° | ok |
 | semitendinosus_r | -63.7 at 40° | -66.7 at 40° | 3.0 | 8.8 at 10° | ok |
 | semimembranosus_r | -63.5 at 40° | -55.2 at 40° | 5.5 | 8.4 at 30° | recorded (OQ-015) |
@@ -314,26 +314,26 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 
 | Flexion | gluteus_maximus_superior | gluteus_maximus_middle | gluteus_medius_anterior | gluteus_medius_middle | gluteus_medius_posterior | gluteus_minimus_anterior | gluteus_minimus_middle | gluteus_minimus_posterior | iliacus | psoas_major | adductor_longus | adductor_brevis | adductor_magnus_proximal | adductor_magnus_middle | adductor_magnus_distal | adductor_magnus_ischiocondylar | piriformis | tensor_fasciae_latae | gracilis | sartorius | rectus_femoris | biceps_femoris_long | semitendinosus | semimembranosus |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| -30° | -49.3 | -66.1 | -23.3 | -21.3 | -13.8 | -8.7 | -11.4 | -12.2 | 35.5 | 8.8 | 42.8 | 30.0 | 24.9 | 27.3 | 10.5 | -5.0 | -6.3 | 0.5 | 38.8 | -0.2 | 10.4 | -18.9 | -13.7 | -16.8 |
-| -20° | -50.9 | -66.4 | -21.8 | -22.6 | -17.4 | -7.4 | -10.6 | -12.4 | 34.4 | 12.3 | 45.6 | 31.5 | 25.0 | 20.7 | -0.9 | -17.4 | -7.9 | 9.5 | 31.6 | 10.2 | 18.1 | -30.4 | -26.7 | -26.9 |
-| -10° | -50.6 | -65.1 | -19.9 | -23.1 | -20.3 | -5.9 | -9.4 | -12.2 | 33.8 | 15.7 | 47.2 | 32.2 | 24.3 | 12.9 | -12.2 | -29.0 | -9.3 | 18.5 | 23.1 | 20.4 | 25.3 | -40.5 | -38.4 | -35.7 |
-| 0° | -49.1 | -62.6 | -17.5 | -22.8 | -22.2 | -4.4 | -8.1 | -11.7 | 33.9 | 19.0 | 47.5 | 31.9 | 22.6 | 4.4 | -22.7 | -39.1 | -10.3 | 27.2 | 13.7 | 30.3 | 32.0 | -48.8 | -48.4 | -43.1 |
-| 10° | -46.7 | -59.3 | -14.8 | -22.0 | -23.4 | -2.7 | -6.6 | -10.8 | 34.4 | 22.1 | 46.3 | 30.5 | 20.0 | -4.4 | -31.8 | -47.6 | -10.9 | 35.8 | 3.6 | 39.5 | 37.9 | -55.3 | -56.3 | -48.9 |
-| 20° | -43.5 | -55.4 | -11.8 | -20.5 | -23.7 | -1.0 | -4.9 | -9.7 | 35.3 | 24.9 | 43.4 | 27.9 | 16.4 | -12.8 | -39.3 | -54.0 | -11.2 | 44.1 | -6.6 | 48.0 | 43.0 | -59.6 | -62.0 | -52.8 |
-| 30° | -39.6 | -50.9 | -8.6 | -18.6 | -23.4 | 0.7 | -3.2 | -8.4 | 36.5 | 27.6 | 38.8 | 24.0 | 12.0 | -20.3 | -45.0 | -58.4 | -11.1 | 52.0 | -16.5 | 55.5 | 46.9 | -61.9 | -65.4 | -54.9 |
-| 40° | -35.3 | -46.0 | -5.2 | -16.3 | -22.4 | 2.4 | -1.4 | -6.9 | 38.7 | 29.9 | 32.5 | 18.9 | 6.9 | -26.7 | -48.7 | -60.7 | -10.7 | 59.6 | -25.7 | 61.9 | 49.7 | -62.3 | -66.7 | -55.2 |
-| 50° | -30.6 | -40.7 | -1.8 | -13.6 | -20.8 | 4.1 | 0.5 | -5.2 | 41.1 | 31.9 | 24.6 | 12.8 | 1.5 | -31.6 | -50.7 | -61.1 | -10.0 | 66.6 | -33.8 | 66.8 | 51.0 | -60.7 | -65.9 | -54.0 |
-| 60° | -25.6 | -35.0 | 1.6 | -10.6 | -18.7 | 5.7 | 2.3 | -3.4 | 42.9 | 33.4 | 15.5 | 5.9 | -3.9 | -35.1 | -51.0 | -59.6 | -9.1 | 73.2 | -40.5 | 70.0 | 50.9 | -57.5 | -63.3 | -51.2 |
-| 70° | -20.2 | -29.0 | 5.1 | -7.4 | -16.3 | 7.1 | 4.1 | -1.5 | 44.1 | 34.3 | 5.5 | -1.2 | -9.0 | -37.2 | -49.8 | -56.6 | -7.9 | 79.2 | -45.7 | 71.4 | 49.1 | -52.8 | -58.9 | -47.0 |
-| 80° | -14.7 | -22.8 | 8.4 | -4.1 | -13.5 | 8.4 | 5.8 | 0.3 | 44.2 | 34.3 | -4.8 | -8.2 | -13.5 | -38.1 | -47.3 | -52.1 | -6.6 | 84.5 | -49.3 | 70.6 | 45.7 | -46.9 | -53.2 | -41.7 |
-| 90° | -9.1 | -16.4 | 11.6 | -0.7 | -10.4 | 9.6 | 7.4 | 2.2 | 42.6 | 33.0 | -14.8 | -14.7 | -17.3 | -37.7 | -43.6 | -46.3 | -5.1 | 89.1 | -51.2 | 67.5 | 40.6 | -39.8 | -46.2 | -35.4 |
-| 100° | -3.3 | -9.9 | 14.6 | 2.7 | -7.2 | 10.5 | 8.8 | 4.1 | 37.4 | 29.6 | -23.9 | -20.4 | -20.2 | -36.3 | -39.0 | -39.5 | -3.4 | 92.9 | -51.5 | 61.8 | 33.9 | -31.8 | -38.1 | -28.3 |
-| 110° | 2.5 | -3.3 | 17.4 | 6.1 | -3.8 | 11.1 | 10.0 | 5.8 | 24.8 | 22.3 | -31.8 | -25.0 | -22.4 | -34.0 | -33.6 | -31.8 | -1.7 | 95.7 | -50.2 | 53.6 | 25.9 | -23.1 | -29.3 | -20.5 |
-| 120° | 8.3 | 3.4 | 19.8 | 9.4 | -0.3 | 11.4 | 11.0 | 7.4 | 1.0 | 9.6 | -38.2 | -28.5 | -23.6 | -30.9 | -27.5 | -23.5 | -0.0 | 97.1 | -47.5 | 42.9 | 16.8 | -14.0 | -19.9 | -12.4 |
+| -30° | -49.3 | -66.1 | -23.3 | -21.3 | -13.8 | -8.7 | -11.4 | -12.2 | 35.5 | 8.8 | 42.8 | 30.0 | 24.9 | 27.3 | 10.5 | -5.0 | -6.3 | 0.5 | 38.8 | -0.2 | 13.5 | -18.9 | -13.7 | -16.8 |
+| -20° | -50.9 | -66.4 | -21.8 | -22.6 | -17.4 | -7.4 | -10.6 | -12.4 | 34.4 | 12.3 | 45.6 | 31.5 | 25.0 | 20.7 | -0.9 | -17.4 | -7.9 | 9.5 | 31.6 | 10.2 | 20.9 | -30.4 | -26.7 | -26.9 |
+| -10° | -50.6 | -65.1 | -19.9 | -23.1 | -20.3 | -5.9 | -9.4 | -12.2 | 33.8 | 15.7 | 47.2 | 32.2 | 24.3 | 12.9 | -12.2 | -29.0 | -9.3 | 18.5 | 23.1 | 20.4 | 27.9 | -40.5 | -38.4 | -35.7 |
+| 0° | -49.1 | -62.6 | -17.5 | -22.8 | -22.2 | -4.4 | -8.1 | -11.7 | 33.9 | 19.0 | 47.5 | 31.9 | 22.6 | 4.4 | -22.7 | -39.1 | -10.3 | 27.2 | 13.7 | 30.3 | 34.3 | -48.8 | -48.4 | -43.1 |
+| 10° | -46.7 | -59.3 | -14.8 | -22.0 | -23.4 | -2.7 | -6.6 | -10.8 | 34.4 | 22.1 | 46.3 | 30.5 | 20.0 | -4.4 | -31.8 | -47.6 | -10.9 | 35.8 | 3.6 | 39.5 | 39.9 | -55.3 | -56.3 | -48.9 |
+| 20° | -43.5 | -55.4 | -11.8 | -20.5 | -23.7 | -1.0 | -4.9 | -9.7 | 35.3 | 24.9 | 43.4 | 27.9 | 16.4 | -12.8 | -39.3 | -54.0 | -11.2 | 44.1 | -6.6 | 48.0 | 44.5 | -59.6 | -62.0 | -52.8 |
+| 30° | -39.6 | -50.9 | -8.6 | -18.6 | -23.4 | 0.7 | -3.2 | -8.4 | 36.5 | 27.6 | 38.8 | 24.0 | 12.0 | -20.3 | -45.0 | -58.4 | -11.1 | 52.0 | -16.5 | 55.5 | 48.0 | -61.9 | -65.4 | -54.9 |
+| 40° | -35.3 | -46.0 | -5.2 | -16.3 | -22.4 | 2.4 | -1.4 | -6.9 | 38.7 | 29.9 | 32.5 | 18.9 | 6.9 | -26.7 | -48.7 | -60.7 | -10.7 | 59.6 | -25.7 | 61.9 | 50.3 | -62.3 | -66.7 | -55.2 |
+| 50° | -30.6 | -40.7 | -1.8 | -13.6 | -20.8 | 4.1 | 0.5 | -5.2 | 41.1 | 31.9 | 24.6 | 12.8 | 1.5 | -31.6 | -50.7 | -61.1 | -10.0 | 66.6 | -33.8 | 66.8 | 51.1 | -60.7 | -65.9 | -54.0 |
+| 60° | -25.6 | -35.0 | 1.6 | -10.6 | -18.7 | 5.7 | 2.3 | -3.4 | 42.9 | 33.4 | 15.5 | 5.9 | -3.9 | -35.1 | -51.0 | -59.6 | -9.1 | 73.2 | -40.5 | 70.0 | 50.4 | -57.5 | -63.3 | -51.2 |
+| 70° | -20.2 | -29.0 | 5.1 | -7.4 | -16.3 | 7.1 | 4.1 | -1.5 | 44.1 | 34.3 | 5.5 | -1.2 | -9.0 | -37.2 | -49.8 | -56.6 | -7.9 | 79.2 | -45.7 | 71.4 | 48.0 | -52.8 | -58.9 | -47.0 |
+| 80° | -14.7 | -22.8 | 8.4 | -4.1 | -13.5 | 8.4 | 5.8 | 0.3 | 44.2 | 34.3 | -4.8 | -8.2 | -13.5 | -38.1 | -47.3 | -52.1 | -6.6 | 84.5 | -49.3 | 70.6 | 44.0 | -46.9 | -53.2 | -41.7 |
+| 90° | -9.1 | -16.4 | 11.6 | -0.7 | -10.4 | 9.6 | 7.4 | 2.2 | 42.6 | 33.0 | -14.8 | -14.7 | -17.3 | -37.7 | -43.6 | -46.3 | -5.1 | 89.1 | -51.2 | 67.5 | 38.3 | -39.8 | -46.2 | -35.4 |
+| 100° | -3.3 | -9.9 | 14.6 | 2.7 | -7.2 | 10.5 | 8.8 | 4.1 | 37.4 | 29.6 | -23.9 | -20.4 | -20.2 | -36.3 | -39.0 | -39.5 | -3.4 | 92.9 | -51.5 | 61.8 | 31.0 | -31.8 | -38.1 | -28.3 |
+| 110° | 2.5 | -3.3 | 17.4 | 6.1 | -3.8 | 11.1 | 10.0 | 5.8 | 24.8 | 22.3 | -31.8 | -25.0 | -22.4 | -34.0 | -33.6 | -31.8 | -1.7 | 95.7 | -50.2 | 53.6 | 22.4 | -23.1 | -29.3 | -20.5 |
+| 120° | 8.3 | 3.4 | 19.8 | 9.4 | -0.3 | 11.4 | 11.0 | 7.4 | 1.0 | 9.6 | -38.2 | -28.5 | -23.6 | -30.9 | -27.5 | -23.5 | -0.0 | 97.1 | -47.5 | 42.9 | 12.9 | -14.0 | -19.9 | -12.4 |
 
 ## Knee flexion
 
-Swept from 0 to 120 degrees in 10-degree steps, hip and ankle neutral. Ours: `knee_r` flexion. Reference (`myolegs_chain.xml`): `knee_angle_r` at ours + 0°; every other coordinate at its neutral.
+Swept from 0 to 120 degrees in 10-degree steps, hip and ankle neutral. Ours: `knee_r` flexion. Reference (`myolegs_chain.xml`): `knee_angle_r` at ours + 0°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
@@ -405,7 +405,7 @@ Swept from 0 to 120 degrees in 10-degree steps, hip and ankle neutral. Ours: `kn
 
 ## Ankle dorsiflexion
 
-Swept from -40 to 30 degrees in 10-degree steps, hip and knee neutral. Ours: `talocrural_r` dorsiflexion. Reference (`myolegs_chain.xml`): `ankle_angle_r` at ours + 0°; every other coordinate at its neutral.
+Swept from -40 to 30 degrees in 10-degree steps, hip and knee neutral. Ours: `talocrural_r` dorsiflexion. Reference (`myolegs_chain.xml`): `ankle_angle_r` at ours + 0°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|

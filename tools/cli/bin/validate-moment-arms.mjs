@@ -850,7 +850,8 @@ function poseLine(row) {
   return (
     `Swept from ${row.range.from} to ${row.range.to} degrees in ${row.range.step}-degree steps, ` +
     `${row.pose}. Ours: ${ours.join(', ')}. Reference (\`${row.model.chain}\`): ` +
-    `${theirs.join(', ')}; every other coordinate at its neutral.`
+    `${theirs.join(', ')}; every other coordinate at its neutral, and each that follows another ` +
+    `where the model's couplings put it.`
   );
 }
 
