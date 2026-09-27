@@ -938,6 +938,24 @@ function dismissAnnouncement(noticesOnly = false): void {
 }
 must<HTMLElement>('#sim-event').addEventListener('click', () => dismissAnnouncement());
 
+/**
+ * Say something without taking the line from whatever is already on it.
+ *
+ * For a message that belongs with the others one action produced rather than in place of them: a
+ * loaded session can be refused its run and also lack its checkpoint, and each is worth knowing.
+ * What stands keeps its place, and its standing as an error, and the new text follows it.
+ */
+function announceAlongside(text: string): void {
+  const slot = must<HTMLElement>('#sim-event');
+  if (slot.hidden || !slot.textContent) {
+    announce(text);
+    return;
+  }
+  const error = slot.classList.contains('error');
+  if (slot.textContent.endsWith(text)) return;
+  announce(`${slot.textContent} ${text}`, { error });
+}
+
 // Whatever else throws on the page -- a handler, a promise nobody awaited -- says so on the event
 // line too, rather than only in a console nobody has open. Not prevented: the console still gets
 // it, with its stack. The one error that is not an error is the resize observer's notice that it
@@ -3051,26 +3069,22 @@ ui.save.addEventListener('click', () => {
 });
 
 /**
- * Choose the session's checkpoint in the Brain panel's list, or say that it is not there.
+ * Choose the session's checkpoint in the Brain panel's list; true when the list lacks it.
  *
  * The list is read first, because a studio that has not opened the Brain tab has not asked for
  * it yet, and a checkpoint missing from an unread list is not missing. A file names a checkpoint
  * rather than carrying one, so a checkpoint from another machine, or one forgotten since, cannot
- * be chosen, and the page says so rather than leaving the list on whatever it was.
+ * be chosen. Saying so is left to the caller: the load goes on to start the session's run, and a
+ * start clears the notices before it, so a notice given here would be gone before anyone read it.
  */
-async function chooseSessionCheckpoint(id: string): Promise<void> {
-  if (!brain) return;
+async function chooseSessionCheckpoint(id: string): Promise<boolean> {
+  if (!brain) return false;
   await brain.poll();
   const state = brain.state();
-  if (state.selected === id) return;
-  if (!state.checkpoints.some((c) => c.id === id)) {
-    announce(
-      `The session's checkpoint ${id} could not be found in the Brain panel's list; ` +
-        'the rest of the session was applied.',
-    );
-    return;
-  }
+  if (state.selected === id) return false;
+  if (!state.checkpoints.some((c) => c.id === id)) return true;
   brain.act('select', id);
+  return false;
 }
 
 /** Apply a session file's contents, whichever picker they came through. */
@@ -3100,11 +3114,25 @@ async function loadSessionText(text: string): Promise<void> {
     // A session with a run in it starts that run. Stopped first, so the settings going in do not
     // carry the old run across into a restart of their own that the snapshot then races.
     if (parsed.simulation) stopSimulation();
+    // What was said before the load is not about it, and whatever this load says is gathered on
+    // the line from here. An error stays, as it does when a run starts.
+    dismissAnnouncement(true);
     // The checkpoint before the settings. Choosing one in the list sets the scene and the body
     // from its recipe, and the session's own settings are the ones that must win.
-    if (settings.checkpoint) await chooseSessionCheckpoint(settings.checkpoint);
+    const missing =
+      settings.checkpoint && (await chooseSessionCheckpoint(settings.checkpoint))
+        ? settings.checkpoint
+        : undefined;
     applySettings(settings);
     if (parsed.simulation) await startSimulation(parsed.simulation);
+    // Last, once the start has cleared its notices and said what it had to: beside a refused
+    // restore, or a capture the applied settings discarded, rather than in place of it.
+    if (missing !== undefined) {
+      announceAlongside(
+        `The session's checkpoint ${missing} could not be found in the Brain panel's list; ` +
+          'the rest of the session was applied.',
+      );
+    }
   } catch (error) {
     console.error('The session failed to load.', error);
     announce(`The session failed to load: ${messageOf(error)}`, { error: true });
