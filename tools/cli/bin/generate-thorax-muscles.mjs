@@ -19,6 +19,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createJiti } from 'jiti';
 import { distance, renderMuscleGroups } from '../lib/renderMuscles.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
@@ -26,7 +27,14 @@ const OUT = join(ROOT, 'packages/muscle-data/src/thorax.ts');
 const DATA = join(ROOT, 'packages/assets-anatomical/data');
 const check = process.argv.includes('--check');
 
-const landmarks = JSON.parse(readFileSync(join(DATA, 'landmarks.json'), 'utf8'));
+// The attachment points come from the skeleton's own lookup, not from the export's marker table:
+// `measuredWorld` answers where a feature is, and a marker only names one (CONTRIBUTING rule 5).
+// The rib-border points are derived off the mesh by the ingest and nothing re-measures them, so
+// today the two agree; going through the lookup keeps this set right when that changes.
+const jiti = createJiti(import.meta.url);
+const { attachmentSiteId, measuredWorld } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/index.ts'),
+);
 const arcs = JSON.parse(readFileSync(join(DATA, 'rib-arcs.json'), 'utf8')).ribs;
 
 /** Bruno 2015: a sheet's thickness, m; its stress, N/cm²; its tendon, m. */
@@ -57,18 +65,18 @@ function render() {
       for (let n = 1; n <= 11; n++) {
         const above = `rib_${n}_${s}`;
         const below = `rib_${n + 1}_${s}`;
-        const origin = landmarks[above]?.[from];
-        const insertion = landmarks[below]?.Upper_border_at_60;
+        // measuredWorld throws, naming the bone and feature, if a rib point is missing.
+        const origin = measuredWorld(above, from);
+        const insertion = measuredWorld(below, 'Upper_border_at_60');
         const length = (arcs[above].arcLength + arcs[below].arcLength) / 2;
-        if (!origin || !insertion) throw new Error(`no rib points for space ${n} ${s}`);
         const fibre = distance(origin, insertion);
         const pcsaCm2 = length * 100 * (SHEET_THICKNESS * 100);
         const id = `${sheet}_intercostal_${n}`;
         units.push({
           id: `${id}_${s}`,
           displayName: `${sheet === 'external' ? 'External' : 'Internal'} intercostal, space ${n}, ${s === 'r' ? 'right' : 'left'}`,
-          origin: `${id}_origin_${s}_${from.toLowerCase()}`,
-          insertion: `${id}_insertion_${s}_upper_border_at_60`,
+          origin: attachmentSiteId(id, 'origin', s, above, from),
+          insertion: attachmentSiteId(id, 'insertion', s, below, 'Upper_border_at_60'),
           path: [],
           parameters: {
             maxIsometricForce: MAX_MUSCLE_STRESS * pcsaCm2,

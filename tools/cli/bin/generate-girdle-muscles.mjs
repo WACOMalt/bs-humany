@@ -24,11 +24,19 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createJiti } from 'jiti';
 import { bothSides, renderMuscleGroups } from '../lib/renderMuscles.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/girdle.ts');
 const check = process.argv.includes('--check');
+
+// The site-id scheme `attachments.ts` builds the sites with, so an id named here is the one the
+// body carries.
+const jiti = createJiti(import.meta.url);
+const { attachmentSiteId } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/attachmentSiteId.ts'),
+);
 
 /** Seth 2019 Table 1, verbatim: force N, lengths m, pennation degrees. */
 const SETH = {
@@ -180,8 +188,8 @@ function render() {
         return {
           id: unit.id,
           displayName: `${unit.name}, ${s === 'r' ? 'right' : 'left'}`,
-          origin: `${unit.origin[0]}_origin_${s}_${unit.origin[1]}`,
-          insertion: `${unit.insertion[0]}_insertion_${s}_${unit.insertion[1]}`,
+          origin: attachmentSiteId(unit.origin[0], 'origin', s, null, unit.origin[1]),
+          insertion: attachmentSiteId(unit.insertion[0], 'insertion', s, null, unit.insertion[1]),
           path: [],
           parameters: {
             maxIsometricForce: p.force,

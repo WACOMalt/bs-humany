@@ -1,107 +1,88 @@
 /**
- * Attachment sites for major muscles -- milestone M5.3, spec section 14.5 item 2.
+ * The attachment and path sites every built body carries -- milestone M5.3, spec section 14.5
+ * item 2.
  *
- * Each site is a bony feature the dataset carries as a marker, named as a muscle's origin or
- * insertion by Gray (1918). The marker gives the location on this subject; Gray gives the
- * anatomical statement. Nothing here is used by Phase 1 dynamics: the sites exist so that a
- * Phase 2 muscle module has cited points to bind to, through `ext`, rather than inventing them.
+ * Each site is a bony feature Gray (1918) names as a muscle's origin, insertion or ligament, or
+ * one its tendon is held against on the way. Gray gives the anatomical statement; the measured
+ * tables give where this subject has the feature (`locateFeature` in `landmarks.ts`).
+ * `buildDocument` puts every site here into every body placed on the dataset, whatever its
+ * profile (a procedurally placed body has none), and the muscle-data units bind to them by id --
+ * an id this file builds with `attachmentSiteId`, and the generators that write the units build
+ * with the same function, so the two cannot drift. `buildMuscleViaPointSites` adds the via points
+ * carried from the reference model, cited to it rather than to Gray.
  *
- * Coverage is the major superficial and deep muscles of the limbs and trunk whose attachments
- * the dataset's markers can locate. Muscles whose features the dataset does not mark (the jaw,
- * the hand and foot intrinsics) are left out and named in `UNMODELLED_MUSCLES`.
+ * Coverage is the muscles of the limbs, the trunk, the neck and the shoulder girdle, the
+ * intercostals, and the long tendons of the fingers and thumb with their paths over every bone
+ * they cross. `attachmentGaps` reports a feature of an included muscle that no table locates;
+ * `UNMODELLED_MUSCLES` names the muscles left out -- the hand's and the foot's intrinsics and the
+ * jaw's -- and why.
  */
 
-import surfaceJson from '@bs-humany/assets-anatomical/data/landmarks-surface.json' with {
-  type: 'json',
-};
-import landmarksJson from '@bs-humany/assets-anatomical/data/landmarks.json' with { type: 'json' };
-import ridgeJson from '@bs-humany/assets-anatomical/data/ridge-attachments.json' with {
-  type: 'json',
-};
 import { type AttachmentSiteDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
+import {
+  type AttachmentRole,
+  CARPAL_TUNNEL,
+  FIRST_COMPARTMENT,
+  LISTERS_TUBERCLE,
+  ULNAR_COMPARTMENT,
+  attachmentSiteId,
+} from './attachmentSiteId.js';
 import { DATASET_MANIFEST } from './dataset.js';
-import { PROVENANCE_NS, landmarkId } from './landmarks.js';
+import { PROVENANCE_NS, locateFeature } from './landmarks.js';
 import { MUSCLE_VIA_POINTS } from './muscleViaPoints.js';
 
-type Table = Record<string, Record<string, [number, number, number]>>;
-const RAW: Table = landmarksJson as unknown as Table;
-
-interface SurfaceLandmark {
-  readonly bone: string;
-  readonly feature: string;
-  readonly surface: readonly [number, number, number];
-  readonly offset: number;
-  readonly vertices: number;
-  readonly patchRadius: number;
-  readonly rule: string;
-}
-
 /**
- * Markers put back on the bone they name, by `pnpm --filter @bs-humany/ingest surface-landmarks`.
+ * Where an attachment goes, and the provenance line that says how it was found.
  *
- * The dataset's markers are label anchors: placed out in the clear beside the feature they name so
+ * The export's markers are label anchors: placed out in the clear beside the feature they name so
  * a text label can point at it. Not one marker in the arm lies on its bone -- the olecranon is
  * 10 mm off it, the anteromedial surface of the humerus 30 mm -- and an attachment floating that
  * far off the bone puts a muscle's whole line of action in the wrong place. Brachialis is the
  * case that showed it: its insertion marker stands 50 mm from the elbow's flexion axis where the
  * reference model's stands 24, which gave it twice the moment arm it should have and a path that
- * misses the surface it is supposed to wrap.
+ * misses the surface it is supposed to wrap. So the location comes from the measurement and the
+ * anatomy still comes from Gray: the marker names which feature, and the mesh says where that
+ * feature is. `locateFeature` is that one answer, shared with every landmark.
  *
- * So the location comes from the measurement and the anatomy still comes from Gray: the marker
- * names which feature, and the mesh says where that feature is.
+ * A fitted articular or contact centre is not a place a muscle attaches -- it is the middle of a
+ * ball or of the gap between two bones -- so one is never an attachment. No feature any muscle
+ * here names is one today (their names are the centres' own, `..._articular_centre` and the
+ * like), and before `locateFeature` was shared this lookup did not consult those tables at all;
+ * refusing them keeps it that way should a muscle ever name one. A derived point is worded as
+ * the marker it is published as, which is how this file has always worded it.
  */
-const SURFACE = new Map<string, SurfaceLandmark>(
-  (surfaceJson as unknown as { readonly landmarks: readonly SurfaceLandmark[] }).landmarks.map(
-    (l) => [`${l.bone}/${l.feature}`, l],
-  ),
-);
-
-interface RidgeAttachment {
-  readonly bone: string;
-  readonly feature: string;
-  readonly surface: readonly [number, number, number];
-  readonly height: number;
-  readonly traced: number;
-  readonly rule: string;
-  readonly anatomy: string;
-}
-
-/**
- * Points measured along a ridge, for muscles that do not start where the ridge's marker sits.
- *
- * @see `ridgeAttachments.ts`, which measures them and argues for the rule.
- */
-const RIDGE = new Map<string, RidgeAttachment>(
-  (ridgeJson as unknown as { readonly attachments: readonly RidgeAttachment[] }).attachments.map(
-    (a) => [`${a.bone}/${a.feature}`, a],
-  ),
-);
-
-/** Where an attachment goes: the measured point on the bone, or the raw marker if none exists. */
 function located(
   bone: string,
   feature: string,
 ): { readonly world: readonly [number, number, number]; readonly locatedBy: string } | undefined {
-  const ridge = RIDGE.get(`${bone}/${feature}`);
-  if (ridge) {
-    return {
-      world: ridge.surface,
-      locatedBy:
-        `measured along the ridge: ${ridge.rule}; ${ridge.anatomy}; ` +
-        `${(ridge.height * 1000).toFixed(0)} mm up the bone over ${ridge.traced} bins`,
-    };
+  const found = locateFeature(bone, feature);
+  if (!found) return undefined;
+  switch (found.table) {
+    case 'ridge': {
+      const ridge = found.ridge;
+      return {
+        world: found.world,
+        locatedBy:
+          `measured along the ridge: ${ridge.rule}; ${ridge.anatomy}; ` +
+          `${(ridge.height * 1000).toFixed(0)} mm up the bone over ${ridge.traced} bins`,
+      };
+    }
+    case 'surface': {
+      const measured = found.landmark;
+      return {
+        world: found.world,
+        locatedBy:
+          `marker '${feature}' put on the bone: ${measured.rule}; moved ` +
+          `${(measured.offset * 1000).toFixed(1)} mm over ${measured.vertices} vertices`,
+      };
+    }
+    case 'derived':
+    case 'marker':
+      return { world: found.world, locatedBy: `marker: ${feature}` };
+    case 'articular':
+    case 'contact':
+      return undefined;
   }
-  const measured = SURFACE.get(`${bone}/${feature}`);
-  if (measured) {
-    return {
-      world: measured.surface,
-      locatedBy:
-        `marker '${feature}' put on the bone: ${measured.rule}; moved ` +
-        `${(measured.offset * 1000).toFixed(1)} mm over ${measured.vertices} vertices`,
-    };
-  }
-  const raw = RAW[bone]?.[feature];
-  return raw ? { world: raw, locatedBy: `marker: ${feature}` } : undefined;
 }
 
 const gray = (section: string) => cite('gray1918', `Part IV, Myology: ${section}`);
@@ -190,12 +171,6 @@ function phalanxChain(digit: number, stop: 'proximal' | 'middle' | 'distal'): st
   const parts = digit === 1 ? ['proximal', 'distal'] : ['proximal', 'middle', 'distal'];
   return parts.slice(0, parts.indexOf(stop) + 1).map((part) => `phalanx_${part}_${digit}_$`);
 }
-
-/** Where a tendon crosses the wrist: the compartment of the extensor retinaculum it runs in. */
-const CARPAL_TUNNEL: readonly [string, string] = ['hamate_$', 'Hook_of_hamate_bone'];
-const FIRST_COMPARTMENT: readonly [string, string] = ['radius_$', 'Radial_styloid_process'];
-const LISTERS_TUBERCLE: readonly [string, string] = ['radius_$', 'Dorsal_radial_tubercle'];
-const ULNAR_COMPARTMENT: readonly [string, string] = ['ulna_$', 'Head_of_ulna'];
 
 const digitName = (d: number) =>
   ({ 1: 'thumb', 2: 'index', 3: 'middle', 4: 'ring', 5: 'little' })[d] ?? String(d);
@@ -1450,7 +1425,8 @@ function placeFootprint(
   if (located_.some((l) => !l)) return;
   const mean = (i: 0 | 1 | 2) =>
     located_.reduce((total, l) => total + (l?.world[i] ?? 0), 0) / located_.length;
-  const id = `${m.id}_origin_${s}_footprint`;
+  // Named like an origin at a feature called 'footprint', which is what the knee set binds to.
+  const id = attachmentSiteId(m.id, 'origin', s, bone, 'footprint');
   if (seen.has(id)) return;
   seen.add(id);
   const local = (i: 0 | 1 | 2) => (mean(i) - centroid[i]) / DATASET_MANIFEST.subjectStature;
@@ -1484,7 +1460,7 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
       const place = (
         pairs: ReadonlyArray<readonly [string, string]>,
         kind: AttachmentSiteDef['kind'],
-        role: string,
+        role: AttachmentRole,
       ) => {
         for (const [boneTemplate, featureTemplate] of pairs) {
           const bone = side(boneTemplate, s);
@@ -1494,18 +1470,11 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
           const centroid = centroids.get(bone);
           if (!site || !centroid) continue;
           const world = site.world;
-          // A via point carries the bone it is on, and an attachment does not. A tendon passes
-          // the same *named feature* on several bones -- a finger flexor crosses the flexor side
-          // of the head of the metacarpal and of two phalanges -- and without the bone in the id
-          // those are one id, so two of the three points vanish into the dedupe below and the
-          // tendon cuts the corner it was supposed to be held around. An attachment has no such
-          // problem: a muscle attaches to one bone by one feature, and the shorter id is the one
-          // every muscle data file already names.
-          const featureId = landmarkId(bone, feature).split('__')[1];
-          const id =
-            role === 'path'
-              ? `${m.id}_${role}_${s}_${bone.replace(/_[lr]$/, '')}_${featureId}`
-              : `${m.id}_${role}_${s}_${featureId}`;
+          // A path site carries the bone it is on and an attachment does not, so that a tendon
+          // held against the same named feature on three bones keeps three points through the
+          // dedupe below. `attachmentSiteId` has the whole argument, and the generators name the
+          // sites with the same function.
+          const id = attachmentSiteId(m.id, role, s, bone, feature);
           if (seen.has(id)) continue;
           seen.add(id);
           const local = (i: 0 | 1 | 2) =>

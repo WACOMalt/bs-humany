@@ -18,6 +18,7 @@ export * from './pose.js';
 export * from './geometry/layout.js';
 export * from './geometry/shapes.js';
 export * from './constraints.js';
+export * from './attachmentSiteId.js';
 export * from './attachments.js';
 export * from './muscleViaPoints.js';
 export * from './wrapSurfaces.js';
