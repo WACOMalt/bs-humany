@@ -49,14 +49,32 @@ const fetchMock = vi.fn((url: string) => {
   });
 });
 
+/**
+ * Wait until a fetch of this url is held. A load imports its STL loader before it fetches, and on
+ * a busy machine that import can outlast any fixed number of event-loop turns, so the tests wait
+ * for the fetch itself rather than counting turns.
+ */
+async function pending(url: string): Promise<void> {
+  await vi.waitFor(
+    () => {
+      if (!held.some((h) => h.url === url)) throw new Error(`nothing is waiting on ${url}`);
+    },
+    { timeout: 5000, interval: 5 },
+  );
+}
+
+/** Wait for a fetch of this url to be held, and take it off the list. */
+async function take(url: string): Promise<Held> {
+  await pending(url);
+  const i = held.findIndex((h) => h.url === url);
+  return held.splice(i, 1)[0] as Held;
+}
+
 /** Let every held fetch for these files go, each answering with its own name as the body. */
-function answer(files: readonly string[], type = 'model/stl'): void {
+async function answer(files: readonly string[], type = 'model/stl'): Promise<void> {
   for (const file of files) {
-    const url = `refMeshes/${file}`;
-    const i = held.findIndex((h) => h.url === url);
-    if (i < 0) throw new Error(`nothing is waiting on ${url}`);
-    const [h] = held.splice(i, 1);
-    h?.resolve(new Response(file, { status: 200, headers: { 'content-type': type } }));
+    const h = await take(`refMeshes/${file}`);
+    h.resolve(new Response(file, { status: 200, headers: { 'content-type': type } }));
   }
 }
 
@@ -203,11 +221,12 @@ describe('bone meshes', () => {
     const overlay = new SourceOverlay();
     overlay.load(SITES);
     const first = overlay.showBones('A');
-    await settle();
+    await pending('refMeshes/a1.stl');
+    await pending('refMeshes/a2.stl');
     const second = overlay.showBones('B');
     await settle();
-    answer(['a1.stl', 'a2.stl']);
-    answer(['b1.stl', 'b2.stl', 'b3.stl']);
+    await answer(['a1.stl', 'a2.stl']);
+    await answer(['b1.stl', 'b2.stl', 'b3.stl']);
     await Promise.all([first, second]);
     await settle();
     expect(meshes(overlay).map((m) => m.geometry.userData.file)).toEqual([
@@ -226,7 +245,7 @@ describe('bone meshes', () => {
     await settle();
     const again = overlay.showBones('A');
     await settle();
-    answer(['a1.stl', 'a2.stl']);
+    await answer(['a1.stl', 'a2.stl']);
     await again;
     await settle();
     expect(meshes(overlay)).toHaveLength(2);
@@ -237,11 +256,11 @@ describe('bone meshes', () => {
     overlay.load(SITES);
     const loading = overlay.showBones('B');
     await settle();
-    answer(['b3.stl']);
+    await answer(['b3.stl']);
     await settle();
-    answer(['b1.stl']);
+    await answer(['b1.stl']);
     await settle();
-    answer(['b2.stl']);
+    await answer(['b2.stl']);
     await loading;
     // The list is private; what is pinned is the promise its comment makes.
     const list = (overlay as unknown as { meshes: Mesh[] }).meshes;
@@ -257,7 +276,7 @@ describe('bone meshes', () => {
       ['a1', { position: new Vector3(0, 1, 0), rotation: new Quaternion(), scale: 2 }],
     ]);
     overlay.retargetBones(fits, SITES.models.A?.bodies ?? []);
-    answer(['a1.stl', 'a2.stl']);
+    await answer(['a1.stl', 'a2.stl']);
     await loading;
     const [a1, a2] = meshes(overlay).sort((p, q) => p.name.localeCompare(q.name));
     expect(a1?.visible).toBe(true);
@@ -273,7 +292,7 @@ describe('bone meshes', () => {
     const loading = overlay.showBones('A');
     await settle();
     overlay.dispose();
-    answer(['a1.stl', 'a2.stl']);
+    await answer(['a1.stl', 'a2.stl']);
     await loading;
     await settle();
     expect(meshes(overlay)).toHaveLength(0);
@@ -284,8 +303,8 @@ describe('bone meshes', () => {
     overlay.load(SITES);
     const loading = overlay.showBones('B');
     await settle();
-    answer(['b1.stl', 'b3.stl']);
-    answer(['b2.stl'], 'text/html; charset=utf-8');
+    await answer(['b1.stl', 'b3.stl']);
+    await answer(['b2.stl'], 'text/html; charset=utf-8');
     expect(await loading).toEqual({ total: 3, loaded: 2 });
     expect(meshes(overlay)).toHaveLength(2);
   });
@@ -295,12 +314,12 @@ describe('bone meshes', () => {
     overlay.load(SITES);
     const loading = overlay.showBones('A');
     await settle();
-    answer(['a1.stl']);
-    const i = held.findIndex((h) => h.url === 'refMeshes/a2.stl');
-    held.splice(i, 1)[0]?.resolve(new Response('', { status: 404 }));
+    await answer(['a1.stl']);
+    (await take('refMeshes/a2.stl')).resolve(new Response('', { status: 404 }));
     expect(await loading).toEqual({ total: 2, loaded: 1 });
     fetchMock.mockClear();
     void overlay.showBones('A');
+    await take('refMeshes/a2.stl');
     await settle();
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['refMeshes/a2.stl']);
   });
@@ -310,7 +329,7 @@ describe('bone meshes', () => {
     overlay.load(SITES);
     const first = overlay.showBones('A');
     await settle();
-    answer(['a1.stl', 'a2.stl']);
+    await answer(['a1.stl', 'a2.stl']);
     await first;
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(await overlay.showBones('A')).toEqual({ total: 2, loaded: 2 });
