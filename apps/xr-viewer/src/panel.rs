@@ -173,8 +173,8 @@ impl Placement {
 
     /// The panel as a hand holds it: its frame expressed in the hand's, so the hand can carry it.
     pub fn held_by(&self, hand_at: [f32; 3], hand_q: [f32; 4]) -> Held {
-        let inverse = crate::render::quaternion_conjugate(hand_q);
-        let origin = crate::render::rotate(
+        let inverse = crate::math::quaternion_conjugate(hand_q);
+        let origin = crate::math::rotate(
             [
                 self.origin[0] - hand_at[0],
                 self.origin[1] - hand_at[1],
@@ -184,20 +184,20 @@ impl Placement {
         );
         Held {
             origin,
-            right: crate::render::rotate(self.right, inverse),
-            down: crate::render::rotate(self.down, inverse),
-            normal: crate::render::rotate(self.normal, inverse),
+            right: crate::math::rotate(self.right, inverse),
+            down: crate::math::rotate(self.down, inverse),
+            normal: crate::math::rotate(self.normal, inverse),
         }
     }
 
     /// Where the panel is now, carried by a hand that is here.
     pub fn carried(&self, held: &Held, hand_at: [f32; 3], hand_q: [f32; 4]) -> Self {
-        let origin = crate::render::rotate(held.origin, hand_q);
+        let origin = crate::math::rotate(held.origin, hand_q);
         Self {
             origin: [origin[0] + hand_at[0], origin[1] + hand_at[1], origin[2] + hand_at[2]],
-            right: crate::render::rotate(held.right, hand_q),
-            down: crate::render::rotate(held.down, hand_q),
-            normal: crate::render::rotate(held.normal, hand_q),
+            right: crate::math::rotate(held.right, hand_q),
+            down: crate::math::rotate(held.down, hand_q),
+            normal: crate::math::rotate(held.normal, hand_q),
             size: self.size,
         }
     }

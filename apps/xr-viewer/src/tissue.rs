@@ -66,14 +66,14 @@ impl TissueShape {
                 .0
                 .iter()
                 .map(|(p, n)| {
-                    let turned = crate::render::rotate(*p, disc.rotation);
+                    let turned = crate::math::rotate(*p, disc.rotation);
                     (
                         [
                             turned[0] + disc.position[0],
                             turned[1] + disc.position[1],
                             turned[2] + disc.position[2],
                         ],
-                        crate::render::rotate(*n, disc.rotation),
+                        crate::math::rotate(*n, disc.rotation),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -132,8 +132,8 @@ impl TissueShape {
         for shape in &self.rigid {
             let (position, q) = at(shape.bone);
             for (p, n) in &shape.local {
-                let world = crate::render::rotate(*p, q);
-                let normal = crate::render::rotate(*n, q);
+                let world = crate::math::rotate(*p, q);
+                let normal = crate::math::rotate(*n, q);
                 out.extend_from_slice(&[
                     world[0] + position[0],
                     world[1] + position[1],
@@ -148,8 +148,8 @@ impl TissueShape {
         for bar in &self.bars {
             let (pa, qa) = at(bar.bone_a);
             let (pb, qb) = at(bar.bone_b);
-            let a = add(crate::render::rotate(bar.local_a, qa), pa);
-            let b = add(crate::render::rotate(bar.local_b, qb), pb);
+            let a = add(crate::math::rotate(bar.local_a, qa), pa);
+            let b = add(crate::math::rotate(bar.local_b, qb), pb);
             let axis = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
             let length = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt().max(1e-6);
             let n = [axis[0] / length, axis[1] / length, axis[2] / length];

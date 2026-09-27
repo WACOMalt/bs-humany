@@ -465,7 +465,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // Where the body stands: the simulation's ground lifted to the stage floor. Known once the
     // status says the ground's height; zero, which is nearly every scenario, until then.
     let mut ground = 0.0f32;
-    let mut place = crate::render::placement(ground);
+    let mut place = crate::math::placement(ground);
     // Bones, the two controllers, the world slot at the placement, a pointer mark a hand, the
     // grid at the identity, the scenery at the placement, and an aim ray a hand; `Slots` says
     // where each is.
@@ -473,13 +473,13 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut matrices: Vec<[f32; 16]> = vec![place; slots.total];
     // The marks and the rays are nothing until a hand points.
     for hand in 0..crate::render::MARKERS {
-        matrices[slots.marker(hand)] = crate::render::scale_matrix(0.0);
+        matrices[slots.marker(hand)] = crate::math::scale_matrix(0.0);
     }
     for hand in 0..crate::render::RAYS {
-        matrices[slots.ray(hand)] = crate::render::scale_matrix(0.0);
+        matrices[slots.ray(hand)] = crate::math::scale_matrix(0.0);
     }
     // The grid is the stage itself: the identity.
-    matrices[slots.stage] = crate::render::scale_matrix(1.0);
+    matrices[slots.stage] = crate::math::scale_matrix(1.0);
 
     // What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
     // together, and reopened together whenever the publisher's generation changes, which is how
@@ -534,7 +534,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     const TURN_SPEED: f32 = 1.6; // radians a second at full deflection, a little over a right angle
     const LIFT_SPEED: f32 = 1.2; // m/s at full deflection
     const DEAD_ZONE: f32 = 0.15;
-    let controller_scale = crate::render::scale_matrix(1.0);
+    let controller_scale = crate::math::scale_matrix(1.0);
     let mut muscle_vertices: Vec<f32> = Vec::new();
     let mut tissue_vertices: Vec<f32> = Vec::new();
     // The connective tissue's fixed shape, rebuilt when the publisher's generation changes.
@@ -710,7 +710,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 if scene_generation != Some(s.generation) {
                     scene_generation = Some(s.generation);
                     ground = s.ground_height as f32;
-                    place = crate::render::placement(ground);
+                    place = crate::math::placement(ground);
                     matrices[slots.world] = place;
                     matrices[slots.scene] = place;
                     renderer.set_scene(&s.static_boxes)?;
@@ -751,7 +751,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 if last_tick != Some(frame.tick) {
                     last_tick = Some(frame.tick);
                     let b = &f.bridge;
-                    let scale = crate::render::scale_matrix(b.dataset_scale as f32);
+                    let scale = crate::math::scale_matrix(b.dataset_scale as f32);
                     for (i, found) in f.pose_index.iter().enumerate() {
                         matrices[i] = match found {
                             Some(j) => {
@@ -760,14 +760,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 // place * current * rest^-1 * scale: the studio's own skin, with
                                 // the pack scaled to this body's stature on the way in.
                                 let current =
-                                    crate::render::pose_matrix([p[0], p[1], p[2]], [p[3], p[4], p[5], p[6]]);
+                                    crate::math::pose_matrix([p[0], p[1], p[2]], [p[3], p[4], p[5], p[6]]);
                                 let rest_inverse =
-                                    crate::render::inverse_pose([r[0], r[1], r[2]], [r[3], r[4], r[5], r[6]]);
-                                crate::render::multiply(
+                                    crate::math::inverse_pose([r[0], r[1], r[2]], [r[3], r[4], r[5], r[6]]);
+                                crate::math::multiply(
                                     &place,
-                                    &crate::render::multiply(
+                                    &crate::math::multiply(
                                         &current,
-                                        &crate::render::multiply(&rest_inverse, &scale),
+                                        &crate::math::multiply(&rest_inverse, &scale),
                                     ),
                                 )
                             }
@@ -849,7 +849,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let deflection = (stick[0] * stick[0] + stick[1] * stick[1]).sqrt();
         if deflection > DEAD_ZONE {
             let q = views[0].pose.orientation;
-            let mut forward = crate::render::rotate([0.0, 0.0, -1.0], [q.x, q.y, q.z, q.w]);
+            let mut forward = crate::math::rotate([0.0, 0.0, -1.0], [q.x, q.y, q.z, q.w]);
             forward[1] = 0.0;
             let length = (forward[0] * forward[0] + forward[2] * forward[2]).sqrt().max(1e-6);
             forward = [forward[0] / length, 0.0, forward[2] / length];
@@ -901,12 +901,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let show_muscles = overlay("muscleVolumes");
         let show_tissue = overlay("tissue");
         matrices[slots.stage] =
-            crate::render::scale_matrix(if overlay("grid") { 1.0 } else { 0.0 });
+            crate::math::scale_matrix(if overlay("grid") { 1.0 } else { 0.0 });
         // What is drawn: the world's slots through the shift, the hands' slots as they are.
         let mut drawn = matrices.clone();
         for (slot, m) in drawn.iter_mut().enumerate() {
             if !slots.is_hand(slot) {
-                *m = crate::render::multiply(&shift, &matrices[slot]);
+                *m = crate::math::multiply(&shift, &matrices[slot]);
             }
         }
         // The hands: located in the stage like the eyes, drawn as cubes at their grips, and asked
@@ -922,15 +922,15 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     hand_seen[hand] = true;
                     println!("hand {}: tracked", ["left", "right"][hand]);
                 }
-                drawn[slot] = crate::render::multiply(
-                    &crate::render::pose_matrix(position, orientation),
+                drawn[slot] = crate::math::multiply(
+                    &crate::math::pose_matrix(position, orientation),
                     &controller_scale,
                 );
             }
             // Where the aim ray meets the panel, if it does: a mark there, and a candidate for
             // being the pointer.
             let marker = slots.marker(hand);
-            drawn[marker] = crate::render::scale_matrix(0.0);
+            drawn[marker] = crate::math::scale_matrix(0.0);
             let pull = hands.trigger(&session, hand)?;
             let was_down = trigger_down[hand];
             trigger_down[hand] = if was_down { pull > 0.25 } else { pull > 0.6 };
@@ -943,7 +943,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 (
                     view_point.to_world(position),
                     q,
-                    crate::render::rotate([0.0, 0.0, -1.0], q),
+                    crate::math::rotate([0.0, 0.0, -1.0], q),
                 )
             });
             // How far the drawn ray reaches: to the mark where it meets a panel, or to the strip
@@ -982,7 +982,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     if let Some((from, _)) = aimed {
                         reach = Some(distance(from, in_stage));
                     }
-                    crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0])
+                    crate::math::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0])
                 };
                 match aim(&placements, pointing, pressed, busy, &mut press_on[hand]) {
                     Aim::Face { which, at, pressing } => {
@@ -1025,7 +1025,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     orientation,
                     reach.unwrap_or(crate::render::RAY_REACH),
                 ),
-                _ => crate::render::scale_matrix(0.0),
+                _ => crate::math::scale_matrix(0.0),
             };
             let Some(f) = feeds.as_mut() else { continue };
             let squeezing = hands.squeezing(&session, hand)?;
@@ -1043,9 +1043,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                             );
                             hands.pulse(&session, hand, FIRM_TICK);
                             // A hand holding a bone draws no ray, from this frame on.
-                            drawn[slots.ray(hand)] = crate::render::scale_matrix(0.0);
+                            drawn[slots.ray(hand)] = crate::math::scale_matrix(0.0);
                             // The surface is in the stage; the simulation wants the world.
-                            let point = crate::render::unplace(view_point.to_world(surface), ground);
+                            let point = crate::math::unplace(view_point.to_world(surface), ground);
                             holding[hand] = Some(Hold {
                                 pose_bone,
                                 point,
@@ -1062,7 +1062,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 point,
                                 target: point,
                                 strength: 1.0,
-                                rotation: crate::render::unplace_rotation(
+                                rotation: crate::math::unplace_rotation(
                                     view_point.to_world_rotation(hand_q),
                                 ),
                             }
@@ -1075,13 +1075,13 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     // grab, turned by however much the hand has turned since.
                     let (target, rotation) = match at {
                         Some((hand_at, hand_q)) => {
-                            let delta = crate::render::quaternion_multiply(
+                            let delta = crate::math::quaternion_multiply(
                                 hand_q,
-                                crate::render::quaternion_conjugate(hold.hand_q),
+                                crate::math::quaternion_conjugate(hold.hand_q),
                             );
-                            let carried = crate::render::rotate(hold.offset, delta);
+                            let carried = crate::math::rotate(hold.offset, delta);
                             (
-                                crate::render::unplace(
+                                crate::math::unplace(
                                     view_point.to_world([
                                         hand_at[0] + carried[0],
                                         hand_at[1] + carried[1],
@@ -1089,14 +1089,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                     ]),
                                     ground,
                                 ),
-                                crate::render::unplace_rotation(
+                                crate::math::unplace_rotation(
                                     view_point.to_world_rotation(hand_q),
                                 ),
                             )
                         }
                         None => (
                             hold.point,
-                            crate::render::unplace_rotation(
+                            crate::math::unplace_rotation(
                                 view_point.to_world_rotation(hold.hand_q),
                             ),
                         ),
@@ -1203,7 +1203,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let panel_draws: Vec<crate::render::PanelDraw> = back_to_front(&placements, view_point.to_world(head))
             .into_iter()
             .map(|which| crate::render::PanelDraw {
-                model: crate::render::multiply(&shift, &placements[which].model()),
+                model: crate::math::multiply(&shift, &placements[which].model()),
                 meshes: &panel_meshes[which],
             })
             .collect();
@@ -1212,7 +1212,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         swapchain.wait_image(openxr::Duration::INFINITE)?;
         renderer.draw(
             image as usize,
-            &crate::render::view_projections(&views, 0.05, 50.0),
+            &crate::math::view_projections(&views, 0.05, 50.0),
             Some(drawn.as_slice()),
             if muscle_vertices.is_empty() || !show_muscles { None } else { Some(muscle_vertices.as_slice()) },
             if tissue_vertices.is_empty() || !show_tissue { None } else { Some(tissue_vertices.as_slice()) },
@@ -1567,7 +1567,7 @@ impl Viewpoint {
 
     /// A point of the world, where the stage has it.
     fn to_stage(self, p: [f32; 3]) -> [f32; 3] {
-        crate::render::rotate(
+        crate::math::rotate(
             [p[0] - self.offset[0], p[1] - self.offset[1], p[2] - self.offset[2]],
             self.spin(),
         )
@@ -1581,19 +1581,19 @@ impl Viewpoint {
 
     /// A direction of the stage in the world: the turn without the walk.
     fn to_world_direction(self, v: [f32; 3]) -> [f32; 3] {
-        crate::render::rotate(v, crate::render::quaternion_conjugate(self.spin()))
+        crate::math::rotate(v, crate::math::quaternion_conjugate(self.spin()))
     }
 
     /// A rotation of the stage -- a hand's -- in the world.
     fn to_world_rotation(self, q: [f32; 4]) -> [f32; 4] {
-        crate::render::quaternion_multiply(crate::render::quaternion_conjugate(self.spin()), q)
+        crate::math::quaternion_multiply(crate::math::quaternion_conjugate(self.spin()), q)
     }
 
     /// The matrix everything of the world is drawn through.
     fn shift(&self) -> [f32; 16] {
-        crate::render::multiply(
-            &crate::render::pose_matrix([0.0, 0.0, 0.0], self.spin()),
-            &crate::render::translation_matrix([-self.offset[0], -self.offset[1], -self.offset[2]]),
+        crate::math::multiply(
+            &crate::math::pose_matrix([0.0, 0.0, 0.0], self.spin()),
+            &crate::math::translation_matrix([-self.offset[0], -self.offset[1], -self.offset[2]]),
         )
     }
 
@@ -1657,7 +1657,7 @@ fn recentre(
     *view_point = Viewpoint::default();
     // With the viewpoint at its start the world and the stage are one, so the head's pose in the
     // stage is its pose in the world.
-    *placements = home_placements(head, crate::render::rotate([0.0, 0.0, -1.0], head_q));
+    *placements = home_placements(head, crate::math::rotate([0.0, 0.0, -1.0], head_q));
     *carrying = [None, None];
 }
 
@@ -2524,7 +2524,7 @@ mod tests {
         let quarter_right = [0.0, -std::f32::consts::FRAC_1_SQRT_2, 0.0, std::f32::consts::FRAC_1_SQRT_2];
         let head = [1.0, 1.7, 0.0];
         recentre(&mut view_point, &mut placements, &mut carrying, head, quarter_right);
-        let ahead = crate::render::rotate([0.0, 0.0, -1.0], quarter_right);
+        let ahead = crate::math::rotate([0.0, 0.0, -1.0], quarter_right);
         assert!(close(ahead, [1.0, 0.0, 0.0]), "looking along {ahead:?}");
         let centre = placements[0].centre();
         let from_head = [centre[0] - head[0], centre[2] - head[2]];
