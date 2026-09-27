@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 import { execSync, spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 /**
  * Serve the training dashboard: `tools/train/dashboard.html`, and the run files it polls.
  *
@@ -11,7 +20,12 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
  * training run -- the trainer and the showcase, as the terminal would start them -- so the
  * brain panel in a browser tab can do what a terminal does on this machine. The only things it
  * will ever spawn are those two scripts, with numeric arguments checked here, and one run at a
- * time.
+ * time. Their output is relayed here, each line labelled `[train]` or `[showcase]`, and the
+ * trainer's last lines are kept, so the status can say why a run it started stopped. `GET /runs`
+ * lists every run the data directory has a record of, whoever started it, newest first.
+ *
+ * It says which checkout it serves when it starts and in every status: what it trains is that
+ * tree's code, and a dashboard left running in another worktree is easy to forget.
  *
  * Who may ask is decided by `origin.mjs`, at the top of every request. Listening on 127.0.0.1
  * is not what protects it: that keeps other machines out, but a page from anywhere, opened in a
@@ -28,12 +42,53 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
  */
 import { createServer } from 'node:http';
 import { join, normalize, relative } from 'node:path';
+import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { createJiti } from 'jiti';
+import { CHECKPOINT_NAME } from '../src/checkpointName.mjs';
 import { dataHome, runsDir as runsHome, seedFromRepository } from './home.mjs';
 import { corsHeaders, refusal } from './origin.mjs';
 import { SEARCH_DEFAULTS, UI_RUN_DEFAULTS, recipeFrom, resumePreflight } from './recipe.mjs';
 
+// The dashboard relays its children's output to its own, and a terminal that goes away -- a
+// closed pipe, `pnpm train:dashboard | head` -- raises EPIPE on the stream. Unhandled, that takes
+// the server down, and with it the run's supervision. What cannot be printed is not printed.
+process.stdout.on('error', () => {});
+process.stderr.on('error', () => {});
+
+// The recipe module's one-line description, through the same jiti `recipe.mjs` loads it with:
+// that module imports nothing that runs, so the dashboard still starts without MuJoCo.
+const { describeRecipe } = await createJiti(import.meta.url).import(
+  fileURLToPath(new URL('../src/recipe.ts', import.meta.url)),
+);
+
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+/**
+ * Which checkout this server runs from, said when it starts and in every status. A dashboard left
+ * running in one worktree goes on training that worktree's code for a studio opened from another,
+ * and nothing said so: the only symptom was a run that did not do what the code in front of you
+ * says it does. The branch and commit are read once, at start, which is when the code was loaded.
+ */
+const CHECKOUT = (() => {
+  const git = (args) => {
+    try {
+      return execSync(`git ${args}`, {
+        cwd: ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch {
+      // Not a git checkout -- a copied tree, an unpacked release -- or no git: the root still says
+      // where it is.
+      return null;
+    }
+  };
+  return {
+    root: ROOT.replace(/[/\\]+$/, ''),
+    branch: git('rev-parse --abbrev-ref HEAD'),
+    commit: git('rev-parse --short HEAD'),
+  };
+})();
 const PAGE = join(ROOT, 'tools/train/dashboard.html');
 const port = Number(process.argv[2] ?? 5280);
 const BRIDGE = '/dev/shm/bs-humany-pose';
@@ -66,8 +121,16 @@ function listPolicies() {
       // Half-written or not a policy: skipped.
     }
   };
+  // A centre and a record used to be kept beside the policies, and a data directory from then
+  // still has them there. The record is not a policy and is left out. The centre is one, and is
+  // labelled a search centre as the ones in runs/ are -- the studio's name rules read that label,
+  // so it is not offered as a checkpoint called `<name>-centre` -- while its id, under
+  // `policies/`, says where it was left.
   if (existsSync(POLICIES))
-    for (const f of readdirSync(POLICIES)) if (f.endsWith('.json')) read(join(POLICIES, f), '');
+    for (const f of readdirSync(POLICIES)) {
+      if (!f.endsWith('.json') || f.endsWith('-latest.json')) continue;
+      read(join(POLICIES, f), f.endsWith('-centre.json') ? 'search centre' : '');
+    }
   if (existsSync(RUNS))
     for (const f of readdirSync(RUNS)) {
       if (f.endsWith('-centre.json')) read(join(RUNS, f), 'search centre');
@@ -97,19 +160,257 @@ const isPid = (p) => {
  */
 const gone = (child) => child === null || child.exitCode !== null || child.signalCode !== null;
 
+/** A run's file in the runs directory: `<name>-latest.json`, `<name>-centre.json`, ... */
+const runFile = (name, kind) => join(RUNS, `${name}-${kind}.json`);
+
+/** A JSON file, parsed, or null when it is not there or not whole. */
+function readJson(path) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A recipe in one line, from the recipe module the trainer and the studio describe it with. A
+ * record from before recipes were kept, or one in a shape this code no longer reads, is
+ * 'unknown' rather than a line that guesses.
+ */
+function recipeSummary(recipe) {
+  if (recipe === null || typeof recipe !== 'object') return 'unknown';
+  try {
+    return describeRecipe(recipe);
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** The first line of a file, read without reading the rest: a run's history can be long. */
+function firstLine(path) {
+  let fd;
+  try {
+    fd = openSync(path, 'r');
+    const buffer = Buffer.alloc(64 * 1024);
+    const read = readSync(fd, buffer, 0, buffer.length, 0);
+    const text = buffer.toString('utf8', 0, read);
+    const end = text.indexOf('\n');
+    return end < 0 ? (read < buffer.length ? text : null) : text.slice(0, end);
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** `<name>-<started>.jsonl`, the history a trainer appends, by the checkpoint it is for. */
+const LOG_NAME = /^(.+)-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)\.jsonl$/;
+const LATEST_NAME = /^(.+)-latest\.json$/;
+
+/** The last generation a record has written: its last row's, which a resume does not count from 1. */
+const lastGeneration = (latest) => {
+  const series = Array.isArray(latest?.series) ? latest.series : [];
+  const row = series[series.length - 1];
+  return Array.isArray(row) && typeof row[0] === 'number' ? row[0] : 0;
+};
+
+/**
+ * Every run the runs directory has a record or a history of, newest first: what `GET /runs`
+ * answers, and what the page's run picker lists. Any name, not only the server's own run or
+ * `stand`, which was all the page could see, so a run started from a terminal under a name of its
+ * own was invisible here however long it trained.
+ *
+ * A run is known by its record, `<name>-latest.json`, whose stem must be a checkpoint name, and
+ * by its histories, one `<name>-<started>.jsonl` a start. The recipe is the record's; a run with
+ * none -- the record is written after the first generation, so a run that died on start has only
+ * its history -- takes it from its newest history's header line.
+ */
+function listRuns() {
+  if (!existsSync(RUNS)) return [];
+  const runs = new Map();
+  const run = (name) => {
+    let r = runs.get(name);
+    if (!r) {
+      r = { name, latest: null, logs: [] };
+      runs.set(name, r);
+    }
+    return r;
+  };
+  for (const f of readdirSync(RUNS)) {
+    const latestName = LATEST_NAME.exec(f)?.[1];
+    if (latestName !== undefined && CHECKPOINT_NAME.test(latestName)) {
+      const latest = readJson(join(RUNS, f));
+      if (latest) run(latestName).latest = latest;
+      continue;
+    }
+    const log = LOG_NAME.exec(f);
+    if (log && CHECKPOINT_NAME.test(log[1])) {
+      let modified = 0;
+      try {
+        modified = statSync(join(RUNS, f)).mtimeMs;
+      } catch {
+        continue; // Gone between the listing and the look.
+      }
+      run(log[1]).logs.push({ file: f, modified });
+    }
+  }
+  const out = [];
+  for (const r of runs.values()) {
+    // Newest first; the name carries the start time, which sorts as it reads.
+    r.logs.sort((a, b) => (a.file < b.file ? 1 : a.file > b.file ? -1 : 0));
+    const latest = r.latest;
+    let summary = latest?.recipe ? recipeSummary(latest.recipe) : 'unknown';
+    if (!latest?.recipe && r.logs.length > 0) {
+      const line = firstLine(join(RUNS, r.logs[0].file));
+      try {
+        const header = line ? JSON.parse(line) : null;
+        if (header?.kind === 'header') summary = recipeSummary(header.recipe);
+      } catch {
+        // A history with no header -- written before there were headers -- says nothing of it.
+      }
+    }
+    const logged = r.logs.length > 0 ? Math.max(...r.logs.map((l) => l.modified)) : null;
+    out.push({
+      name: r.name,
+      /** Whether it has a progress record yet, which it writes after its first generation. */
+      record: latest !== null,
+      task: latest?.task ?? null,
+      updated: latest?.updated ?? (logged === null ? null : new Date(logged).toISOString()),
+      best: latest?.best ?? null,
+      generation: latest ? lastGeneration(latest) : 0,
+      target: latest?.target ?? null,
+      state: latest?.state ?? null,
+      secondsPerGeneration: latest?.secondsPerGeneration ?? null,
+      startedAt: latest?.startedAt ?? null,
+      recipeSummary: summary,
+      logs: r.logs.map((l) => l.file),
+    });
+  }
+  const at = (r) => (r.updated ? Date.parse(r.updated) || 0 : 0);
+  out.sort((a, b) => at(b) - at(a));
+  return out;
+}
+
+/**
+ * The run whose record was written last, or undefined when no run has one: the same order `GET
+ * /runs` lists them in, so the page's 'follow' and the studio's "Last run of ..." name the same
+ * run. A run with only a history -- one that died before its first generation -- has no progress
+ * to show, and is passed over for the last one that has.
+ */
+const newestRun = () => listRuns().find((r) => r.record)?.name;
+
+/** How many of the trainer's last lines are kept, for the status and for the reason it stopped. */
+const TAIL_LINES = 20;
+/** What a stderr line is marked with in the kept tail, so it can be told from the trainer's news. */
+const STDERR_MARK = 'stderr: ';
+/** The longest a reason is said in: a line for a status, not a stack. */
+const REASON_LENGTH = 200;
+
+/**
+ * Print a child's output as the dashboard's own, a line at a time, each line labelled with whose
+ * it is. The trainer and the showcase used to write straight to this terminal, their lines
+ * interleaved and unlabelled, so a failure in one read as the other's. `keep` is given every line
+ * too, and whether it came from stderr, for the trainer's tail.
+ */
+function relay(child, tag, keep) {
+  const streams = [
+    [child.stdout, process.stdout, false],
+    [child.stderr, process.stderr, true],
+  ];
+  for (const [stream, out, fromStderr] of streams) {
+    if (!stream) continue;
+    createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY }).on('line', (line) => {
+      out.write(`[${tag}] ${line}\n`);
+      keep?.(line, fromStderr);
+    });
+  }
+}
+
+/**
+ * Keep a trainer's last lines, and the lines that would say why it stopped: the trainer's own
+ * sentence (`train-nerves: ...`, which is how it refuses a recipe and how it reports a failed
+ * run), else the message line of an exception it did not catch, else its last word on stderr.
+ * Kept as they come rather than looked for in the tail afterwards, because a failure with a long
+ * cause printed under it would push the sentence out of twenty lines.
+ */
+function keepTrainerLine(run, line, fromStderr) {
+  run.tail.push(fromStderr ? `${STDERR_MARK}${line}` : line);
+  if (run.tail.length > TAIL_LINES) run.tail.shift();
+  if (!fromStderr || line.trim() === '') return;
+  run.lastStderr = line.trim();
+  if (/^train-nerves: /.test(line)) run.said = line.trim();
+  else if (/^(\w*Error\b|FATAL ERROR)/.test(line)) run.thrown = line.trim();
+}
+
+/**
+ * Why the server's trainer is not running, in a line, or null when there is nothing to explain:
+ * it is running, it was asked to stop, or it finished cleanly. A stop somebody asked for ends in
+ * a signal or in 130, and is not an error however it ended.
+ *
+ * This is what makes "the trainer refuses on start and the status says so" true. A recipe the
+ * dashboard cannot check -- a scenario that is not there -- used to start a trainer that refused it
+ * at once, into a terminal nobody was watching, while the studio said "Not training".
+ */
+function stopReason(run) {
+  if (!gone(run.trainer) || run.stopRequested) return null;
+  const { exitCode, signalCode } = run.trainer;
+  if (exitCode === 0) return null;
+  // A signal nobody here sent -- `kill -9`, the out-of-memory killer -- is itself the reason:
+  // whatever the trainer last wrote to stderr was written before it, and is not why it went.
+  const reason =
+    run.said ??
+    run.thrown ??
+    (signalCode
+      ? `was killed by ${signalCode}`
+      : (run.lastStderr ?? `exited with code ${exitCode}`));
+  return reason.length > REASON_LENGTH ? `${reason.slice(0, REASON_LENGTH - 1)}…` : reason;
+}
+
+/**
+ * The progress record `GET /train/status` passes on, with what the page and the studio need to
+ * say how far along a run is: its last generation, the one it means to stop at, its pace, what it
+ * last said of itself, and its recipe in a line. A record from before these were kept sends
+ * nulls, and the readers say the plain generation, as they did.
+ */
+function latestProjection(name, latest) {
+  const generation = lastGeneration(latest);
+  return {
+    name: latest.name ?? name,
+    updated: latest.updated,
+    episodes: latest.episodes,
+    best: latest.best,
+    profile: latest.profile ?? null,
+    generation,
+    // What this field has always been called, now the last generation rather than the number of
+    // rows -- which, for a run resumed at 500, read 1 at generation 501.
+    generations: generation,
+    series: (latest.series ?? []).slice(-200),
+    target: latest.target ?? null,
+    secondsPerGeneration: latest.secondsPerGeneration ?? null,
+    state: latest.state ?? null,
+    startedAt: latest.startedAt ?? null,
+    recipeSummary: recipeSummary(latest.recipe),
+  };
+}
+
 function trainStatus() {
   const running = training !== null && !gone(training.trainer);
   // The showcase plays the run on the bridge and outlives the trainer, so it is said
   // separately: while it is up there is still something for Stop to stop. `null` means it has
   // been asked for and not yet spawned, which counts as up.
   const showcase = training !== null && (training.showcase === null || !gone(training.showcase));
-  let latest = null;
-  try {
-    latest = JSON.parse(
-      readFileSync(join(RUNS, `${training?.name ?? 'stand'}-latest.json`), 'utf8'),
-    );
-  } catch {
-    // No run has written yet.
+  const error = training ? stopReason(training) : null;
+  // Whose record to show: this server's run while there is anything of it to say -- it is going,
+  // its showcase is, or it stopped with an error -- and otherwise whichever run wrote last, which
+  // is a run started from a terminal as readily as one of this server's. This used to read
+  // `stand` whenever the server had started nothing, whatever had actually been training.
+  const ours = training !== null && (running || showcase || error !== null);
+  const name = ours ? training.name : newestRun();
+  let latest = name ? readJson(runFile(name, 'latest')) : null;
+  // A record from before this run started is the last run's under the same name, not this one's:
+  // shown as this run's, a run that died on start looked as if it had trained for hours.
+  if (ours && latest && !(Date.parse(latest.startedAt ?? '') >= Date.parse(training.startedAt))) {
+    latest = null;
   }
   return {
     running,
@@ -123,16 +424,10 @@ function trainStatus() {
       training && !running
         ? (training.trainer.exitCode ?? training.trainer.signalCode ?? null)
         : null,
-    latest: latest
-      ? {
-          updated: latest.updated,
-          episodes: latest.episodes,
-          best: latest.best,
-          profile: latest.profile ?? null,
-          generations: latest.series?.length ?? 0,
-          series: (latest.series ?? []).slice(-200),
-        }
-      : null,
+    error,
+    tail: training ? [...training.tail] : [],
+    checkout: CHECKOUT,
+    latest: latest && name ? latestProjection(name, latest) : null,
   };
 }
 const number = (v, fallback, lo, hi) => {
@@ -217,9 +512,13 @@ function trainStart(body) {
     String(number(body.seeds, SEARCH_DEFAULTS.seeds, 1, 16)),
   ];
   if (body.resume) args.push('--resume');
+  // Piped rather than inherited, so every line is labelled with whose it is and the trainer's last
+  // lines are kept for the status. The trainer ignores a closed pipe (EPIPE) rather than dying of
+  // it, so a dashboard stopped mid-run does not take the centre of the generation in progress
+  // with it.
   const trainer = spawn(process.execPath, args, {
     cwd: ROOT,
-    stdio: ['ignore', 'inherit', 'inherit'],
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
   // The old showcase has to be gone before the new one starts, not merely asked to go: the two
   // publish to one bridge, and the new one's first act is to wipe the files the old one is still
@@ -227,11 +526,15 @@ function trainStart(body) {
   // new one refuses to start.
   const previous = training?.showcase;
   if (previous && !gone(previous)) previous.kill('SIGINT');
-  const showcase = () =>
-    spawn(process.execPath, [join(ROOT, 'tools/train/bin/showcase.mjs'), '--recipe', recipePath], {
-      cwd: ROOT,
-      stdio: ['ignore', 'inherit', 'inherit'],
-    });
+  const showcase = () => {
+    const child = spawn(
+      process.execPath,
+      [join(ROOT, 'tools/train/bin/showcase.mjs'), '--recipe', recipePath],
+      { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    relay(child, 'showcase');
+    return child;
+  };
   const started =
     previous && !gone(previous)
       ? new Promise((resolve) => {
@@ -244,8 +547,23 @@ function trainStart(body) {
           }, 3000).unref?.();
         })
       : Promise.resolve(showcase());
-  training = { task, name, recipe, trainer, showcase: null, startedAt: new Date().toISOString() };
+  training = {
+    task,
+    name,
+    recipe,
+    trainer,
+    showcase: null,
+    startedAt: new Date().toISOString(),
+    /** Set by Stop, so a run somebody stopped is not reported as one that failed. */
+    stopRequested: false,
+    /** The trainer's last lines, stderr marked, and the ones that would say why it stopped. */
+    tail: [],
+    said: undefined,
+    thrown: undefined,
+    lastStderr: undefined,
+  };
   const mine = training;
+  relay(trainer, 'train', (line, fromStderr) => keepTrainerLine(mine, line, fromStderr));
   void started.then((child) => {
     // A run stopped while its showcase was still starting does not want it after all.
     if (training !== mine) {
@@ -254,13 +572,13 @@ function trainStart(body) {
     }
     mine.showcase = child;
   });
-  trainer.on('exit', () => {
-    // The showcase keeps the last policy on the bridge; the studio can go on watching it.
-  });
   return { started: true, task, name, recipe, clamped, recipeChanges, args: args.slice(1) };
 }
 function trainStop() {
   if (!training) return { stopped: false };
+  // Before any signal: however the trainer then ends -- 130 from the second interrupt, SIGKILL
+  // from the third -- it ended because it was asked to, and the status says no error.
+  training.stopRequested = true;
   // SIGINT, so the trainer saves its centre and record on the way out. The showcase is stopped
   // whether or not the trainer is still up: it is what keeps publishing, and what a studio that
   // is following the bridge is following.
@@ -383,15 +701,22 @@ function serve(request, response) {
   // live in the data directory now, not under the repository. This used to serve them from
   // `tools/train/runs`, which after the move held only what was there before it: a live run
   // 404ed, and a run whose name matched an old one served a picture of a brain from weeks ago.
+  //
+  // `/runs` itself is the list of them, asked before the files so the one path cannot be read as
+  // the other. A run's history, `<name>-<started>.jsonl`, is served beside its other files, as
+  // newline-delimited JSON: the list names them, and a history read a month later says what
+  // produced it in its first line.
+  if (url.pathname === '/runs') return json(200, listRuns());
   if (url.pathname.startsWith('/runs/')) {
     const name = normalize(url.pathname.slice('/runs/'.length)).replace(/^[/.]+/, '');
     const full = join(RUNS, name);
-    if (!full.startsWith(RUNS) || !name.endsWith('.json') || !existsSync(full)) {
+    const history = name.endsWith('.jsonl');
+    if (!full.startsWith(RUNS) || !(history || name.endsWith('.json')) || !existsSync(full)) {
       response.writeHead(404, cors).end('not here');
       return;
     }
     response.writeHead(200, {
-      'content-type': 'application/json',
+      'content-type': history ? 'application/x-ndjson' : 'application/json',
       'cache-control': 'no-store',
       ...cors,
     });
@@ -413,7 +738,7 @@ function serve(request, response) {
   response.writeHead(404, cors).end('not here');
 }
 
-createServer((request, response) => {
+const server = createServer((request, response) => {
   try {
     serve(request, response);
   } catch (e) {
@@ -428,4 +753,20 @@ createServer((request, response) => {
         })
         .end(JSON.stringify({ error: String(e) }));
   }
-}).listen(port, '127.0.0.1', () => console.log(`dashboard: http://localhost:${port}/`));
+});
+// A second dashboard -- from another worktree, most often -- used to die here with a stack trace
+// about EADDRINUSE, and the one already listening went on serving the other checkout's code to a
+// studio that thought it was talking to this one. Said in one line, with the two ways out.
+server.on('error', (e) => {
+  if (e?.code !== 'EADDRINUSE') throw e;
+  console.error(
+    `port ${port} is taken, probably by a dashboard from another checkout ` +
+      `(see http://localhost:${port}/train/status); stop it, or pass a port: ` +
+      `pnpm train:dashboard ${port + 1}`,
+  );
+  process.exit(1);
+});
+server.listen(port, '127.0.0.1', () => {
+  const at = CHECKOUT.branch || CHECKOUT.commit ? ` (${CHECKOUT.branch}@${CHECKOUT.commit})` : '';
+  console.log(`dashboard: http://localhost:${port}/ -- serving ${CHECKOUT.root}${at}`);
+});
