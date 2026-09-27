@@ -16,15 +16,9 @@
  * read as open.
  */
 
+import { type Quat, conjugate, multiplyQuat } from '@bs-humany/frames';
 import type { GrabIntent } from '@bs-humany/pose-bridge/codec';
 import type { Simulation } from './simulation.js';
-
-interface Quat {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-  readonly w: number;
-}
 
 export interface Held {
   readonly segment: number;
@@ -33,14 +27,6 @@ export interface Held {
   readonly handAtGrab: Quat;
   readonly segmentAtGrab: Quat;
 }
-
-const qmul = (a: Quat, b: Quat): Quat => ({
-  x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
-  y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
-  z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
-  w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
-});
-const qconj = (q: Quat): Quat => ({ x: -q.x, y: -q.y, z: -q.z, w: q.w });
 
 /**
  * How long the viewer's write count may stand still before its hands are read as open. A viewer
@@ -152,8 +138,12 @@ export class GrabIntents {
           const [tx, ty, tz] = intent.target;
           const [hx, hy, hz, hw] = intent.rotation;
           // target orientation = hand_now * conj(hand_at_grab) * segment_at_grab
-          const delta = qmul({ x: hx, y: hy, z: hz, w: hw }, qconj(holding.handAtGrab));
-          simulation.grab.moveTo({ x: tx, y: ty, z: tz }, hand, qmul(delta, holding.segmentAtGrab));
+          const delta = multiplyQuat({ x: hx, y: hy, z: hz, w: hw }, conjugate(holding.handAtGrab));
+          simulation.grab.moveTo(
+            { x: tx, y: ty, z: tz },
+            hand,
+            multiplyQuat(delta, holding.segmentAtGrab),
+          );
         }
       } else if (holding !== null) {
         simulation.grab.release(hand);

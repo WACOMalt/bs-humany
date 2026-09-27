@@ -162,6 +162,13 @@ export function tissueTable(model: CompiledArticulation): TissueTable {
 }
 
 // --- Meshes ------------------------------------------------------------------------------------
+//
+// These shapes are the ones the overlay draws on screen with three.js (`overlays.ts` builds its
+// disc and bead from the same radii, sides and rings), written out for the export, and the headset
+// builds them again in `apps/xr-viewer/src/tissue.rs`. The three must change together: a disc
+// given more sides here and not there is a joint that looks one way in the studio, another in the
+// room and a third in Blender. They stay private copies, with their own small vector helpers
+// below, because the Rust one cannot import these and a shared module would hide that mirror.
 
 export interface TissueMesh {
   readonly positions: Float32Array;
