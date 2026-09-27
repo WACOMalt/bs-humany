@@ -43,6 +43,13 @@ import {
 } from './training/recipe.js';
 import { shippedCheckpoint, shippedCheckpoints, trainedBefore } from './training/shipped.js';
 import {
+  type TrainingStatus,
+  activitySource,
+  progressPhrase,
+  runLabel,
+  trainingStatusLine,
+} from './training/statusLine.js';
+import {
   createCheckpointStore,
   holdsFilesOnDisk,
   listLocalCheckpoints,
@@ -55,8 +62,9 @@ export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
 export type TrainingRecipe = NonNullable<PolicyFile['recipe']>;
 
 /**
- * The showcase's brain, as it writes it ten times a second to
- * `tools/train/runs/<name>-activity.json`: one array a layer, senses first, drives last.
+ * The showcase's brain, as it writes it ten times a second to `<data>/runs/<name>-activity.json`
+ * -- the data directory `pnpm train:where` prints -- and the dashboard serves at
+ * `/runs/<name>-activity.json`: one array a layer, senses first, drives last.
  */
 export interface RemoteActivity {
   readonly name: string;
@@ -83,6 +91,14 @@ export interface CheckpointRow {
     readonly fitness: number;
     readonly episodes: number;
     readonly at: string;
+    /**
+     * The generation `fitness` was scored at. A search centre is saved every generation and
+     * scored only every few, so its fitness can be from a few generations back; a record is
+     * scored where it is saved. Absent from files written before the trainer said so.
+     */
+    readonly scoredAt?: number;
+    /** The population's mean in the generation it was saved at, which is nobody's score. */
+    readonly populationMean?: number;
   } | null;
   readonly recipe?: TrainingRecipe | null;
   /**
@@ -99,30 +115,11 @@ export interface CheckpointRow {
   readonly trainedBefore?: string;
 }
 
-export interface TrainingStatus {
-  readonly running: boolean;
-  /** Whether the showcase that plays the run is still up; it outlives the trainer. */
-  readonly showcase?: boolean;
-  /** Whether a trainer someone started in a terminal is up, which this server cannot stop. */
-  readonly elsewhere?: boolean;
-  readonly startedAt: string | null;
-  readonly task: string | null;
-  /** The checkpoint being trained, when the server started it. */
-  readonly name?: string | null;
-  readonly exit: number | null;
-  readonly latest: {
-    readonly updated: string;
-    readonly episodes: number;
-    readonly best: {
-      readonly fitness: number;
-      readonly alive: number;
-      readonly generation: number;
-    };
-    readonly profile: string | null;
-    readonly generations: number;
-    readonly series: readonly (readonly [number, number, number, number])[];
-  } | null;
-}
+/**
+ * The dashboard's `GET /train/status`, defined beside the line that is written from it.
+ * @see trainingStatusLine
+ */
+export type { TrainingStatus } from './training/statusLine.js';
 
 /**
  * What became of a handover: in the running body now, waiting for the next run because none is
@@ -173,6 +170,12 @@ export interface BrainHost {
   controlDivisor(): number;
   /** Whether the run is currently following the bridge rather than its own. */
   following(): boolean;
+  /**
+   * Whether anybody can see the showcase's brain now, which is what the ten-hertz activity poll
+   * is for. Optional: a host that does not say is asked for nothing, and the panel looks for
+   * itself -- the Activity canvas in a panel that is not hidden, in a page that is not.
+   */
+  watchingBrain?(): boolean;
   /**
    * Set the cord's reflex gains on the running body. Optional: a host with no muscles has no
    * cord to set, and the panel is drawn either way.
@@ -296,6 +299,27 @@ export interface BrainPanel {
   };
 }
 
+/**
+ * How far a checkpoint was trained and what it scored, said so the number means what it says.
+ *
+ * A search centre is saved every generation and scored every few, so the fitness in its file is
+ * often from a few generations before the one it was saved at: `gen 579, scored 3.94 at gen 575`.
+ * And before the trainer scored the centre at all, it wrote the population's mean into a centre's
+ * file as its fitness, which is the score of nobody -- an old centre that says nothing of when it
+ * was scored is called what its number is.
+ */
+function trainedPhrase(name: string, t: NonNullable<CheckpointRow['trained']>): string {
+  const fitness = typeof t.fitness === 'number' && Number.isFinite(t.fitness) ? t.fitness : null;
+  if (fitness === null) return `gen ${t.generations}, not scored yet`;
+  if (t.scoredAt !== undefined && t.scoredAt !== t.generations) {
+    return `gen ${t.generations}, scored ${fitness.toFixed(2)} at gen ${t.scoredAt}`;
+  }
+  if (t.scoredAt === undefined && /\(search centre[,)]/.test(name)) {
+    return `gen ${t.generations}, population mean ${fitness.toFixed(2)}`;
+  }
+  return `gen ${t.generations}, fitness ${fitness.toFixed(2)}`;
+}
+
 const must = <T extends Element>(selector: string): T => {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`Missing element: ${selector}`);
@@ -362,8 +386,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    */
   let probeDelayMs = 0;
   let nextProbeAt = 0;
-  /** The checkpoint the server is training, for the run files' names. */
+  /** The checkpoint the server is training, or trained last: what a Start's note is about. */
   let trainingName: string | undefined;
+  /** The server's run while its trainer or its showcase is up: whose brain file to read. */
+  let serverRun: string | undefined;
   /** The checkpoint whoever is on the bridge is playing, when it is not this server's run. */
   let publishedName: string | undefined;
   let activity: RemoteActivity | undefined;
@@ -533,7 +559,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           ? ` (shipped; trained before ${row.trainedBefore})`
           : ' (shipped)';
     return t
-      ? `${row.name} — ${row.task}, ${where}${scene}, gen ${t.generations}, fitness ${t.fitness.toFixed(2)}${shipped}`
+      ? `${row.name} — ${row.task}, ${where}${scene}, ${trainedPhrase(row.name, t)}${shipped}`
       : `${row.name} — ${row.task}, ${where}${scene}${shipped}`;
   };
 
@@ -917,7 +943,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
 
   const showStatus = (status: TrainingStatus | undefined) => {
     trainingRunning = status?.running === true;
+    // The dashboard keeps the last run's name after the run ends, so the status line can name the
+    // record it shows. That name is what a Start's note is about; it is not whose brain is on the
+    // bridge once the run has ended -- `serverRun` is that, and only while there is one.
     trainingName = status?.name ?? undefined;
+    serverRun = activitySource(status, undefined);
     // The showcase that plays the run keeps publishing after the trainer has gone, and the studio
     // goes on following it, so Stop stays offered while there is anything left to stop.
     trainingStoppable = trainingRunning || status?.showcase === true;
@@ -941,7 +971,6 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       ui.chart.hidden = true;
       return;
     }
-    const latest = status.latest;
     // A refusal is news about the button just pressed; the run's own status is not, and must
     // not paint over it.
     if (refusal) {
@@ -949,18 +978,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       drawChart(status);
       return;
     }
-    const record = latest?.best
-      ? `record ${latest.best.fitness.toFixed(2)} (${latest.best.alive.toFixed(2)} s up) at generation ${latest.best.generation}`
-      : 'no record yet';
-    const line = status.elsewhere
-      ? 'A trainer started from a terminal is running; stop it there.'
-      : status.running
-        ? `Training ${status.task}: generation ${latest?.generations ?? 0}, ${record}.`
-        : status.showcase
-          ? `Not training; the showcase is still playing the run. ${record}.`
-          : latest
-            ? `Not training. Last run: generation ${latest.generations}, ${record}.`
-            : 'Not training.';
+    // Said first when the trainer stopped by itself with an error, here and so on the headset,
+    // whose training line is this one: a run that died on start used to leave "Not training.
+    // Last run: ..." about some earlier run, and the reason in a terminal nobody was watching.
+    const line = trainingStatusLine(status);
     const about = startNote !== '' && trainingName !== undefined && trainingName === startNoteFor;
     ui.status.textContent = about ? `${line} ${startNote}` : line;
     drawChart(status);
@@ -1108,7 +1129,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           Number(report.topAlive.toFixed(3)),
         ]);
         localStatus =
-          `Training ${recipe.task} here: generation ${report.generation}, ` +
+          // How far along, and about how long is left, as the terminal and the dashboard say it.
+          `Training ${runLabel(recipe.name, recipe.task)} here: ` +
+          `${progressPhrase({ ...report, state: 'running' })}, ` +
           `mean ${report.mean.toFixed(3)}, top ${report.top.toFixed(3)} ` +
           `(${report.topAlive.toFixed(2)} s up)${report.note}`;
         // Once Stop has been asked for, say so and keep saying it. A generation takes seconds
@@ -1167,19 +1190,45 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    *
    * Its own poll rather than the status one's: the status is a second or three apart, which is a
    * slideshow, and the activity file is small and rewritten at ten hertz. Which checkpoint's file
-   * to read comes from the server when it started the run, and otherwise from the name the
-   * showcase puts in the bridge status, so a run started in a terminal is watched too.
+   * to read comes from the server while its run is up, and otherwise from the name the showcase
+   * puts in the bridge status, so a run started in a terminal is watched too.
+   *
+   * Only while somebody can see it. This used to run from the moment the page opened for as long
+   * as it stayed open -- ten requests a second, whichever tab was showing, for a canvas on one of
+   * them -- and went on reading a finished run's file, because the dashboard keeps the last run's
+   * name.
    */
   /** A showcase that has stopped leaves its last file behind; this long unchanged is gone. */
   const ACTIVITY_STALE_MS = 3000;
+  /**
+   * How long to wait before looking again when there is nothing live to draw: a file that is
+   * missing or has stopped changing, and no server run about to write one. A showcase started from
+   * a terminal is still found within a second; nothing is asked ten times a second to learn that.
+   */
+  const ACTIVITY_IDLE_MS = 1000;
   let activityInFlight = false;
+  let nextActivityAt = 0;
+  /**
+   * Whether the brain is on screen: the host's answer when it gives one, else the Activity canvas
+   * in a tab that is open, in a section that is not folded away, in a page that is not hidden.
+   * Looked up each time rather than once, because the tabs are the host's to rearrange.
+   */
+  const watchingBrain = (): boolean => {
+    if (document.visibilityState === 'hidden') return false;
+    const asked = host.watchingBrain?.();
+    if (asked !== undefined) return asked;
+    const canvas = document.querySelector('#nerves-activity');
+    if (!canvas) return false;
+    const panel = canvas.closest<HTMLElement>('[data-panel]');
+    return panel?.hidden !== true && canvas.closest('details:not([open])') === null;
+  };
   const pollActivity = async (): Promise<void> => {
-    const name = trainingName ?? publishedName ?? host.publishedTrainingName();
-    if (!serverUp || !name) {
+    const name = serverRun ?? publishedName ?? host.publishedTrainingName();
+    if (!serverUp || !name || !watchingBrain()) {
       activity = undefined;
       return;
     }
-    if (activityInFlight) return;
+    if (activityInFlight || performance.now() < nextActivityAt) return;
     activityInFlight = true;
     try {
       const response = await fetch(`${dashboard}/runs/${encodeURIComponent(name)}-activity.json`, {
@@ -1204,6 +1253,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       activity = undefined;
     } finally {
       activityInFlight = false;
+      // A server run that is up is writing, or about to; anything else is asked again in a second
+      // rather than a tenth of one.
+      nextActivityAt =
+        activity === undefined && serverRun === undefined
+          ? performance.now() + ACTIVITY_IDLE_MS
+          : 0;
     }
   };
   window.setInterval(() => void pollActivity(), 100);
@@ -1333,7 +1388,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       showStatus(status);
       // Who is on the bridge, when this server is not the one training: the showcase names the
       // checkpoint it is playing, and that is the run file to read the brain from.
-      if (!trainingName) {
+      if (!serverRun) {
         try {
           const bridge = await fetch(`${dashboard}/bridge/status`, { cache: 'no-store' });
           const played = bridge.ok
