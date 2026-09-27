@@ -109,7 +109,9 @@ const SUPINATED = {
  *
  * `offset` is the reference's coordinate at our zero, so a sample at our angle `a` is taken at
  * the reference's `a + offset`; every row states it, zero included, so the pose is read off the
- * row rather than assumed. `hold` is the rest of the pose on each side. `muscles` names the
+ * row rather than assumed. `sign` is -1 where the reference counts the coordinate the other way
+ * round: the sample is taken at its `-a + offset`, and its moment arms are turned to our sign
+ * before they are compared. `hold` is the rest of the pose on each side. `muscles` names the
  * muscle-data sets our side is compiled from, and `tendons` the reference's, mapped to our units;
  * a unit is compared only where both models say it crosses the coordinate.
  */
@@ -163,7 +165,12 @@ const ROWS = [
     ourJoint: 'wrist_r',
     ourDof: 'ulnar_deviation',
     refJoint: 'deviation_r',
-    range: { from: -10, to: 25, step: 5 },
+    // Over our range, which is the source's with its sign turned: the source's `deviation_r` is
+    // positive toward the thumb (joints.ts says how that was settled), ours toward the little
+    // finger. Taken with the same sign, all four wrist muscles pulled the other way from the
+    // reference at every angle, which is what first showed it.
+    range: { from: -25, to: 10, step: 5 },
+    sign: -1,
     offset: 0,
     hold: SUPINATED,
     pose: 'elbow straight, forearm supinated',
@@ -278,6 +285,27 @@ const RECORDED = [
       0.0105,
       'OQ-015',
       'An extensor in both, at under half the reference’s arm, and falling to 1 mm at full extension where the reference’s is largest (18 mm).',
+    ],
+    [
+      'Wrist ulnar deviation',
+      'flexor_carpi_radialis_r',
+      0.0315,
+      'OQ-015',
+      'A radial deviator in both once the two models’ signs agree, but ours levers 28 to 41 mm where the reference’s levers 3 to 6. First compared on 2026-09-27, when the deviation convention was settled.',
+    ],
+    [
+      'Wrist ulnar deviation',
+      'extensor_carpi_radialis_longus_r',
+      0.0125,
+      'OQ-015',
+      'A radial deviator in both, at about half the reference’s arm: 10 to 13 mm against 23 to 24.',
+    ],
+    [
+      'Wrist ulnar deviation',
+      'extensor_carpi_radialis_brevis_r',
+      0.006,
+      'OQ-015',
+      'A radial deviator in both, and flatter than the reference’s: 9.4 to 9.9 mm against 13 to 16.',
     ],
     [
       'Hip flexion',
@@ -587,16 +615,6 @@ const AWAITING_THE_OWNER = [
     'extensor_carpi_radialis_longus_r',
     'An extensor in both, but ours touches +0.3 mm at -40 degrees, so it changes sign by the letter of spec 13.2; under half the reference’s arm throughout.',
   ],
-  ...[
-    'flexor_carpi_radialis_r',
-    'flexor_carpi_ulnaris_r',
-    'extensor_carpi_radialis_longus_r',
-    'extensor_carpi_radialis_brevis_r',
-  ].map((unit) => [
-    'Wrist ulnar deviation',
-    unit,
-    'Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.',
-  ]),
   [
     'Hip flexion',
     'gluteus_medius_posterior_r',
@@ -724,10 +742,11 @@ for (const row of ROWS) {
 
   const reference = loadReference(mujoco, row.model, Object.keys(row.tendons));
   const referenceArms = new Map(Object.keys(row.tendons).map((tendon) => [tendon, []]));
+  const sign = row.sign ?? 1;
   for (const angle of angles) {
-    const arms = reference.momentArms(row.refJoint, angle + row.offset, row.hold.reference);
+    const arms = reference.momentArms(row.refJoint, sign * angle + row.offset, row.hold.reference);
     for (const tendon of Object.keys(row.tendons)) {
-      referenceArms.get(tendon).push(arms.get(tendon) ?? Number.NaN);
+      referenceArms.get(tendon).push(sign * (arms.get(tendon) ?? Number.NaN));
     }
   }
   reference.dispose();
@@ -859,7 +878,7 @@ function poseLine(row) {
     ...row.hold.ours.map((h) => `\`${h.jointId}\` ${h.axisName} ${signed(h.value)}`),
   ];
   const theirs = [
-    `\`${row.refJoint}\` at ours ${row.offset === 0 ? '+ 0°' : `${row.offset < 0 ? '-' : '+'} ${signed(Math.abs(row.offset))}`}`,
+    `\`${row.refJoint}\` at ${(row.sign ?? 1) < 0 ? 'minus ours, its moment arms turned to our sign,' : 'ours'} ${row.offset === 0 ? '+ 0°' : `${row.offset < 0 ? '-' : '+'} ${signed(Math.abs(row.offset))}`}`,
     ...Object.entries(row.hold.reference).map(([joint, value]) => `\`${joint}\` ${signed(value)}`),
   ];
   return (

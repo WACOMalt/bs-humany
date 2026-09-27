@@ -81,7 +81,7 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_r/internal_rotation | [-1.571, 2.094] | [-1.571, 2.094] | as stated |
 | ok | elbow_r/flexion | [0, 2.269] | [0, 2.269] | as stated |
 | ok | wrist_r/flexion | [-0.785398, 0.785398] | [-0.785398, 0.785398] | as stated |
-| ok | wrist_r/ulnar_deviation | [-0.174533, 0.436332] | [-0.174533, 0.436332] | as stated |
+| ok | wrist_r/ulnar_deviation | [-0.436332, 0.174533] | [-0.174533, 0.436332] | flexion-positive |
 | ok | hip_l/flexion | [-0.523599, 2.0944] | [-0.523599, 2.0944] | as stated |
 | ok | hip_l/adduction | [-0.872665, 0.523599] | [-0.872665, 0.523599] | as stated |
 | ok | hip_l/internal_rotation | [-0.698132, 0.698132] | [-0.698132, 0.698132] | as stated |
@@ -96,7 +96,7 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_l/internal_rotation | [-1.571, 2.094] | [-1.571, 2.094] | as stated |
 | ok | elbow_l/flexion | [0, 2.269] | [0, 2.269] | as stated |
 | ok | wrist_l/flexion | [-0.785398, 0.785398] | [-0.785398, 0.785398] | as stated |
-| ok | wrist_l/ulnar_deviation | [-0.174533, 0.436332] | [-0.174533, 0.436332] | as stated |
+| ok | wrist_l/ulnar_deviation | [-0.436332, 0.174533] | [-0.174533, 0.436332] | flexion-positive |
 | ok | acromioclavicular_r/unrotate_clavicle_elevation | [-0.318, 0] | [-0.318, 0] | as stated |
 | ok | acromioclavicular_r/unrotate_clavicle_protraction | [0, 0.75] | [0, 0.75] | as stated |
 | ok | acromioclavicular_r/protraction | [-0.152, 0] | [-0.152, 0] | as stated |

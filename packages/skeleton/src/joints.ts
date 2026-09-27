@@ -372,12 +372,22 @@ function limbJoints(s: Side): JointSpec[] {
         {
           axis: 'ulnar_deviation',
           vector: [1, 0, 0],
-          range: [-0.174533, 0.436332],
-          romSource: myo(ARM, 'deviation_r'),
+          // The source's interval with its sign turned, because the two count deviation opposite
+          // ways. Ours is ulnar deviation, positive toward the little finger: turned +0.3 rad the
+          // third finger's base moves 34 mm toward the ulna. The source's `deviation_r` is the
+          // other way: turned +0.3 rad, palm forward or thumb up, its third finger's base moves
+          // 23 mm toward the thumb. Its -0.174533..0.436332 is therefore ten degrees of ulnar and
+          // twenty-five of radial deviation, and read as stated it gave this joint the mirror
+          // image. validate-moment-arms compares the two with the sign turned.
+          range: [-0.436332, 0.174533],
+          romSource: myo(ARM, 'deviation_r (sign turned: positive is radial there)'),
         },
       ],
       limitations: [
         'Radiocarpal and midcarpal motion are lumped into one joint between radius and capitate.',
+        'The deviation range is the source’s, 25 degrees radial and 10 ulnar. A living wrist ' +
+          'deviates further toward the ulna than toward the thumb, so the source’s interval may ' +
+          'itself be turned; it is kept as the source states it until a cited wrist range replaces it.',
         'The source arm model is right-sided only; the left mirrors it.',
       ],
     },

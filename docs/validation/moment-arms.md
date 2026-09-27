@@ -5,7 +5,7 @@ with the change that moved it.
 
 7 coordinates swept, each against the vendored MyoSuite model at commit `eb327acbae` loaded into MuJoCo and measured the same way, in the pose each section names. Both sides are computed here: nothing is transcribed, and no value from the reference reaches the model (ADR-009). The shoulder is not swept until the glenohumeral coordinates are mapped, and the trunk's tendons not until the arm and torso chains are joined.
 
-Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 12 sign change(s) awaiting the owner, 0 to investigate, 45 recorded.
+Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 8 sign change(s) awaiting the owner, 0 to investigate, 48 recorded.
 
 The sign changes awaiting the owner were found when their rows were first swept. Each is a hard failure by muscle spec 13.2 and none is excused by a bound; they are listed in `AWAITING_THE_OWNER` so the gate could go in for every other muscle in their rows, and a sign change not on that list fails `--check`:
 
@@ -13,10 +13,6 @@ The sign changes awaiting the owner were found when their rows were first swept.
 - Wrist flexion / flexor_carpi_radialis_r
 - Wrist flexion / flexor_carpi_ulnaris_r
 - Wrist flexion / extensor_carpi_radialis_longus_r
-- Wrist ulnar deviation / flexor_carpi_radialis_r
-- Wrist ulnar deviation / flexor_carpi_ulnaris_r
-- Wrist ulnar deviation / extensor_carpi_radialis_longus_r
-- Wrist ulnar deviation / extensor_carpi_radialis_brevis_r
 - Hip flexion / gluteus_medius_posterior_r
 - Hip flexion / piriformis_r
 - Hip flexion / tensor_fasciae_latae_r
@@ -188,47 +184,47 @@ Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinat
 
 ## Wrist ulnar deviation
 
-Swept from -10 to 25 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
+Swept from -25 to 10 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at minus ours, its moment arms turned to our sign, + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| flexor_carpi_radialis_r | -36.5 at -10° | 5.6 at 25° | 33.2 | 39.6 at -10° | sign change, awaiting the owner |
-| flexor_carpi_ulnaris_r | 17.9 at 25° | -11.5 at -10° | 24.8 | 25.7 at 25° | sign change, awaiting the owner |
-| extensor_carpi_radialis_longus_r | -13.0 at 10° | 24.3 at 15° | 36.4 | 37.3 at 15° | sign change, awaiting the owner |
-| extensor_carpi_radialis_brevis_r | -9.9 at -10° | 16.3 at 25° | 24.2 | 24.8 at 20° | sign change, awaiting the owner |
+| flexor_carpi_radialis_r | -41.4 at -25° | -5.6 at -25° | 30.7 | 35.8 at -25° | recorded (OQ-015) |
+| flexor_carpi_ulnaris_r | 15.6 at 10° | 11.5 at 10° | 2.6 | 4.1 at 10° | ok |
+| extensor_carpi_radialis_longus_r | -13.0 at 10° | -24.3 at -15° | 11.7 | 13.4 at -25° | recorded (OQ-015) |
+| extensor_carpi_radialis_brevis_r | -9.9 at -10° | -16.3 at -25° | 5.2 | 6.9 at -25° | recorded (OQ-015) |
 
 ### Notes
 
-- **flexor_carpi_radialis_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
-- **flexor_carpi_ulnaris_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
-- **extensor_carpi_radialis_longus_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
-- **extensor_carpi_radialis_brevis_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
+- **flexor_carpi_radialis_r** — A radial deviator in both once the two models’ signs agree, but ours levers 28 to 41 mm where the reference’s levers 3 to 6. First compared on 2026-09-27, when the deviation convention was settled.
+- **flexor_carpi_ulnaris_r** — within tolerance of the reference
+- **extensor_carpi_radialis_longus_r** — A radial deviator in both, at about half the reference’s arm: 10 to 13 mm against 23 to 24.
+- **extensor_carpi_radialis_brevis_r** — A radial deviator in both, and flatter than the reference’s: 9.4 to 9.9 mm against 13 to 16.
 
 ### Ours, millimetres
 
 | Ulnar deviation | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|
+| -25° | -41.4 | 8.9 | -10.1 | -9.5 |
+| -20° | -40.0 | 9.9 | -10.9 | -9.7 |
+| -15° | -38.3 | 10.9 | -11.6 | -9.8 |
 | -10° | -36.5 | 11.9 | -12.2 | -9.9 |
 | -5° | -34.6 | 12.9 | -12.6 | -9.8 |
 | 0° | -32.5 | 13.8 | -12.8 | -9.8 |
 | 5° | -30.2 | 14.7 | -13.0 | -9.6 |
 | 10° | -27.8 | 15.6 | -13.0 | -9.4 |
-| 15° | -25.3 | 16.4 | -12.9 | -9.1 |
-| 20° | -22.7 | 17.2 | -12.8 | -8.8 |
-| 25° | -20.1 | 17.9 | -12.5 | -8.4 |
 
 ### The reference, millimetres
 
 | Ulnar deviation | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|
-| -10° | 3.1 | -11.5 | 22.6 | 13.0 |
-| -5° | 3.6 | -11.0 | 23.2 | 13.6 |
-| 0° | 4.0 | -10.6 | 23.6 | 14.2 |
-| 5° | 4.3 | -10.0 | 24.0 | 14.7 |
-| 10° | 4.7 | -9.5 | 24.3 | 15.2 |
-| 15° | 5.0 | -9.0 | 24.3 | 15.7 |
-| 20° | 5.3 | -8.4 | 24.1 | 16.0 |
-| 25° | 5.6 | -7.8 | 23.5 | 16.3 |
+| -25° | -5.6 | 7.8 | -23.5 | -16.3 |
+| -20° | -5.3 | 8.4 | -24.1 | -16.0 |
+| -15° | -5.0 | 9.0 | -24.3 | -15.7 |
+| -10° | -4.7 | 9.5 | -24.3 | -15.2 |
+| -5° | -4.3 | 10.0 | -24.0 | -14.7 |
+| 0° | -4.0 | 10.6 | -23.6 | -14.2 |
+| 5° | -3.6 | 11.0 | -23.2 | -13.6 |
+| 10° | -3.1 | 11.5 | -22.6 | -13.0 |
 
 ## Hip flexion
 
