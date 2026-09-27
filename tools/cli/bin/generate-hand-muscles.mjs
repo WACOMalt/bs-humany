@@ -233,8 +233,18 @@ const UNITS = [
   },
 ];
 
-/** The reference's points stop at the wrist, so these units take none of them. */
+/**
+ * The reference's points stop at the wrist, so these units take none of them.
+ *
+ * Said twice, on purpose: every unit declares it, with the reason, so `renderGroups` can tell a
+ * unit that takes no carried points by decision from one the via-point table missed; and the
+ * lookup it is handed finds nothing, so a unit that somehow lost the declaration still gets none.
+ */
 const noCarriedPoints = () => [];
+const NOT_CARRIED = Object.freeze({
+  carried: false,
+  because: "the reference's via points stop at the wrist, and these run on to the digits",
+});
 
 function render() {
   const actuators = readActuators(ARM);
@@ -269,6 +279,7 @@ function render() {
     }
     return {
       ...unit,
+      ...NOT_CARRIED,
       parameters,
       cite: 'myoArmStandIn',
       ...(unit.side === undefined ? {} : { preferredSide: unit.side }),

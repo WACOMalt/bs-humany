@@ -2,6 +2,9 @@ import { validateDocument } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
 import { attachmentGaps, buildAttachmentSites, buildMuscleViaPointSites } from './attachments.js';
 import { buildDocument } from './document.js';
+import { ARM, LEG } from './jointHelpers.js';
+import { PROVENANCE_NS } from './landmarks.js';
+import { MUSCLE_VIA_POINTS } from './muscleViaPoints.js';
 
 describe('attachment sites', () => {
   const sites = buildAttachmentSites();
@@ -48,5 +51,65 @@ describe('attachment sites', () => {
   it('names what the dataset cannot locate rather than skipping silently', () => {
     // Every listed feature exists in the pack; a rename in the dataset shows up here.
     expect(attachmentGaps()).toEqual([]);
+  });
+});
+
+describe('via point sites', () => {
+  const via = buildMuscleViaPointSites();
+  const pointOf = new Map(MUSCLE_VIA_POINTS.map((point) => [point.id, point]));
+  /** Everything a site says about where it came from, citation and provenance alike. */
+  const said = (site: (typeof via)[number]): string => {
+    const provenance = site.ext?.[PROVENANCE_NS] as { locatedBy?: string } | undefined;
+    return `${site.source.locator ?? ''} | ${provenance?.locatedBy ?? ''}`;
+  };
+
+  it('cite the leg model or the dataset for every point below the hip', () => {
+    // Every via point used to cite the arm's chain and the humerus frame, the leg's included.
+    const leg =
+      /^(femur|patella|tibia|fibula|calcaneus|talus|navicular|cuboid|cuneiform_\w+|metatarsal_\d)_[rl]$/;
+    const below = via.filter((site) => leg.test(site.bone));
+    expect(below.length).toBeGreaterThan(0);
+    const miscited = below
+      .filter(
+        (site) =>
+          !(site.source.key === 'caggiano2022' && site.source.locator?.includes(LEG)) &&
+          site.source.key !== 'kervyn2021',
+      )
+      .map((site) => `${site.id}: ${site.source.key} ${site.source.locator}`);
+    expect(miscited).toEqual([]);
+  });
+
+  it('name the humerus only for a point the upper arm frame carried', () => {
+    const wrong = via
+      .filter((site) => /humer/.test(said(site)) && pointOf.get(site.id)?.frame !== 'upper arm')
+      .map((site) => `${site.id}: ${said(site)}`);
+    expect(wrong).toEqual([]);
+  });
+
+  it('do not cite the reference for the patella poles, which are measured on our own bone', () => {
+    const poles = via.filter((site) => site.bone.startsWith('patella_'));
+    expect(poles.length).toBeGreaterThan(0);
+    for (const site of poles) {
+      expect(site.source.key, site.id).not.toBe('caggiano2022');
+      expect(pointOf.get(site.id)?.method, site.id).toBe('measured');
+    }
+  });
+
+  it('say how each point was obtained, and cite the file it was carried from', () => {
+    for (const site of via) {
+      const point = pointOf.get(site.id);
+      expect(point, site.id).toBeDefined();
+      if (point?.method === 'measured') {
+        expect(site.source.key, site.id).toBe('kervyn2021');
+        continue;
+      }
+      expect(site.source.key, site.id).toBe('caggiano2022');
+      expect([ARM, LEG], site.id).toContain(point?.referenceModel);
+      expect(site.source.locator, site.id).toContain(`${point?.referenceModel}, site `);
+      expect(site.source.locator, site.id).toContain(`the ${point?.frame} frame`);
+      if (point?.method === 'drawn-in') {
+        expect(site.source.locator, site.id).toContain(`mm from ${site.bone}`);
+      }
+    }
   });
 });

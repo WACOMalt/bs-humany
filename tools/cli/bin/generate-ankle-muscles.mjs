@@ -54,6 +54,46 @@ const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'),
 );
 
+/**
+ * Which muscles keep the via points carried from the reference, and which are better without.
+ *
+ * The carried points are placed by a frame correspondence fitted at the *femur* -- one rotation
+ * and one scale for the whole leg -- and by the ankle they are out by about twenty millimetres.
+ * For a tendon running fifty millimetres behind the joint that is a rounding error, and the five
+ * posterior and lateral muscles come out with moment arms in the published range. For a tendon
+ * running forty in front of it, twenty millimetres is the difference between a dorsiflexor and
+ * nothing: carried, tibialis anterior has a 4 mm flexion arm where it should have forty, and
+ * extensor digitorum longus and extensor hallucis longus sit within a few millimetres of the axis
+ * and change sign across the range.
+ *
+ * Measured, at the neutral ankle:
+ *
+ *     with the carried points      without them        published
+ *     tibialis anterior     4 mm          51 mm          about 40
+ *     ext. digitorum longus -2            93             about 30
+ *     ext. hallucis longus  -4            64             about 25
+ *
+ * So those three run straight from our own attachments, which is wrong in the other direction --
+ * without the extensor retinaculum holding them down against the front of the ankle they bow away
+ * from it, and the two extensors come out two to three times what they should be. Both answers
+ * are wrong and this is the less wrong one: the sign is right, the muscle works, and the error is
+ * in a quantity rather than in whether the muscle is a dorsiflexor at all.
+ *
+ * What fixes it properly is a frame correspondence of the foot's own, fitted at the ankle instead
+ * of at the hip, which is OQ-021.
+ *
+ * Each of the three says so on its own entry, with the reason, which is what lets `renderGroups`
+ * tell a unit that takes none of the carried points on purpose from one whose id the via-point
+ * table has simply missed.
+ */
+const STRAIGHT = Object.freeze({
+  carried: false,
+  because:
+    'measured when one frame fitted at the femur carried the whole leg, the carried points left ' +
+    'the dorsiflexors within millimetres of the ankle axis and changing sign; straight from our ' +
+    'own attachments they bow clear of the ankle and are too large, but dorsiflexors (OQ-021)',
+});
+
 /** Which actuator becomes which unit, and which of our attachment sites it binds to. */
 const UNITS = [
   {
@@ -77,6 +117,7 @@ const UNITS = [
     name: 'Tibialis anterior',
     origin: 'tibialis_anterior_origin_$_lateral_surface_of_tibia',
     insertion: 'tibialis_anterior_insertion_$_first_metatarsal_bone',
+    ...STRAIGHT,
   },
   {
     actuator: 'tibpost_r',
@@ -121,6 +162,7 @@ const UNITS = [
     name: 'Extensor digitorum longus',
     origin: 'extensor_digitorum_longus_origin_$_footprint',
     insertion: 'extensor_digitorum_longus_insertion_$_extensor_side_of_shaft',
+    ...STRAIGHT,
     viaAfter: [
       'extensor_digitorum_longus_path_$_metatarsal_3_extensor_side_of_head',
       'extensor_digitorum_longus_path_$_phalanx_pedis_proximal_3_extensor_side_of_head',
@@ -136,6 +178,7 @@ const UNITS = [
     name: 'Extensor hallucis longus',
     origin: 'extensor_hallucis_longus_origin_$_anteromedial_surface_of_fibula',
     insertion: 'extensor_hallucis_longus_insertion_$_extensor_side_of_shaft',
+    ...STRAIGHT,
     viaAfter: [
       'extensor_hallucis_longus_path_$_metatarsal_1_extensor_side_of_head',
       'extensor_hallucis_longus_path_$_phalanx_pedis_proximal_1_extensor_side_of_head',
@@ -174,38 +217,6 @@ const UNITS = [
   },
 ];
 
-/**
- * Which muscles keep the via points carried from the reference, and which are better without.
- *
- * The carried points are placed by a frame correspondence fitted at the *femur* -- one rotation
- * and one scale for the whole leg -- and by the ankle they are out by about twenty millimetres.
- * For a tendon running fifty millimetres behind the joint that is a rounding error, and the five
- * posterior and lateral muscles come out with moment arms in the published range. For a tendon
- * running forty in front of it, twenty millimetres is the difference between a dorsiflexor and
- * nothing: carried, tibialis anterior has a 4 mm flexion arm where it should have forty, and
- * extensor digitorum longus and extensor hallucis longus sit within a few millimetres of the axis
- * and change sign across the range.
- *
- * Measured, at the neutral ankle:
- *
- *     with the carried points      without them        published
- *     tibialis anterior     4 mm          51 mm          about 40
- *     ext. digitorum longus -2            93             about 30
- *     ext. hallucis longus  -4            64             about 25
- *
- * So those three run straight from our own attachments, which is wrong in the other direction --
- * without the extensor retinaculum holding them down against the front of the ankle they bow away
- * from it, and the two extensors come out two to three times what they should be. Both answers
- * are wrong and this is the less wrong one: the sign is right, the muscle works, and the error is
- * in a quantity rather than in whether the muscle is a dorsiflexor at all.
- *
- * What fixes it properly is a frame correspondence of the foot's own, fitted at the ankle instead
- * of at the hip, which is OQ-021.
- */
-const STRAIGHT = /^(tibialis_anterior|extensor_digitorum_longus|extensor_hallucis_longus)_/;
-
-const viaPointsWeTrust = (unitId) => (STRAIGHT.test(unitId) ? [] : viaPointsFor(unitId));
-
 function render() {
   const actuators = readActuators(LEGS);
   const units = sided(UNITS).map((unit) => {
@@ -225,7 +236,7 @@ function render() {
       ...(unit.side === undefined ? {} : { preferredSide: unit.side }),
     };
   });
-  const body = renderGroups(units, viaPointsWeTrust, VIA_PATH_DIRECTION, LEGS);
+  const body = renderGroups(units, viaPointsFor, VIA_PATH_DIRECTION, LEGS);
 
   return `/**
  * The ankle and foot muscle parameter set -- ticket N2.4, the last of the lower limb.

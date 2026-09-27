@@ -206,6 +206,39 @@ export function referencePath(actuator, model = ARM) {
 }
 
 /**
+ * The via points `generate:via-points` carried for one unit, or none for a unit that says why.
+ *
+ * The two tables are joined by unit id and nothing else, and a join that misses used to be
+ * silent: a unit renamed in a region generator but not in the via-point table, or the other way
+ * round, found no points, took a straight chord from origin to insertion, and every check still
+ * passed. `VIA_PATH_DIRECTION` has an entry for every unit the via-point generator handled,
+ * including the ones it found no points for, so a unit missing from it is a unit the join missed.
+ *
+ * Some units take no carried points on purpose -- the reference has none for them, or has ones
+ * this skeleton does not trust. Each of those declares `carried: false` with the reason in
+ * `because`, which is what lets this tell a decision from a miss.
+ */
+function carriedPoints(unit, viaPointsFor, direction) {
+  if (unit.carried === false) {
+    if (typeof unit.because !== 'string' || unit.because.trim() === '') {
+      throw new Error(
+        `${unit.id} declares carried: false without saying why. Put the reason in 'because'.`,
+      );
+    }
+    return [];
+  }
+  if (direction?.[unit.id] === undefined) {
+    throw new Error(
+      `${unit.id} has no entry in VIA_PATH_DIRECTION, so generate:via-points carried nothing for ` +
+        'it and its path would silently lose every via point. If the unit was renamed, rename it ' +
+        'in generate-muscle-via-points.mjs too; if it deliberately takes none, say so with ' +
+        "carried: false and a reason in 'because'.",
+    );
+  }
+  return viaPointsFor(unit.id);
+}
+
+/**
  * The path elements for one unit: its via points, with the wrap where the reference puts it.
  *
  * A via point knows which reference site it came from, so its place in the reference path is a
@@ -214,7 +247,7 @@ export function referencePath(actuator, model = ARM) {
 export function pathElements(unit, viaPointsFor, direction, model = ARM) {
   const { elements, lastGeom } = referencePath(unit.actuator, model);
   const indexOf = (site) => elements.findIndex((e) => e.kind === 'site' && e.name === site);
-  const via = viaPointsFor(unit.id).map((p) => ({
+  const via = carriedPoints(unit, viaPointsFor, direction).map((p) => ({
     kind: 'site',
     id: p.id,
     at: indexOf(p.referenceSite),

@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 /** The vendored files, flat, as `README.md` beside this directory describes them. */
 export const MYO_SIM = fileURLToPath(new URL('../myo_sim', import.meta.url));
 
-/** The upstream commit the files are byte-identical to. `README.md` pins it; change both together. */
+/** The upstream commit the files are byte-identical to. `README.md` pins it: change both. */
 export const MYO_SIM_COMMIT = 'eb327acbae0fad12279495040607f5235d962328';
 
 /** Where a model's file sits upstream, as a citation names it. */
