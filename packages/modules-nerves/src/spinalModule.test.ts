@@ -293,9 +293,10 @@ describe('a stretched right soleus, one tick of the cord with nothing in the way
     if (u === undefined) throw new Error(`no unit ${id}`);
     return u;
   };
-  // A tenth past optimal: enough to excite, and little enough that half excitation plus the answer
-  // stays under the ceiling, so what is asserted is the reflex and not the clamp.
-  const STRETCH = 0.1;
+  // A twentieth past optimal: enough to excite, and little enough that half excitation plus the
+  // answer stays under the ceiling at the measured gain, so what is asserted is the reflex and not
+  // the clamp. It was a tenth until the gain went from 3.5 to 8.5, which put the answer past 1.
+  const STRETCH = 0.05;
 
   function tick(before: number): { excitation: Float64Array; spine: SpinalModule } {
     const n = muscles.units.length;

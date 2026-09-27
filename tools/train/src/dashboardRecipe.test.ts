@@ -85,13 +85,13 @@ describe('the cord a dashboard run trains over', () => {
 
   it('brings a value past its limit into it, and says so', () => {
     const { recipe, clamped } = built({ recipe: { reflex: { stretch: 99, delaySeconds: 1 } } });
-    expect(recipe.reflex?.stretch).toBe(8);
+    expect(recipe.reflex?.stretch).toBe(10);
     expect(clamped).toEqual([
-      { field: 'reflex.stretch', asked: 99, used: 8 },
+      { field: 'reflex.stretch', asked: 99, used: 10 },
       { field: 'reflex.delaySeconds', asked: 1, used: 0.2 },
     ]);
     expect(built({ recipe: { reflex: { stretch: 50 } } }).clamped).toEqual([
-      { field: 'reflex.stretch', asked: 50, used: 8 },
+      { field: 'reflex.stretch', asked: 50, used: 10 },
     ]);
     // A number that is not one takes the default, and that is a change too.
     expect(built({ recipe: { reflex: { velocity: 'fast' } } }).clamped).toEqual([
@@ -169,7 +169,7 @@ describe('a Resume from the dashboard', () => {
 
   it('lists what the recipe changes, reading an old recipe as the body it was trained in', () => {
     expect(resumePreflight(recipe, { policy: { task: 'stand', recipe: old } })).toEqual({
-      recipeChanges: 'reflex.stretch 0 -> 3.5, reflex.velocity 0 -> 0.25',
+      recipeChanges: 'reflex.stretch 0 -> 8.5, reflex.velocity 0 -> 0.25',
     });
     expect(resumePreflight(recipe, { centre: { task: 'stand' } })).toEqual({
       recipeChanges: undefined,

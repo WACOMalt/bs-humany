@@ -21,6 +21,14 @@ included, on either cord. The measured gains are `MEASURED_SPINAL_GAINS` in
 `packages/modules-nerves/src/spinalModule.ts`, which the recipe's `DEFAULT_REFLEX` copies and a
 test holds it to.
 
+The per-side-and-per-unit numbers were measured a second time on 2026-09-27, on the body as it is
+now, and every one of them on this page is from that run. The first run of that cord was on a body
+from before the anatomy data fixes of the same day (the forearm's axis and range, the re-admitted
+units, the translated fibre lengths, the derived landmarks) and before the wrist's clinical
+deviation range; the body moved under it, and the second stretch sweep went past 5, so the whole
+page was measured again rather than only the rows that were new. How much the body moved it is in
+the stretch section.
+
 The delay, 0.03 s throughout, was not measured here and is not sourced either: it is
 `SPINAL_CONDUCTION_DELAY_S`, and OQ-031 in `docs/sources/open-questions.md` records that it and
 the gains are chosen rather than taken from a source.
@@ -42,10 +50,11 @@ Fixed, the length afferent is `fiberLength - 1`, and this is what the body actua
 
 | | p05 | p50 | p95 | max |
 |---|---|---|---|---|
-| standing, the first moment | -0.440 | -0.053 | -0.004 | 0.023 |
-| three seconds into a collapse | -0.501 | -0.111 | 0.118 | 0.386 |
+| standing, the first moment | -0.484 | -0.057 | -0.004 | 0.023 |
+| three seconds into a collapse | -0.437 | -0.136 | 0.147 | 0.324 |
 
 This and the next table are read with no cord at all, so they are the body's and neither cord's.
+The collapse is the script's: the reference stand, silent, no cord, seed 1.
 
 ## The set point, which decides whether it is a reflex at all
 
@@ -53,27 +62,33 @@ Muscles past the set point, of 272:
 
 | set point | standing still | falling |
 |---|---|---|
-| -0.10 (the old default) | **173** | 123 |
-| -0.05 | 135 | 101 |
-| **0.00** | **2** | 61 |
-| +0.05 | 0 | 26 |
+| -0.10 (the old default) | **166** | 110 |
+| -0.05 | 127 | 94 |
+| **0.00** | **2** | 54 |
+| +0.05 | 0 | 35 |
 
-At -0.10 two thirds of the body is excited while it stands perfectly still. At 0 -- hold the fibre
-at its optimal length -- the cord is quiet until something is actually stretched, and 61 muscles
+At -0.10 well over half the body is excited while it stands perfectly still. At 0 -- hold the fibre
+at its optimal length -- the cord is quiet until something is actually stretched, and 54 muscles
 answer as the body goes down.
 
 Swept for time upright, the policy silent, stretch 3, damper 0.5:
 
 | set point | per side and per unit | pooled |
 |---|---|---|
-| -0.06 | 0.571 | 0.504 |
-| -0.02 | 0.578 | 0.544 |
-| **0** | **0.611** | 0.578 |
-| +0.02 | 0.594 | level with 0 |
+| -0.06 | **0.766** | 0.504 |
+| -0.02 | 0.617 | 0.544 |
+| **0** | **0.619** | 0.578 |
+| +0.02 | 0.590 | level with 0 |
 
 On the pooled cord it was a plateau from 0 to +0.02, falling off below; the value at +0.02 was not
-written down, only that it was level with 0. On the cord as built it is a
-peak at 0, which is the set point already in use.
+written down, only that it was level with 0. On the cord as first built, before the anatomy fixes,
+it was a peak at 0 (0.571, 0.578, 0.611, 0.594 down this column). On the body as it is now it is
+not: -0.06 keeps the silent body up 0.15 s longer than 0 does. The set point stays at 0 all the
+same, because this measure cannot tell a reflex from a tone: at -0.06 more than a hundred muscles
+are past it standing still, and a body with a constant tone in most of its muscles is a stiffer
+body that takes longer to fall, which is what time upright rewards. That is the same reason this
+page gives for not choosing inhibition by it, below. Whether a trained body wants a tone is a
+question for training runs, not this table.
 
 ## The gains, under a trained policy
 
@@ -81,15 +96,26 @@ Eight seeds, six-second episodes, the committed standing policy loaded, damper 0
 
 | stretch | seconds upright | fitness | silent: seconds upright | pooled: seconds upright | pooled: fitness |
 |---|---|---|---|---|---|
-| 0 (no cord) | 0.456 | 0.967 | 0.484 | 0.456 | 0.967 |
-| 2 | 0.730 | 1.541 | 0.595 | 0.639 | 1.343 |
-| 2.5 | 0.773 | 1.623 | 0.605 | 0.736 | 1.518 |
-| 3 | 0.800 | 1.675 | 0.611 | 0.859 | 1.714 |
-| **3.5** | **0.819** | **1.709** | 0.615 | **0.894** | **1.751** |
-| 4 | 0.836 | 1.739 | 0.620 | 0.904 | 1.797 |
-| 5 | 0.852 | 1.764 | 0.628 | 0.851 | 1.712 |
+| 0 (no cord) | 0.433 | 0.914 | 0.480 | 0.456 | 0.967 |
+| 2 | 0.658 | 1.403 | 0.598 | 0.639 | 1.343 |
+| 2.5 | 0.705 | 1.502 | 0.606 | 0.736 | 1.518 |
+| 3 | 0.750 | 1.592 | 0.619 | 0.859 | 1.714 |
+| 3.5 | 0.788 | 1.666 | 0.624 | **0.894** | **1.751** |
+| 4 | 0.813 | 1.713 | 0.633 | 0.904 | 1.797 |
+| 4.5 | 0.836 | 1.755 | 0.638 | | |
+| 5 | 0.860 | 1.797 | 0.642 | 0.851 | 1.712 |
+| 5.5 | 0.881 | 1.832 | 0.647 | | |
+| 6 | 0.898 | 1.853 | 0.652 | | |
+| 6.5 | 0.911 | 1.869 | 0.656 | | |
+| 7 | 0.925 | 1.883 | 0.660 | | |
+| 7.5 | 0.934 | 1.891 | 0.664 | | |
+| 8 | 0.943 | 1.899 | 0.670 | | |
+| **8.5** | **0.953** | **1.908** | 0.671 | | |
+| 9 | 0.955 | 1.905 | 0.675 | | |
+| 9.5 | 0.959 | 1.903 | 0.676 | | |
+| 10 | 0.959 | 1.896 | 0.680 | | |
 
-The first three columns are the cord as built; the last two are the pooled cord, on which the
+The first four columns are the cord as built; the last two are the pooled cord, on which the first
 default of 3.5 was chosen, off the measured argmax of an eight-seed estimate and with room on both
 sides. The pooled cord's silent body peaked lower and flatter -- 0.484 s with no cord, 0.568 from
 stretch 2 to 4 -- which is the sense in which the cord is a floor rather than a controller, and on
@@ -97,20 +123,30 @@ the cord as built that is still so.
 
 The two cords do not tell the same story. On the pooled cord time upright peaked between 3.5 and 4
 and fell off past it: the brain adds its correction to what the cord has already put on the muscle,
-and a muscle clamped at 1 eats it. On the cord as built it is lower at every stretch up to 4 and
-still rising at 5, the edge of the sweep, by about 0.017 s a half step. That is what the change
-should do: a unit now answers only its own stretch, not the mean of its group's and the other
-leg's, so less of the body is driven towards the ceiling at any gain, and the ceiling is reached
-later. A reflex that silences the policy is still worse than no reflex; it happens further up.
+and a muscle clamped at 1 eats it. On the cord as built there is no fall-off anywhere in the sweep.
+Time upright climbs by about 0.02 s a half step to 6, more slowly after, and levels off from 8.5:
+0.953 there, 0.955 at 9, 0.959 at 9.5 and at 10. Fitness, the score the trainer searches on,
+peaks at 8.5, at 1.908, and falls a little past it. That is what the change should do: a unit now
+answers only its own stretch, not the mean of its group's and the other leg's, so less of the body
+is driven towards the ceiling at any gain, and the ceiling is reached much later. A reflex that
+silences the policy is still worse than no reflex; on this cord it has not happened by 10.
 
-**The default is still 3.5**, and not because the new table chose it. This sweep has no peak to
-choose -- its best row is the last one it measured -- and a default on the edge of a sweep is a
-guess about what lies past it. The policy it is measured under, too, was trained with no cord at
-all, and the five shipped policies are to be retrained and this page measured again (owner's
-decision of 2026-09-26); a sweep past 5 belongs with that measurement, under a policy that learnt
-over this cord. Until then 3.5 is inside the range where the cord as built is worth most of what it
-is worth -- 0.819 s against 0.456 with no cord, 0.852 at the best row -- and it is not in the
-region the pooled cord showed to be harmful.
+**The default is 8.5.** The best time upright in the sweep is 0.959, at 9.5 and at 10, and the top
+four rows lie within 0.006 s of each other, which eight seeds do not separate. Where the curve is
+that flat the rule is to take the smallest gain within 1% of the best: that is 8.5 (0.953, 0.6%
+below), where 8 is 1.7% below. It is also the gain at which fitness peaks, so the two measures agree
+on it. It moved from 3.5 on 2026-09-27, the owner's decision being to move it on this sweep rather
+than wait for the retrained policies (ADR-014). The committed standing policy it is measured under
+was trained with no cord at all; the five shipped policies are retrained over this cord in the next
+wave, and a policy that has learnt over it may find the fall-off somewhere this one does not. The
+studio's and the headset's Stretch slider, and the recipe's limit on it, went from 8 to 10 so that
+the default sits inside them.
+
+How much of the difference from the first run of this cord is the body: at stretch 3.5 the trained
+body was 0.819 s upright on the tree the cord was first measured on, 0.781 on the tree after the
+anatomy data fixes had merged (a1c7e9f), and 0.788 after the wrist's clinical range. At 8.5 it was
+0.945 on a1c7e9f against 0.953 now. So nearly all of the drop in the low rows is the data fixes,
+the wrist gives back a little of it, and neither moves where the curve levels off.
 
 ## The damper
 
@@ -123,17 +159,17 @@ At stretch 3:
 
 | velocity gain | trained | silent | pooled: trained | pooled: silent |
 |---|---|---|---|---|
-| 0 | 0.761 | 0.575 | 0.876 | 0.573 |
-| 0.5 | 0.800 | 0.611 | 0.859 | 0.578 |
-| 2 | | 0.609 | | 0.524 |
-| 4 | | 0.371 | | 0.388 |
-| 8 | | 0.175 | | 0.268 |
+| 0 | 0.731 | 0.585 | 0.876 | 0.573 |
+| 0.5 | 0.750 | 0.619 | 0.859 | 0.578 |
+| 2 | | 0.595 | | 0.524 |
+| 4 | | 0.359 | | 0.388 |
+| 8 | | 0.194 | | 0.268 |
 
 On the pooled cord it was nearly neutral, a little help to the silent body and a little cost to the
-trained one. Per unit it helps both, by 0.04 s: a unit's velocity term is its own, no longer
-averaged away over a group that is mostly not moving. What it prevents is plain further out either
-way. A length loop with a conduction delay in it rings, and past 2 the ringing is the whole story.
-The useful range is narrow and below 2, and a quarter sits inside it.
+trained one. Per unit it helps both, the trained body by 0.02 s and the silent one by 0.03: a unit's velocity term is its own, no
+longer averaged away over a group that is mostly not moving. What it prevents is plain further out
+either way. A length loop with a conduction delay in it rings, and past 2 the ringing is the whole
+story. The useful range is narrow and below 2, and a quarter sits inside it.
 
 ## Reciprocal inhibition, which this measure cannot choose
 
@@ -141,12 +177,12 @@ Silent, stretch 3, damper 0.5:
 
 | inhibition | per side and per unit | pooled |
 |---|---|---|
-| 0 | 0.584 | 0.546 |
-| 0.30 | 0.611 | 0.578 |
-| 0.80 | 0.645 | 0.609 |
-| 1.00 | 0.655 | 0.619 |
-| 1.50 | 0.678 | 0.635 |
-| 3.00 | 0.728 | 0.684 |
+| 0 | 0.591 | 0.546 |
+| 0.30 | 0.619 | 0.578 |
+| 0.80 | 0.650 | 0.609 |
+| 1.00 | 0.660 | 0.619 |
+| 1.50 | 0.683 | 0.635 |
+| 3.00 | 0.736 | 0.684 |
 
 On both cords it rises monotonically straight past every value that means anything. More inhibition
 is less muscle doing less, and a limper body takes longer to fall -- so time upright is measuring
@@ -156,31 +192,28 @@ training runs, not a table.
 
 ## The Golgi ceiling, which never fires
 
-Tendon force over maximum isometric force reaches 0.042 at the 95th percentile and 0.235 at worst
+Tendon force over maximum isometric force reaches 0.083 at the 95th percentile and 0.359 at worst
 in a full collapse, against a ceiling of 1.2. The autogenic term contributes exactly nothing to
-any measurement on this page -- on the cord as built, the trained body is 0.819 s upright and the
-silent one 0.611 with it on and with it off, and the pooled cord's two rows were identical to three
-decimals too. It is left where it is because nothing here exercises it, not because it has been
-shown to be right.
+any measurement on this page -- on the cord as built, the trained body at the default stretch of
+8.5 is 0.953 s upright and the silent one at stretch 3 is 0.619, with it on and with it off, and
+the pooled cord's two rows were identical to three decimals too. It is left where it is because
+nothing here exercises it, not because it has been shown to be right.
 
 ## Reproducing all of it
 
 `pnpm measure:reflex-gains` (`tools/train/bin/measure-reflex-gains.mjs`) prints these tables and
-writes nothing; `--tables stretch` or `--seeds 2` makes a shorter run of it, and the whole of it
-takes about half an hour. It measures whatever cord `SpinalModule` and `reflexGroups()` build, so
-it now reproduces the per-side-and-per-unit columns, and the pooled columns need the tree as it was
-before the cord was split (8cc1e95).
+writes nothing; `--tables stretch` or `--seeds 2` makes a shorter run of it. The stretch table alone
+is thirty-six settings and took about thirteen minutes on 2026-09-27; the rest of the tables took
+about six and a half. It measures whatever cord `SpinalModule` and `reflexGroups()` build and whatever body
+the tree holds, so it reproduces the per-side-and-per-unit columns, and the pooled columns need the
+tree as it was before the cord was split (8cc1e95).
 
-Run on 2026-09-27 on the cord as built, it gave every per-side-and-per-unit number on this page. On
-the pooled cord, the same day, it gave every pooled time-upright number to the third decimal, with
-two exceptions in the last place: fitness at stretch 3 is 1.711 and the trained body with no damper
-0.875. The pooled silent column of its stretch table runs from 0.579 at 2 to 0.569 at 4. What it
-does not reproduce is the collapse: the standing row and the standing column agree, but the falling
-row, the falling column and the Golgi's tendon forces were measured in a collapse whose recipe was
-not written down. The script's collapse -- the reference stand, silent, no cord, seed 1 -- gives
--0.414, -0.136, 0.148 and 0.323 for the row, 114, 97, 57 and 35 for the column, and 0.084 and 0.362
-for the tendon force, still far below the ceiling of 1.2. Those are the same on both cords, since
-the collapse has no cord in it.
+Run on 2026-09-27 on the body after the wrist's clinical range, it gave every per-side-and-per-unit
+number on this page: the stretch table with the default still at 3.5, and the other tables after
+it moved to 8.5, which only the Golgi table's trained column reads. The collapse the afferent
+table, the falling column and the tendon forces are read in is now the script's own, so every
+number on the page is one it prints. The first run of the pooled cord's collapse was not written
+down, and the pooled columns never needed it.
 
 It does what follows. Build a `StandRig` per setting with `reflex: { ...DEFAULT_REFLEX, ... }`, run
 `episode` over several seeds, and read `aliveSeconds`. For a trained body, `MlpPolicy.fit` the

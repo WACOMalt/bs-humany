@@ -3,7 +3,8 @@
 **Status:** accepted, 2026-09-21; amended 2026-09-22 (the gains, remeasured; see the
 [amendment](#amended-2026-09-22--the-gains-remeasured)); the run order, and the cord built per side
 and per unit and its gains remeasured, noted under "The decision" and in the amendment,
-2026-09-27. **Depends on:** ADR-013 (the nerves),
+2026-09-27; the stretch gain moved from 3.5 to 8.5 on a sweep to 10, in the amendment, 2026-09-27.
+**Depends on:** ADR-013 (the nerves),
 §14.1 (the nervous system module), §10.5 (delay lines), ADR-004 (accumulators). **Related:**
 OQ-024 (standing is a reflex, `docs/sources/open-questions.md`).
 
@@ -148,7 +149,7 @@ and `MEASURED_SPINAL_GAINS` in the spinal module, which a test holds it to) is:
 
 | stretch | velocity | setPoint | inhibition | forceCeiling | forceInhibition | delaySeconds |
 |---|---|---|---|---|---|---|
-| 3.5 | 0.25 | 0 | 0.3 | 1.2 | 0.5 | 0.03 |
+| 8.5 (3.5 until 2026-09-27) | 0.25 | 0 | 0.3 | 1.2 | 0.5 | 0.03 |
 
 Stretch and velocity are measured. The set point is where the cord stops answering a body that
 stands still. Inhibition stays at 0.3, unchanged and unclaimed, because choosing it needs two
@@ -167,6 +168,17 @@ Golgi ceiling still never fires. The damper is now worth about 0.04 s to both bo
 nothing. The stretch gain is the one open question: time upright no longer peaks near 3.5 but is
 still rising at 5, the top of the sweep. 3.5 stays until the retrained policies are measured over
 this cord, with a sweep that goes past 5. The tables for both cords are in reflex-gains.md.
+
+*Amended 2026-09-27, the stretch gain moved to 8.5.* The owner decided not to wait for the retrained
+policies: a second sweep, from 3.5 to 10 in half steps under the same committed standing policy and
+on the body after the anatomy data fixes and the wrist's clinical range, found no fall-off at all.
+Time upright levels off from 8.5 (0.953 s) to 10 (0.959 at 9.5 and 10), and 8.5 is the smallest
+gain within 1% of the best and the one where fitness peaks, so `DEFAULT_REFLEX` and
+`MEASURED_SPINAL_GAINS` now have a stretch of 8.5; the other six numbers are unchanged. The Stretch
+slider and the recipe's limit went from 8 to 10 to hold it. With the policy silent, the silent rows'
+stretch of 3 now keeps the body up 0.619 s against 0.480 with no cord. The five shipped policies
+are retrained over this cord in the next wave. The paragraph below, that time upright falls past a
+stretch of 4, is the pooled cord's finding; the cord as built has not shown it up to 10.
 
 **What still holds.** A cord that silences the policy is worse than no cord. Past a stretch of 4
 the time upright falls again, because the brain adds its correction to an excitation the cord has

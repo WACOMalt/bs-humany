@@ -2,7 +2,7 @@
 /**
  * What the cord's gains are worth, measured: the tables of `docs/validation/reflex-gains.md`.
  *
- *   pnpm measure:reflex-gains                          # every table, eight seeds; about half an hour
+ *   pnpm measure:reflex-gains                          # every table, eight seeds; about twenty minutes
  *   pnpm measure:reflex-gains --tables stretch         # one table, or several: stretch,damper
  *   pnpm measure:reflex-gains --seeds 2 --tables afferent,golgi   # a quick look
  *   pnpm measure:reflex-gains --help
@@ -261,7 +261,11 @@ if (tables.includes('setpoint')) {
 
 if (tables.includes('stretch')) {
   const rows = [];
-  for (const stretch of [0, 2, 2.5, 3, 3.5, 4, 5]) {
+  // Past 5 in half steps to 10: on the cord per side and per unit, time upright was still rising
+  // at 5, the top of the first sweep, so the default waited for a sweep that found the peak.
+  const gains = [0, 2, 2.5, 3];
+  for (let g = 3.5; g <= 10; g += 0.5) gains.push(g);
+  for (const stretch of gains) {
     // No cord at all is stretch and damper both off: the body every checkpoint before the spinal
     // module was trained in.
     const cord =

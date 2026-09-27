@@ -205,7 +205,7 @@
     },
     "spine.stretch": {
       "min": 0,
-      "max": 8,
+      "max": 10,
       "step": 0.1
     },
     "spine.velocity": {

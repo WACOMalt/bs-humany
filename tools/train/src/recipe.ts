@@ -159,14 +159,16 @@ export const REFLEX_FIELDS = [
  * The cord a run gets unless it says otherwise. Every number is measured; see
  * `docs/validation/reflex-gains.md` for the tables and `SpinalGains` for what each one is.
  *
- * Under the committed standing policy this cord is worth 0.82 s upright against 0.46 with no
- * cord at all, on the cord per side and per unit; it was worth 0.89 on the pooled cord before it,
- * where the numbers were chosen. The set of numbers it replaces was worth 0.46, which
- * is to say nothing, because the afferent it answered was normalised twice and read every muscle
- * in the body as hugely stretched at every instant.
+ * Under the committed standing policy, on the cord per side and per unit, this cord is worth
+ * 0.95 s upright against 0.43 with no cord at all. The stretch gain is where the second sweep, from
+ * 3.5 to 10, levelled off: 0.959 s at 9.5 and 10, and 8.5 the smallest gain within 1% of that
+ * (0.953), which is also where fitness peaked. The first sweep stopped at 5 with time upright still
+ * rising, and 3.5 stood until this one. The set of numbers before those was worth 0.46, which is to
+ * say nothing, because the afferent it answered was normalised twice and read every muscle in the
+ * body as hugely stretched at every instant.
  */
 export const DEFAULT_REFLEX: ReflexLevels = {
-  stretch: 3.5,
+  stretch: 8.5,
   velocity: 0.25,
   setPoint: 0,
   inhibition: 0.3,
@@ -190,9 +192,9 @@ export const NO_REFLEX: ReflexLevels = { ...DEFAULT_REFLEX, stretch: 0, velocity
  * fifth, left from the scale the afferent had before it was fixed, and the studio's slider went
  * to eight.
  *
- * - `stretch` 0 to 8, the range of the studio's `#spine-stretch` slider and the headset's
- *   (`apps/xr-viewer/src/panel.rs`). The measured peak is between 3.5 and 4, and past it the
- *   excitation ceiling eats the brain's correction; eight is room to see that, not a target.
+ * - `stretch` 0 to 10, the range of the studio's `#spine-stretch` slider and the headset's
+ *   (`CONTROL_RANGES` in packages/scenarios/src/controls.ts). Time upright levels off from 8.5,
+ *   the default, to 10; ten is the top of the sweep that found that, not a target.
  * - `velocity` 0 to 10. Past 2 a delayed length loop rings plainly, so the top of this is there
  *   to be measured, not used.
  * - `setPoint` half an optimal length either way: past that the loop either answers a body that
@@ -204,7 +206,7 @@ export const NO_REFLEX: ReflexLevels = { ...DEFAULT_REFLEX, stretch: 0, velocity
  *   a correspondence.
  */
 export const REFLEX_LIMITS: { readonly [K in keyof ReflexLevels]: Limit } = {
-  stretch: { min: 0, max: 8 },
+  stretch: { min: 0, max: 10 },
   velocity: { min: 0, max: 10 },
   setPoint: { min: -0.5, max: 0.5 },
   inhibition: { min: 0, max: 1 },
