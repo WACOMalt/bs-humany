@@ -59,6 +59,8 @@ import type {
 } from '@bs-humany/kernel';
 import { ACTUATION_BODY_WRENCH, BODY_POSE, CHANNEL_VERSION } from '@bs-humany/modules-mechanics';
 import {
+  FIBER_LENGTH_MAXIMUM,
+  FIBER_LENGTH_MINIMUM,
   type MusculotendonParameters,
   equilibriumFiberLength,
   solveEquilibrium,
@@ -106,10 +108,6 @@ export const MUSCLE_DYNAMICS_MODULE_ID = 'bsums.xyz.bs-humany.muscle.dynamics';
  * before choosing.
  */
 export const RIGID_TENDON_SHARE = 0.15;
-
-/** Fiber lengths outside this are held, and the tick is flagged, rather than left to diverge. */
-const FIBER_FLOOR = 0.1;
-const FIBER_CEILING = 2.0;
 
 export class MuscleDynamicsModule implements SimModule, Stateful {
   readonly manifest: ModuleManifest;
@@ -399,6 +397,7 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
       let tendonNormalised: number;
       let fiberForceNormalised: number;
       let failed: boolean;
+      let outOfRange: boolean;
       if (this.rigid[i] === 1) {
         const rigidSolution = solveRigidTendon(
           activation,
@@ -410,7 +409,15 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
         fiberVelocity = rigidSolution.fiberVelocity;
         tendonNormalised = rigidSolution.tendonForce;
         fiberForceNormalised = rigidSolution.fiberForce;
-        failed = rigidSolution.outOfRange;
+        // A rigid tendon has no equilibrium to search for, so it can never fail to find one. What
+        // it can do is be handed a path shorter than its tendon, or a fiber length the curves were
+        // never fitted over, and both are the fiber being out of range rather than the solver
+        // failing -- so they go on the range bit, where the panel counts them, not the failure bit.
+        failed = false;
+        outOfRange =
+          rigidSolution.outOfRange ||
+          fiberNormalised < FIBER_LENGTH_MINIMUM ||
+          fiberNormalised > FIBER_LENGTH_MAXIMUM;
         this.fiberLength[i] = fiberNormalised;
       } else {
         const solution = solveEquilibrium(state, unitLength, parameters as MusculotendonParameters);
@@ -428,11 +435,16 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
           solution.fiberVelocity,
           this.scratchOvershoot,
         );
+        // Fiber lengths outside the range the muscle model's curves are fitted over are held at
+        // its edge rather than left to diverge, and the tick is flagged. The flag has to be read
+        // off the length the integration asked for, before the hold: the held length sits exactly
+        // on the edge, never beyond it, so a test made after the clamp can never fire.
+        outOfRange = advanced < FIBER_LENGTH_MINIMUM || advanced > FIBER_LENGTH_MAXIMUM;
         this.fiberLength[i] =
-          advanced < FIBER_FLOOR
-            ? FIBER_FLOOR
-            : advanced > FIBER_CEILING
-              ? FIBER_CEILING
+          advanced < FIBER_LENGTH_MINIMUM
+            ? FIBER_LENGTH_MINIMUM
+            : advanced > FIBER_LENGTH_MAXIMUM
+              ? FIBER_LENGTH_MAXIMUM
               : advanced;
         fiberNormalised = this.fiberLength[i] as number;
         fiberVelocity = solution.fiberVelocity;
@@ -440,7 +452,6 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
         fiberForceNormalised = solution.fiberForce;
         failed = solution.failed;
       }
-      const outOfRange = fiberNormalised < FIBER_FLOOR || fiberNormalised > FIBER_CEILING;
 
       const force = tendonNormalised * parameters.maxIsometricForce;
       activationOut[i] = activation;
