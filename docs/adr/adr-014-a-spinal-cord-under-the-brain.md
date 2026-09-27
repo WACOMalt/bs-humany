@@ -1,7 +1,8 @@
 # ADR-014 — A spinal cord under the brain, and a search that needs no terminal
 
 **Status:** accepted, 2026-09-21; amended 2026-09-22 (the gains, remeasured; see the
-[amendment](#amended-2026-09-22--the-gains-remeasured)). **Depends on:** ADR-013 (the nerves),
+[amendment](#amended-2026-09-22--the-gains-remeasured)); the run order and the per-group reflex
+noted under "The decision", 2026-09-27. **Depends on:** ADR-013 (the nerves),
 §14.1 (the nervous system module), §10.5 (delay lines), ADR-004 (accumulators). **Related:**
 OQ-024 (standing is a reflex, `docs/sources/open-questions.md`).
 
@@ -48,6 +49,17 @@ transform was ranking noise.
 per unit, reciprocal inhibition through an antagonist table that lives beside the group table,
 and autogenic inhibition from the Golgi organ. It adds onto `efferent.alphaMotor` like every
 other driver, so zero gains change nothing.
+
+*Amended 2026-09-27 — the order.* The module runs after the nerves, not before them. Neither
+declares a dependency on the other, so the kernel breaks the tie by module id, and the control
+phase runs the motor tremor, then the nerves, then the cord. Each adds and clamps to [0, 1], so
+the cord's drive lands on the brain's correction rather than under it. Nothing in the decision
+depended on the order; `spinalModule.test.ts` now pins it.
+
+*Noted 2026-09-27 — per group, not per unit.* The reflex is worked out per reflex group, both
+sides together, and the group's mean applied to every unit in it; only the afferents are per
+unit. `SpinalModule`'s header describes this, and a cord per side and per unit was decided on
+2026-09-26 and is not yet built.
 
 **Every afferent goes through a `DelayLine`.** Built and tested in Phase 1 per §10.5 and used by
 nothing until now. The cord answers the body as it was thirty milliseconds ago, which is the
@@ -123,8 +135,8 @@ with inhibition past every value that means anything, so this measure cannot cho
 all.
 
 **What is set now.** The length afferent is `fiberLength - 1` against a set point of 0, so the
-cord is quiet until a fibre is actually stretched. `DEFAULT_REFLEX` (`tools/train/src/recipe.ts`)
-is:
+cord is quiet until a fibre is actually stretched. `DEFAULT_REFLEX` (`tools/train/src/recipe.ts`,
+and `MEASURED_SPINAL_GAINS` in the spinal module, which a test holds it to) is:
 
 | stretch | velocity | setPoint | inhibition | forceCeiling | forceInhibition | delaySeconds |
 |---|---|---|---|---|---|---|

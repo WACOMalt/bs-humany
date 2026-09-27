@@ -7,6 +7,20 @@ the body those weights are searched against, fixed for the whole run by the reci
 
 So they are chosen by measurement, and this is the measurement.
 
+Every number here was measured on the cord as it is built today, which is worth saying because it
+is not a textbook cord. The afferents are read per unit, but the stretch, velocity and Golgi
+terms are averaged over each reflex group -- the drive groups `reflexGroups()` builds in
+`packages/scenarios/src/muscleGroups.ts`, which hold both sides of the body -- and that mean is
+applied to every unit in the group; reciprocal inhibition is per antagonist pair of groups. Stretch
+and velocity both at 0 switch the whole cord off, Golgi term included. The measured gains are
+`MEASURED_SPINAL_GAINS` in `packages/modules-nerves/src/spinalModule.ts`, which the recipe's
+`DEFAULT_REFLEX` copies and a test holds it to. A cord per side and per unit has been decided on
+(2026-09-26) and would need every table below measured again.
+
+The delay, 0.03 s throughout, was not measured here and is not sourced either: it is
+`SPINAL_CONDUCTION_DELAY_S`, and OQ-031 in `docs/sources/open-questions.md` records that it and
+the gains are chosen rather than taken from a source.
+
 ## First, the afferent was wrong
 
 `muscle.state` publishes fibre length already normalised -- the channel's own word for its unit is
@@ -67,8 +81,10 @@ stretch 2 to 4 -- which is the sense in which the cord is a floor rather than a 
 
 ## The damper
 
-Nearly neutral at these gains, and kept for what it is for. Fibre velocity reaches 0.044 optimal
-lengths a second in a fall where stretch reaches 0.39, so the term is small either way: it is
+Nearly neutral at these gains, and kept for what it is for. The velocity afferent is
+`fiberVelocity`, a fraction of the unit's maximum contraction velocity (10 optimal lengths a
+second for every unit), and it reaches 0.044 of that maximum -- about 0.44 optimal lengths a
+second -- in a fall where stretch reaches 0.39, so the term is small either way: it is
 worth a little to a silent body (0.578 s at 0.5 against 0.573 at 0) and costs a little to a
 trained one (0.859 at 0.5 against 0.876 at 0).
 

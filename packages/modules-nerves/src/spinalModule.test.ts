@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { compileArticulation } from '@bs-humany/compiler';
@@ -5,6 +6,7 @@ import { Kernel } from '@bs-humany/kernel';
 import { PassiveJointModule, PhysicsModule } from '@bs-humany/modules-mechanics';
 import {
   EFFERENT_ALPHA_MOTOR,
+  MUSCLE_STATE,
   MuscleDynamicsModule,
   MusclePathModule,
   MuscleTestDriveModule,
@@ -13,7 +15,18 @@ import {
 import { ANKLE_MUSCLES, KNEE_MUSCLES } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
-import { type DEFAULT_SPINAL_GAINS, SpinalModule } from './spinalModule.js';
+import { type DriveOutput, NERVES_MODULE_ID, NervesModule } from './nervesModule.js';
+import { MOTOR_NOISE_MODULE_ID, MotorNoiseModule } from './noise.js';
+import { MlpPolicy } from './policy.js';
+import {
+  DEFAULT_SPINAL_GAINS,
+  MEASURED_SPINAL_GAINS,
+  SPINAL_CONDUCTION_DELAY_S,
+  SPINAL_MODULE_ID,
+  SPINAL_OFF,
+  type SpinalGains,
+  SpinalModule,
+} from './spinalModule.js';
 
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
@@ -31,7 +44,7 @@ const dorsi = muscles.units.filter((u) => /tibialis_anterior/.test(u.id)).map((u
 
 /** A body with the cord in it and nothing else driving, so what moves is the reflex. */
 function rig(
-  gains: Partial<typeof DEFAULT_SPINAL_GAINS>,
+  gains: Partial<SpinalGains>,
   level = 0,
 ): {
   kernel: Kernel;
@@ -185,5 +198,97 @@ describe('SpinalModule', () => {
       expect(spine.lastAtCeiling).toBe(Array.from(excitation).filter((e) => e >= 1).length);
       kernel.dispose();
     });
+  });
+
+  it('answers the body as it is when switched back on, not as it was when switched off', async () => {
+    // An off cord takes nothing into its delay line, so the ring still holds the afferents of the
+    // moment it went off. Switched on again, it used to read those back for a whole conduction
+    // delay and answer a body that had long since moved -- here, a body that has spent a hundred
+    // ticks falling with nothing driving it. On again, the line starts empty, and a line with one
+    // push in it hands back that push: the first tick answers the body as the muscles now stand.
+    const { kernel, spine } = rig({ stretch: 2, velocity: 0, setPoint: -0.5, inhibition: 0 });
+    await kernel.init();
+    kernel.run(40);
+    spine.adjust({ stretch: 0, velocity: 0 });
+    kernel.run(100);
+    spine.adjust({ stretch: 2 });
+
+    // What the cord reads on the next tick is `muscle.state` as it stands now: it runs in the
+    // control phase, and the muscles publish their state later in the tick.
+    const state = kernel.channels.storage(MUSCLE_STATE).fields;
+    const fibre = Float64Array.from(state.fiberLength as Float64Array);
+    const pull = Float64Array.from(state.tendonForce as Float64Array);
+    const index = new Map(muscles.units.map((u, i) => [u.id, i]));
+    const g = spine.gains;
+    let sum = 0;
+    for (const id of plantar) {
+      const u = index.get(id) as number;
+      const unit = muscles.units[u];
+      const stretch = (fibre[u] as number) - 1 - g.setPoint;
+      const load = (pull[u] as number) / (unit?.parameters.maxIsometricForce as number);
+      let drive = stretch > 0 ? g.stretch * stretch : 0;
+      if (load > g.forceCeiling) drive -= g.forceInhibition * (load - g.forceCeiling);
+      sum += drive;
+    }
+
+    kernel.run(1);
+    expect(spine.lastDrive[0] as number).toBeCloseTo(sum / plantar.length, 12);
+    kernel.dispose();
+  });
+
+  it('runs after the tremor and the nerves in the control phase, by module id', async () => {
+    // The three writers of `efferent.alphaMotor` in the loop each add and then clamp to [0, 1],
+    // so the order they run in decides what a clamp eats. None of them declares a dependency on
+    // another; the kernel breaks the tie by id, which puts the cord last. The documents that
+    // describe the loop (this module's header, ADR-014's amendment) say so, and this holds them to
+    // it: a renamed module or a new `order` on one of them changes what they describe.
+    const { kernel } = rig({ stretch: 3.5, velocity: 0.25 });
+    const outputs: DriveOutput[] = [
+      { id: 'plantar', units: plantar.map((id) => ({ id, weight: 1 })) },
+      { id: 'dorsi', units: dorsi.map((id) => ({ id, weight: 1 })) },
+    ];
+    kernel.register(
+      new NervesModule(articulation, muscles, {
+        policy: (inputs, count) => new MlpPolicy([inputs, 4, count]),
+        outputs,
+        feet: { left: ['foot_l', 'toes_l'], right: ['foot_r', 'toes_r'] },
+        goalSize: 0,
+        controlDivisor: 5,
+        authority: 0.3,
+      }),
+    );
+    kernel.register(new MotorNoiseModule(muscles, { outputs, level: 0.05, tau: 0.25 }));
+    await kernel.init();
+    const loop = [MOTOR_NOISE_MODULE_ID, NERVES_MODULE_ID, SPINAL_MODULE_ID];
+    expect(kernel.order().filter((id) => loop.includes(id))).toEqual(loop);
+    kernel.dispose();
+  });
+});
+
+describe('the cord its gains describe', () => {
+  it('is off unless asked, and the measured cord is the off one with the reflexes turned up', () => {
+    expect(DEFAULT_SPINAL_GAINS).toBe(SPINAL_OFF);
+    expect(SPINAL_OFF.stretch).toBe(0);
+    expect(SPINAL_OFF.velocity).toBe(0);
+    expect(SPINAL_OFF).toEqual({ ...MEASURED_SPINAL_GAINS, stretch: 0, velocity: 0 });
+    expect(MEASURED_SPINAL_GAINS.delaySeconds).toBe(SPINAL_CONDUCTION_DELAY_S);
+    expect(SPINAL_OFF.delaySeconds).toBe(SPINAL_CONDUCTION_DELAY_S);
+  });
+
+  it("agrees with the training recipe's, number for number", async () => {
+    // The recipe module (`tools/train/src/recipe.ts`) keeps its own copy of the measured cord and
+    // the off one, on purpose: it imports nothing that runs from any package, so the dashboard and
+    // the command line can load it without the kernel. Two copies of seven numbers are held
+    // together only by a test, and this one sits here so that a change to the cord's numbers fails
+    // in the package where it was made, not only when someone next runs the trainer's tests.
+    // Loaded by path at run time rather than imported, because a package does not depend on a
+    // tool; nothing but this test reads it.
+    const at = join(import.meta.dirname, '../../../tools/train/src/recipe.ts');
+    const recipe = (await import(/* @vite-ignore */ at)) as {
+      DEFAULT_REFLEX: SpinalGains;
+      NO_REFLEX: SpinalGains;
+    };
+    expect(recipe.DEFAULT_REFLEX).toEqual(MEASURED_SPINAL_GAINS);
+    expect(recipe.NO_REFLEX).toEqual(SPINAL_OFF);
   });
 });

@@ -10,33 +10,58 @@
  * Without this layer a search has to discover the whole stabilising feedback law from scratch,
  * which is what nine hundred generations of not standing looks like.
  *
- * Three reflexes, all of them local:
+ * Three reflexes. The afferents are read per unit, but the reflexes are worked out per reflex
+ * group -- the drive groups `reflexGroups()` builds in `packages/scenarios/src/muscleGroups.ts`,
+ * each holding both sides of the body -- and each group's answer is applied uniformly to every
+ * unit in it. So a real cord's monosynaptic loop, which is a muscle answering its own spindle, is
+ * here a group answering the mean of its units' spindles: a stretched left soleus excites the
+ * right one as much as itself. That is what the code does today, and it is what every measurement
+ * in `docs/validation/reflex-gains.md` was taken on. A cord per side and per unit is a decision
+ * already taken (owner, 2026-09-26) and not yet built.
  *
- * **The stretch reflex**, monosynaptic and per unit. A muscle pulled past its set point excites
- * itself in proportion to how far past it is -- the spindle's group II, length-sensitive -- and
- * in proportion to how fast it is being pulled -- group Ia, velocity-sensitive. The velocity
- * term is the damping, and it is the one that stops a pure length loop from ringing. Only
- * lengthening excites: a shortening muscle is not resisted by its own spindle.
+ * **The stretch reflex.** Each unit past its set point contributes in proportion to how far past
+ * it is -- the spindle's group II, length-sensitive -- and in proportion to how fast it is being
+ * pulled -- group Ia, velocity-sensitive -- and the group's drive is the mean of those over its
+ * units. The velocity term is the damping, and it is the one that stops a pure length loop from
+ * ringing. Only lengthening excites: a shortening muscle is not resisted by its own spindle.
  *
- * **Reciprocal inhibition**, per antagonist pair. The Ia afferent that excites a muscle also
- * inhibits its opposite through an interneuron, so a stretched muscle does not fight its own
+ * **Reciprocal inhibition**, per antagonist pair of groups. The Ia afferent that excites a muscle
+ * also inhibits its opposite through an interneuron, so a stretched muscle does not fight its own
  * antagonist's tone. Without it the two halves of every pair co-contract and the joint stiffens
  * into uselessness.
  *
- * **Autogenic inhibition**, per unit, from the Golgi tendon organ's Ib. Force past a ceiling
- * subtracts from the muscle's own drive. It is what keeps a reflex from tearing its own tendon
- * off the bone, and it is the reason the loop is stable under a load it cannot lift.
+ * **Autogenic inhibition**, from the Golgi tendon organ's Ib. Each unit's tendon load past a
+ * ceiling subtracts from its contribution to the group's mean. It is what keeps a reflex from
+ * tearing its own tendon off the bone, and the reason a loop can be stable under a load it cannot
+ * lift. It is a safety limit that has not been seen to fire: at the default ceiling of 1.2 it
+ * never does, because tendon load peaks near a quarter of maximum isometric force even in a full
+ * collapse (0.235, measured once ba50a95 fixed the length afferent; reflex-gains.md).
+ *
+ * **Stretch and velocity both at 0 switch the whole cord off**, Ib included: the step returns
+ * before it reads a single afferent. A Golgi term on its own could still take drive off a loaded
+ * unit, as a real one would, but off is meant to be a body with no cord -- what every checkpoint
+ * before this module was trained in -- and the ceiling is not reached in anything measured, so
+ * nothing is lost by it today. `SPINAL_OFF` is that cord and is what a bare module runs; the
+ * measured one is `MEASURED_SPINAL_GAINS`. Switched back on, the cord empties its delay line
+ * first, because a cord that is off takes no afferents in and its line still holds the body as it
+ * was when it went off.
  *
  * Everything is delayed. `delaySeconds` is the conduction time from the spindle to the cord and
  * back, and the specification is blunt about why it may not be skipped: "neural conduction delay
  * is a first-order determinant of whether a nerve module produces realistic behavior or an
- * oscillating mess". A monosynaptic loop in a human leg is about thirty milliseconds. The
- * afferents are pushed into a `DelayLine` every tick and read back from `delaySeconds` ago, so
- * the reflex answers the body as it was, not as it is -- which is the only regime a real cord
- * ever works in, and the regime a policy trained above this layer had better learn in too.
+ * oscillating mess". The value is `SPINAL_CONDUCTION_DELAY_S`, chosen rather than sourced
+ * (OQ-031). The afferents are pushed into a `DelayLine` every tick and read back from
+ * `delaySeconds` ago, so the reflex answers the body as it was, not as it is -- which is the only
+ * regime a real cord ever works in, and the regime a policy trained above this layer had better
+ * learn in too.
  *
- * It adds onto `efferent.alphaMotor` like every other driver, so a zero gain changes nothing and
- * the brain above it keeps whatever authority it was given.
+ * It adds onto `efferent.alphaMotor` like every other driver, so a zero gain changes nothing. It
+ * runs last of the loop's three writers in the `control` phase: the tremor, then the nerves, then
+ * this, because none of them declares a dependency on another and the kernel breaks the tie by
+ * module id (`motor-noise` < `nerves` < `spinal`). Each writer adds and clamps to [0, 1] in turn,
+ * so the cord's drive lands on top of what the brain has already asked for, and the order decides
+ * what each clamp eats; `SpinalGains.stretch` says what that costs the brain. A test pins the
+ * order.
  */
 
 import type {
@@ -77,9 +102,13 @@ export interface SpinalGains {
    * few tenths of excitation, and that is the range: measured under a trained policy, 2 is worth
    * 0.64 s upright, 3.5 is worth 0.89, 5 is back to 0.85, and no reflex at all is worth 0.46.
    *
-   * The ceiling still matters at the top of that range. The brain above adds its correction to
-   * whatever the cord has already put on the muscle, and an excitation clamped at 1 eats it: a
-   * reflex that silences the policy is worse than no reflex. That is what the fall-off past 4 is.
+   * The ceiling still matters at the top of that range. The cord runs after the brain in the
+   * control phase (see the header), so it adds its drive on top of the correction the brain has
+   * just made and clamps the total at 1. Once the cord alone is enough to take a unit to the
+   * ceiling, whatever the brain asked of that unit, up or down, is clamped away: a reflex that
+   * silences the policy is worse than no reflex. That is what the fall-off past 4 is. (A
+   * correction that would take a unit below 0 is lost earlier, at the brain's own clamp, before
+   * the cord adds anything.)
    *
    * This used to be five thousandths, and the reason is worth keeping: the length afferent was
    * divided by the optimal fibre length twice, so it read 2.3 to 41 instead of -0.44 to 0, and
@@ -90,8 +119,14 @@ export interface SpinalGains {
   /**
    * Group Ia, velocity: excitation a unit of lengthening speed. The damping term.
    *
-   * Nearly neutral, and kept anyway. Fibre velocity reaches 0.044 optimal lengths a second in a
-   * fall where stretch reaches 0.39, so at any gain comparable to `stretch` this term is small.
+   * The speed is `muscle.state`'s `fiberVelocity`, which is a fraction of the unit's maximum
+   * contraction velocity, not optimal lengths a second; that maximum is 10 optimal lengths a
+   * second for every unit in the body today, so 0.1 here is a fibre lengthening at one optimal
+   * length a second.
+   *
+   * Nearly neutral, and kept anyway. Fibre velocity reaches 0.044 of that maximum in a fall --
+   * about 0.44 optimal lengths a second -- where stretch reaches 0.39, so at any gain comparable
+   * to `stretch` this term is small.
    * Measured, it is worth a little to a silent body (0.578 s at 0.5 against 0.573 at 0) and costs
    * a little to a trained one (0.859 s at 0.5 against 0.876 at 0), which is to say it is worth
    * nothing either way at these gains.
@@ -122,13 +157,37 @@ export interface SpinalGains {
   readonly forceCeiling: number;
   /** How hard that inhibition pulls, per unit of load past the ceiling. */
   readonly forceInhibition: number;
-  /** Seconds from the spindle to the cord and back. About 0.03 in a human leg. */
+  /** Seconds from the spindle to the cord and back; `SPINAL_CONDUCTION_DELAY_S` unless set. */
   readonly delaySeconds: number;
 }
 
-export const DEFAULT_SPINAL_GAINS: SpinalGains = {
-  stretch: 0,
-  velocity: 0,
+/**
+ * The cord's conduction delay: seconds from the spindle to the cord and back, one number for
+ * every reflex group.
+ *
+ * Chosen, not sourced (OQ-031, `docs/sources/open-questions.md`). Thirty milliseconds is the
+ * order of a short-latency stretch reflex in the leg, and it is what every measurement in
+ * `docs/validation/reflex-gains.md` was taken at, so it is the delay the measured gains are
+ * measured for; but no primary source for the latency is in the bibliography, and a real cord's
+ * delay differs by pathway, where this one is the same for every group. When a source is found,
+ * its citation belongs beside this constant and never inside `SpinalGains`, which is saved with
+ * every checkpoint: a checkpoint records the number it was trained at, not where it came from.
+ */
+export const SPINAL_CONDUCTION_DELAY_S = 0.03;
+
+/**
+ * The cord as measured: the gains a run gets unless it says otherwise, and the one the owner has
+ * decided the studio and the scripted scenarios will run with. Every number is from
+ * `docs/validation/reflex-gains.md`, which has the tables and how to reproduce them;
+ * `SpinalGains` says what each one is.
+ *
+ * The training recipe (`tools/train/src/recipe.ts`) keeps its own copy of these as
+ * `DEFAULT_REFLEX`, because it loads without this package; a test here holds the two together
+ * field by field.
+ */
+export const MEASURED_SPINAL_GAINS: SpinalGains = {
+  stretch: 3.5,
+  velocity: 0.25,
   // Hold the fibre at its optimal length. Below this the reflex stops being a reflex: at -0.1,
   // 173 of the body's 272 muscles are past the set point standing perfectly still, so the cord
   // adds a constant tone to most of the body instead of answering a stretch.
@@ -136,8 +195,23 @@ export const DEFAULT_SPINAL_GAINS: SpinalGains = {
   inhibition: 0.3,
   forceCeiling: 1.2,
   forceInhibition: 0.5,
-  delaySeconds: 0.03,
+  delaySeconds: SPINAL_CONDUCTION_DELAY_S,
 };
+
+/**
+ * The cord switched off: the measured cord with both spindle gains at zero, which turns the
+ * whole of it off, Golgi term included (see the header). The other five numbers are the measured
+ * ones so that turning the stretch up from off gives the measured cord's inhibition, ceiling and
+ * delay, not a second set of them. The recipe's `NO_REFLEX` is the same seven numbers.
+ */
+export const SPINAL_OFF: SpinalGains = { ...MEASURED_SPINAL_GAINS, stretch: 0, velocity: 0 };
+
+/**
+ * What a module built without gains runs: off. A bare cord changes nothing, so adding the module
+ * to a kernel is not by itself a change of behaviour, and a host that wants the reflexes asks for
+ * `MEASURED_SPINAL_GAINS` by name.
+ */
+export const DEFAULT_SPINAL_GAINS: SpinalGains = SPINAL_OFF;
 
 export interface SpinalOptions {
   readonly groups: readonly ReflexGroup[];
@@ -150,7 +224,7 @@ export class SpinalModule implements SimModule, Stateful {
   readonly manifest: ModuleManifest;
   private gainsInUse: SpinalGains;
   private readonly stepSeconds: number;
-  /** Per unit: its optimal fibre length and the force at which its tendon reads 1. */
+  /** Per unit: the force at which its tendon reads 1 (maximum isometric force). */
   private readonly maxForce: Float64Array;
   /** Per group: the unit indices in it, and the index of the group that opposes it. */
   private readonly groupUnits: Int32Array[];
@@ -282,9 +356,24 @@ export class SpinalModule implements SimModule, Stateful {
     return this.gainsInUse;
   }
 
+  /**
+   * Take new gains. Switching the cord on from off empties the delay line: an off cord takes no
+   * afferents in, so its line still holds the body as it was when the cord went off, and reading
+   * that back for a whole conduction delay would answer a body that has since moved. Empty, the
+   * line hands back the one afferent it has, so the first tick on answers the body as it is,
+   * exactly as the first tick of an episode does. Here rather than in `step`, and `reset` fills a
+   * ring that already exists, so the step still allocates nothing.
+   */
   set gains(next: SpinalGains) {
+    const wasOff = SpinalModule.isOff(this.gainsInUse);
     this.gainsInUse = next;
     this.rebuildLine();
+    if (wasOff && !SpinalModule.isOff(next)) this.line?.reset();
+  }
+
+  /** Both spindle gains at zero is the whole cord off, the Golgi term with it (see the header). */
+  private static isOff(g: SpinalGains): boolean {
+    return g.stretch === 0 && g.velocity === 0;
   }
 
   /** Change some gains and keep the rest. */
@@ -325,7 +414,7 @@ export class SpinalModule implements SimModule, Stateful {
     const line = this.line;
     if (!excitation || !fibre || !line) return;
     const g = this.gainsInUse;
-    if (g.stretch === 0 && g.velocity === 0) {
+    if (SpinalModule.isOff(g)) {
       this.groupDrive.fill(0);
       // A cord that is off answers nothing, so it has nothing past its set point and has put
       // nothing at the ceiling, whatever the brain above it is doing.
