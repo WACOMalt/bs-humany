@@ -1,10 +1,10 @@
 //! Compile the GLSL in `shaders/` to the SPIR-V committed beside it.
 //!
-//!   SHADERC_LIB_DIR=/usr/lib64 cargo run --example compile-shaders
+//!   SHADERC_LIB_DIR=/usr/lib64 cargo run --example compile-shaders --features compile-shaders
 //!
-//! An example rather than a binary, and `shaderc` a dev-dependency, so that an ordinary
-//! `cargo build --release` needs no shader toolchain at all: the `.spv` files are committed and
-//! the viewer embeds them. That is the same bargain the rest of this repository makes with
+//! An example rather than a binary, and `shaderc` an optional dependency behind the
+//! `compile-shaders` feature, so that neither `cargo build --release` nor `cargo test` needs a
+//! shader toolchain: the `.spv` files are committed and the viewer embeds them. That is the same bargain the rest of this repository makes with
 //! generated data -- a generator, its output in the tree, and a check that the two agree.
 
 use std::path::Path;

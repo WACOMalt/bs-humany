@@ -40,7 +40,7 @@ JSON; the status carries the settings, the drive groups and the diagnostics, and
 - [x] Tint without a new vertex format: slots past `TINT_BASE` are colour codes (sixteen
       steps of slack-to-taut, then disc, bead, cartilage) drawn under the world slot; muscle
       tubes carry the unit's tension bucket. Shaders recompiled with
-      `SHADERC_LIB_DIR=/usr/lib64 cargo run --example compile-shaders`.
+      `SHADERC_LIB_DIR=/usr/lib64 cargo run --example compile-shaders --features compile-shaders`.
 - [x] A tissue buffer, rebuilt each frame from the bone matrices and the status's tissue
       table: a disc (16-sided cylinder) or a bead (sphere) per held joint in its parent bone's
       frame, a bar per weld between its two bones' points. Its own slot and colour (the
