@@ -291,7 +291,12 @@ export class Simulation {
     this.backendId = options.backend;
     const backend = makeBackend(options.backend);
     this.capabilities = backend.capabilities;
-    this.kernel = new Kernel({ rateHz: rate, seed: 1, preferShared: false });
+    // The declared-access audit stays opt-in here even under vitest, which turns it on for every
+    // kernel that does not choose. The studio carries the whole body with its render channels, and
+    // hashing them after every module's step made the studio's own tests more than twice as slow
+    // (the Blender export, 22 s to 50 s); the same modules are audited in the testkit's scenario
+    // pass, where it costs a fraction of that.
+    this.kernel = new Kernel({ rateHz: rate, seed: 1, preferShared: false, audit: false });
     this.physics = new PhysicsModule(backend, this.articulation, {
       ground: { height: options.scenario?.ground.height ?? options.groundHeight },
       iterations: profile.solver?.iterations,
