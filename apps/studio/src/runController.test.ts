@@ -4,7 +4,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { type StartableRun, createRunGate, startSingleFlight } from './runController.js';
+import {
+  type ControlledRun,
+  type RunHost,
+  type StartableRun,
+  createRunController,
+  createRunGate,
+  startSingleFlight,
+} from './runController.js';
 
 class FakeRun implements StartableRun {
   disposed = 0;
@@ -123,5 +130,198 @@ describe('startSingleFlight', () => {
     release();
     expect(await stale).toBeUndefined();
     expect(built).toBe(0);
+  });
+});
+
+/** A cord, as the Spine sliders give it: one gain is enough to tell two apart. */
+interface Cord {
+  readonly stretch: number;
+}
+
+/** The joint state a fake run carries: its own tick count, so a carry can be checked end to end. */
+interface FakeState {
+  readonly ticks: number;
+}
+
+/** A run that starts at once and records what it was built and carried with. */
+class ControlledFake implements ControlledRun<FakeState> {
+  paused = false;
+  ticks = 0;
+  ticksPerOutputFrame = 1;
+  disposed = 0;
+  rateWindowsReset = 0;
+  resets = 0;
+  carriedFrom: FakeState | undefined;
+  readonly capture = { frameCount: 0 };
+  readonly recording = { samples: [] as unknown[] };
+  constructor(readonly reflex: Cord) {}
+  start(): Promise<void> {
+    return Promise.resolve();
+  }
+  dispose(): void {
+    this.disposed += 1;
+  }
+  jointState(): FakeState {
+    return { ticks: this.ticks };
+  }
+  carryFrom(state: FakeState, ticks: number): string[] {
+    this.carriedFrom = state;
+    this.ticks = ticks;
+    return [];
+  }
+  resetRateWindow(): void {
+    this.rateWindowsReset += 1;
+  }
+  reset(): void {
+    this.resets += 1;
+    this.ticks = 0;
+    this.capture.frameCount = 0;
+  }
+}
+
+/** A controller over fake runs, and the page it would be telling: every call to it written down. */
+function controlled() {
+  const runs: ControlledFake[] = [];
+  const said: string[] = [];
+  const grabsReleased: ControlledFake[] = [];
+  const page = {
+    cord: { stretch: 1 } as Cord,
+    settings: 'as built',
+    following: false,
+    sameBody: false,
+    changes: 0,
+  };
+  const host: RunHost<ControlledFake, FakeState, string, Cord, never> = {
+    ready: () => true,
+    following: () => page.following,
+    stopFollowing: () => {
+      page.following = false;
+    },
+    reflex: () => page.cord,
+    settings: () => page.settings,
+    build: (reflex) => {
+      const run = new ControlledFake(reflex);
+      runs.push(run);
+      return run;
+    },
+    prepare: () => undefined,
+    installed: () => undefined,
+    forgot: () => undefined,
+    abandoned: () => undefined,
+    compiling: () => Promise.resolve(),
+    startFailed: () => undefined,
+    settled: () => undefined,
+    releaseGrab: (run) => grabsReleased.push(run),
+    sameBody: () => page.sameBody,
+    announce: (text) => said.push(text),
+    dismissNotices: () => undefined,
+  };
+  const run = createRunController(host);
+  run.onChange(() => {
+    page.changes += 1;
+  });
+  return { run, runs, said, grabsReleased, page };
+}
+
+describe('createRunController', () => {
+  it('builds a run with the cord the panel shows and remembers what it was built with', async () => {
+    const { run, runs, page } = controlled();
+    page.cord = { stretch: 2.5 };
+    await run.start();
+    expect(runs).toHaveLength(1);
+    expect(run.simulation).toBe(runs[0]);
+    expect(runs[0]?.reflex).toEqual({ stretch: 2.5 });
+    expect(run.compiledWith).toBe('as built');
+    expect(run.atLiveEdge).toBe(true);
+  });
+
+  it('carries the tick count, the pause and the cord into the restarted body', async () => {
+    const { run, runs, said, page } = controlled();
+    await run.start();
+    const first = runs[0] as ControlledFake;
+    first.ticks = 420;
+    first.capture.frameCount = 12;
+    run.pause();
+    // The cord moved since the first run was built: the restart is built with the new one.
+    page.cord = { stretch: 3 };
+    page.settings = 'after the change';
+    await run.restartWithCarry('Body changed');
+    expect(runs).toHaveLength(2);
+    const second = runs[1] as ControlledFake;
+    expect(run.simulation).toBe(second);
+    expect(first.disposed).toBe(1);
+    expect(second.carriedFrom).toEqual({ ticks: 420 });
+    expect(second.ticks).toBe(420);
+    expect(second.paused).toBe(true);
+    expect(second.reflex).toEqual({ stretch: 3 });
+    expect(run.compiledWith).toBe('after the change');
+    // The recording did not survive the carry, and the page is told so.
+    expect(said.at(-1)).toMatch(/^Body changed: .*12 captured frames were discarded/);
+  });
+
+  it('leaves a run alone when its body is already the one asked for, unless told to restart', async () => {
+    const { run, runs, page } = controlled();
+    await run.start();
+    page.sameBody = true;
+    await run.restartWithCarry();
+    expect(runs).toHaveLength(1);
+    await run.restartWithCarry('Settings applied', { always: true });
+    expect(runs).toHaveLength(2);
+  });
+
+  it('pauses and resumes the same run, at the live edge', async () => {
+    const { run, runs, grabsReleased, page } = controlled();
+    await run.start();
+    const only = runs[0] as ControlledFake;
+    only.ticks = 30;
+    only.capture.frameCount = 30;
+    const changesBefore = page.changes;
+
+    run.toggleTransport();
+    expect(only.paused).toBe(true);
+    expect(grabsReleased).toEqual([only]);
+    expect(page.changes).toBeGreaterThan(changesBefore);
+
+    run.toggleTransport();
+    expect(only.paused).toBe(false);
+    expect(only.rateWindowsReset).toBe(1);
+    expect(run.atLiveEdge).toBe(true);
+    expect(run.playheadFrame()).toBe(29);
+    // Carried on, never restarted: still the one run, nothing disposed.
+    expect(runs).toHaveLength(1);
+    expect(only.disposed).toBe(0);
+  });
+
+  it('leaves the live edge on a scrub and comes back to it on resume', async () => {
+    const { run, runs } = controlled();
+    await run.start();
+    const only = runs[0] as ControlledFake;
+    only.capture.frameCount = 10;
+    run.scrubTo(3);
+    expect(run.atLiveEdge).toBe(false);
+    expect(only.paused).toBe(true);
+    expect(run.playheadFrame()).toBe(3);
+    run.resume();
+    expect(run.atLiveEdge).toBe(true);
+    expect(only.paused).toBe(false);
+    expect(run.playheadFrame()).toBe(9);
+  });
+
+  it('does nothing on Space while following the bridge', async () => {
+    const { run, runs, page } = controlled();
+    page.following = true;
+    run.toggleTransport();
+    await Promise.resolve();
+    expect(runs).toHaveLength(0);
+    expect(run.simulation).toBeNull();
+  });
+
+  it('forgets the run and what it was built with on a stop', async () => {
+    const { run, runs } = controlled();
+    await run.start();
+    run.stop();
+    expect(runs[0]?.disposed).toBe(1);
+    expect(run.simulation).toBeNull();
+    expect(run.compiledWith).toBeNull();
   });
 });
