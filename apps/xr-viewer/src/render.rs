@@ -44,6 +44,9 @@ const GRID_WIDTH: f32 = 0.006;
 /// How many egui vertices and indices a frame of the panel may have; more is cut off.
 const PANEL_VERTICES: usize = 32768;
 const PANEL_INDICES: usize = 98304;
+/// Where a panel mesh's clip rectangle sits in the push constants: after the 64-byte matrix,
+/// which is the `layout(offset = 64)` in `panel.frag`.
+const PANEL_CLIP_OFFSET: u32 = 64;
 /// The edge of a controller cube, in metres; a hand-sized thing, not a fingertip.
 pub const CONTROLLER_EDGE: f32 = 0.06;
 /// Position, normal, bone index.
@@ -156,10 +159,12 @@ struct Texture {
     pixels: Vec<u8>,
 }
 
-/// The panel as `draw` wants it: the matrix that stands it up, and egui's meshes.
+/// The panel as `draw` wants it: the matrix that stands it up, and egui's meshes, each with the
+/// rectangle it is cut to. Panels are drawn in the order given, and they neither write depth
+/// nor test it against each other, so the caller puts the farther first.
 pub struct PanelDraw<'a> {
     pub model: [f32; 16],
-    pub meshes: &'a [(egui::TextureId, Vec<egui::epaint::Vertex>, Vec<u32>)],
+    pub meshes: &'a [crate::panel::Mesh],
 }
 
 struct Buffer {
@@ -462,25 +467,33 @@ impl Renderer {
             // The panels' meshes, packed end to end into this image's buffers, remembering where
             // each begins and which panel it belongs to, so it is drawn with its own texture
             // under its own placement.
-            let mut panel_draws: Vec<(usize, u64, u32, u32, i32)> = Vec::new();
+            let mut panel_draws: Vec<(usize, u64, [f32; 4], u32, u32, i32)> = Vec::new();
             {
                 let (vertex_buffer, index_buffer) = &self.panel.per_target[image];
                 let mut vertex_at = 0usize;
                 let mut index_at = 0usize;
                 for (which, panel) in panels.iter().enumerate() {
-                    for (texture, vertices, indices) in panel.meshes {
-                        let key = texture_key(*texture);
+                    for mesh in panel.meshes {
+                        let key = texture_key(mesh.texture);
                         if !self.panel.textures.contains_key(&key)
-                            || vertex_at + vertices.len() > PANEL_VERTICES
-                            || index_at + indices.len() > PANEL_INDICES
+                            || vertex_at + mesh.vertices.len() > PANEL_VERTICES
+                            || index_at + mesh.indices.len() > PANEL_INDICES
                         {
                             continue;
                         }
-                        vertex_buffer.write_at(vertex_at * 20, bytes_of(vertices));
-                        index_buffer.write_at(index_at * 4, bytes_of(indices));
-                        panel_draws.push((which, key, index_at as u32, indices.len() as u32, vertex_at as i32));
-                        vertex_at += vertices.len();
-                        index_at += indices.len();
+                        vertex_buffer.write_at(vertex_at * 20, bytes_of(&mesh.vertices));
+                        index_buffer.write_at(index_at * 4, bytes_of(&mesh.indices));
+                        let clip = [mesh.clip.min.x, mesh.clip.min.y, mesh.clip.max.x, mesh.clip.max.y];
+                        panel_draws.push((
+                            which,
+                            key,
+                            clip,
+                            index_at as u32,
+                            mesh.indices.len() as u32,
+                            vertex_at as i32,
+                        ));
+                        vertex_at += mesh.vertices.len();
+                        index_at += mesh.indices.len();
                     }
                 }
             }
@@ -619,7 +632,7 @@ impl Renderer {
                         vk::IndexType::UINT32,
                     );
                     let mut pushed: Option<usize> = None;
-                    for (which, key, first_index, count, vertex_offset) in &panel_draws {
+                    for (which, key, clip, first_index, count, vertex_offset) in &panel_draws {
                         if pushed != Some(*which) {
                             device.cmd_push_constants(
                                 target.command_buffer,
@@ -630,6 +643,15 @@ impl Renderer {
                             );
                             pushed = Some(*which);
                         }
+                        // Every mesh its own rectangle, which the fragment stage cuts to: a
+                        // scrolled column's rows stop at the column's edge.
+                        device.cmd_push_constants(
+                            target.command_buffer,
+                            self.panel.layout,
+                            vk::ShaderStageFlags::FRAGMENT,
+                            PANEL_CLIP_OFFSET,
+                            bytes_of(clip),
+                        );
                         let texture = &self.panel.textures[key];
                         device.cmd_bind_descriptor_sets(
                             target.command_buffer,
@@ -1151,10 +1173,18 @@ impl PanelGpu {
                 None,
             )
         }?;
-        let push = [vk::PushConstantRange::default()
-            .stage_flags(vk::ShaderStageFlags::VERTEX)
-            .offset(0)
-            .size(64)];
+        // The placement's matrix for the vertices, then the mesh's clip rectangle for the
+        // fragments, in ranges of their own so that each is pushed without the other.
+        let push = [
+            vk::PushConstantRange::default()
+                .stage_flags(vk::ShaderStageFlags::VERTEX)
+                .offset(0)
+                .size(PANEL_CLIP_OFFSET),
+            vk::PushConstantRange::default()
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+                .offset(PANEL_CLIP_OFFSET)
+                .size(16),
+        ];
         let layout = unsafe {
             device.create_pipeline_layout(
                 &vk::PipelineLayoutCreateInfo::default()
@@ -2177,5 +2207,63 @@ mod tests {
         // And it stands a metre and a half out, feet still on the floor.
         let feet = apply(&m, [0.0, 0.0, 0.0, 1.0]);
         assert_eq!([feet[0], feet[1], feet[2]], [0.0, 0.0, -1.5]);
+    }
+
+    /// What a SPIR-V module says of its interface: the locations of its inputs and of its
+    /// outputs, and every push-constant member offset it declares. Read from the words, since
+    /// there is no device in a test to reject a mismatch the way a pipeline build would.
+    fn interface(spv: &[u8]) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+        const OP_DECORATE: u32 = 71;
+        const OP_MEMBER_DECORATE: u32 = 72;
+        const OP_VARIABLE: u32 = 59;
+        const LOCATION: u32 = 30;
+        const OFFSET: u32 = 35;
+        const INPUT: u32 = 1;
+        const OUTPUT: u32 = 3;
+        let words: Vec<u32> = spv
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        let mut locations = std::collections::HashMap::new();
+        let mut classes = std::collections::HashMap::new();
+        let mut offsets = Vec::new();
+        let mut at = 5;
+        while at < words.len() {
+            let (count, op) = ((words[at] >> 16) as usize, words[at] & 0xffff);
+            let operands = &words[at + 1..at + count];
+            match op {
+                OP_DECORATE if operands[1] == LOCATION => {
+                    locations.insert(operands[0], operands[2]);
+                }
+                OP_MEMBER_DECORATE if operands[2] == OFFSET => offsets.push(operands[3]),
+                OP_VARIABLE => {
+                    classes.insert(operands[1], operands[2]);
+                }
+                _ => {}
+            }
+            at += count.max(1);
+        }
+        let of = |class: u32| {
+            let mut found: Vec<u32> = locations
+                .iter()
+                .filter(|(id, _)| classes.get(*id) == Some(&class))
+                .map(|(_, location)| *location)
+                .collect();
+            found.sort_unstable();
+            found
+        };
+        (of(INPUT), of(OUTPUT), offsets)
+    }
+
+    #[test]
+    fn the_panel_shaders_agree_on_the_point_they_are_cut_by() {
+        // The vertex stage hands the panel point on at every location the fragment stage reads,
+        // and the fragment stage reads its clip rectangle after the matrix, where `draw` pushes
+        // it. Either wrong is a pipeline that builds and draws nothing, or draws the uncut rows.
+        let (_, out, _) = interface(include_bytes!("../shaders/panel.vert.spv"));
+        let (inputs, _, offsets) = interface(include_bytes!("../shaders/panel.frag.spv"));
+        assert_eq!(inputs, vec![0, 1, 2]);
+        assert!(inputs.iter().all(|l| out.contains(l)), "vertex out {out:?}, fragment in {inputs:?}");
+        assert_eq!(offsets, vec![PANEL_CLIP_OFFSET]);
     }
 }

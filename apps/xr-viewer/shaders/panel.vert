@@ -13,6 +13,8 @@ layout(push_constant) uniform Push { mat4 model; } push;
 
 layout(location = 0) out vec2 vUv;
 layout(location = 1) out vec4 vColour;
+// The point on the panel, in points, for the fragment stage to cut to the mesh's clip rectangle.
+layout(location = 2) out vec2 vPoint;
 
 // egui's colours are sRGB and premultiplied; the attachment is sRGB and blends in linear, so the
 // colour is linearised here and the alpha left alone, which is what egui's own backends do.
@@ -24,6 +26,7 @@ vec3 linearFromSrgb(vec3 c) {
 
 void main() {
     vUv = inUv;
+    vPoint = inPosition;
     vColour = vec4(linearFromSrgb(inColour.rgb), inColour.a);
     gl_Position = views.viewProj[gl_ViewIndex] * push.model * vec4(inPosition, 0.0, 1.0);
 }

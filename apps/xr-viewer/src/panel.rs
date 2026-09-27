@@ -10,9 +10,11 @@
 //! - the **transport panel**, one horizontal strip: the run's Start, Pause and Reset, the mode,
 //!   the playhead and its frame buttons, the grid, and the overlay toggles.
 //!
-//! Each has a **grab strip** down its left edge. A hand whose ray meets the strip and pulls the
-//! trigger takes the panel with it until the trigger is let go; the panel then stays where it was
-//! put. A controller's aim ray is otherwise the pointer and its trigger the click. The panels'
+//! Each has a **grab strip** down its left edge. A hand whose ray is on the strip when it pulls
+//! the trigger takes the panel with it until the trigger is let go; the panel then stays where it
+//! was put. A controller's aim ray is otherwise the pointer and its trigger the click, and a press
+//! keeps the panel it began on, at the ray's point held to the face, until it is let go. A hand
+//! aimed at a face scrolls it with its thumbstick. The panels'
 //! geometry is here, the Vulkan that draws them is in `render.rs`, and what the buttons do goes
 //! back to the publisher as commands through `bridge::CommandWriter`.
 //!
@@ -105,9 +107,9 @@ impl Placement {
         ]
     }
 
-    /// Where a ray meets the panel, if it does and the panel is in front of the ray: the grab
-    /// strip or the face, and the point in points.
-    pub fn hit(&self, from: [f32; 3], direction: [f32; 3]) -> Option<Hit> {
+    /// Where a ray meets the panel's plane, if the plane is in front of the ray: how far along
+    /// the ray, and the point in points, which may lie outside the panel.
+    fn plane_point(&self, from: [f32; 3], direction: [f32; 3]) -> Option<(f32, egui::Pos2)> {
         let denominator = dot(direction, self.normal);
         if denominator.abs() < 1e-6 {
             return None;
@@ -126,16 +128,33 @@ impl Placement {
             from[1] + direction[1] * t - self.origin[1],
             from[2] + direction[2] * t - self.origin[2],
         ];
-        let x = dot(at, self.right) / POINT_METRES;
-        let y = dot(at, self.down) / POINT_METRES;
-        if x < 0.0 || y < 0.0 || x > self.size[0] || y > self.size[1] {
+        Some((t, egui::pos2(dot(at, self.right) / POINT_METRES, dot(at, self.down) / POINT_METRES)))
+    }
+
+    /// Where a ray meets the panel, if it does and the panel is in front of the ray: how far
+    /// along the ray, so that of two panels on one ray the nearer can be chosen, and the grab
+    /// strip or the face with the point in points.
+    pub fn hit(&self, from: [f32; 3], direction: [f32; 3]) -> Option<(f32, Hit)> {
+        let (t, p) = self.plane_point(from, direction)?;
+        if p.x < 0.0 || p.y < 0.0 || p.x > self.size[0] || p.y > self.size[1] {
             return None;
         }
-        Some(if x < GRAB_WIDTH {
-            Hit::Grab(egui::pos2(x, y))
-        } else {
-            Hit::Face(egui::pos2(x, y))
-        })
+        Some((t, if p.x < GRAB_WIDTH { Hit::Grab(p) } else { Hit::Face(p) }))
+    }
+
+    /// Where a ray points on the panel's face even when it has left the panel: the plane's
+    /// point held to the face's edges. A press keeps the panel it began on until it is let go,
+    /// and this is where it is while the ray is off the edge, so a slider dragged past its end
+    /// sits at its end rather than being dropped, and a drag never slides onto the grab strip.
+    /// `None` only when the plane is not in front of the ray at all.
+    pub fn project(&self, from: [f32; 3], direction: [f32; 3]) -> Option<egui::Pos2> {
+        let (_, p) = self.plane_point(from, direction)?;
+        Some(egui::pos2(p.x.clamp(GRAB_WIDTH, self.size[0]), p.y.clamp(0.0, self.size[1])))
+    }
+
+    /// The middle of the panel, in the room.
+    pub fn centre(&self) -> [f32; 3] {
+        self.to_world(egui::pos2(self.size[0] / 2.0, self.size[1] / 2.0))
     }
 
     /// A point on the panel, back in the room.
@@ -249,10 +268,21 @@ fn set(key: &str, value: impl Into<serde_json::Value>) -> Command {
     Command::Set(key.to_string(), value.into())
 }
 
+/// One of egui's meshes, with the rectangle it may draw inside, in points. egui only drops a
+/// shape that lies wholly outside its clip rectangle and leaves the cutting of the rest to the
+/// renderer, so without the rectangle a scrolled row half out of its column draws over the
+/// footer, the tabs or the room beyond the panel's edge.
+pub struct Mesh {
+    pub texture: egui::TextureId,
+    pub clip: egui::Rect,
+    pub vertices: Vec<egui::epaint::Vertex>,
+    pub indices: Vec<u32>,
+}
+
 /// One frame of a panel: its meshes to draw, its texture changes to apply first, and what the
 /// person pressed.
 pub struct Frame {
-    pub meshes: Vec<(egui::TextureId, Vec<egui::epaint::Vertex>, Vec<u32>)>,
+    pub meshes: Vec<Mesh>,
     pub textures: egui::TexturesDelta,
     pub commands: Vec<Command>,
 }
@@ -262,10 +292,17 @@ pub struct Frame {
 pub struct Pointer {
     pub at: Option<egui::Pos2>,
     pub pressed: bool,
+    /// The thumbstick of a hand aimed at the panel, forward positive, past its dead zone: the
+    /// wheel, since a headset has no other way to reach the bottom of a long tab.
+    pub scroll: f32,
 }
 
+/// How fast a stick held full over scrolls, in points a second: most of the properties panel's
+/// height in a second, quick enough to cross the Brain tab and slow enough to stop on a row.
+const SCROLL_SPEED: f32 = 900.0;
+
 /// The properties panel's tabs, the desktop's in the desktop's order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Tab {
     Body,
     World,
@@ -301,6 +338,9 @@ pub struct Panel {
     last_live_send: f64,
     /// Whether the panel is being carried, so the strip can say so.
     pub grabbed: bool,
+    /// The properties panel's scroll area, as egui last named it, so a test can read its offset.
+    #[cfg_attr(not(test), allow(dead_code))]
+    scroll_id: Option<egui::Id>,
 }
 
 /// Which slider is being dragged and what it reads, and whether a pointer is on the panel at
@@ -330,15 +370,29 @@ fn slider(
     decimals: usize,
     live: bool,
 ) -> Option<f32> {
-    let mut value = match &editing.current {
-        Some((k, v)) if k == key => *v,
-        _ => from_status,
+    let held = match &editing.current {
+        Some((k, v)) if k == key => Some(*v),
+        _ => None,
     };
-    let response = ui.add(
-        egui::Slider::new(&mut value, range)
-            .text(label)
-            .fixed_decimals(decimals),
-    );
+    let mut value = held.unwrap_or(from_status);
+    // The label beside the slider, as egui's own would be, but wrapped to what is left of the
+    // row: egui never wraps a slider's text, and the Body tab's longer ones ran past the panel's
+    // edge, where the panel's clip now cuts them off mid-word.
+    let response = ui
+        .horizontal(|ui| {
+            let response = ui.add(egui::Slider::new(&mut value, range).fixed_decimals(decimals));
+            ui.add(egui::Label::new(label).wrap());
+            response
+        })
+        .inner;
+    // Before the pointer is asked about: a drag whose ray was lost altogether ends with the
+    // pointer gone and the press released in the same frame, and the value it reached is still
+    // the one the person chose. Not the one the slider has just taken, which is where `run` put
+    // that release -- off the panel, so that it clicks nothing -- and so the slider's minimum.
+    if response.drag_stopped() {
+        editing.current = None;
+        return Some(if editing.on_panel { value } else { held.unwrap_or(value) });
+    }
     if !editing.on_panel {
         if editing.current.as_ref().map(|(k, _)| k == key).unwrap_or(false) {
             editing.current = None;
@@ -353,7 +407,7 @@ fn slider(
             return Some(value);
         }
     }
-    if response.drag_stopped() || response.clicked() {
+    if response.clicked() {
         editing.current = None;
         return Some(value);
     }
@@ -399,6 +453,15 @@ impl Panel {
             style.spacing.item_spacing = egui::vec2(10.0, 9.0);
             style.spacing.slider_width = 240.0;
             style.spacing.interact_size.y = 28.0;
+            // A bar that is always there and wide enough to take with a ray, for a controller
+            // with no stick; egui's default floats, thin, and only while a mouse is over it.
+            style.spacing.scroll = egui::style::ScrollStyle {
+                bar_width: 16.0,
+                ..egui::style::ScrollStyle::solid()
+            };
+            // A drag across a note scrolls the tab rather than selecting its words, which a
+            // headset can do nothing with.
+            style.interaction.selectable_labels = false;
         });
         Self {
             kind,
@@ -410,6 +473,7 @@ impl Panel {
             editing: None,
             last_live_send: 0.0,
             grabbed: false,
+            scroll_id: None,
         }
     }
 
@@ -418,10 +482,12 @@ impl Panel {
     /// `liveness` is what is wrong with the publisher, if anything, and `status_error` why its
     /// newest status could not be read; both are said at the top of the panel. While the
     /// publisher is silent the controls are drawn but greyed: nothing pressed would be read.
+    /// `dt` is the seconds since the last frame, which the pointer's scroll is a rate over.
     pub fn run(
         &mut self,
         status: Option<&Status>,
         pointer: Pointer,
+        dt: f32,
         feeds: &str,
         liveness: Option<&crate::xr::Liveness>,
         status_error: Option<&str>,
@@ -431,6 +497,23 @@ impl Panel {
         match pointer.at {
             Some(at) => {
                 events.push(egui::Event::PointerMoved(at));
+                // A wheel under the pointer, as a mouse's would be, so it scrolls whichever area
+                // the ray is on. egui's wheel runs the other way to a stick: a positive delta
+                // brings the top into view, which is what pushing forward should do. egui takes
+                // a step of eight points or more for a mouse wheel's notch and spreads it over
+                // the next tenth of a second; a stick is smooth already, and spreading it again
+                // left the tab coasting on after the stick was let go, further at 90 Hz than at
+                // 144. So the frame's travel is given as steps under that size, which egui
+                // applies at once.
+                let travel = pointer.scroll * SCROLL_SPEED * dt;
+                let steps = (travel.abs() / 7.5).ceil() as usize;
+                for _ in 0..steps {
+                    events.push(egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(0.0, travel / steps as f32),
+                        modifiers: egui::Modifiers::default(),
+                    });
+                }
                 if pointer.pressed != self.was_pressed {
                     events.push(egui::Event::PointerButton {
                         pos: at,
@@ -481,6 +564,7 @@ impl Panel {
         };
         let kind = self.kind;
         let grabbed = self.grabbed;
+        let mut scroll_id = self.scroll_id;
         let live = !matches!(liveness, Some(crate::xr::Liveness::Silent(_)));
         let output = self.ctx.run(input, |ctx| {
             egui::CentralPanel::default()
@@ -497,10 +581,18 @@ impl Panel {
                                 tab_column(ui, &mut tab, size[1]);
                                 ui.add_space(8.0);
                                 ui.vertical(|ui| {
-                                    ui.set_width(size[0] - GRAB_WIDTH - 118.0);
+                                    // What is left of the row, so the column and the scroll bar
+                                    // at its right lie on the panel. A width worked out from the
+                                    // strip and the tabs had drifted past the edge, and the bar
+                                    // with it, into the room where nothing could reach it.
+                                    ui.set_width(ui.available_width());
                                     ui.add_space(14.0);
                                     let warned = warnings(ui, status.is_some(), liveness, status_error, false);
-                                    egui::ScrollArea::vertical()
+                                    // Each tab its own offset, as a tab page would have: the
+                                    // Brain tab scrolled to its training buttons does not open
+                                    // the Body tab half-way down.
+                                    let scrolled = egui::ScrollArea::vertical()
+                                        .id_salt(tab)
                                         .max_height(size[1] - 60.0 - warned)
                                         .show(ui, |ui| match status {
                                             Some(s) => {
@@ -510,6 +602,7 @@ impl Panel {
                                             }
                                             None => waiting(ui, feeds, status_error),
                                         });
+                                    scroll_id = Some(scrolled.id);
                                     ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                                         note(ui, feeds);
                                     });
@@ -540,6 +633,7 @@ impl Panel {
                 });
         });
         self.tab = tab;
+        self.scroll_id = scroll_id;
         self.editing = editing.current;
         self.last_live_send = editing.last_live_send;
 
@@ -548,9 +642,12 @@ impl Panel {
             .tessellate(output.shapes, output.pixels_per_point)
             .into_iter()
             .filter_map(|primitive| match primitive.primitive {
-                egui::epaint::Primitive::Mesh(mesh) => {
-                    Some((mesh.texture_id, mesh.vertices, mesh.indices))
-                }
+                egui::epaint::Primitive::Mesh(mesh) => Some(Mesh {
+                    texture: mesh.texture_id,
+                    clip: primitive.clip_rect,
+                    vertices: mesh.vertices,
+                    indices: mesh.indices,
+                }),
                 egui::epaint::Primitive::Callback(_) => None,
             })
             .collect();
@@ -1133,12 +1230,14 @@ mod tests {
         // (0, 0), which is on the grab strip; one pointing away misses.
         let size = Kind::Properties.size();
         let panel = Placement::facing(size, [0.0, 0.5, -1.0], [0.0, 0.5, 0.0]);
-        let Some(Hit::Face(centre)) = panel.hit([0.0, 0.5, 0.0], [0.0, 0.0, -1.0]) else {
+        let Some((t, Hit::Face(centre))) = panel.hit([0.0, 0.5, 0.0], [0.0, 0.0, -1.0]) else {
             panic!("misses the face");
         };
         assert!((centre.x - size[0] / 2.0).abs() < 1e-3 && (centre.y - size[1] / 2.0).abs() < 1e-3);
+        // A metre along a unit ray: the distance, so the nearer of two panels can be told.
+        assert!((t - 1.0).abs() < 1e-5, "{t}");
         let corner = panel.to_world(egui::pos2(0.0, 0.0));
-        let Some(Hit::Grab(back)) = panel.hit([0.0, 0.5, 0.0], [corner[0], corner[1] - 0.5, corner[2]]) else {
+        let Some((_, Hit::Grab(back))) = panel.hit([0.0, 0.5, 0.0], [corner[0], corner[1] - 0.5, corner[2]]) else {
             panic!("misses the strip");
         };
         assert!(back.x.abs() < 1e-3 && back.y.abs() < 1e-3, "{back:?}");
@@ -1264,5 +1363,148 @@ mod tests {
             Command::Brain { action: "authority", id: None, value: Some(0.5) }.to_json(),
             r#"{"action":"authority","kind":"brain","value":0.5}"#
         );
+    }
+
+    #[test]
+    fn a_ray_off_the_edge_projects_onto_the_face_held_to_its_edges() {
+        // A panel a metre ahead, facing the origin, and rays from the origin to points in its
+        // plane beyond each edge. Each lands on the face's edge it went past; the one past the
+        // left edge stops at the strip's inner side, never on the strip.
+        let size = Kind::Properties.size();
+        let panel = Placement::facing(size, [0.0, 1.2, -1.0], [0.0, 1.2, 0.0]);
+        let from = [0.0, 1.2, 0.0];
+        let towards = |p: egui::Pos2| {
+            let w = panel.to_world(p);
+            [w[0] - from[0], w[1] - from[1], w[2] - from[2]]
+        };
+        let cases = [
+            (egui::pos2(-200.0, 300.0), egui::pos2(GRAB_WIDTH, 300.0)),
+            (egui::pos2(size[0] + 200.0, 300.0), egui::pos2(size[0], 300.0)),
+            (egui::pos2(300.0, -150.0), egui::pos2(300.0, 0.0)),
+            (egui::pos2(300.0, size[1] + 150.0), egui::pos2(300.0, size[1])),
+            (egui::pos2(10.0, 300.0), egui::pos2(GRAB_WIDTH, 300.0)),
+            (egui::pos2(250.0, 400.0), egui::pos2(250.0, 400.0)),
+        ];
+        for (aimed, lands) in cases {
+            let at = panel.project(from, towards(aimed)).expect("the plane is ahead");
+            assert!((at - lands).length() < 1e-2, "aimed at {aimed:?}, landed at {at:?}");
+        }
+        // Past the edge the ray misses the panel itself, which is why a press needs this.
+        assert!(panel.hit(from, towards(egui::pos2(size[0] + 200.0, 300.0))).is_none());
+        // A panel behind the ray has nowhere to project to.
+        assert!(panel.project(from, [0.0, 0.0, 1.0]).is_none());
+    }
+
+    fn fixture() -> Status {
+        crate::bridge::parse_status(include_str!("../fixtures/status.json")).expect("parses")
+    }
+
+    /// One headset frame of a panel, with the pointer where it is and the frame's commands.
+    fn step(panel: &mut Panel, status: &Status, at: Option<egui::Pos2>, pressed: bool, scroll: f32) -> Frame {
+        panel.run(Some(status), Pointer { at, pressed, scroll }, 1.0 / 90.0, "feeds", None, None)
+    }
+
+    fn stature_sent(commands: &[Command]) -> Option<f64> {
+        commands.iter().find_map(|c| match c {
+            Command::Set(key, value) if key == "stature" => value.as_f64(),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn a_drag_whose_ray_is_lost_still_sends_the_value_it_reached() {
+        let status = fixture();
+        let mut panel = Panel::new(Kind::Properties);
+        // Where the stature slider is, found as a person would: by clicking down the Body
+        // tab's slider column until a click sets stature.
+        let column = 230.0;
+        let row = (40..400)
+            .step_by(3)
+            .map(|y| egui::pos2(column, y as f32))
+            .find(|at| {
+                step(&mut panel, &status, Some(*at), false, 0.0);
+                step(&mut panel, &status, Some(*at), true, 0.0);
+                let clicked = step(&mut panel, &status, Some(*at), false, 0.0);
+                stature_sent(&clicked.commands).is_some()
+            })
+            .expect("a stature slider on the Body tab")
+            .y;
+
+        let mut panel = Panel::new(Kind::Properties);
+        let mut sent = Vec::new();
+        step(&mut panel, &status, Some(egui::pos2(column, row)), false, 0.0);
+        sent.extend(step(&mut panel, &status, Some(egui::pos2(column, row)), true, 0.0).commands);
+        for x in [260.0, 300.0, 340.0] {
+            sent.extend(step(&mut panel, &status, Some(egui::pos2(x, row)), true, 0.0).commands);
+        }
+        // Stature rebuilds the body, so nothing is sent while it is dragged.
+        assert_eq!(stature_sent(&sent), None, "{sent:?}");
+        // The ray is lost with the trigger still down: the panel is let go of there and then.
+        let last = step(&mut panel, &status, None, false, 0.0);
+        let value = stature_sent(&last.commands).expect("the drag's value is sent when the ray is lost");
+        // Dragged right from the press, so taller than where the press put it, and nowhere
+        // near the slider's minimum, which is where the release itself was put.
+        let pressed = {
+            let mut fresh = Panel::new(Kind::Properties);
+            step(&mut fresh, &status, Some(egui::pos2(column, row)), false, 0.0);
+            step(&mut fresh, &status, Some(egui::pos2(column, row)), true, 0.0);
+            let up = step(&mut fresh, &status, Some(egui::pos2(column, row)), false, 0.0);
+            stature_sent(&up.commands).expect("a click sends")
+        };
+        assert!(value > pressed + 0.05, "sent {value}, pressed at {pressed}");
+        assert!(value < 2.05 + 1e-6);
+    }
+
+    #[test]
+    fn the_stick_scrolls_the_tab_the_ray_is_on() {
+        // The Brain tab is longer than the panel. Pulled back, the stick brings its bottom up.
+        let status = fixture();
+        let mut panel = Panel::new(Kind::Properties);
+        panel.tab = Tab::Brain;
+        let on_face = Some(egui::pos2(400.0, 400.0));
+        step(&mut panel, &status, on_face, false, 0.0);
+        let id = panel.scroll_id.expect("the properties panel scrolls");
+        let offset = |panel: &Panel| {
+            egui::scroll_area::State::load(&panel.ctx, id).map_or(0.0, |state| state.offset.y)
+        };
+        assert_eq!(offset(&panel), 0.0);
+        for _ in 0..2 {
+            step(&mut panel, &status, on_face, false, -1.0);
+        }
+        let scrolled = offset(&panel);
+        assert!(scrolled > 0.0, "offset {scrolled}");
+        // Pushed forward, back towards the top.
+        for _ in 0..2 {
+            step(&mut panel, &status, on_face, false, 1.0);
+        }
+        assert!(offset(&panel) < scrolled, "{} after {scrolled}", offset(&panel));
+        // With no ray on the panel a stick is not the panel's, and nothing moves.
+        let before = offset(&panel);
+        step(&mut panel, &status, None, false, -1.0);
+        step(&mut panel, &status, None, false, -1.0);
+        assert_eq!(offset(&panel), before);
+    }
+
+    #[test]
+    fn every_tab_is_laid_out_on_the_panel() {
+        // Nothing drawn past the panel's right edge, the scroll bar included: past it there is
+        // only the room, where no ray can reach it.
+        let status = fixture();
+        let size = Kind::Properties.size();
+        for (tab, name) in TABS {
+            let mut panel = Panel::new(Kind::Properties);
+            panel.tab = tab;
+            // The second frame: egui lays the first out on a screen of its own default size.
+            step(&mut panel, &status, None, false, 0.0);
+            let frame = step(&mut panel, &status, None, false, 0.0);
+            let widest = frame
+                .meshes
+                .iter()
+                .flat_map(|mesh| mesh.vertices.iter())
+                .map(|v| v.pos.x)
+                .fold(0.0f32, f32::max);
+            // egui's anti-aliasing feathers every edge it draws by under a point.
+            assert!(widest <= size[0] + 1.0, "{name}: drawn out to {widest} of {}", size[0]);
+        }
     }
 }
