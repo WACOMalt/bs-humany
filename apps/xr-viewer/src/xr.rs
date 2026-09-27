@@ -99,6 +99,11 @@ fn bring_up() -> Result<(openxr::Entry, openxr::Instance, openxr::SystemId)> {
     }
     let mut wanted = openxr::ExtensionSet::default();
     wanted.khr_vulkan_enable2 = true;
+    // The HP Reverb's controllers have an interaction profile of their own, which a runtime only
+    // accepts bindings for when this extension is asked for. Asked for only when offered: an
+    // instance asking for an extension its runtime lacks is refused outright, and a runtime
+    // without it has no HP controllers to bind anyway.
+    wanted.ext_hp_mixed_reality_controller = available.ext_hp_mixed_reality_controller;
     let xr = create_instance(&entry, &wanted)?;
     let Some(system) = find_headset(&xr)? else {
         bail!(NO_HEADSET);
@@ -197,11 +202,16 @@ enum Flow {
 /// itself going away mean stop altogether. `running` is whether a session is begun, which is
 /// whether there are frames to wait on. `view` and `session` walk that machine the same way,
 /// which is why there is one copy of it.
+///
+/// `profiles_changed` is set when the runtime says the controllers in hand have changed profile
+/// -- which it also says once at the start, when it first settles on one -- so that `view` can
+/// ask which, say so and show it. `session`, which binds no controllers, ignores it.
 fn pump_events(
     xr: &openxr::Instance,
     session: &openxr::Session<openxr::Vulkan>,
     storage: &mut openxr::EventDataBuffer,
     running: &mut bool,
+    profiles_changed: &mut bool,
 ) -> Result<Flow> {
     while let Some(event) = xr.poll_event(storage).context("reading the OpenXR runtime's events")? {
         use openxr::Event::*;
@@ -229,6 +239,7 @@ fn pump_events(
                 println!("session: the OpenXR runtime is going away");
                 return Ok(Flow::Exit);
             }
+            InteractionProfileChanged(_) => *profiles_changed = true,
             _ => {}
         }
     }
@@ -526,18 +537,23 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut last_muscle_tick: Option<u64> = None;
 
     // The panels: the properties panel to the viewer's right of the body, a little below eye
-    // height, and the transport strip under it, both turned to face where the viewer stands.
-    // Whichever hand is pointing at a panel is its pointer; a hand that pressed on it keeps being
-    // the pointer until it lets go, so a drag does not change hands mid-way. A hand on a grab
-    // strip carries the panel instead. Where they overlap, the nearer is the one pointed at.
+    // height, and the transport strip under it, both turned to face where the viewer stands --
+    // `home_placements`, which a recentre puts them back to. Whichever hand is pointing at a
+    // panel is its pointer; a hand that pressed on it keeps being the pointer until it lets go, so
+    // a drag does not change hands mid-way. A hand on a grab strip carries the panel instead.
+    // Where they overlap, the nearer is the one pointed at.
     use crate::panel::{Held, Kind, Panel};
-    let mut placements = [
-        Placement::facing(Kind::Properties.size(), [0.95, 1.3, -1.0], [0.0, 1.3, 0.0]),
-        Placement::facing(Kind::Transport.size(), [0.55, 0.76, -1.05], [0.0, 0.76, 0.0]),
-    ];
+    let mut placements = home_placements([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
     let mut panels = [Panel::new(Kind::Properties), Panel::new(Kind::Transport)];
     let mut pointer_hand: [Option<usize>; 2] = [None, None];
     let mut carrying: [Option<(usize, Held)>; crate::bridge::HANDS] = [None, None];
+    // What the viewer knows of itself for the panels to show: which controllers are in hand, and
+    // whether the right stick turns in steps. Smooth turning is the default; snap turn is a box on
+    // the transport strip for whoever the smooth turn makes queasy.
+    let mut headset = crate::panel::Headset::default();
+    let mut profiles_changed = false;
+    // Whether a snap turn is armed: the stick has come back to the middle since the last step.
+    let mut snap_armed = true;
 
     let stage = session
         .create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)
@@ -563,7 +579,18 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut drawing = false;
 
     while started.elapsed().as_secs_f32() < seconds {
-        if pump_events(&xr, &session, &mut event_storage, &mut running)? == Flow::Exit {
+        let flow = pump_events(&xr, &session, &mut event_storage, &mut running, &mut profiles_changed)?;
+        // The controllers in hand changed, or the runtime has settled on them for the first time:
+        // which they are is said once, on the terminal and on the panels, where somebody holding
+        // a controller the guide was not written for can see what the runtime made of it.
+        if profiles_changed && flow == Flow::Continue {
+            profiles_changed = false;
+            headset.profiles = hands.profiles(&xr, &session);
+            for (side, profile) in ["left", "right"].iter().zip(&headset.profiles) {
+                println!("hands: {side} uses {profile}");
+            }
+        }
+        if flow == Flow::Exit {
             let_go_of_everything(
                 feeds.as_mut().map(|f| &mut f.grabs),
                 &mut holding,
@@ -774,6 +801,33 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         last_frame = now;
         let head = views[0].pose.position;
         let head = [head.x, head.y, head.z];
+        // The stick pressed in, on either hand: back to the start, the panels in front. Before
+        // anything this frame is aimed or carried, so all of it is in the recentred world.
+        let mut recentred = false;
+        for hand in 0..crate::bridge::HANDS {
+            if hands.recentre_pressed(&session, hand)? {
+                recentred = true;
+                hands.pulse(&session, hand, FIRM_TICK);
+            }
+        }
+        if recentred {
+            for (which, _) in carrying.iter().flatten() {
+                panels[*which].grabbed = false;
+            }
+            let q = views[0].pose.orientation;
+            recentre(&mut view_point, &mut placements, &mut carrying, head, [q.x, q.y, q.z, q.w]);
+            // A press under way was aimed through the world as it was; it presses nothing more,
+            // and the trigger must be let go and pulled again to press on the panel that has
+            // come to meet it.
+            for press in press_on.iter_mut().filter(|p| p.is_some()) {
+                *press = Some(PressOn::Air);
+            }
+            // So is a hold: its target is the hand carried into the world through the viewpoint,
+            // and the world has just jumped, which would fling the body after it. A squeeze that
+            // is still held takes hold afresh, where the bone now is.
+            let_go_of_everything(feeds.as_mut().map(|f| &mut f.grabs), &mut holding, "recentred");
+            println!("view: recentred");
+        }
         let mut scroll = [0.0f32; 2];
         let mut sticks = [[0.0f32; 2]; crate::bridge::HANDS];
         for (hand, stick) in sticks.iter_mut().enumerate() {
@@ -807,12 +861,19 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         }
         // Turning and rising: the right stick. Left and right turn the viewer about where the
         // head is, so it is a turn on the spot rather than a swing around the middle of the
-        // stage; forward and back lift and lower. Each axis has its own dead zone, so a stick
-        // pushed to turn does not also drift upwards.
+        // stage -- smoothly, or in steps with snap turn on; forward and back lift and lower.
+        // Each axis has its own dead zone, so a stick pushed to turn does not also drift upwards.
         let look = sticks[1];
-        let turn = past_dead_zone(look[0], DEAD_ZONE);
-        if turn != 0.0 {
-            view_point.turn(turn * TURN_SPEED * dt, head);
+        if headset.snap_turn {
+            let by = snap_turn(look[0], &mut snap_armed);
+            if by != 0.0 {
+                view_point.turn(by, head);
+            }
+        } else {
+            let turn = past_dead_zone(look[0], DEAD_ZONE);
+            if turn != 0.0 {
+                view_point.turn(turn * TURN_SPEED * dt, head);
+            }
         }
         let lift = past_dead_zone(look[1], DEAD_ZONE);
         if lift != 0.0 {
@@ -1102,7 +1163,15 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 &feeds_line,
                 alive.as_ref(),
                 publisher.error.as_deref(),
+                &headset,
             );
+            // The viewer's own settings, kept here and never sent: the publisher has no say in
+            // how the headset turns.
+            if let Some(crate::panel::LocalAction::SnapTurn(on)) = frame.local {
+                headset.snap_turn = on;
+                snap_armed = true;
+                println!("view: snap turn {}", if on { "on" } else { "off" });
+            }
             if !frame.textures.is_empty() {
                 renderer.update_panel_textures(&frame.textures)?;
             }
@@ -1530,6 +1599,83 @@ impl Viewpoint {
     }
 }
 
+/// Where the panels start, for a viewer standing at `head` and looking along `forward`, both in
+/// the world: the properties panel ahead and to the right of the body, a little below eye height,
+/// and the transport strip under it, both turned to face where the viewer stands. Only the head's
+/// place on the floor and the way it faces flat to the floor count; the panels' heights are the
+/// room's, not the head's.
+///
+/// At startup the viewer is taken to be at the stage's middle looking down -Z, which is where
+/// SteamVR and Monado put somebody who has set their room up; a recentre puts the panels back
+/// the same way round wherever the viewer is standing and looking then.
+fn home_placements(head: [f32; 3], forward: [f32; 3]) -> [Placement; 2] {
+    use crate::panel::Kind;
+    let length = (forward[0] * forward[0] + forward[2] * forward[2]).sqrt();
+    // Looking straight up or down there is no way the head faces: the room's own -Z stands in.
+    let ahead = if length < 1e-6 { [0.0, 0.0, -1.0] } else { [forward[0] / length, 0.0, forward[2] / length] };
+    let right = [-ahead[2], 0.0, ahead[0]];
+    // A point given for a viewer at the origin facing -Z -- x to their right, z behind them --
+    // carried to this one.
+    let about = |p: [f32; 3]| {
+        [
+            head[0] + right[0] * p[0] - ahead[0] * p[2],
+            p[1],
+            head[2] + right[2] * p[0] - ahead[2] * p[2],
+        ]
+    };
+    [
+        Placement::facing(Kind::Properties.size(), about([0.95, 1.3, -1.0]), about([0.0, 1.3, 0.0])),
+        Placement::facing(Kind::Transport.size(), about([0.55, 0.76, -1.05]), about([0.0, 0.76, 0.0])),
+    ]
+}
+
+/// Put the viewer back where they started and the panels back in front of them, from wherever
+/// the sticks and a carried panel have taken them: the stick pressed in.
+///
+/// The viewpoint goes back to where it began, so the body and the scenery are where they were
+/// when the viewer started, in front of the stage. The panels come back to their places for
+/// wherever the viewer stands in the room now, turned to where they are looking, since they are
+/// what somebody who has got lost needs in front of them first. A panel being carried is let go:
+/// the hand carrying it was moving it through a world that has just moved under it.
+fn recentre(
+    view_point: &mut Viewpoint,
+    placements: &mut [Placement; 2],
+    carrying: &mut [Option<(usize, crate::panel::Held)>; crate::bridge::HANDS],
+    head: [f32; 3],
+    head_q: [f32; 4],
+) {
+    *view_point = Viewpoint::default();
+    // With the viewpoint at its start the world and the stage are one, so the head's pose in the
+    // stage is its pose in the world.
+    *placements = home_placements(head, crate::render::rotate([0.0, 0.0, -1.0], head_q));
+    *carrying = [None, None];
+}
+
+/// How far one step of snap turn turns: a twelfth of a circle. Thirty degrees is the step most
+/// headset software offers first, big enough that a few presses turn somebody round and small
+/// enough that they keep their bearings across one.
+const SNAP_STEP: f32 = std::f32::consts::PI / 6.0;
+/// A stick pushed this far over turns one step...
+const SNAP_PUSH: f32 = 0.7;
+/// ...and must come back inside this before it can turn another. The gap between the two is what
+/// keeps a stick held near the threshold from turning again on every tremor.
+const SNAP_REARM: f32 = 0.3;
+
+/// One frame of snap turn: how far to turn, given the stick's sideways deflection and whether a
+/// turn is armed, which this keeps. A step to the right is positive, as a smooth turn to the
+/// right is.
+fn snap_turn(x: f32, armed: &mut bool) -> f32 {
+    if *armed && x.abs() > SNAP_PUSH {
+        *armed = false;
+        SNAP_STEP * x.signum()
+    } else {
+        if x.abs() < SNAP_REARM {
+            *armed = true;
+        }
+        0.0
+    }
+}
+
 /// One axis of a stick past its dead zone, rescaled so that it starts from nothing.
 fn past_dead_zone(v: f32, dead: f32) -> f32 {
     if v.abs() <= dead {
@@ -1754,9 +1900,104 @@ fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
 }
 
+/// One interaction profile's bindings: which of its inputs each of the viewer's actions reads.
+///
+/// Every profile has a grip and an aim pose and a vibration, spelled alike, so those are not
+/// listed. The rest differs by controller, and a path a profile has not got makes the runtime
+/// refuse that profile's whole suggestion, so each is spelled exactly as the OpenXR
+/// specification's list of interaction profiles spells it for that controller.
+struct Binding {
+    profile: &'static str,
+    /// The grab: an analogue grip where the controller has one, which the runtime reads as a
+    /// boolean at a threshold of its own; a click otherwise.
+    squeeze: &'static str,
+    /// The panels' press, analogue for the reason `Hands::trigger` gives.
+    trigger: &'static str,
+    /// What walks, turns and lifts: a thumbstick, or the Vive's trackpad. None on a controller
+    /// with neither.
+    stick: Option<&'static str>,
+    /// What recentres: that same stick or pad, pressed in.
+    recentre: Option<&'static str>,
+    /// Whether the viewer cannot run without this profile. Only the Index's: it is the
+    /// controller this was built against, and a runtime refusing it means the bindings are
+    /// wrong, which should stop the viewer rather than leave it running with dead hands. Every
+    /// other profile is a courtesy, and a refusal is said and passed over.
+    required: bool,
+}
+
+/// The controllers the viewer is bound for. The runtime picks the one for the controller in
+/// hand; one it knows no better binding for falls back to the simple profile, which every runtime
+/// knows: a select that is both the grab and the press, and no stick.
+const BINDINGS: &[Binding] = &[
+    Binding {
+        profile: "/interaction_profiles/valve/index_controller",
+        squeeze: "squeeze/value",
+        trigger: "trigger/value",
+        stick: Some("thumbstick"),
+        recentre: Some("thumbstick/click"),
+        required: true,
+    },
+    Binding {
+        profile: "/interaction_profiles/oculus/touch_controller",
+        squeeze: "squeeze/value",
+        trigger: "trigger/value",
+        stick: Some("thumbstick"),
+        recentre: Some("thumbstick/click"),
+        required: false,
+    },
+    Binding {
+        profile: "/interaction_profiles/microsoft/motion_controller",
+        squeeze: "squeeze/click",
+        trigger: "trigger/value",
+        stick: Some("thumbstick"),
+        recentre: Some("thumbstick/click"),
+        required: false,
+    },
+    // Accepted only from an instance made with its extension, which `bring_up` asks for when the
+    // runtime has it; without, the suggestion is refused like any other courtesy.
+    Binding {
+        profile: "/interaction_profiles/hp/mixed_reality_controller",
+        squeeze: "squeeze/value",
+        trigger: "trigger/value",
+        stick: Some("thumbstick"),
+        recentre: Some("thumbstick/click"),
+        required: false,
+    },
+    // The Vive's trackpad is its stick: where the thumb rests on it is the deflection, and
+    // pressing it in is the recentre.
+    Binding {
+        profile: "/interaction_profiles/htc/vive_controller",
+        squeeze: "squeeze/click",
+        trigger: "trigger/value",
+        stick: Some("trackpad"),
+        recentre: Some("trackpad/click"),
+        required: false,
+    },
+    Binding {
+        profile: "/interaction_profiles/khr/simple_controller",
+        squeeze: "select/click",
+        trigger: "select/click",
+        stick: None,
+        recentre: None,
+        required: false,
+    },
+];
+
+/// An interaction profile's path as the log and the panel say it: without the
+/// `/interaction_profiles/` every one of them begins with, and "none" for the null path, which is
+/// what the runtime says of a hand with no controller in it, or one it has not bound yet.
+fn profile_name(path: &str) -> &str {
+    if path.is_empty() {
+        "none"
+    } else {
+        path.strip_prefix("/interaction_profiles/").unwrap_or(path)
+    }
+}
+
 /// The tracked controllers as OpenXR actions: a grip pose, an aim pose, a squeeze and a trigger,
-/// per hand, and the vibration back. The grip is where the cube is drawn and the squeeze grabs;
-/// the aim is the ray that points at the panel and the trigger presses what it points at.
+/// a stick and its click, per hand, and the vibration back. The grip is where the cube is drawn
+/// and the squeeze grabs; the aim is the ray that points at the panel and the trigger presses what
+/// it points at.
 struct Hands {
     set: openxr::ActionSet,
     #[allow(dead_code)]
@@ -1768,6 +2009,8 @@ struct Hands {
     /// across its threshold, and every flicker was a release and a press to the panel.
     trigger: openxr::Action<f32>,
     thumbstick: openxr::Action<openxr::Vector2f>,
+    /// The stick pressed in: back to where the viewer started, with the panels in front.
+    recentre: openxr::Action<bool>,
     /// The controller's vibration, which is how a press, a grab or a panel taken is felt.
     haptic: openxr::Action<openxr::Haptic>,
     paths: [openxr::Path; crate::bridge::HANDS],
@@ -1787,49 +2030,45 @@ impl Hands {
         let squeeze = set.create_action::<bool>("grab", "Grab", &paths)?;
         let trigger = set.create_action::<f32>("point", "Press", &paths)?;
         let thumbstick = set.create_action::<openxr::Vector2f>("move", "Move", &paths)?;
+        let recentre = set.create_action::<bool>("recentre", "Recentre", &paths)?;
         let haptic = set.create_action::<openxr::Haptic>("tick", "Tick", &paths)?;
-        // Suggested per profile; the runtime picks the profile for the controller in hand. The
-        // Index binds the squeeze to the grip sensor and the press to the trigger; the simple
-        // profile has only a select, which is both.
-        let suggest = |profile: &str, squeeze_input: &str, trigger_input: &str, stick: bool| -> Result<()> {
+        // Suggested per profile, from `BINDINGS`; the runtime picks the profile for the
+        // controller in hand.
+        let suggest = |binding: &Binding| -> Result<()> {
             let mut bindings = Vec::new();
             for side in ["left", "right"] {
-                if stick {
-                    bindings.push(openxr::Binding::new(
-                        &thumbstick,
-                        xr.string_to_path(&format!("/user/hand/{side}/input/thumbstick"))?,
-                    ));
+                let input = |name: &str| xr.string_to_path(&format!("/user/hand/{side}/input/{name}"));
+                if let Some(stick) = binding.stick {
+                    bindings.push(openxr::Binding::new(&thumbstick, input(stick)?));
                 }
-                bindings.push(openxr::Binding::new(
-                    &grip,
-                    xr.string_to_path(&format!("/user/hand/{side}/input/grip/pose"))?,
-                ));
-                bindings.push(openxr::Binding::new(
-                    &aim,
-                    xr.string_to_path(&format!("/user/hand/{side}/input/aim/pose"))?,
-                ));
-                bindings.push(openxr::Binding::new(
-                    &squeeze,
-                    xr.string_to_path(&format!("/user/hand/{side}/input/{squeeze_input}"))?,
-                ));
-                bindings.push(openxr::Binding::new(
-                    &trigger,
-                    xr.string_to_path(&format!("/user/hand/{side}/input/{trigger_input}"))?,
-                ));
-                // Both profiles name the vibration `output/haptic`. A path a profile does not
-                // have makes the runtime refuse that profile's whole suggestion, which for the
-                // Index is fatal -- so this is the one path, spelled as both profiles spell it.
+                if let Some(click) = binding.recentre {
+                    bindings.push(openxr::Binding::new(&recentre, input(click)?));
+                }
+                bindings.push(openxr::Binding::new(&grip, input("grip/pose")?));
+                bindings.push(openxr::Binding::new(&aim, input("aim/pose")?));
+                bindings.push(openxr::Binding::new(&squeeze, input(binding.squeeze)?));
+                bindings.push(openxr::Binding::new(&trigger, input(binding.trigger)?));
+                // Every profile here names the vibration `output/haptic`, so this is the one
+                // path, spelled as they all spell it.
                 bindings.push(openxr::Binding::new(
                     &haptic,
                     xr.string_to_path(&format!("/user/hand/{side}/output/haptic"))?,
                 ));
             }
-            xr.suggest_interaction_profile_bindings(xr.string_to_path(profile)?, &bindings)?;
+            xr.suggest_interaction_profile_bindings(xr.string_to_path(binding.profile)?, &bindings)?;
             Ok(())
         };
-        suggest("/interaction_profiles/valve/index_controller", "squeeze/value", "trigger/value", true)?;
-        if let Err(e) = suggest("/interaction_profiles/khr/simple_controller", "select/click", "select/click", false) {
-            println!("hands: the simple controller profile was refused ({e}); Index only");
+        for binding in BINDINGS {
+            match suggest(binding) {
+                Ok(()) => {}
+                Err(e) if binding.required => {
+                    return Err(e.context(format!("binding the {} controller", profile_name(binding.profile))));
+                }
+                Err(e) => println!(
+                    "hands: the {} profile was refused ({e}); carrying on without it",
+                    profile_name(binding.profile)
+                ),
+            }
         }
         session.attach_action_sets(&[&set])?;
         let grip_spaces = paths
@@ -1847,11 +2086,47 @@ impl Hands {
             squeeze,
             trigger,
             thumbstick,
+            recentre,
             haptic,
             paths,
             grip_spaces,
             aim_spaces,
         })
+    }
+
+    /// Which interaction profile the runtime is using for each hand, as `profile_name` says it.
+    ///
+    /// Asked when the runtime says the profiles changed, never every frame. A runtime that will
+    /// not say is said on the terminal and read as no profile: this only ever feeds the log and a
+    /// note on the panel, and neither is a reason to stop.
+    fn profiles(
+        &self,
+        xr: &openxr::Instance,
+        session: &openxr::Session<openxr::Vulkan>,
+    ) -> [String; crate::bridge::HANDS] {
+        std::array::from_fn(|hand| {
+            let path = session.current_interaction_profile(self.paths[hand]).and_then(|path| {
+                if path == openxr::Path::NULL {
+                    Ok(String::new())
+                } else {
+                    xr.path_to_string(path)
+                }
+            });
+            match path {
+                Ok(path) => profile_name(&path).to_string(),
+                Err(e) => {
+                    println!("hands: the runtime would not say what the {} hand is ({e})", ["left", "right"][hand]);
+                    profile_name("").to_string()
+                }
+            }
+        })
+    }
+
+    /// Whether a hand's stick was pressed in since the last sync: the press, once, rather than
+    /// every frame it is held, so a stick held in recentres once.
+    fn recentre_pressed(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize) -> Result<bool> {
+        let state = self.recentre.state(session, self.paths[hand])?;
+        Ok(state.is_active && state.current_state && state.changed_since_last_sync)
     }
 
     fn sync(&self, session: &openxr::Session<openxr::Vulkan>) -> Result<()> {
@@ -1950,7 +2225,7 @@ pub fn run_session(seconds: f32) -> Result<()> {
     let mut last_display = openxr::Time::from_nanos(0);
 
     while started.elapsed().as_secs_f32() < seconds {
-        if pump_events(&xr, &session, &mut event_storage, &mut running)? == Flow::Exit {
+        if pump_events(&xr, &session, &mut event_storage, &mut running, &mut false)? == Flow::Exit {
             return Ok(());
         }
         if !running {
@@ -2188,6 +2463,88 @@ mod tests {
         assert!((past_dead_zone(0.15 + 1e-6, 0.15)).abs() < 1e-5);
         assert!((past_dead_zone(1.0, 0.15) - 1.0).abs() < 1e-6);
         assert!((past_dead_zone(-1.0, 0.15) + 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn snap_turn_steps_once_a_push_and_rearms_only_back_near_the_middle() {
+        // Pushed right and held: one step, not one a frame. Back to 0.2, under the re-arm, and
+        // over again: a second. Two thirty-degree turns in all.
+        let mut armed = true;
+        let turns: Vec<f32> = [0.0, 0.8, 0.8, 0.2, 0.8].iter().map(|&x| snap_turn(x, &mut armed)).collect();
+        assert_eq!(turns, [0.0, SNAP_STEP, 0.0, 0.0, SNAP_STEP]);
+        assert!((SNAP_STEP - 30f32.to_radians()).abs() < 1e-6);
+        // Let back only to 0.5, between the two thresholds, it does not re-arm; and left is the
+        // other way.
+        let mut armed = true;
+        let turns: Vec<f32> = [-0.9, -0.5, -0.9, 0.0, -0.9].iter().map(|&x| snap_turn(x, &mut armed)).collect();
+        assert_eq!(turns, [-SNAP_STEP, 0.0, 0.0, 0.0, -SNAP_STEP]);
+    }
+
+    fn same_placement(a: &Placement, b: &Placement) -> bool {
+        close(a.origin, b.origin) && close(a.right, b.right) && close(a.down, b.down) && close(a.normal, b.normal)
+    }
+
+    #[test]
+    fn a_recentre_puts_the_viewer_back_and_the_panels_in_front() {
+        let start = home_placements([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
+        // The panels start where they always have.
+        let properties = Placement::facing(Kind::Properties.size(), [0.95, 1.3, -1.0], [0.0, 1.3, 0.0]);
+        let transport = Placement::facing(Kind::Transport.size(), [0.55, 0.76, -1.05], [0.0, 0.76, 0.0]);
+        assert!(same_placement(&start[0], &properties) && same_placement(&start[1], &transport));
+
+        // Turned, walked, risen, and a panel carried off and being carried still.
+        let mut view_point = Viewpoint::default();
+        view_point.turn(1.3, [0.2, 1.6, 0.1]);
+        view_point.offset[0] += 4.0;
+        view_point.offset[1] += 0.8;
+        let mut placements = start;
+        let held = placements[1].held_by([0.3, 1.0, -0.4], [0.0, 0.0, 0.0, 1.0]);
+        placements[1] = placements[1].carried(&held, [2.0, 1.4, 3.0], [0.0, 0.0, 0.0, 1.0]);
+        let mut carrying = [None, Some((1, held))];
+
+        // Recentred standing at the stage's middle, looking down -Z: all as it began.
+        recentre(&mut view_point, &mut placements, &mut carrying, [0.0, 1.6, 0.0], [0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(view_point.offset, [0.0; 3]);
+        assert_eq!(view_point.yaw, 0.0);
+        assert!(same_placement(&placements[0], &start[0]) && same_placement(&placements[1], &start[1]));
+        assert!(carrying.iter().all(Option::is_none), "a carried panel is let go");
+
+        // Recentred a metre to the side and looking to the right: the panels come to where the
+        // viewer is, the same way round -- ahead of them and to their right, facing them.
+        let quarter_right = [0.0, -std::f32::consts::FRAC_1_SQRT_2, 0.0, std::f32::consts::FRAC_1_SQRT_2];
+        let head = [1.0, 1.7, 0.0];
+        recentre(&mut view_point, &mut placements, &mut carrying, head, quarter_right);
+        let ahead = crate::render::rotate([0.0, 0.0, -1.0], quarter_right);
+        assert!(close(ahead, [1.0, 0.0, 0.0]), "looking along {ahead:?}");
+        let centre = placements[0].centre();
+        let from_head = [centre[0] - head[0], centre[2] - head[2]];
+        // A metre ahead (+X now) and 0.95 to the right (+Z now), at the height it always was.
+        assert!((from_head[0] - 1.0).abs() < 1e-4 && (from_head[1] - 0.95).abs() < 1e-4, "{from_head:?}");
+        assert!((centre[1] - 1.3).abs() < 1e-4);
+        // Facing the viewer: its normal points back towards where they stand.
+        let normal = placements[0].normal;
+        let back = [head[0] - centre[0], head[2] - centre[2]];
+        assert!(normal[0] * back[0] + normal[2] * back[1] > 0.0, "{normal:?} faces away");
+    }
+
+    #[test]
+    fn every_controller_binds_the_same_actions_as_its_profile_spells_them() {
+        // The Index's is the one that must not be refused; everything else is a courtesy.
+        let required: Vec<&str> = BINDINGS.iter().filter(|b| b.required).map(|b| profile_name(b.profile)).collect();
+        assert_eq!(required, ["valve/index_controller"]);
+        for binding in BINDINGS {
+            let name = profile_name(binding.profile);
+            // A stick recentres by being pressed in, so a controller has both or neither.
+            assert_eq!(binding.stick.is_some(), binding.recentre.is_some(), "{name}");
+            if let (Some(stick), Some(click)) = (binding.stick, binding.recentre) {
+                assert_eq!(click, format!("{stick}/click"), "{name}");
+            }
+        }
+        for name in ["oculus/touch_controller", "microsoft/motion_controller", "htc/vive_controller", "khr/simple_controller"] {
+            assert!(BINDINGS.iter().any(|b| profile_name(b.profile) == name), "no binding for {name}");
+        }
+        assert_eq!(profile_name(""), "none");
+        assert_eq!(profile_name("/interaction_profiles/htc/vive_controller"), "htc/vive_controller");
     }
 
     #[test]
