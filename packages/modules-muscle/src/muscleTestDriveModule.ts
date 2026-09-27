@@ -1,9 +1,13 @@
 /**
  * `MuscleTestDriveModule` -- ticket N3.3, muscle spec section 10.2.
  *
- * Something has to excite the muscles until there are nerves to do it. This is that something: a
- * pattern generator that writes `efferent.alphaMotor` and nothing else, so that the day a nerve
- * module arrives it takes over the same accumulator and this module is simply not registered.
+ * The feedforward layer of motor drive. It writes `efferent.alphaMotor` and nothing else, and it
+ * is where every deliberate, open-loop command to a muscle enters the simulation: a pattern fixed
+ * when the module is built, a scenario's scripted clip or postural tone, and the studio panel's
+ * live sliders all write through it. The closed-loop corrections do not replace it; they sit on
+ * top of it. SpinalModule's stretch reflexes, NervesModule's trained policy and MotorNoiseModule's
+ * wander each add their own term into the same accumulator in the same tick, and
+ * MuscleDynamicsModule reads the sum.
  *
  * It is also the only way to exercise `muscle.dynamics` at all, and that is not an accident of
  * testing -- it is the accumulator contract working as designed. The kernel zeroes accumulators at
@@ -16,8 +20,9 @@
  * `constant` holds a muscle at a level, which is what a benchmark needs. `sine` sweeps it, which
  * is what shows a lag. `step` turns it on at a moment, which is what shows the activation time
  * constant. `scripted` plays a list of breakpoints, which is what a scenario file needs to
- * reproduce a movement. Between them they cover every way this module is asked to be used before
- * a controller exists, and none of them reads a clock: time is `ctx.simTime`, so a run repeats.
+ * reproduce a movement. Between them they cover every way a built-in pattern is asked for, and
+ * none of them reads a clock: time is `ctx.simTime`, so a run repeats. Anything that has to change
+ * while the simulation runs -- a slider, a scenario's tone -- goes through `setOverride` instead.
  */
 
 import type {
@@ -182,19 +187,19 @@ export class MuscleTestDriveModule implements SimModule {
   }
 
   /**
-   * Drive one unit at a level of your choosing, or hand it back to its pattern with `null`.
+   * Drive a unit from outside its pattern, or hand that layer back with `null`.
+   *
+   * Two layers, because two things do this and they used to fight: a scenario's script, which
+   * sets its postural tone every tick, and a person's slider, which the script then overwrote on
+   * the next tick for exactly the units it toned -- the ankle, the trunk, the hip -- while every
+   * other slider worked. The `script` layer is the scenario's; the default layer is the person's.
+   * The person's layer adds to the script's, so a slider at zero leaves the tone alone and any
+   * raise adds on top of it, clamped at 1. Taking the larger of the two instead would make a
+   * slider do nothing at all until it passed the tone, which reads as a broken slider.
    *
    * Takes effect on the next tick and needs no restart, because the drive is recomputed every
    * tick from scratch -- the accumulator is zeroed at the top of each one, so there is no stale
    * value to clear.
-   */
-  /**
-   * Drive a unit from outside its pattern. Two layers, because two things do this and they used
-   * to fight: a scenario's script, which sets its postural tone every tick, and a person's
-   * slider, which the script then overwrote on the next tick for exactly the units it toned --
-   * the ankle, the trunk, the hip -- while every other slider worked. The `script` layer is the
-   * scenario's; the default layer is the person's; the unit gets the larger of the two, so a
-   * slider at zero leaves the tone alone and a slider raised adds to it.
    */
   setOverride(unitId: string, level: number | null, layer: 'user' | 'script' = 'user'): void {
     const at = this.indexOf.get(unitId);
@@ -205,7 +210,10 @@ export class MuscleTestDriveModule implements SimModule {
     store[at] = level === null ? Number.NaN : level;
   }
 
-  /** The level a unit is being driven at from outside, or null where its pattern still applies. */
+  /**
+   * The level a unit is being driven at from outside -- the sum of the two layers, before the
+   * clamp -- or null where its pattern still applies.
+   */
   overrideFor(unitId: string): number | null {
     const at = this.indexOf.get(unitId);
     if (at === undefined) return null;
@@ -213,13 +221,16 @@ export class MuscleTestDriveModule implements SimModule {
     return Number.isNaN(level) ? null : level;
   }
 
-  /** The larger of the two layers, or NaN when neither is set. */
+  /**
+   * The sum of the two layers, whichever one is set when only one is, or NaN when neither is.
+   * Unclamped: `step` clamps the combined value into 0 to 1 as it writes it.
+   */
   private effectiveOverride(at: number): number {
     const user = this.overrideLevel[at] as number;
     const script = this.scriptDrive[at] as number;
     if (Number.isNaN(user)) return script;
     if (Number.isNaN(script)) return user;
-    return Math.max(user, script);
+    return user + script;
   }
 
   init(ctx: ModuleInitContext): void {
