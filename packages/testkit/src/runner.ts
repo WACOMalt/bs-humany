@@ -43,8 +43,8 @@ import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
   GOAL_SIZE,
   type Scenario,
-  type ScenarioApi,
   controlDivisorFor,
+  createScenarioApi,
   driveOutputs,
   placeArticulation,
   profileRateHz,
@@ -197,18 +197,15 @@ export async function runScenario(
   const contacts = kernel.channels.storage(CONTACT_MANIFOLDS);
   const position = pose.position as Float64Array;
   const orientation = pose.orientation as Float64Array;
-  const segmentIndex = new Map(articulation.segments.map((s) => [s.id, s.index]));
-  const api: ScenarioApi = {
-    segment: (id) => segmentIndex.get(id) ?? -1,
-    segmentPosition: (i) =>
-      vec3(position[3 * i] ?? 0, position[3 * i + 1] ?? 0, position[3 * i + 2] ?? 0),
-    grab: (s, local, target) => grab.grab(s, local, target),
-    moveGrab: (target) => grab.moveTo(target),
-    release: () => grab.release(),
+  // Every move goes straight to the solver, with no copy of the scenery to keep and no move
+  // skipped: the goldens record what the solver did, and nothing here draws the boxes.
+  const api = createScenarioApi({
+    segmentIds: articulation.segments.map((s) => s.id),
+    position,
+    grab,
     drive: (unit, level) => muscleDrive?.setOverride(unit, level),
-    moveStaticBox: (id, position, rotation) =>
-      physics.setStaticBoxTransform(id, position, rotation),
-  };
+    moveStaticBox: (id, at, rotation) => physics.setStaticBoxTransform(id, at, rotation),
+  });
 
   const every = Math.max(1, options.sampleEveryTicks ?? Math.round(rate / 50));
   const full = Math.round(scenario.durationSeconds * rate);
