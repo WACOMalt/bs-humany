@@ -258,20 +258,24 @@ describe('stepping', () => {
   });
 });
 
+/** A module that writes the pose through the read view it declared, which the audit must catch. */
+function rogue(): SimModule {
+  return {
+    manifest: manifest('rogue', 'post', { reads: [{ id: POSE.id, version: '^1.0.0' }] }),
+    init(ctx) {
+      // A read view is the same memory as the write view; JS cannot make it read-only.
+      this.view = ctx.read(POSE.id);
+    },
+    step() {
+      (this.view?.fields.position as Float64Array)[2] = 42;
+    },
+    view: undefined as ChannelView | undefined,
+  } as SimModule & { view: ChannelView | undefined };
+}
+
 describe('audit', () => {
   it('catches a module writing a channel it did not declare', async () => {
-    const rogue: SimModule = {
-      manifest: manifest('rogue', 'post', { reads: [{ id: POSE.id, version: '^1.0.0' }] }),
-      init(ctx) {
-        // A read view is the same memory as the write view; JS cannot make it read-only.
-        this.view = ctx.read(POSE.id);
-      },
-      step() {
-        (this.view?.fields.position as Float64Array)[2] = 42;
-      },
-      view: undefined as ChannelView | undefined,
-    } as SimModule & { view: ChannelView | undefined };
-    const k = await kernelWith([physics(), rogue], { audit: true });
+    const k = await kernelWith([physics(), rogue()], { audit: true });
     expect(() => k.step()).toThrow(
       /'rogue' changed channel 'body.pose' during step at tick 0 without declaring a write/,
     );
@@ -280,6 +284,43 @@ describe('audit', () => {
   it('is silent for a well-behaved module set', async () => {
     const k = await kernelWith([physics(), actuator('nerve', 1)], { audit: true });
     expect(() => k.run(5)).not.toThrow();
+  });
+
+  // The audit carries each channel's hash through the tick rather than taking it around each
+  // module, so these two pin what that must still allow: a host writing between ticks (the
+  // studio's drag, a scenario script), and a module reading what an earlier one declared.
+  it('allows the host to write between ticks', async () => {
+    const k = await kernelWith([physics(), actuator('nerve', 1)], { audit: true });
+    const position = k.channels.storage(POSE.id).fields.position as Float64Array;
+    for (let i = 0; i < 4; i++) {
+      position[2] = i;
+      expect(() => k.step()).not.toThrow();
+    }
+  });
+
+  it('holds a later module to what an earlier one wrote, not to the start of the tick', async () => {
+    // Physics moves the pose in solve every tick, under the actuator's torque; a reader in post
+    // leaves it alone. Were the reader held to the pose as the tick began, physics' declared write
+    // would be blamed on it.
+    const log: string[] = [];
+    const reader = logger(log, 'reader', 'post', { reads: [{ id: POSE.id, version: '^1.0.0' }] });
+    const k = await kernelWith([physics(), actuator('nerve', 1), reader], { audit: true });
+    const position = k.channels.storage(POSE.id).fields.position as Float64Array;
+    expect(() => k.run(5)).not.toThrow();
+    expect(position[0]).not.toBe(0);
+  });
+
+  // CONTRIBUTING rule 6 says an undeclared write is caught, and this is what makes that true of
+  // every module test rather than only of the ones that remember to ask: vitest.config.ts sets
+  // BS_HUMANY_KERNEL_AUDIT, and a kernel built with no audit option follows it.
+  it('is on by default under vitest', async () => {
+    const k = await kernelWith([physics(), rogue()]);
+    expect(() => k.step()).toThrow(/'rogue' changed channel 'body.pose'/);
+  });
+
+  it('stays off when a host says so, whatever the environment', async () => {
+    const k = await kernelWith([physics(), rogue()], { audit: false });
+    expect(() => k.run(3)).not.toThrow();
   });
 });
 

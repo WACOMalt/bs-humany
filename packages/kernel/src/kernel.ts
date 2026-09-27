@@ -39,6 +39,11 @@ export interface KernelOptions {
   /**
    * Hash every channel a module did not declare before and after its step, and throw on a change.
    * Development and tests only: it costs a pass over every buffer per module per tick.
+   *
+   * Left unset, it follows the environment: on when `BS_HUMANY_KERNEL_AUDIT` is `1`, which
+   * `vitest.config.ts` sets for every test run, and off everywhere else, including every browser.
+   * A host that wants it regardless passes `true`; one that must not pay for it inside a test run
+   * passes `false`.
    */
   readonly audit?: boolean;
   /** Per-module configuration, keyed by module id. */
@@ -70,11 +75,26 @@ export interface KernelSnapshot {
   readonly modules: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Whether the environment asks for the audit. Read through `globalThis` so the kernel neither
+ * imports Node types nor throws where there is no `process` -- a browser, a Worker in one.
+ */
+function auditFromEnvironment(): boolean {
+  const process = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process;
+  return typeof process === 'object' && process.env?.BS_HUMANY_KERNEL_AUDIT === '1';
+}
+
 interface Scheduled {
   readonly module: SimModule;
   readonly rateDivisor: number;
-  readonly audited: readonly string[];
+  /** Indices into the kernel's audit id list of the channels this module must not change. */
+  readonly audited: Int32Array;
+  /** Indices of the channels it writes or accumulates into, whose hashes it moves on. */
+  readonly declared: Int32Array;
 }
+
+const NONE = new Int32Array(0);
 
 class StepContext implements ModuleStepContext {
   tick = 0;
@@ -92,7 +112,16 @@ export class Kernel {
   readonly #stepContext = new StepContext();
   #schedule: Scheduled[] = [];
   #initialised = false;
-  #hashScratch: number[] = [];
+  /** Whether the declared-access audit runs, resolved once at init. */
+  #auditing = false;
+  /** Every channel id, in the order the audit's indices refer to. */
+  #auditIds: readonly string[] = [];
+  /**
+   * The hash each channel should have right now: taken for every channel at the top of the tick,
+   * and moved on after each module's step for the channels that module declared. Sized at init, so
+   * the audit allocates nothing per tick.
+   */
+  #hashes = new Uint32Array(0);
 
   constructor(options: KernelOptions) {
     this.#options = options;
@@ -143,10 +172,24 @@ export class Kernel {
     }
 
     // The audit lists are computed after every declaration is in, so they see the final ownership.
-    this.#schedule = this.#schedule.map((s) => ({
-      ...s,
-      audited: this.#options.audit ? this.channels.undeclaredFor(s.module.manifest.id) : [],
-    }));
+    this.#auditing = this.#options.audit ?? auditFromEnvironment();
+    if (this.#auditing) {
+      const ids = this.channels.ids();
+      const index = new Map(ids.map((id, i) => [id, i]));
+      this.#auditIds = ids;
+      this.#hashes = new Uint32Array(ids.length);
+      this.#schedule = this.#schedule.map((s) => {
+        const undeclared = new Set(this.channels.undeclaredFor(s.module.manifest.id));
+        return {
+          ...s,
+          audited: Int32Array.from(undeclared, (id) => index.get(id) ?? -1),
+          declared: Int32Array.from(
+            ids.filter((id) => !undeclared.has(id)),
+            (id) => index.get(id) ?? -1,
+          ),
+        };
+      });
+    }
     this.#initialised = true;
   }
 
@@ -252,7 +295,12 @@ export class Kernel {
       }
       for (const id of placed) {
         const module = byId.get(id) as SimModule;
-        out.push({ module, rateDivisor: module.manifest.rateDivisor ?? 1, audited: [] });
+        out.push({
+          module,
+          rateDivisor: module.manifest.rateDivisor ?? 1,
+          audited: NONE,
+          declared: NONE,
+        });
       }
     }
     return out;
@@ -288,13 +336,14 @@ export class Kernel {
 
     this.channels.zeroAccumulators();
 
+    const auditing = this.#auditing;
+    if (auditing) this.#auditStart();
     const schedule = this.#schedule;
     for (let i = 0; i < schedule.length; i++) {
       const s = schedule[i] as Scheduled;
       if (s.rateDivisor !== 1 && !this.clock.shouldRun(s.rateDivisor)) continue;
-      if (s.audited.length > 0) this.#auditBefore(s);
       s.module.step(ctx);
-      if (s.audited.length > 0) this.#auditAfter(s);
+      if (auditing) this.#auditAfter(s);
     }
 
     this.clock.advance();
@@ -304,22 +353,38 @@ export class Kernel {
     for (let i = 0; i < ticks; i++) this.step();
   }
 
-  #auditBefore(s: Scheduled): void {
-    const scratch = this.#hashScratch;
-    scratch.length = 0;
-    for (const id of s.audited) scratch.push(this.channels.hash(id));
+  /*
+   * The audit. Each module must leave every channel it did not declare as it found it, so each
+   * channel's hash is taken once at the top of the tick -- after the accumulators are zeroed and
+   * whatever the host wrote between ticks, both of which are allowed -- and carried through the
+   * tick: after a module's step, the channels it did not declare must still hash to the carried
+   * value, and the ones it did declare are hashed again so the next module is held to what this
+   * one left. That is one pass over every channel per module, where hashing each module's
+   * undeclared channels before and after its step was two.
+   */
+  #auditStart(): void {
+    const ids = this.#auditIds;
+    const hashes = this.#hashes;
+    for (let i = 0; i < ids.length; i++) hashes[i] = this.channels.hash(ids[i] as string);
   }
 
   #auditAfter(s: Scheduled): void {
+    const ids = this.#auditIds;
+    const hashes = this.#hashes;
     for (let i = 0; i < s.audited.length; i++) {
-      const id = s.audited[i] as string;
-      if (this.channels.hash(id) !== this.#hashScratch[i]) {
+      const at = s.audited[i] as number;
+      const id = ids[at] as string;
+      if (this.channels.hash(id) !== hashes[at]) {
         throw new Error(
           `Module '${s.module.manifest.id}' changed channel '${id}' during step at tick ` +
             `${this.clock.tick} without declaring a write or accumulation. Declared access is ` +
             'enforced (ADR-004).',
         );
       }
+    }
+    for (let i = 0; i < s.declared.length; i++) {
+      const at = s.declared[i] as number;
+      hashes[at] = this.channels.hash(ids[at] as string);
     }
   }
 

@@ -87,6 +87,13 @@ export interface Trajectory {
 export interface RunOptions {
   readonly sampleEveryTicks?: number | undefined;
   readonly document?: HsdlDocument | undefined;
+  /**
+   * Run the kernel's declared-access audit. Off unless asked for, even inside a test run where the
+   * environment would turn it on: see `runScenario`.
+   */
+  readonly audit?: boolean | undefined;
+  /** Stop after this many ticks, if that is sooner than the scenario's own duration. */
+  readonly maxTicks?: number | undefined;
 }
 
 export async function runScenario(
@@ -107,7 +114,18 @@ export async function runScenario(
   );
   const rate = profile.solver?.rate ?? 500;
   const dt = 1 / rate;
-  const kernel = new Kernel({ rateHz: rate, seed: 1, preferShared: false });
+  // The audit is passed explicitly rather than left to the environment, which turns it on for
+  // every test run. A golden is up to ten seconds of a whole body at up to a kilohertz, and
+  // hashing every channel after every module's step for all of it would slow the suite's longest
+  // file for nothing the golden checks; the audit reads and never writes, so it cannot change a
+  // trajectory either way. The scenarios are audited instead by a short second pass over each
+  // (scenarios.test.ts), which asks for it here.
+  const kernel = new Kernel({
+    rateHz: rate,
+    seed: 1,
+    preferShared: false,
+    audit: options.audit ?? false,
+  });
   const physics = new PhysicsModule(backend, articulation, {
     ground: scenario.ground,
     iterations: profile.solver?.iterations,
@@ -179,7 +197,8 @@ export async function runScenario(
   };
 
   const every = Math.max(1, options.sampleEveryTicks ?? Math.round(rate / 50));
-  const ticks = Math.round(scenario.durationSeconds * rate);
+  const full = Math.round(scenario.durationSeconds * rate);
+  const ticks = options.maxTicks === undefined ? full : Math.min(full, options.maxTicks);
   const samples: Sample[] = [];
   const sample = (tick: number) => {
     const depth = contacts.fields.depth as Float64Array;

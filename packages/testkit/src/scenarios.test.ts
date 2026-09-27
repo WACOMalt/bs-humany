@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import type { IPhysicsBackend } from '@bs-humany/compiler';
-import { SCENARIOS, type Scenario } from '@bs-humany/scenarios';
+import { SCENARIOS, SCENARIO_DEFINITIONS, type Scenario } from '@bs-humany/scenarios';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFORMANCE, compareTrajectories } from './conformance.js';
 import { trajectoryHash } from './hash.js';
@@ -103,4 +103,33 @@ describe.each(PINNED.map((s) => [s.id, s] as const))('scenario %s', (_id, scenar
       expect(disagreements.map((d) => `${d.check}: ${d.message}`)).toEqual([]);
     },
   );
+});
+
+/**
+ * CONTRIBUTING rule 6, over the whole body. The golden runs above are left unaudited so they stay
+ * fast (runner.ts); this pass runs the first 300 ticks of each again with the kernel's audit on, so
+ * a module in any scenario's line-up that writes through a read view fails here rather than
+ * quietly corrupting a channel something else owns. It asserts only that nothing throws: the
+ * trajectory is the goldens' business.
+ *
+ * Each run builds its scenario afresh from its definition rather than reusing the shared one,
+ * because a scenario's script can keep state in its closure -- the ankle strategy's last lean, the
+ * shaken head's centre -- and a second run through the same closure would start from where the
+ * golden run left it. The nerves scenario has no golden but is here, because it is the only one
+ * that puts the nerves module in the loop.
+ */
+const AUDIT_TICKS = 300;
+const AUDITED = [...PINNED.map((s) => s.id), 'nerves-stand'];
+describe.each(AUDITED)('scenario %s under the declared-access audit', (id) => {
+  const definition = SCENARIO_DEFINITIONS.find((d) => d.id === id);
+  it.each(Object.keys(BACKENDS))('writes only what its modules declare, on %s', async (backend) => {
+    if (!definition) throw new Error(`No scenario definition '${id}'.`);
+    const factory = BACKENDS[backend];
+    if (!factory) throw new Error(backend);
+    const t = await runScenario(factory(), definition.build(), {
+      audit: true,
+      maxTicks: AUDIT_TICKS,
+    });
+    expect(t.ticks).toBe(AUDIT_TICKS);
+  });
 });

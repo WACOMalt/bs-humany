@@ -14,8 +14,9 @@
  * JavaScript cannot make a typed array read-only, so a read view is the same memory as the write
  * view. The registry therefore also offers an **audit**: it hashes every channel a module did not
  * declare a write to before and after that module's step, and throws on a change. The audit is
- * for development and tests; it costs a pass over every buffer per module per tick and is off in
- * production.
+ * for development and tests; it costs a pass over every buffer per module per tick. Every vitest
+ * run turns it on through `BS_HUMANY_KERNEL_AUDIT`, a host opts in with `KernelOptions.audit`, and
+ * it is off otherwise.
  *
  * ## Backing
  *
@@ -137,6 +138,13 @@ export function allocateChannel(spec: ChannelSpec, preferShared: boolean): Chann
 
 interface Registration {
   readonly storage: ChannelStorage;
+  /**
+   * The whole channel as 32-bit words, for `hash`. Made once here rather than per call, because
+   * the audit hashes every channel after every module's step and a view per hash was an
+   * allocation per channel per module per tick on the step path. `allocateChannel` rounds every
+   * channel to a multiple of eight bytes, so the words cover the buffer exactly.
+   */
+  readonly words: Uint32Array;
   readonly giver: string;
   writer: string | null;
   readonly accumulators: Set<string>;
@@ -169,6 +177,7 @@ export class ChannelRegistry {
     const storage = allocateChannel(spec, this.#preferShared);
     this.#channels.set(spec.id, {
       storage,
+      words: new Uint32Array(storage.buffer, 0, storage.buffer.byteLength / 4),
       giver,
       writer: null,
       accumulators: new Set(),
@@ -250,6 +259,10 @@ export class ChannelRegistry {
     return this.#channels.has(id);
   }
 
+  /**
+   * Host-only, unchecked accessor for transport, snapshot and read-only display. Never handed to a
+   * module; a write through it bypasses declared access.
+   */
   storage(id: string): ChannelStorage {
     const reg = this.#channels.get(id);
     if (!reg) throw new Error(`Channel '${id}' does not exist.`);
@@ -285,13 +298,23 @@ export class ChannelRegistry {
     return out.sort();
   }
 
-  /** Cheap order-sensitive hash of a channel's bytes, for the audit and the determinism harness. */
+  /**
+   * Cheap order-sensitive hash of a channel's bytes, for the audit and the determinism harness.
+   *
+   * FNV-1a folded a 32-bit word at a time rather than a byte at a time: a quarter of the work,
+   * which matters because the audit runs it over every channel after every module's step. Both
+   * steps of the fold are bijections on 32 bits, so changing any single word always changes the
+   * hash -- the audit cannot miss a one-word write to a collision. Nothing stores these values;
+   * they are only ever compared with another hash taken by the same code, so changing the fold
+   * from bytes to words moved nothing that was kept. Allocation-free.
+   */
   hash(id: string): number {
-    const storage = this.storage(id);
-    const bytes = new Uint8Array(storage.buffer, 0, storage.buffer.byteLength);
+    const reg = this.#channels.get(id);
+    if (!reg) throw new Error(`Channel '${id}' does not exist.`);
+    const words = reg.words;
     let h = 2166136261;
-    for (let i = 0; i < bytes.length; i++) {
-      h ^= bytes[i] ?? 0;
+    for (let i = 0; i < words.length; i++) {
+      h ^= words[i] as number;
       h = Math.imul(h, 16777619) >>> 0;
     }
     return h;
