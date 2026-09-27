@@ -1,6 +1,8 @@
 /**
- * Where the L3 joints that sit between two small bones put their centres.
+ * Where the joints that used to take a rough centre put their centres now.
  *
+ * Mostly L3 joints between two small bones, and the radioulnar, which every profile from L1 up
+ * has.
  * A joint centre is only as good as the rule that places it, and the one these joints used to take
  * -- where the two bones' bounding boxes meet along one axis, at the distal bone's centroid on the
  * other two -- was right only for a bone that runs along that axis. The thumb's metacarpal points
@@ -13,7 +15,7 @@
 import { fileURLToPath } from 'node:url';
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { loadSkeletonAssetsFromDisk } from '@bs-humany/assets-anatomical';
-import { type Transform, compose, vec3 } from '@bs-humany/frames';
+import { type Transform, compose, rotate, vec3 } from '@bs-humany/frames';
 import { evaluate } from '@bs-humany/hsdl';
 import { describe, expect, it } from 'vitest';
 import { DATASET_MANIFEST, buildDocument } from './document.js';
@@ -34,21 +36,34 @@ const world = computeWorldTransforms(document, atDataset);
 
 type P3 = readonly [number, number, number];
 
-/** A joint's centre in the dataset's world frame, at the dataset stature. */
-function centreOf(id: string): P3 {
+/** A joint's frame in the dataset's world frame, at the dataset stature. */
+function frameOf(id: string): Transform {
   const joint = joints.get(id);
   if (!joint) throw new Error(`no joint ${id}`);
   const parent = world.get(joint.parentBone) as Transform | undefined;
   if (!parent) throw new Error(`no parent pose for ${id}`);
-  const t = compose(parent, {
+  return compose(parent, {
     translation: vec3(
       evaluate(joint.frame.translation.x, atDataset),
       evaluate(joint.frame.translation.y, atDataset),
       evaluate(joint.frame.translation.z, atDataset),
     ),
     rotation: joint.frame.rotation,
-  }).translation;
+  });
+}
+
+/** A joint's centre in the dataset's world frame, at the dataset stature. */
+function centreOf(id: string): P3 {
+  const t = frameOf(id).translation;
   return [t.x, t.y, t.z];
+}
+
+/** The world direction a joint's first degree of freedom turns about. */
+function axisOf(id: string): P3 {
+  const dof = joints.get(id)?.dofs[0];
+  if (!dof) throw new Error(`no degree of freedom on ${id}`);
+  const a = rotate(frameOf(id).rotation, dof.vector);
+  return [a.x, a.y, a.z];
 }
 
 const mm = (a: P3, b: P3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) * 1000;
@@ -136,6 +151,68 @@ describe('the tarsometatarsal centre', () => {
       const centre = centreOf(`tarsometatarsal_${s}`);
       expect(millimetresFrom(`cuneiform_intermediate_${s}`, centre)).toBeLessThan(3);
       expect(millimetresFrom(`metatarsal_2_${s}`, centre)).toBeLessThan(3);
+    }
+  });
+});
+
+describe('the radioulnar centre', () => {
+  /**
+   * The middle of the radial head, taken as the middle of the radius's top 12 mm -- the head is
+   * about 10 mm tall -- by the extremes of its vertices across the bone.
+   */
+  function radialHead(s: 'r' | 'l'): P3 {
+    const p = assets.bones.get(`radius_${s}`)?.positions;
+    if (!p) throw new Error(`no radius_${s}`);
+    let top = Number.NEGATIVE_INFINITY;
+    for (let i = 1; i < p.length; i += 3) top = Math.max(top, p[i] as number);
+    const lo = [Number.POSITIVE_INFINITY, 0, Number.POSITIVE_INFINITY];
+    const hi = [Number.NEGATIVE_INFINITY, 0, Number.NEGATIVE_INFINITY];
+    for (let i = 0; i < p.length; i += 3) {
+      if ((p[i + 1] as number) < top - 0.012) continue;
+      for (const k of [0, 2]) {
+        lo[k] = Math.min(lo[k] as number, p[i + k] as number);
+        hi[k] = Math.max(hi[k] as number, p[i + k] as number);
+      }
+    }
+    return [
+      ((lo[0] as number) + (hi[0] as number)) / 2,
+      top - 0.006,
+      ((lo[2] as number) + (hi[2] as number)) / 2,
+    ];
+  }
+
+  /** Millimetres from a point to the radioulnar joint's pronation axis. */
+  function offAxis(s: 'r' | 'l', point: P3): number {
+    const centre = centreOf(`radioulnar_${s}`);
+    const axis = axisOf(`radioulnar_${s}`);
+    const d: P3 = [point[0] - centre[0], point[1] - centre[1], point[2] - centre[2]];
+    const along = d[0] * axis[0] + d[1] * axis[1] + d[2] * axis[2];
+    return (
+      Math.hypot(d[0] - along * axis[0], d[1] - along * axis[1], d[2] - along * axis[2]) * 1000
+    );
+  }
+
+  it('turns the forearm about the line from the radial head to the ulnar styloid', () => {
+    for (const s of ['r', 'l'] as const) {
+      const centre = centreOf(`radioulnar_${s}`);
+      // A turn of the forearm carries the head around a circle of this radius. On the export's
+      // Head_of_radius marker it was 21 mm, and a half turn moved the head 42.
+      expect(offAxis(s, radialHead(s))).toBeLessThan(3);
+      // And the far end of the line, which an axis along the ulna's own through the radial head
+      // missed by 20 mm, so the distal radius turned about itself rather than round the ulna.
+      expect(offAxis(s, measuredWorld(`ulna_${s}`, 'Ulnar_styloid_process'))).toBeLessThan(1);
+      // Inside the radius and clear of the ulna, which the marker was not: it sat 10 mm outside
+      // the radius and 4.5 mm from the ulna.
+      expect(millimetresFrom(`ulna_${s}`, centre)).toBeGreaterThan(8);
+    }
+  });
+
+  it('runs from palm forward, where the skeleton was built, to full pronation', () => {
+    for (const s of ['r', 'l'] as const) {
+      const range = joints.get(`radioulnar_${s}`)?.dofs[0]?.range;
+      // The source's quarter turn either way of thumb-up, with our zero at its -90 degrees.
+      expect(range?.[0]).toBe(0);
+      expect(range?.[1]).toBeCloseTo(Math.PI, 3);
     }
   });
 });

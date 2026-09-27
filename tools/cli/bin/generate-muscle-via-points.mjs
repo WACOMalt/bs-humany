@@ -239,10 +239,44 @@ const LIMBS = [
      * the nearest point of the bone's surface to where it was carried, to `standoff` metres from
      * that surface: the same side of the bone, the same direction, the right distance.
      */
+    /**
+     * Tendons whose wrap surface's side site is carried as a via point, in the surface's place.
+     *
+     * A side site is the reference's statement of which way round its surface a tendon goes, and
+     * it stands on that side, a millimetre or two off the surface. The supinator is the case: it
+     * wraps the back of the radius from the ulna, and our wrap cylinder -- coaxial with the
+     * forearm's turn, as every surface here is with its joint -- only holds a path whose straight
+     * line crosses it. Its one carried point lies across the axis from its origin, so that line
+     * passed within a millimetre of the axis and the muscle supinated or pronated by which side
+     * it fell. With the side site behind the bone as its first point (placed by `onSurface`
+     * below), the path from the ulna runs round the back of the cylinder through the whole turn.
+     */
+    wrapSides: ['SUP'],
     snapSites: {
       'ECRB-P2_r': { standoff: 0.005 },
       'ECRL-P2_r': { standoff: 0.005 },
       'BRD_BRD-P2_r': { standoff: 0.005 },
+    },
+    /**
+     * Side sites put on our wrap surface rather than where the carry leaves them.
+     *
+     * A side site stands just off its own surface: the supinator's is 1.7 mm outside the
+     * reference's 8 mm cylinder. Carried, it arrived 17 mm off our radius, because the reference's
+     * cylinder is not where ours is -- ours is coaxial with the forearm's turn and has the radial
+     * head's radius. So it keeps the direction the carry gave it, seen down our cylinder's axis,
+     * and stands the reference's own distance off our cylinder: on the same side of the same kind
+     * of surface, which is all a side site says. `geom` is the reference's cylinder the standoff
+     * is read from; `surface` is ours, as the axis's two ends and the radius.
+     */
+    onSurface: {
+      SUP_cylinder_SUP_2_sidesite_r: {
+        geom: 'SUP_cylinder',
+        surface: (skeleton) => ({
+          from: skeleton.measuredWorld('ulna_r', 'Ulnar_styloid_process'),
+          to: skeleton.measuredWorld('radius_r', 'Head_of_radius__articular_centre'),
+          radius: skeleton.articularFit('radius_r', 'Head_of_radius__articular_centre').radius,
+        }),
+      },
     },
     frames: [
       {
@@ -599,9 +633,11 @@ function readLimb(limb) {
    * and its P2 that a numeric guess skips entirely.
    */
   const viaPoints = (tendon) => {
-    const path = [...tendonBlock(tendon).matchAll(/<(?:site|geom) (?:site|geom)="([^"]+)"/g)].map(
-      (m) => m[1],
-    );
+    const path = [
+      ...tendonBlock(tendon).matchAll(
+        /<(?:site|geom) (?:site|geom)="([^"]+)"(?:\s+sidesite="([^"]+)")?/g,
+      ),
+    ].map((m) => (m[2] !== undefined && limb.wrapSides?.includes(tendon) ? m[2] : m[1]));
     return path.filter((name, i) => i > 0 && i < path.length - 1 && sites.has(name));
   };
 
@@ -609,7 +645,33 @@ function readLimb(limb) {
   const allSites = (tendon) =>
     [...tendonBlock(tendon).matchAll(/<site site="([^"]+)"/g)].map((m) => m[1]);
 
-  return { sites, viaPoints, allSites, offsets, axisOf, turn, posed };
+  /**
+   * How far a site stands outside a cylinder wrap geom, metres: its distance from the cylinder's
+   * axis less the cylinder's radius. Both are in the frame of the body that carries them.
+   */
+  const standoffFrom = (geom, siteName) => {
+    const element = xml.match(new RegExp(`<geom\\b[^>]*name="${geom}"[^>]*/>`))?.[0];
+    if (!element) throw new Error(`${limb.model.chain} has no geom '${geom}'`);
+    const numbers = (key) => {
+      const m = element.match(new RegExp(`\\b${key}="([^"]+)"`));
+      if (!m) throw new Error(`${limb.model.chain}: geom '${geom}' states no ${key}`);
+      return m[1].trim().split(/\s+/).map(Number);
+    };
+    if (!/type="cylinder"/.test(element)) {
+      throw new Error(`${limb.model.chain}: geom '${geom}' is not a cylinder`);
+    }
+    const [w, x, y, z] = numbers('quat');
+    // The cylinder's own Z, turned by its quaternion (MuJoCo's order, w first).
+    const axis = norm([2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)]);
+    const site = sites.get(siteName);
+    if (!site) throw new Error(`${limb.model.chain}: no site '${siteName}'`);
+    const d = sub(site.local, numbers('pos'));
+    const along = dot(d, axis);
+    const off = Math.hypot(d[0] - along * axis[0], d[1] - along * axis[1], d[2] - along * axis[2]);
+    return off - numbers('size')[0];
+  };
+
+  return { sites, viaPoints, allSites, offsets, axisOf, turn, posed, standoffFrom };
 }
 
 // --- Frame arithmetic ------------------------------------------------------------------------
@@ -758,7 +820,7 @@ const direction = new Map();
 const measured = [];
 
 for (const limb of LIMBS) {
-  const { sites, viaPoints, allSites, offsets, axisOf, turn, posed } = readLimb(limb);
+  const { sites, viaPoints, allSites, offsets, axisOf, turn, posed, standoffFrom } = readLimb(limb);
 
   /**
    * One frame correspondence per bone group, built the same way: ask both models for the same
@@ -949,6 +1011,28 @@ for (const limb of LIMBS) {
           out.map((c) => c * snap.standoff),
         );
         provenance = `${name}, drawn in to ${(snap.standoff * 1000).toFixed(0)} mm from ${bone}`;
+        method = 'drawn-in';
+      }
+      const onSurface = limb.onSurface?.[name];
+      if (onSurface) {
+        const ours = onSurface.surface(skeleton);
+        const standoff = standoffFrom(onSurface.geom, name);
+        const axis = norm(sub(ours.to, ours.from));
+        const d = sub(world, ours.from);
+        const along = dot(d, axis);
+        const foot = add(
+          ours.from,
+          axis.map((c) => c * along),
+        );
+        const out = norm(sub(world, foot));
+        world = add(
+          foot,
+          out.map((c) => c * (ours.radius + standoff)),
+        );
+        // Said the way every drawn-in point says it, by where it ended up from its own bone, which
+        // is what its site's citation reads back (attachments.ts).
+        const fromBone = Math.hypot(...sub(world, boneNearest(bone, world)));
+        provenance = `${name}, drawn in to ${(fromBone * 1000).toFixed(0)} mm from ${bone}`;
         method = 'drawn-in';
       }
       rows.push({

@@ -24,7 +24,7 @@ import {
   L2_JOINTS,
   mirrorVector,
 } from './joints.js';
-import { isbLandmarkWorld, markerWorld, measuredWorld } from './landmarks.js';
+import { isbLandmarkWorld, measuredWorld } from './landmarks.js';
 import { computeWorldTransforms } from './pose.js';
 import { L0_RAGDOLL, L1_STANDARD, L2_BIOMECHANICAL } from './segmentation.js';
 
@@ -156,7 +156,7 @@ describe('joint centres', () => {
     near(t('hip_l'), isbLandmarkWorld('femur_l', 'HJC'));
     near(t('glenohumeral_r'), isbLandmarkWorld('humerus_r', 'GH'));
     near(t('sternoclavicular_l'), isbLandmarkWorld('clavicle_l', 'SC'));
-    near(t('radioulnar_r'), markerWorld('radius_r', 'Head_of_radius'));
+    near(t('radioulnar_r'), measuredWorld('radius_r', 'Head_of_radius__articular_centre'));
     // Between the two occipital condyles, and not on one of them. This assertion used to name the
     // marker, which is one condyle of a pair, so it held the head hinged 23 mm to the right and
     // called that correct.

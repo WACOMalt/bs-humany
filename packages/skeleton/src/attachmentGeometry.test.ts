@@ -83,7 +83,10 @@ const ENDPOINT_CEILING_MM = 10;
  */
 const VIA_CEILING_MM: Readonly<Record<string, number>> = {
   scapula: 56.7,
-  radius: 12.5,
+  // Rose from 12.5 when the supinator's side site was put on the radial head's wrap cylinder: it
+  // stands off that surface, 1.6 mm outside a 10.9 mm radius about the pronation axis, not off
+  // the bone, and the radial neck below the head is narrower than the head.
+  radius: 13,
   femur: 29,
   humerus: 23.6,
   fibula: 23.5,

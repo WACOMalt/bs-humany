@@ -308,21 +308,42 @@ function limbJoints(s: Side): JointSpec[] {
       parentBone: `ulna_${s}`,
       childBone: `radius_${s}`,
       type: 'revolute',
-      centre: { marker: [`radius_${s}`, 'Head_of_radius'] },
+      // The centre of the radial head, fitted to its surface. It was the export's Head_of_radius
+      // marker, a label anchor 10 mm outside the radius and 21 mm from the middle of the head, so
+      // the head swung round a 21 mm circle as the forearm turned instead of spinning in place.
+      centre: { measured: [`radius_${s}`, 'Head_of_radius__articular_centre'] },
       centreSource: wu2005(
         '3.3, forearm: pronation/supination axis from the head of the radius to US',
       ),
+      // And the axis runs on from there to the ulnar styloid, the line Wu names. The ulna's own
+      // long axis is five degrees off it: through the marker it passed within a millimetre of
+      // the ulnar head and 21 mm from the radial head, and through the radial head's centre alone
+      // it would miss the ulnar head by 20 mm and turn the distal radius about itself.
+      upThrough: [
+        { measured: [`ulna_${s}`, 'Ulnar_styloid_process'] },
+        { measured: [`radius_${s}`, 'Head_of_radius__articular_centre'] },
+      ],
       dofs: [
         {
           axis: 'pronation',
           vector: [0, 1, 0],
-          range: [-1.5708, 1.5708],
-          romSource: myo(ARM, 'pro_sup_r'),
+          // The source's interval, moved to our zero. Its `pro_sup_r` is a quarter turn either way
+          // of thumb-up; ours is 0 at the pose the skeleton was built in, palm forward, which is
+          // its -90 degrees (REFERENCE_FOREARM_AT_OUR_NEUTRAL in
+          // tools/validate-external/src/referenceArm.mjs, where the moment-arm comparison holds the
+          // two models to it). Taken as stated about our zero, the range ran a quarter turn past
+          // palm-forward into supination the forearm cannot reach and stopped at thumb-up, half
+          // the pronation it has. Written as the source's bounds plus the quarter turn.
+          range: [-1.5708 + 1.5708, 1.5708 + 1.5708],
+          romSource: myo(ARM, 'pro_sup_r (-1.5708 to 1.5708 about thumb-up)'),
         },
       ],
       limitations: [
-        'Pronation is about the ulna frame Y axis through the radial head, rather than the line ' +
-          'from the radial head to the ulnar styloid, which is a few degrees off it.',
+        'Pronation is about the line from the centre of the radial head to the ulnar styloid, ' +
+          'the frame being the ulna’s turned onto it; the styloid is the surface point Wu names, ' +
+          'a few millimetres from the centre of the ulnar head the radius actually turns round.',
+        'Zero is the skeleton’s own pose, palm forward and fully supinated, so the rest pose ' +
+          'sits at the end of the range, where the source’s thumb-up neutral is a quarter turn in.',
         'The source arm model is right-sided only; the left mirrors it.',
       ],
     },
@@ -902,11 +923,14 @@ export function buildJoints(document: Pick<HsdlDocument, 'bones' | 'landmarks'>)
     const centre = centreWorld(spec.centre);
     const base = parentFrame ? parentFrame.rotation : ISB_CANONICAL;
     const lean = spec.upAxis;
+    const through = spec.upThrough;
     const jointWorld: Transform = {
       translation: vec3(centre[0], centre[1], centre[2]),
       rotation: lean
         ? alongAxis(base, jointCentres.get(lean[0]) ?? centre, jointCentres.get(lean[1]) ?? centre)
-        : base,
+        : through
+          ? alongAxis(base, centreWorld(through[0]), centreWorld(through[1]))
+          : base,
     };
     const local = relativeTo(jointWorld, parentWorld);
     const mirrored = spec.side === 'l';
@@ -915,9 +939,11 @@ export function buildJoints(document: Pick<HsdlDocument, 'bones' | 'landmarks'>)
       centre: centreLocator(spec.centre),
       orientation: lean
         ? `up along the line from joint ${lean[0]} to joint ${lean[1]}`
-        : parentFrame
-          ? `isb-frame:${spec.parentBone}`
-          : 'isb-canonical',
+        : through
+          ? `up along the line from ${centreLocator(through[0])} to ${centreLocator(through[1])}`
+          : parentFrame
+            ? `isb-frame:${spec.parentBone}`
+            : 'isb-canonical',
       mirrored,
     };
 

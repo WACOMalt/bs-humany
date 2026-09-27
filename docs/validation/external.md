@@ -8,7 +8,7 @@ Reference: MyoSuite `myo_sim` at commit `eb327acbae`, vendored under
 `tools/validate-external/` with its Apache-2.0 licence. See that directory for how to verify
 or advance the pin.
 
-Generated 2026-09-26. 190 comparisons, 0 to investigate, 4 differing by a recorded decision, 67 values provisional and so not compared.
+Generated 2026-09-27. 190 comparisons, 0 to investigate, 6 differing by a recorded decision, 67 values provisional and so not compared.
 
 ## What is compared
 
@@ -43,6 +43,8 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 
 | | Subject | Ours | Reference | Note |
 |---|---|---|---|---|
+| recorded | radioulnar_r/pronation | [0, 3.1416] | [-1.5708, 1.5708] | no simple relation to the source; a decision, recorded in the radioulnar joint's range in joints.ts: our zero is the skeleton's palm-forward pose, the source's -90 degrees, so its interval is moved a quarter turn to [0, 180] degrees |
+| recorded | radioulnar_l/pronation | [0, 3.1416] | [-1.5708, 1.5708] | no simple relation to the source; a decision, recorded in the radioulnar joint's range in joints.ts: our zero is the skeleton's palm-forward pose, the source's -90 degrees, so its interval is moved a quarter turn to [0, 180] degrees |
 | recorded | ankle_r: dorsiflexion to inversion | 96.947 deg | 107.838 deg | 10.891 deg apart; a decision, recorded in the ankle joint's own limitations: dorsiflexion is about the ISB malleolar axis, not the source's, which is tilted about 12 degrees from it |
 | recorded | ankle_l: dorsiflexion to inversion | 96.947 deg | 107.838 deg | 10.891 deg apart; a decision, recorded in the ankle joint's own limitations: dorsiflexion is about the ISB malleolar axis, not the source's, which is tilted about 12 degrees from it |
 | recorded | mcp_2_r: flexion to abduction | 90.000 deg | 92.645 deg | 2.645 deg apart; a decision, recorded in the header of jointsL3.ts: the hand joints are stated in the source's own hand frame, where flexion is about x, and are restated here about the medio-lateral axis |
@@ -78,7 +80,6 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_r/elevation | [0, 3.142] | [0, 3.142] | as stated |
 | ok | glenohumeral_r/internal_rotation | [-1.571, 2.094] | [-1.571, 2.094] | as stated |
 | ok | elbow_r/flexion | [0, 2.269] | [0, 2.269] | as stated |
-| ok | radioulnar_r/pronation | [-1.5708, 1.5708] | [-1.5708, 1.5708] | as stated |
 | ok | wrist_r/flexion | [-0.785398, 0.785398] | [-0.785398, 0.785398] | as stated |
 | ok | wrist_r/ulnar_deviation | [-0.174533, 0.436332] | [-0.174533, 0.436332] | as stated |
 | ok | hip_l/flexion | [-0.523599, 2.0944] | [-0.523599, 2.0944] | as stated |
@@ -94,7 +95,6 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_l/elevation | [0, 3.142] | [0, 3.142] | as stated |
 | ok | glenohumeral_l/internal_rotation | [-1.571, 2.094] | [-1.571, 2.094] | as stated |
 | ok | elbow_l/flexion | [0, 2.269] | [0, 2.269] | as stated |
-| ok | radioulnar_l/pronation | [-1.5708, 1.5708] | [-1.5708, 1.5708] | as stated |
 | ok | wrist_l/flexion | [-0.785398, 0.785398] | [-0.785398, 0.785398] | as stated |
 | ok | wrist_l/ulnar_deviation | [-0.174533, 0.436332] | [-0.174533, 0.436332] | as stated |
 | ok | acromioclavicular_r/unrotate_clavicle_elevation | [-0.318, 0] | [-0.318, 0] | as stated |

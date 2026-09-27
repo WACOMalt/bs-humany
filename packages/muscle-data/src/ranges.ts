@@ -35,14 +35,14 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   {
     unit: 'biceps_brachii_long_r',
     shortest: 0.823827,
-    longest: 1.02222,
+    longest: 1.01914,
     crosses:
       'glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation, elbow_r/flexion, radioulnar_r/pronation',
   },
   {
     unit: 'biceps_brachii_short_r',
     shortest: 0.791951,
-    longest: 1.35915,
+    longest: 1.35914,
     crosses:
       'glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation, elbow_r/flexion, radioulnar_r/pronation',
   },
@@ -55,7 +55,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   {
     unit: 'brachioradialis_r',
     shortest: 0.70355,
-    longest: 1.01335,
+    longest: 1.0002,
     crosses: 'elbow_r/flexion, radioulnar_r/pronation',
   },
   {
@@ -80,14 +80,14 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   {
     unit: 'biceps_brachii_long_l',
     shortest: 0.823827,
-    longest: 1.02219,
+    longest: 1.01914,
     crosses:
       'glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, elbow_l/flexion, radioulnar_l/pronation',
   },
   {
     unit: 'biceps_brachii_short_l',
     shortest: 0.791951,
-    longest: 1.35915,
+    longest: 1.35914,
     crosses:
       'glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, elbow_l/flexion, radioulnar_l/pronation',
   },
@@ -100,7 +100,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   {
     unit: 'brachioradialis_l',
     shortest: 0.70355,
-    longest: 1.01332,
+    longest: 1.0002,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation',
   },
   {
@@ -152,7 +152,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'infraspinatus_r',
-    shortest: 0.737783,
+    shortest: 0.737787,
     longest: 1.05453,
     crosses:
       'glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation',
@@ -166,7 +166,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'teres_minor_r',
-    shortest: 0.787424,
+    shortest: 0.787425,
     longest: 1.02759,
     crosses:
       'glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation',
@@ -215,7 +215,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'infraspinatus_l',
-    shortest: 0.737781,
+    shortest: 0.737786,
     longest: 1.05453,
     crosses:
       'glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation',
@@ -229,7 +229,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'teres_minor_l',
-    shortest: 0.787423,
+    shortest: 0.787425,
     longest: 1.02759,
     crosses:
       'glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation',
@@ -740,15 +740,15 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'latissimus_dorsi_thoracic_r',
-    shortest: 0.739424,
-    longest: 1.42992,
+    shortest: 0.73949,
+    longest: 1.42993,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'latissimus_dorsi_lumbar_r',
-    shortest: 0.920926,
-    longest: 1.08688,
+    shortest: 0.920945,
+    longest: 1.08689,
     crosses:
       'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, sternoclavicular_r/protraction, sternoclavicular_r/elevation, glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
@@ -761,35 +761,35 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'pectoralis_major_clavicular_r',
-    shortest: 0.750889,
+    shortest: 0.750885,
     longest: 1.05084,
     crosses:
       'glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'pectoralis_major_sternal_r',
-    shortest: 0.898031,
+    shortest: 0.898028,
     longest: 1.12296,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'pectoralis_major_abdominal_r',
-    shortest: 0.876385,
+    shortest: 0.87647,
     longest: 2.07888,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, glenohumeral_r/plane_of_elevation, glenohumeral_r/elevation, glenohumeral_r/internal_rotation, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_6_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'latissimus_dorsi_thoracic_l',
-    shortest: 0.760553,
-    longest: 1.43256,
+    shortest: 0.760603,
+    longest: 1.43257,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'latissimus_dorsi_lumbar_l',
-    shortest: 0.927598,
+    shortest: 0.927614,
     longest: 1.09223,
     crosses:
       'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, sternoclavicular_l/protraction, sternoclavicular_l/elevation, glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
@@ -803,41 +803,41 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'pectoralis_major_clavicular_l',
-    shortest: 0.745616,
+    shortest: 0.745612,
     longest: 1.05084,
     crosses:
       'glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'pectoralis_major_sternal_l',
-    shortest: 0.890136,
-    longest: 1.11767,
+    shortest: 0.890132,
+    longest: 1.11768,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'pectoralis_major_abdominal_l',
-    shortest: 0.892265,
+    shortest: 0.892345,
     longest: 2.12761,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, glenohumeral_l/plane_of_elevation, glenohumeral_l/elevation, glenohumeral_l/internal_rotation, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_6_l/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'pronator_teres_r',
-    shortest: 0.934057,
-    longest: 1.01642,
+    shortest: 0.825821,
+    longest: 1,
     crosses: 'elbow_r/flexion, radioulnar_r/pronation',
   },
   {
     unit: 'pronator_quadratus_r',
-    shortest: 0.990685,
-    longest: 1.01244,
+    shortest: 0.957763,
+    longest: 1.00158,
     crosses: 'radioulnar_r/pronation',
   },
   {
     unit: 'supinator_r',
-    shortest: 0.992565,
-    longest: 1.06524,
+    shortest: 1,
+    longest: 1.29429,
     crosses: 'radioulnar_r/pronation',
   },
   {
@@ -855,37 +855,37 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   {
     unit: 'flexor_carpi_ulnaris_r',
     shortest: 0.975591,
-    longest: 1.0104,
+    longest: 1.00788,
     crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
   },
   {
     unit: 'extensor_carpi_radialis_longus_r',
     shortest: 0.958401,
-    longest: 1.01182,
+    longest: 1.01059,
     crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
   },
   {
     unit: 'extensor_carpi_radialis_brevis_r',
     shortest: 0.991001,
-    longest: 1.03731,
+    longest: 1.01858,
     crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
   },
   {
     unit: 'pronator_teres_l',
-    shortest: 0.933984,
-    longest: 1.01636,
+    shortest: 0.825821,
+    longest: 1,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation',
   },
   {
     unit: 'pronator_quadratus_l',
-    shortest: 0.99065,
-    longest: 1.01238,
+    shortest: 0.957763,
+    longest: 1.00158,
     crosses: 'radioulnar_l/pronation',
   },
   {
     unit: 'supinator_l',
-    shortest: 0.992558,
-    longest: 1.06493,
+    shortest: 1,
+    longest: 1.29429,
     crosses: 'radioulnar_l/pronation',
   },
   {
@@ -903,19 +903,19 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   {
     unit: 'flexor_carpi_ulnaris_l',
     shortest: 0.975591,
-    longest: 1.01034,
+    longest: 1.00788,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
   },
   {
     unit: 'extensor_carpi_radialis_longus_l',
     shortest: 0.958401,
-    longest: 1.0118,
+    longest: 1.01059,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
   },
   {
     unit: 'extensor_carpi_radialis_brevis_l',
     shortest: 0.991001,
-    longest: 1.03726,
+    longest: 1.01858,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
   },
   {
@@ -927,14 +927,14 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'rectus_abdominis_r',
-    shortest: 0.744641,
+    shortest: 0.744642,
     longest: 1.06956,
     crosses:
       'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation',
   },
   {
     unit: 'external_oblique_r',
-    shortest: 0.905007,
+    shortest: 0.905006,
     longest: 1.05575,
     crosses:
       'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, costovertebral_6_r/elevation',
@@ -955,7 +955,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'rectus_abdominis_l',
-    shortest: 0.744645,
+    shortest: 0.744646,
     longest: 1.06956,
     crosses:
       'l5_s1/flexion, l5_s1/lateral_bending_right, l5_s1/axial_rotation_left, l4_l5/flexion, l4_l5/lateral_bending_right, l4_l5/axial_rotation_left, l3_l4/flexion, l3_l4/lateral_bending_right, l3_l4/axial_rotation_left, l2_l3/flexion, l2_l3/lateral_bending_right, l2_l3/axial_rotation_left, l1_l2/flexion, l1_l2/lateral_bending_right, l1_l2/axial_rotation_left, t12_l1/flexion, t12_l1/lateral_bending_right, t12_l1/axial_rotation_left, t11_t12/flexion, t11_t12/lateral_bending_right, t11_t12/axial_rotation_left, t10_t11/flexion, t10_t11/lateral_bending_right, t10_t11/axial_rotation_left, t9_t10/flexion, t9_t10/lateral_bending_right, t9_t10/axial_rotation_left, t8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation',
@@ -1130,63 +1130,63 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'trapezius_upper_r',
-    shortest: 0.838435,
+    shortest: 0.838429,
     longest: 1.12718,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, c6_c7/flexion, c6_c7/lateral_bending_right, c6_c7/axial_rotation_left, c5_c6/flexion, c5_c6/lateral_bending_right, c5_c6/axial_rotation_left, c4_c5/flexion, c4_c5/lateral_bending_right, c4_c5/axial_rotation_left, c3_c4/flexion, c3_c4/lateral_bending_right, c3_c4/axial_rotation_left, c2_c3/flexion, c2_c3/lateral_bending_right, c2_c3/axial_rotation_left, c1_c2/flexion, c1_c2/lateral_bending_right, c1_c2/axial_rotation_left, c0_c1/flexion, c0_c1/lateral_bending_right, c0_c1/axial_rotation_left, costovertebral_1_r/elevation',
   },
   {
     unit: 'trapezius_middle_r',
-    shortest: 0.537145,
+    shortest: 0.53714,
     longest: 1.0257,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'trapezius_lower_r',
-    shortest: 0.789932,
+    shortest: 0.78993,
     longest: 1.17318,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'levator_scapulae_r',
-    shortest: 0.89358,
+    shortest: 0.893814,
     longest: 1.545,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, c6_c7/flexion, c6_c7/lateral_bending_right, c6_c7/axial_rotation_left, c5_c6/flexion, c5_c6/lateral_bending_right, c5_c6/axial_rotation_left, c4_c5/flexion, c4_c5/lateral_bending_right, c4_c5/axial_rotation_left, c3_c4/flexion, c3_c4/lateral_bending_right, c3_c4/axial_rotation_left, c2_c3/flexion, c2_c3/lateral_bending_right, c2_c3/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'rhomboid_minor_r',
-    shortest: 0.75015,
+    shortest: 0.750092,
     longest: 1.8894,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'rhomboid_major_r',
-    shortest: 0.6091,
+    shortest: 0.609159,
     longest: 2.75242,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'serratus_anterior_superior_r',
-    shortest: 0.766653,
-    longest: 1.84695,
+    shortest: 0.766652,
+    longest: 1.84697,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_2_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'serratus_anterior_middle_r',
-    shortest: 0.713813,
+    shortest: 0.713814,
     longest: 1.47961,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_5_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
   },
   {
     unit: 'serratus_anterior_inferior_r',
-    shortest: 0.545303,
+    shortest: 0.545305,
     longest: 1.70054,
     crosses:
       'sternoclavicular_r/protraction, sternoclavicular_r/elevation, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_8_r/elevation, acromioclavicular_r/unrotate_clavicle_elevation, acromioclavicular_r/unrotate_clavicle_protraction, acromioclavicular_r/protraction, acromioclavicular_r/upward_rotation, acromioclavicular_r/tilt',
@@ -1200,42 +1200,42 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'trapezius_upper_l',
-    shortest: 0.821781,
+    shortest: 0.821774,
     longest: 1.12719,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, c6_c7/flexion, c6_c7/lateral_bending_right, c6_c7/axial_rotation_left, c5_c6/flexion, c5_c6/lateral_bending_right, c5_c6/axial_rotation_left, c4_c5/flexion, c4_c5/lateral_bending_right, c4_c5/axial_rotation_left, c3_c4/flexion, c3_c4/lateral_bending_right, c3_c4/axial_rotation_left, c2_c3/flexion, c2_c3/lateral_bending_right, c2_c3/axial_rotation_left, c1_c2/flexion, c1_c2/lateral_bending_right, c1_c2/axial_rotation_left, c0_c1/flexion, c0_c1/lateral_bending_right, c0_c1/axial_rotation_left, costovertebral_1_r/elevation',
   },
   {
     unit: 'trapezius_middle_l',
-    shortest: 0.529447,
+    shortest: 0.529444,
     longest: 1.0257,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'trapezius_lower_l',
-    shortest: 0.817962,
+    shortest: 0.817963,
     longest: 1.17866,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'levator_scapulae_l',
-    shortest: 0.883487,
+    shortest: 0.883488,
     longest: 1.5468,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, c6_c7/flexion, c6_c7/lateral_bending_right, c6_c7/axial_rotation_left, c5_c6/flexion, c5_c6/lateral_bending_right, c5_c6/axial_rotation_left, c4_c5/flexion, c4_c5/lateral_bending_right, c4_c5/axial_rotation_left, c3_c4/flexion, c3_c4/lateral_bending_right, c3_c4/axial_rotation_left, c2_c3/flexion, c2_c3/lateral_bending_right, c2_c3/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'rhomboid_minor_l',
-    shortest: 0.761453,
-    longest: 1.89345,
+    shortest: 0.761428,
+    longest: 1.89346,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, c7_t1/flexion, c7_t1/lateral_bending_right, c7_t1/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'rhomboid_major_l',
-    shortest: 0.615109,
+    shortest: 0.615166,
     longest: 2.7496,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
@@ -1249,14 +1249,14 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'serratus_anterior_middle_l',
-    shortest: 0.712799,
+    shortest: 0.7128,
     longest: 1.49897,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_5_l/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
   },
   {
     unit: 'serratus_anterior_inferior_l',
-    shortest: 0.548484,
+    shortest: 0.548486,
     longest: 1.69783,
     crosses:
       'sternoclavicular_l/protraction, sternoclavicular_l/elevation, t7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, t6_t7/flexion, t6_t7/lateral_bending_right, t6_t7/axial_rotation_left, t5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, t4_t5/flexion, t4_t5/lateral_bending_right, t4_t5/axial_rotation_left, t3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, t2_t3/flexion, t2_t3/lateral_bending_right, t2_t3/axial_rotation_left, t1_t2/flexion, t1_t2/lateral_bending_right, t1_t2/axial_rotation_left, costovertebral_1_r/elevation, costovertebral_8_l/elevation, acromioclavicular_l/unrotate_clavicle_elevation, acromioclavicular_l/unrotate_clavicle_protraction, acromioclavicular_l/protraction, acromioclavicular_l/upward_rotation, acromioclavicular_l/tilt',
@@ -1284,7 +1284,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'external_intercostal_3_r',
-    shortest: 0.889761,
+    shortest: 0.88976,
     longest: 1.33806,
     crosses:
       't3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, costovertebral_3_r/elevation, costovertebral_4_r/elevation',
@@ -1396,7 +1396,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'internal_intercostal_8_r',
-    shortest: 0.403246,
+    shortest: 0.403245,
     longest: 1.65405,
     crosses:
       't8_t9/flexion, t8_t9/lateral_bending_right, t8_t9/axial_rotation_left, costovertebral_8_r/elevation, costovertebral_9_r/elevation',
@@ -1438,7 +1438,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'external_intercostal_3_l',
-    shortest: 0.889761,
+    shortest: 0.88976,
     longest: 1.33806,
     crosses:
       't3_t4/flexion, t3_t4/lateral_bending_right, t3_t4/axial_rotation_left, costovertebral_3_l/elevation, costovertebral_4_l/elevation',
@@ -1453,7 +1453,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   {
     unit: 'external_intercostal_5_l',
     shortest: 0.837468,
-    longest: 1.44491,
+    longest: 1.4449,
     crosses:
       't5_t6/flexion, t5_t6/lateral_bending_right, t5_t6/axial_rotation_left, costovertebral_5_l/elevation, costovertebral_6_l/elevation',
   },
@@ -1543,7 +1543,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'internal_intercostal_7_l',
-    shortest: 0.447767,
+    shortest: 0.447768,
     longest: 1.79957,
     crosses:
       't7_t8/flexion, t7_t8/lateral_bending_right, t7_t8/axial_rotation_left, costovertebral_7_l/elevation, costovertebral_8_l/elevation',
@@ -1703,7 +1703,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'abductor_pollicis_longus_r',
-    shortest: 0.970571,
+    shortest: 0.959735,
     longest: 1.07346,
     crosses:
       'radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation, cmc_1_r/flexion, cmc_1_r/abduction',
@@ -1835,7 +1835,7 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'abductor_pollicis_longus_l',
-    shortest: 0.970571,
+    shortest: 0.959735,
     longest: 1.07346,
     crosses:
       'radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation, cmc_1_l/flexion, cmc_1_l/abduction',

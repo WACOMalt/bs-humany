@@ -132,8 +132,11 @@ const ROWS = [
     ourJoint: 'radioulnar_r',
     ourDof: 'pronation',
     refJoint: 'pro_sup_r',
-    // From palm forward to thumb up: the half of the turn both models reach from our zero, since
-    // ours stops at its own range's end where the reference's would carry on.
+    // From palm forward to thumb up, the half of the turn this row was first swept over. Ours
+    // reaches the whole turn now that its range is the source's moved to our zero, and the other
+    // half is not swept yet. Measured on ours alone, pronator teres crosses zero at about 170
+    // degrees and flexor carpi radialis at about 165, and neither has been compared with the
+    // reference there.
     range: { from: 0, to: 90, step: 10 },
     offset: REFERENCE_FOREARM_AT_OUR_NEUTRAL,
     hold: { ours: [], reference: {} },
@@ -550,11 +553,6 @@ const RECORDED = [
  * sign change not on it fails as it always did.
  */
 const AWAITING_THE_OWNER = [
-  [
-    'Forearm pronation',
-    'pronator_quadratus_r',
-    'Ours supinates, by 0.2 to 1.6 mm, through the whole turn where the reference’s pronates by up to 7 -- and pronator quadratus is the forearm’s prime pronator.',
-  ],
   [
     'Forearm pronation',
     'flexor_carpi_ulnaris_r',

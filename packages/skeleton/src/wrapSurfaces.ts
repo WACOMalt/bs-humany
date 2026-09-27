@@ -120,6 +120,12 @@ interface SurfaceSpec {
    * tool the same question would only give the two answers a chance to disagree.
    */
   readonly sphere?: { readonly feature: string } | undefined;
+  /**
+   * A cylinder whose radius is a fitted articular centre's, for the same reason: the fit has
+   * measured it already. The radial head is the case -- a disc the forearm turns about, whose
+   * sphere fit found both the centre the pronation axis passes through and the head's radius.
+   */
+  readonly cylinder?: { readonly feature: string } | undefined;
   /** Where the cylinder's centre goes: one landmark, or the midpoint of two. */
   readonly centre: Ref | readonly [Ref, Ref];
   readonly feature: string;
@@ -283,6 +289,49 @@ function sideSpecs(s: 'l' | 'r'): SurfaceSpec[] {
           'The radius is measured from the mesh; only the placement comes from here.',
       ),
     },
+    {
+      // What the supinator turns over. It arises from the ulna, wraps the back of the radius's
+      // upper end and inserts on its lateral and front surfaces, and that wrap is what makes it a
+      // supinator: a straight line from its origin to its carried point on the radius passes
+      // within a millimetre of the pronation axis, so without a surface its moment arm is whatever
+      // side of the axis that line happens to fall. It fell on the supinating side only while the
+      // axis sat 21 mm off on the export's Head_of_radius marker; with the axis through the middle
+      // of the head it fell on the other, and the supinator pronated.
+      //
+      // Coaxial with the forearm's turn, as the elbow's and the knee's are with theirs: on the line
+      // from the ulnar styloid to the centre of the radial head, which is the radioulnar joint's
+      // axis (Wu 2005, 3.3), so a tendon over it has a moment arm of the cylinder's radius at every
+      // angle. The radius is the radial head's, from the fit that placed the joint; the neck just
+      // below it, where the muscle actually lies, is narrower, and the reference model's cylinder
+      // here is 8 mm against this 10.9. It runs the whole length of that axis, which only the one
+      // muscle that names it can reach.
+      id: `radial_head_${s}`,
+      bone: `radius_${s}`,
+      displayName: `Radial head, ${side}`,
+      cylinder: { feature: 'Head_of_radius__articular_centre' },
+      centre: [
+        [`ulna_${s}`, 'US'],
+        { measured: [`radius_${s}`, 'Head_of_radius__articular_centre'] },
+      ],
+      feature: 'Head_of_radius__articular_centre',
+      along: 'long',
+      span: [
+        [`ulna_${s}`, 'US'],
+        { measured: [`radius_${s}`, 'Head_of_radius__articular_centre'] },
+      ],
+      frame: {
+        origin: { measured: [`radius_${s}`, 'Head_of_radius__articular_centre'] },
+        primaryFrom: [`ulna_${s}`, 'US'],
+        primaryTo: { measured: [`radius_${s}`, 'Head_of_radius__articular_centre'] },
+        secondaryFrom: [`humerus_${s}`, 'EM'],
+        secondaryTo: [`humerus_${s}`, 'EL'],
+      },
+      source: cite(
+        'wu2005',
+        '3.3, forearm: pronation/supination about the axis from the head of the radius to US. ' +
+          'The radius is the radial head fit; only the placement comes from here.',
+      ),
+    },
   ];
 }
 
@@ -312,8 +361,15 @@ export function buildWrappingSurfaces(): WrappingSurfaceDef[] {
         throw new Error(`Wrap surface '${spec.id}' is on unpacked bone '${spec.bone}'.`);
       // A sphere takes its radius from the articular fit that found the joint centre; everything
       // else from the wrap-radius measurement about its own axis.
-      const fitted = spec.sphere ? articularFit(spec.bone, spec.sphere.feature) : undefined;
+      const fittedTo = spec.sphere ?? spec.cylinder;
+      const fitted = fittedTo ? articularFit(spec.bone, fittedTo.feature) : undefined;
       const measured = fitted ? undefined : wrapRadius(spec.bone, spec.feature);
+      // A cylinder cut to its span, with its radius from a fit rather than a measured extent.
+      const fittedCylinder =
+        fitted && spec.cylinder ? { radius: fitted.radius, length: spanLength(spec) } : undefined;
+      if (fittedCylinder && fittedCylinder.length === undefined) {
+        throw new Error(`Wrap surface '${spec.id}' takes a fitted radius and needs a span.`);
+      }
 
       const frame = frameFromLandmarkPoints({
         origin: vec(refWorld(spec.frame.origin)),
@@ -353,23 +409,31 @@ export function buildWrappingSurfaces(): WrappingSurfaceDef[] {
           translation: { x: scaled(0), y: scaled(1), z: scaled(2) },
           rotation: spec.along === 'long' ? multiplyQuat(frame.rotation, Z_ONTO_Y) : frame.rotation,
         },
-        shape: fitted
-          ? { kind: 'sphere', radius: metres(fitted.radius) }
-          : {
+        shape: fittedCylinder
+          ? {
               kind: 'cylinder',
-              radius: metres((measured as RadiusRow).radius),
-              length: metres(
-                spanLength(spec) ?? (measured as RadiusRow).halfLength * 2 * LENGTH_MARGIN,
-              ),
-            },
+              radius: metres(fittedCylinder.radius),
+              length: metres(fittedCylinder.length as number),
+            }
+          : fitted
+            ? { kind: 'sphere', radius: metres(fitted.radius) }
+            : {
+                kind: 'cylinder',
+                radius: metres((measured as RadiusRow).radius),
+                length: metres(
+                  spanLength(spec) ?? (measured as RadiusRow).halfLength * 2 * LENGTH_MARGIN,
+                ),
+              },
         source: spec.source,
         ext: writeExtension(undefined, PROVENANCE_NS, {
           dataset: DATASET_MANIFEST.dataset.name,
           datasetVersion: DATASET_MANIFEST.dataset.version,
           sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
-          locatedBy: fitted
-            ? `${fitted.rule}; centred on the fitted joint centre`
-            : `${(measured as RadiusRow).rule}; placed on the ${spec.centre} axis`,
+          locatedBy: fittedCylinder
+            ? `${fitted?.rule}; its radius, on the axis through the fitted centre, cut to its span`
+            : fitted
+              ? `${fitted.rule}; centred on the fitted joint centre`
+              : `${(measured as RadiusRow).rule}; placed on the ${spec.centre} axis`,
           ...(fitted
             ? { radiusResidual: fitted.residual, radiusVertices: fitted.inliers }
             : {

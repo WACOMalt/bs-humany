@@ -132,7 +132,16 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Supinator, right',
         origin: 'supinator_origin_r_supinator_crest',
         insertion: 'supinator_insertion_r_lateral_surface_of_radius',
-        path: [{ kind: 'site', site: 'supinator_r__via_1' }],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'radial_head_r',
+            preferredSide: { x: -1, y: 0, z: 1 },
+            source: gray('Supinator'),
+          },
+          { kind: 'site', site: 'supinator_r__via_1' },
+          { kind: 'site', site: 'supinator_r__via_2' },
+        ],
         parameters: {
           maxIsometricForce: 339.132,
           optimalFiberLength: 0.0363066,
@@ -330,7 +339,16 @@ export const FOREARM_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Supinator, left',
         origin: 'supinator_origin_l_supinator_crest',
         insertion: 'supinator_insertion_l_lateral_surface_of_radius',
-        path: [{ kind: 'site', site: 'supinator_l__via_1' }],
+        path: [
+          {
+            kind: 'wrap',
+            surface: 'radial_head_l',
+            preferredSide: { x: 1, y: 0, z: 1 },
+            source: gray('Supinator'),
+          },
+          { kind: 'site', site: 'supinator_l__via_1' },
+          { kind: 'site', site: 'supinator_l__via_2' },
+        ],
         parameters: {
           maxIsometricForce: 339.132,
           optimalFiberLength: 0.0363066,

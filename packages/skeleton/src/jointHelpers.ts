@@ -60,9 +60,11 @@ export const dataset = (locator: string) => cite('kervyn2021', locator);
  * own flexor tendons, which made them extensors. The fingers moved to `between`; the thumb's
  * saddle, 20 mm off, and the tarsometatarsal, 10.6 mm off, moved to a measured contact centre.
  *
- * `marker` stays, for the two joints whose raw marker is shown to lie where the centre belongs:
- * the subtalar's, in the sinus tarsi on its axis, and the radioulnar's. A marker is a label anchor
- * and positions nothing else (CONTRIBUTING rule 5), so a joint that takes one says why.
+ * `marker` stays for the one joint whose raw marker is shown to lie where the centre belongs: the
+ * subtalar's, in the sinus tarsi on its axis. The radioulnar took one too, the Head_of_radius
+ * marker, 21 mm from the middle of the radial head it was meant to be; it takes the fitted centre
+ * of the head now. A marker is a label anchor and positions nothing else (CONTRIBUTING rule 5), so
+ * a joint that takes one says why.
  */
 export type Centre =
   | { readonly isb: readonly [bone: string, abbreviation: string] }
@@ -195,6 +197,16 @@ export interface JointSpec {
    * turning points where a spine's are.
    */
   readonly upAxis?: readonly [below: string, above: string];
+  /**
+   * Two points on the bones the frame's up-axis should run through, from the lower to the upper.
+   *
+   * The same turn as `upAxis`, for a joint whose axis the anatomy defines by two landmarks rather
+   * than by its neighbours in a chain. The forearm is the case: it turns about the line from the
+   * centre of the radial head to the ulnar styloid (Wu 2005, 3.3), which is about five degrees
+   * off the ulna's own long axis. A hinge along the ulna's axis can pass through one end of that
+   * line and not the other, and whichever end it misses swings round the other bone by 20 mm.
+   */
+  readonly upThrough?: readonly [from: Centre, to: Centre];
   /** Which side's sign policy applies; midline joints have none. */
   readonly side?: Side;
 }
