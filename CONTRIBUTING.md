@@ -145,6 +145,7 @@ on by the next person, and then turned off again.
 ```bash
 pnpm install
 pnpm test              # vitest, all packages
+pnpm test:e2e          # the studio in Chromium: boots clean, Start, Space, tabs, hand over (needs `pnpm exec playwright install chromium` once)
 pnpm typecheck         # tsc --build across project references
 pnpm lint              # biome
 pnpm cite:lint         # citation coverage

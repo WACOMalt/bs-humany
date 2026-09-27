@@ -1,0 +1,13 @@
+{
+  "//": "The smoke suite and its config, type-checked on their own: Playwright runs them without checking types, and they are not part of the studio's project, whose rootDir is src. `npx tsc -p apps/studio/e2e` checks them.",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["./**/*.ts", "../../../playwright.config.ts"]
+}
