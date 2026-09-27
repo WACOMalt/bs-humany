@@ -10,14 +10,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { REFLEX_FLAGS, formatHelp, parse, trainFlags } from '../bin/flags.mjs';
+import { REFLEX_FLAGS, describeClamp, formatHelp, parse, trainFlags } from '../bin/flags.mjs';
 import * as recipe from './recipe.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
 /** The table the trainer reads, built from the recipe module exactly as the trainer builds it. */
 const TRAIN_FLAGS = trainFlags(recipe);
 
-/** Parse against the trainer's table and say only what was wrong. */
+/** Parse against the trainer's table, without clamping, and say only what was wrong. */
 function problems(argv: string[]): { errors: string[]; unknown: string[] } {
   const { errors, unknown } = parse(argv, TRAIN_FLAGS);
   return { errors, unknown };
@@ -137,22 +137,77 @@ describe("train-nerves' flags", () => {
     expect(problems(['--profile', 'l1_standard'])).toEqual(clean);
   });
 
-  it('holds every number of the loop to the range the recipe module gives it', () => {
+  it('moves every number of the loop into the range the recipe module gives it, and says so', () => {
+    // How the trainer reads them: as the dashboard does, a number past its range runs at the
+    // nearer end, and the line printed for it says what it became.
+    const clamp = (argv: string[]) => parse(argv, TRAIN_FLAGS, { clamp: true });
+    const { max: delayMax } = recipe.REFLEX_LIMITS.delaySeconds;
+    const delay = clamp(['--reflex-delay', String(delayMax * 2)]);
+    expect(delay.errors).toEqual([]);
+    expect(delay.values['reflex-delay']).toBe(delayMax);
+    expect(delay.given.has('reflex-delay')).toBe(true);
+    expect(delay.clamped.map(describeClamp)).toEqual([
+      `--reflex-delay ${delayMax * 2} was capped at ${delayMax}, the top of its range (0 to ${delayMax})`,
+    ]);
+    expect(clamp(['--reflex-delay', String(delayMax)]).clamped).toEqual([]);
+
+    const { max: stretchMax } = recipe.REFLEX_LIMITS.stretch;
+    expect(clamp(['--reflex', String(stretchMax + 1)]).values.reflex).toBe(stretchMax);
+    const { min: setMin, max: setMax } = recipe.REFLEX_LIMITS.setPoint;
+    const low = clamp(['--reflex-setpoint', String(setMin - 0.1)]);
+    expect(low.values['reflex-setpoint']).toBe(setMin);
+    expect(low.clamped.map(describeClamp)).toEqual([
+      `--reflex-setpoint ${setMin - 0.1} was raised to ${setMin}, the bottom of its range (${setMin} to ${setMax})`,
+    ]);
+    expect(clamp(['--authority', '1.5']).values.authority).toBe(recipe.AUTHORITY_LIMIT.max);
+    expect(clamp(['--noise', '-0.1']).values.noise).toBe(recipe.NOISE_LIMITS.motor.min);
+    expect(clamp(['--noise-tau', '0']).values['noise-tau']).toBe(recipe.NOISE_LIMITS.tau.min);
+    expect(clamp(['--memory', String(recipe.MEMORY_LIMIT.max + 1)]).values.memory).toBe(
+      recipe.MEMORY_LIMIT.max,
+    );
+
+    // One line a value, in the order they were given.
+    const both = clamp(['--authority', '2', '--reflex', '99']);
+    expect(both.clamped.map((c) => c.name)).toEqual(['authority', 'reflex']);
+    expect(both.errors).toEqual([]);
+  });
+
+  it('still refuses what is not a number at all, clamping or not', () => {
+    const clamp = (argv: string[]) => parse(argv, TRAIN_FLAGS, { clamp: true });
+    expect(clamp(['--reflex-delay', 'soon']).errors).toEqual([
+      "--reflex-delay wants a number, not 'soon'",
+    ]);
+    // A fraction is not a whole number, and there is no nearer whole number to call the one meant.
+    expect(clamp(['--memory', '1.5']).errors).toHaveLength(1);
+    expect(clamp(['--reflex', 'strong']).errors).toHaveLength(1);
+    expect(clamp(['--authority']).errors).toEqual(['--authority wants a value']);
+    expect(clamp(['--strength', '2']).unknown).toEqual(['strength']);
+    for (const argv of [
+      ['--reflex-delay', 'soon'],
+      ['--memory', '1.5'],
+    ]) {
+      expect(clamp(argv).clamped).toEqual([]);
+    }
+  });
+
+  it('refuses a number out of range when the caller does not ask for clamping', () => {
+    // The showcase reads its flags this way, and so does anything else that has not chosen to.
     const { max: delayMax } = recipe.REFLEX_LIMITS.delaySeconds;
     expect(problems(['--reflex-delay', String(delayMax * 2)]).errors).toEqual([
       `--reflex-delay wants a number from 0 to ${delayMax}, not '${delayMax * 2}'`,
     ]);
-    expect(problems(['--reflex-delay', String(delayMax)])).toEqual(clean);
-    expect(
-      problems(['--reflex', String(recipe.REFLEX_LIMITS.stretch.max + 1)]).errors,
-    ).toHaveLength(1);
-    expect(problems(['--reflex-setpoint', '-0.6']).errors).toHaveLength(1);
-    expect(problems(['--authority', '1.5']).errors).toHaveLength(1);
-    expect(problems(['--noise', '-0.1']).errors).toHaveLength(1);
-    expect(problems(['--noise-tau', '0']).errors).toHaveLength(1);
     expect(problems(['--memory', String(recipe.MEMORY_LIMIT.max + 1)]).errors).toEqual([
       `--memory wants a whole number from 0 to ${recipe.MEMORY_LIMIT.max}, not '${recipe.MEMORY_LIMIT.max + 1}'`,
     ]);
+    expect(parse(['--authority', '1.5'], TRAIN_FLAGS).clamped).toEqual([]);
+  });
+
+  it('is read by the trainer with clamping on, and every clamp is printed', () => {
+    // Read from the source, as the dashboard's argv is above, so the trainer cannot quietly go
+    // back to refusing -- or clamp without saying so.
+    const source = readFileSync(join(ROOT, 'tools/train/bin/train-nerves.mjs'), 'utf8');
+    expect(source).toMatch(/parse\(process\.argv\.slice\(2\), TRAIN_FLAGS, \{ clamp: true \}\)/);
+    expect(source).toMatch(/clamped\) \w+\(`train-nerves: \$\{describeClamp\(/);
   });
 
   it('gives each number of the cord one flag, and each flag one number', () => {

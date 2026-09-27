@@ -62,8 +62,14 @@ function above(n, floor) {
  * flag must be followed by a value, not by the next flag; every value is checked against its
  * kind. Nothing is thrown and nothing is printed: the caller says what it likes about what comes
  * back, and decides whether to go on.
+ *
+ * A number outside its entry's `min` to `max` is an error, unless `options.clamp` is set: then it
+ * is moved to the nearer end of the range and listed in `clamped`, which `describeClamp` puts in
+ * a sentence. Only the range is forgiven. A value that is not a number of the kind at all -- a
+ * word, a fraction where a whole number is wanted -- is still an error, because there is nothing
+ * sensible to move it to.
  */
-export function parse(argv, table) {
+export function parse(argv, table, options = {}) {
   const byName = new Map(table.map((entry) => [entry.name, entry]));
   const values = {};
   for (const entry of table) {
@@ -74,6 +80,7 @@ export function parse(argv, table) {
   const given = new Set();
   const errors = [];
   const unknown = [];
+  const clamped = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith('--')) {
@@ -124,13 +131,31 @@ export function parse(argv, table) {
       ((entry.min !== undefined && value < entry.min) ||
         (entry.max !== undefined && value > entry.max))
     ) {
+      if (options.clamp) {
+        const used = entry.min !== undefined && value < entry.min ? entry.min : entry.max;
+        clamped.push({ name, asked: raw, used, min: entry.min, max: entry.max });
+        values[name] = used;
+        continue;
+      }
       const what = entry.kind === 'int0' ? 'a whole number' : kind.wants;
       errors.push(`--${name} wants ${what} from ${entry.min} to ${entry.max}, not '${raw}'`);
       continue;
     }
     values[name] = value;
   }
-  return { values, given, errors, unknown };
+  return { values, given, errors, unknown, clamped };
+}
+
+/**
+ * One value `parse` moved into range, as a sentence saying what it became and why, in the words
+ * the studio uses for a value the dashboard moved: `--reflex-delay 0.5 was capped at 0.2, the
+ * top of its range (0 to 0.2)`.
+ */
+export function describeClamp({ name, asked, used, min, max }) {
+  const range = min !== undefined && max !== undefined ? ` (${min} to ${max})` : '';
+  return used === max
+    ? `--${name} ${asked} was capped at ${used}, the top of its range${range}`
+    : `--${name} ${asked} was raised to ${used}, the bottom of its range${range}`;
 }
 
 /** What a flag wants after it, for the help. */
@@ -174,9 +199,12 @@ export function formatHelp(table, header) {
  * changed in one of them stayed the same in the other three. The module is TypeScript and this
  * file is not, so the caller loads it -- the trainer through jiti, a test directly -- and hands it
  * here. What comes from it: the run's length and width, the search's settings, the tasks and
- * bodies there are, and the range every number of the loop is held to. A value outside its range
- * is refused, where the dashboard moves it into range and says so: the dashboard answers a slider
- * that may have been sent anything, and the person who typed a flag is here to be told.
+ * bodies there are, and the range every number of the loop is held to. The trainer reads them with
+ * `clamp` set: a number outside its range is moved to the nearer end and the run goes on, with a
+ * line saying what it became, as the dashboard does with a recipe it is sent. The two ways of
+ * starting a run used to disagree -- the dashboard ran `--reflex 9` at 8 and said so, the command
+ * line refused it -- and the range is a safety bound whose nearest end is always a value the run
+ * can use. A value that is not a number at all is still refused.
  *
  * The noise and the cord have no defaults, because without a flag they are the recipe's own.
  */
