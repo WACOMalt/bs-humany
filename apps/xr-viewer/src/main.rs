@@ -29,6 +29,7 @@
 //! and answered that it is (the measurements are in the README) before becoming the renderer.
 
 mod bridge;
+mod follow;
 mod geometry;
 mod gpu;
 mod grab;

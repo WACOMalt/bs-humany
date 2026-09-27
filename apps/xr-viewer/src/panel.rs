@@ -639,7 +639,7 @@ impl Panel {
         pointer: Pointer,
         dt: f32,
         feeds: &str,
-        liveness: Option<&crate::xr::Liveness>,
+        liveness: Option<&crate::follow::Liveness>,
         status_error: Option<&str>,
         headset: &Headset,
     ) -> Frame {
@@ -717,7 +717,7 @@ impl Panel {
         let kind = self.kind;
         let grabbed = self.grabbed;
         let mut scroll_id = self.scroll_id;
-        let live = !matches!(liveness, Some(crate::xr::Liveness::Silent(_)));
+        let live = !matches!(liveness, Some(crate::follow::Liveness::Silent(_)));
         let output = self.ctx.run(input, |ctx| {
             egui::CentralPanel::default()
                 .frame(
@@ -907,7 +907,7 @@ fn unreadable(ui: &mut egui::Ui, why: &str) {
 fn warnings(
     ui: &mut egui::Ui,
     showing_status: bool,
-    liveness: Option<&crate::xr::Liveness>,
+    liveness: Option<&crate::follow::Liveness>,
     status_error: Option<&str>,
     one_line: bool,
 ) -> f32 {
@@ -1676,7 +1676,7 @@ mod tests {
             "holding":["femur_r"],"grabStrength":1}"#,
         )
         .expect("parses");
-        let silent = crate::xr::Liveness::Silent(4);
+        let silent = crate::follow::Liveness::Silent(4);
         let panel = Panel::new(Kind::Transport);
         let size = Kind::Transport.size();
         let mut used = 0.0;
@@ -2280,7 +2280,7 @@ mod tests {
 
     /// Clicks down and across the transport strip until one reports a local action, as a person
     /// would look for the box: the frame that found it.
-    fn find_snap_box(status: Option<&Status>, liveness: Option<&crate::xr::Liveness>, headset: &Headset) -> Option<Frame> {
+    fn find_snap_box(status: Option<&Status>, liveness: Option<&crate::follow::Liveness>, headset: &Headset) -> Option<Frame> {
         let mut panel = Panel::new(Kind::Transport);
         (40..1000).step_by(6).find_map(|x| {
             (0..150).step_by(6).find_map(|y| {
@@ -2311,7 +2311,7 @@ mod tests {
         // With no publisher at all, and with one gone silent, it is still there to press: it is
         // the headset's, and needs nobody to read it.
         assert!(find_snap_box(None, None, &off).is_some(), "no box while waiting for a publisher");
-        let silent = crate::xr::Liveness::Silent(4);
+        let silent = crate::follow::Liveness::Silent(4);
         assert!(
             find_snap_box(Some(&status), Some(&silent), &off).is_some(),
             "the box greyed with the run's controls while the publisher is silent"
