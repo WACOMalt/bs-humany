@@ -15,10 +15,12 @@
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
 import type { Camera, WebGLRenderer } from 'three';
-import { Object3D } from 'three';
+import { MathUtils, Object3D } from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { DRAG_THRESHOLD } from '../orbit.js';
+import { keyOwnedByTarget } from '../shortcuts.js';
 import { TAB_CHANGE } from '../ui/tabs.js';
+import { type Pair, missingSegments, pairLabel, pairedIn, unpairAt } from './correspondence.js';
 import { describeFits } from './fit.js';
 import { type Move, PointHandles } from './pointHandles.js';
 import {
@@ -33,17 +35,10 @@ import {
   type Placement,
   SourceOverlay,
   type SourceSites,
-  defaultPlacement,
+  changeOfAxes,
 } from './sourceOverlay.js';
 
-export interface Pair {
-  /** Their muscle, by the name the reference model gives it. */
-  readonly theirs: string;
-  /** Which reference model it came from. */
-  readonly model: string;
-  /** Our unit id. */
-  readonly ours: string;
-}
+export type { Pair } from './correspondence.js';
 
 export interface AlignHost {
   /** The compiled body as it stands, or undefined before a run is built. */
@@ -136,6 +131,11 @@ export interface AlignPanel {
   dispose(): void;
 }
 
+/** What the gizmo holds: nothing, the whole reference model, or the picked point of ours. */
+type GizmoTarget = 'off' | 'model' | 'point';
+/** Moving or turning. Scaling is left out: a placement has one uniform scale, and its slider. */
+type GizmoMode = 'translate' | 'rotate';
+
 export function createAlignPanel(
   host: AlignHost,
   camera: Camera,
@@ -153,8 +153,8 @@ export function createAlignPanel(
   gizmo.enabled = false;
   /** Our segment picked in the bone pairing list, lit again when the tab comes back. */
   let highlighted: string | undefined;
-  /** What the gizmo held when the tab was left, handed back when it returns. */
-  let parked: Object3D | undefined;
+  /** What the gizmo held when the tab was left, and how, handed back when it returns. */
+  let parked: { target: GizmoTarget; mode: GizmoMode } | undefined;
   // A gizmo drag must not also orbit the camera, and three's own event says when it starts.
   gizmo.addEventListener('dragging-changed', (event) => {
     host.setGizmoDragging((event as unknown as { value: boolean }).value);
@@ -165,7 +165,10 @@ export function createAlignPanel(
     show: must<HTMLInputElement>('#align-show'),
     showBones: must<HTMLInputElement>('#align-show-bones'),
     modelNote: must<HTMLElement>('#align-model-note'),
-    grab: must<HTMLButtonElement>('#align-grab'),
+    gizmoOff: must<HTMLButtonElement>('#align-gizmo-off'),
+    gizmoMove: must<HTMLButtonElement>('#align-gizmo-move'),
+    gizmoRotate: must<HTMLButtonElement>('#align-gizmo-rotate'),
+    snap: must<HTMLInputElement>('#align-snap'),
     reset: must<HTMLButtonElement>('#align-reset'),
     theirs: must<HTMLSelectElement>('#align-theirs'),
     ours: must<HTMLSelectElement>('#align-ours'),
@@ -186,6 +189,8 @@ export function createAlignPanel(
     revert: must<HTMLButtonElement>('#align-revert'),
     theirBone: must<HTMLSelectElement>('#align-their-bone'),
     ourBone: must<HTMLSelectElement>('#align-our-bone'),
+    theirBoneFind: must<HTMLInputElement>('#align-their-bone-find'),
+    ourBoneFind: must<HTMLInputElement>('#align-our-bone-find'),
     pairBone: must<HTMLButtonElement>('#align-pair-bone'),
     unpairBone: must<HTMLButtonElement>('#align-unpair-bone'),
     bones: must<HTMLSelectElement>('#align-bones'),
@@ -203,20 +208,39 @@ export function createAlignPanel(
   const slider = (id: string) => must<HTMLInputElement>(`#align-${id}`);
   const PLACE: (keyof Placement)[] = ['x', 'y', 'z', 'rx', 'ry', 'rz', 'scale'];
 
-  let placement: Placement = defaultPlacement(ui.model.value);
   /**
-   * The placement the model had before it was redrawn on our bones, while it is.
+   * Where each reference model has been put, by model.
    *
-   * A redraw sets the placement to neutral, since the fits carry everything into our space
-   * themselves. So the placement a redraw has to start from -- the model's turn, which the bones
-   * with nothing fitted above them inherit -- is the one from before the first redraw, not the
-   * neutral one a second redraw would otherwise read.
+   * One placement for all of them meant a model picked after another arrived in the last one's
+   * turn and place, and a Z-up model and a Y-up one need different turns just to stand up. So
+   * each model keeps its own, starting from its own change of axes the first time it is asked
+   * for, and going back to a model finds it where it was left.
    */
-  let beforeRetarget: Placement | undefined;
+  const placements = new Map<string, Placement>();
+  const placementOf = (model: string): Placement => {
+    let p = placements.get(model);
+    if (!p) {
+      p = changeOfAxes(model);
+      placements.set(model, p);
+    }
+    return p;
+  };
+  /** The placement of the model picked now. */
+  const placement = (): Placement => placementOf(ui.model.value);
+  /**
+   * The model on our bones and the placement it had before, defined exactly while the overlay is
+   * redrawn on our bones.
+   *
+   * A redraw zeroes the placement, since the fits carry everything into our space themselves,
+   * and the person's placement would be lost with it. So it is kept here, and every way out of a
+   * redraw -- a slider, Reset, the gizmo, clearing the bone pairs, another model -- goes through
+   * `showModel`, which puts it back. A second redraw keeps the first one's placement rather than
+   * the neutral one it would otherwise read: the model's turn is what bones with nothing fitted
+   * above them inherit.
+   */
+  let beforeRetarget: { model: string; placement: Placement } | undefined;
   const pairs: Pair[] = [];
   const moves: Move[] = [];
-  /** Whether the overlay is currently on our bones rather than in their own world. */
-  let retargeted = false;
   /** Bone pairs per model, because each reference model has its own bones. */
   const bonePairs = new Map<string, BodyPair[]>();
   const bonesFor = (model: string): BodyPair[] => {
@@ -224,17 +248,161 @@ export function createAlignPanel(
     bonePairs.set(model, list);
     return list;
   };
+  /**
+   * The bone pairs Clear bone pairs took away, while they can still be put back.
+   *
+   * Clearing is undone by a second click rather than asked about first, because a confirmation
+   * dialog is not dependable in the desktop shell's webview, and because nothing else would bring
+   * them back: bone pairs are saved to a file but never read back from one. Anything that changes
+   * the pairs since -- a pair, an unpair, a suggestion, another model -- makes the old list a
+   * different decision, and the chance to restore it goes.
+   */
+  let cleared: { model: string; list: BodyPair[] } | undefined;
+
+  // ---- lists that keep what the person picked --------------------------------------------
+  /**
+   * Rebuild a list's rows, keeping its selection and where it was scrolled to.
+   *
+   * Every list here is rebuilt after every pair and every keystroke in a filter, and rebuilding
+   * with nothing kept threw away the row somebody had scrolled to and picked -- so the Pair button
+   * went dead under a selection that was still on screen a moment before.
+   */
+  const refill = (select: HTMLSelectElement, rows: readonly { value: string; label: string }[]) => {
+    const value = select.value;
+    const scroll = select.scrollTop;
+    select.replaceChildren(
+      ...rows.map((row) => {
+        const option = document.createElement('option');
+        option.value = row.value;
+        option.textContent = row.label;
+        return option;
+      }),
+    );
+    if (value && rows.some((row) => row.value === value)) select.value = value;
+    select.scrollTop = scroll;
+    syncSelection();
+  };
+  const refreshPairButton = (): void => {
+    ui.pair.disabled = !(ui.theirs.value && ui.ours.value);
+  };
+  const refreshBoneButton = (): void => {
+    ui.pairBone.disabled = !(ui.theirBone.value && ui.ourBone.value);
+  };
+  /**
+   * Make the buttons and the viewport agree with what the lists have selected.
+   *
+   * A button is enabled exactly when there is something selected for it to act on, and the muscle
+   * lit, their bone lit and our segment tinted are the ones selected -- whether the selection came
+   * from a click or survived a rebuild.
+   */
+  const syncSelection = (): void => {
+    refreshPairButton();
+    refreshBoneButton();
+    ui.unpair.disabled = !ui.pairs.value;
+    ui.unpairBone.disabled = !ui.bones.value;
+    overlay.emphasise(ui.theirs.value || undefined);
+    overlay.emphasiseBone(ui.theirBone.value || undefined);
+    highlighted = ui.ourBone.value || undefined;
+    // Only while the tab is open: the tint is drawn on the body every tab shares.
+    if (active) host.highlightSegment(highlighted);
+  };
+
+  // ---- the gizmo ------------------------------------------------------------------------
+  /** Which of those the gizmo holds now. */
+  const gizmoTarget = (): GizmoTarget =>
+    gizmo.object === overlay.group ? 'model' : gizmo.object === proxy ? 'point' : 'off';
+  /** Whether there is a model on screen for the gizmo to hold. */
+  const modelMovable = (): boolean =>
+    ui.model.value !== '' && (ui.show.checked || ui.showBones.checked);
+  /**
+   * Put the gizmo on something, or take it off, and have the buttons say so.
+   *
+   * The only place the gizmo is attached, detached or switched between moving and turning. When
+   * each caller did its own, the button's label was written by one of them and not the others,
+   * and it named the mode the gizmo would switch to next rather than the one it was in.
+   */
+  const setGizmo = (target: GizmoTarget, mode?: GizmoMode): void => {
+    if (target === 'off') gizmo.detach();
+    else gizmo.attach(target === 'model' ? overlay.group : proxy);
+    if (mode) gizmo.setMode(mode);
+    showGizmo();
+  };
+  /**
+   * The buttons, from the gizmo as it is.
+   *
+   * On a picked point the gizmo only moves -- a point has no turn of its own -- and the pressed
+   * button says Point, because Move would claim the whole model is under it.
+   */
+  const showGizmo = (): void => {
+    const target = gizmoTarget();
+    const pressed = (button: HTMLButtonElement, on: boolean): void => {
+      button.classList.toggle('active', on);
+      button.setAttribute('aria-pressed', String(on));
+    };
+    pressed(ui.gizmoOff, target === 'off');
+    pressed(ui.gizmoMove, target === 'point' || (target === 'model' && gizmo.mode === 'translate'));
+    pressed(ui.gizmoRotate, target === 'model' && gizmo.mode === 'rotate');
+    ui.gizmoMove.textContent = target === 'point' ? 'Point' : 'Move';
+    ui.gizmoMove.title =
+      target === 'point'
+        ? 'Moving the picked point of ours; press to move the whole model instead (W)'
+        : "Move the whole model with the gizmo's arrows (W)";
+    const movable = modelMovable();
+    ui.gizmoMove.disabled = !movable;
+    ui.gizmoRotate.disabled = !movable;
+  };
+  /**
+   * Put the gizmo on the whole model, first dropping a redraw if there is one.
+   *
+   * Moving the model while it is on our bones would take it back off them, so the gizmo drops the
+   * redraw the way a slider does and starts from the placement the person gave it.
+   */
+  const grabModel = (mode: GizmoMode): void => {
+    if (!modelMovable()) return;
+    if (beforeRetarget) showModel();
+    setGizmo('model', mode);
+  };
+  ui.gizmoOff.addEventListener('click', () => setGizmo('off'));
+  ui.gizmoMove.addEventListener('click', () => grabModel('translate'));
+  ui.gizmoRotate.addEventListener('click', () => grabModel('rotate'));
+  // Steps for the hand, not physical quantities: the translation step is the position sliders'
+  // own, so a snapped drag lands on values a slider can show.
+  ui.snap.addEventListener('change', () => {
+    gizmo.setTranslationSnap(ui.snap.checked ? 0.005 : null);
+    gizmo.setRotationSnap(ui.snap.checked ? MathUtils.degToRad(5) : null);
+  });
+  /**
+   * W moves, E turns and Esc lets go, as in most 3D editors, while the tab is open and the gizmo
+   * holds something.
+   *
+   * A control keeps the keys it acts on, so typing a W into a filter or a reason types it; a
+   * focused button does not own W or E, which matters because focus is left on Move straight
+   * after it is clicked. None of the three is one of the studio's own shortcuts.
+   */
+  const onKey = (event: KeyboardEvent): void => {
+    if (!active || gizmoTarget() === 'off') return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (keyOwnedByTarget(event.target, event.key)) return;
+    switch (event.key) {
+      case 'w':
+      case 'W':
+        // On a point the gizmo is already moving the point; W keeps it there.
+        if (gizmoTarget() === 'model') setGizmo('model', 'translate');
+        break;
+      case 'e':
+      case 'E':
+        grabModel('rotate');
+        break;
+      case 'Escape':
+        setGizmo('off');
+        break;
+      default:
+        return;
+    }
+  };
+  window.addEventListener('keydown', onKey);
 
   // ---- the reference model --------------------------------------------------------------
-  const readSliders = (): Placement => ({
-    x: Number(slider('x').value),
-    y: Number(slider('y').value),
-    z: Number(slider('z').value),
-    rx: Number(slider('rx').value),
-    ry: Number(slider('ry').value),
-    rz: Number(slider('rz').value),
-    scale: Number(slider('scale').value),
-  });
   const writeSliders = (p: Placement): void => {
     for (const key of PLACE) {
       const input = slider(key);
@@ -246,78 +414,108 @@ export function createAlignPanel(
     }
   };
   const applyPlacement = (p: Placement): void => {
-    placement = p;
+    placements.set(ui.model.value, p);
     overlay.place(p);
     writeSliders(p);
   };
   for (const key of PLACE) {
     slider(key).addEventListener('input', () => {
+      // Read before a redraw is dropped, which writes the kept placement back onto every slider.
+      const value = Number(slider(key).value);
       // Moving the whole model once it is on our bones would take it back off them, so the
-      // first nudge of a slider drops the retarget and puts their own geometry back, where it
-      // was placed before the redraw; the slider being dragged carries on from there.
-      if (retargeted) {
-        retargeted = false;
-        showModel();
-      }
-      applyPlacement(readSliders());
+      // first nudge of a slider drops the redraw and puts their own geometry back, where it was
+      // placed before; the slider being dragged carries on from there.
+      if (beforeRetarget) showModel();
+      // Only the slider that moved is read. A slider can only hold values inside its range and
+      // on its step, and the gizmo is under neither limit, so reading them all back snapped a
+      // model dragged past a slider's end back inside it the moment another slider was touched.
+      applyPlacement({ ...placement(), [key]: value });
     });
   }
-  // The model's own default, not one shared by all: a Z-up model and a Y-up one need different
-  // turns to stand up in ours, and one turn for both laid the arm on the floor.
+  // The model's own change of axes, not one shared by all: a Z-up model and a Y-up one need
+  // different turns to stand up in ours, and one turn for both laid the arm on the floor.
   ui.reset.addEventListener('click', () => {
-    if (retargeted) {
-      retargeted = false;
-      showModel();
-    }
-    applyPlacement(defaultPlacement(ui.model.value));
+    if (beforeRetarget) showModel();
+    applyPlacement(changeOfAxes(ui.model.value));
   });
 
+  /** What the model note says: what is shown, and why the gizmo cannot take it if it cannot. */
+  const writeModelNote = (): void => {
+    const model = ui.model.value;
+    if (!model) {
+      ui.modelNote.textContent = 'No reference model shown. Pick one to place it or pair with it.';
+      return;
+    }
+    const n = overlay.muscles(model).length;
+    ui.modelNote.textContent = modelMovable()
+      ? `${n} muscles on the reference ${model}, and its bones. Turn either on to compare.`
+      : `${n} muscles on the reference ${model}, and its bones. Turn either on to compare, ` +
+        'and to move it with the gizmo.';
+  };
+  /** Let go of the model when there is nothing of it on screen to hold. */
+  const settleGizmo = (): void => {
+    if (gizmoTarget() === 'model' && !modelMovable()) setGizmo('off');
+    else showGizmo();
+    writeModelNote();
+  };
+
+  /**
+   * Draw the picked model in its own world, at its own placement.
+   *
+   * The one way out of a redraw: whatever drops it comes through here, which puts back the
+   * placement the redraw zeroed and says the redraw has gone, so the fit note never describes a
+   * drawing that is no longer on screen.
+   */
   const showModel = (): void => {
     const model = ui.model.value;
-    retargeted = false;
-    // Leaving a redraw puts the model back where it was placed before it.
     if (beforeRetarget) {
-      placement = beforeRetarget;
-      writeSliders(placement);
+      const dropped = beforeRetarget;
       beforeRetarget = undefined;
+      placements.set(dropped.model, dropped.placement);
+      ui.fitNote.textContent =
+        dropped.model === model
+          ? 'Redraw dropped: their model is back in its own world, where you placed it. ' +
+            'Redraw again after moving it.'
+          : '';
+    } else {
+      ui.fitNote.textContent = '';
     }
     overlay.clear();
     if (model) overlay.show(model);
-    overlay.visible = ui.show.checked && model !== '';
+    overlay.visible = active && ui.show.checked && model !== '';
     if (model) overlay.showBones(model);
-    overlay.bonesVisible = ui.showBones.checked && model !== '';
-    overlay.place(placement);
-    const n = overlay.muscles(model).length;
-    ui.modelNote.textContent = model
-      ? `${n} muscles on the reference ${model}, and its bones. Turn either on to compare.`
-      : 'No reference model shown.';
+    overlay.bonesVisible = active && ui.showBones.checked && model !== '';
+    overlay.place(placement());
+    writeSliders(placement());
+    // Lets go of the model when there is none, and leaves a gizmo on a point of ours alone.
+    settleGizmo();
     fillTheirs();
     fillBones();
   };
-  // A newly picked model starts from its own default placement: the last model's placement, or
-  // its turn, means nothing for a model in other axes.
+  // A model picked for the first time starts from its own change of axes, and one picked before
+  // from wherever it was left (see `placements`).
   ui.model.addEventListener('change', () => {
-    beforeRetarget = undefined;
-    retargeted = false;
-    placement = defaultPlacement(ui.model.value);
-    writeSliders(placement);
+    // Cleared here and not in `showModel`, because clearing the bone pairs goes through
+    // `showModel` too, and its note has to survive that.
+    boneAction = '';
+    cleared = undefined;
     showModel();
   });
   ui.show.addEventListener('change', () => {
     overlay.visible = ui.show.checked && ui.model.value !== '';
+    settleGizmo();
   });
   ui.showBones.addEventListener('change', () => {
     overlay.bonesVisible = ui.showBones.checked && ui.model.value !== '';
-  });
-  ui.grab.addEventListener('click', () => {
-    if (!overlay.visible && !overlay.bonesVisible) return;
-    gizmo.attach(overlay.group);
-    gizmo.setMode(gizmo.mode === 'translate' ? 'rotate' : 'translate');
-    ui.grab.textContent = `Gizmo: ${gizmo.mode}`;
+    settleGizmo();
   });
   // When the gizmo has moved the overlay, the sliders have to agree with it.
   gizmo.addEventListener('objectChange', () => {
     if (gizmo.object === overlay.group) {
+      // Never while the model is on our bones: the gizmo lets go of the model when it is redrawn
+      // and drops the redraw before taking it again, so this is a guard against a path that has
+      // been missed, not one that is expected.
+      if (beforeRetarget) return;
       // `place` moves the bones with the muscles, so reading one and applying both keeps the
       // skeleton and its muscles together under the gizmo.
       applyPlacement(overlay.readPlacement());
@@ -328,58 +526,46 @@ export function createAlignPanel(
   });
 
   // ---- correspondence -------------------------------------------------------------------
-  const pairedTheirs = () => new Set(pairs.map((p) => `${p.model}/${p.theirs}`));
   const fillTheirs = (): void => {
     const model = ui.model.value;
     const filter = ui.theirsFind.value.trim().toLowerCase();
-    const done = pairedTheirs();
+    const done = pairedIn(pairs, model);
     const list = overlay
       .muscles(model)
       .filter((m) => !filter || m.name.toLowerCase().includes(filter));
-    ui.theirs.innerHTML = '';
-    for (const m of list) {
-      const option = document.createElement('option');
-      option.value = m.name;
-      const paired = done.has(`${model}/${m.name}`);
-      option.textContent = `${paired ? '· ' : ''}${m.name}  (${m.bodies.join(' → ')})`;
-      ui.theirs.appendChild(option);
-    }
     ui.theirsCount.textContent = `${list.length}`;
-    overlay.markPaired(new Set([...done].map((k) => k.split('/')[1] as string)));
+    overlay.markPaired(done);
+    refill(
+      ui.theirs,
+      list.map((m) => ({
+        value: m.name,
+        label: `${done.has(m.name) ? '· ' : ''}${m.name}  (${m.bodies.join(' → ')})`,
+      })),
+    );
   };
   const fillOurs = (): void => {
     const filter = ui.oursFind.value.trim().toLowerCase();
     const list = host.units().filter((u) => !filter || u.toLowerCase().includes(filter));
-    ui.ours.innerHTML = '';
-    for (const u of list) {
-      const option = document.createElement('option');
-      option.value = u;
-      option.textContent = u;
-      ui.ours.appendChild(option);
-    }
     ui.oursCount.textContent = `${list.length}`;
+    refill(
+      ui.ours,
+      list.map((u) => ({ value: u, label: u })),
+    );
   };
   ui.theirsFind.addEventListener('input', fillTheirs);
   ui.oursFind.addEventListener('input', fillOurs);
-  const refreshPairButton = (): void => {
-    ui.pair.disabled = !(ui.theirs.value && ui.ours.value);
-  };
-  ui.theirs.addEventListener('change', () => {
-    overlay.emphasise(ui.theirs.value || undefined);
-    refreshPairButton();
-  });
-  ui.ours.addEventListener('change', refreshPairButton);
+  ui.theirs.addEventListener('change', syncSelection);
+  ui.ours.addEventListener('change', syncSelection);
+  ui.pairs.addEventListener('change', syncSelection);
 
   const fillPairs = (): void => {
-    ui.pairs.innerHTML = '';
-    for (const p of pairs) {
-      const option = document.createElement('option');
-      option.value = `${p.model}/${p.theirs}`;
-      option.textContent = `${p.theirs}  →  ${p.ours}`;
-      ui.pairs.appendChild(option);
-    }
     ui.pairsCount.textContent = `${pairs.length}`;
-    ui.unpair.disabled = pairs.length === 0;
+    // A row is found again by its place in the list: one of theirs may be paired with several of
+    // ours, so their muscle alone does not say which row was picked.
+    refill(
+      ui.pairs,
+      pairs.map((p, i) => ({ value: String(i), label: pairLabel(p) })),
+    );
     fillTheirs();
   };
   ui.pair.addEventListener('click', () => {
@@ -401,13 +587,14 @@ export function createAlignPanel(
     fillPairs();
   });
   ui.unpair.addEventListener('click', () => {
-    const key = ui.pairs.value;
-    const at = pairs.findIndex((p) => `${p.model}/${p.theirs}` === key);
-    if (at >= 0) {
-      const [gone] = pairs.splice(at, 1);
-      ui.pairNote.textContent = gone ? `${gone.theirs} is no longer paired.` : '';
-      fillPairs();
-    }
+    if (!ui.pairs.value) return;
+    const gone = unpairAt(pairs, Number(ui.pairs.value));
+    if (!gone) return;
+    // The rows after it move up an index, so the kept selection would land on the next pair and a
+    // second click would take that one too.
+    ui.pairs.selectedIndex = -1;
+    ui.pairNote.textContent = `${gone.theirs} (${gone.model}) is no longer paired with ${gone.ours}.`;
+    fillPairs();
   });
   ui.savePairs.addEventListener('click', () => {
     host.save(
@@ -452,13 +639,16 @@ export function createAlignPanel(
     if (!kind || !model) {
       handles.clear();
       handles.visible = false;
-      gizmo.detach();
+      // Only a gizmo on a point lets go: the model's gizmo has nothing to do with the points.
+      if (gizmoTarget() === 'point') setGizmo('off');
       showPicked();
       return;
     }
     handles.show(
       kind === 'joints' ? PointHandles.jointsOf(model) : PointHandles.sitesOf(model, host.sites()),
     );
+    // Redrawing the handles forgets the pick, so a gizmo left on it would move nothing.
+    if (gizmoTarget() === 'point' && !handles.pickedHandle) setGizmo('off');
     // Not simply on: a rebuild in another tab runs this too (`refresh`), and must not bring the
     // handles back into a viewport that is not aligning anything.
     handles.visible = active;
@@ -481,8 +671,7 @@ export function createAlignPanel(
     const h = handles.pick(at);
     if (!h) return false;
     proxy.position.copy(h.world);
-    gizmo.attach(proxy);
-    gizmo.setMode('translate');
+    setGizmo('point', 'translate');
     showPicked();
     return true;
   };
@@ -545,6 +734,7 @@ export function createAlignPanel(
     if (!h) return;
     const at = moves.findIndex((m) => m.id === h.id);
     if (at >= 0) moves.splice(at, 1);
+    // The gizmo stays on the point, which is back where it started, so the gizmo goes with it.
     proxy.position.copy(h.world);
     fillMoves();
     showPicked();
@@ -579,50 +769,94 @@ export function createAlignPanel(
   });
 
   // ---- bone pairing, which is what actually registers the two bodies -------------------
-  const fillBoneLists = (): void => {
+  /**
+   * What the last bone pairing action said, kept apart from what the list says about itself, so
+   * a rebuild of the list can restate the one without losing the other.
+   */
+  let boneAction = '';
+  /** Our segment ids in the body built now, or nothing before one is built. */
+  const segmentIds = (): ReadonlySet<string> | undefined => {
+    const articulation = host.articulation();
+    return articulation ? new Set(articulation.segments.map((s) => s.id)) : undefined;
+  };
+  /**
+   * The bone pairs of a model whose segment the body built now does not have, by their bone.
+   *
+   * Empty before a body is built: with no body there is nothing to be missing from, and marking
+   * every pair would say they were all wrong.
+   */
+  const unbuilt = (list: readonly BodyPair[]): Set<string> => {
+    const ids = segmentIds();
+    return new Set(ids ? missingSegments(list, ids).map((p) => p.theirs) : []);
+  };
+  const fillTheirBones = (): void => {
     const model = overlay.model(ui.model.value);
     const done = new Set(bonesFor(ui.model.value).map((p) => p.theirs));
-    ui.theirBone.innerHTML = '';
-    for (const body of model?.bodies ?? []) {
-      const option = document.createElement('option');
-      option.value = body.name;
-      option.textContent = `${done.has(body.name) ? '· ' : ''}${body.name}`;
-      ui.theirBone.appendChild(option);
-    }
-    ui.ourBone.innerHTML = '';
-    for (const seg of host.articulation()?.segments ?? []) {
-      const option = document.createElement('option');
-      option.value = seg.id;
-      option.textContent = seg.id;
-      ui.ourBone.appendChild(option);
-    }
+    const filter = ui.theirBoneFind.value.trim().toLowerCase();
+    refill(
+      ui.theirBone,
+      (model?.bodies ?? [])
+        .filter((body) => !filter || body.name.toLowerCase().includes(filter))
+        .map((body) => ({
+          value: body.name,
+          label: `${done.has(body.name) ? '· ' : ''}${body.name}`,
+        })),
+    );
+  };
+  /**
+   * Our segments, from the body as built.
+   *
+   * Rebuilt when the body is (`refresh`) and when the filter changes, not after every pair: it
+   * does not depend on the pairs, and rebuilding it with them was what made it lose its place.
+   * Before a body is built there are no segments, and the list is left empty.
+   */
+  const fillOurBones = (): void => {
+    const filter = ui.ourBoneFind.value.trim().toLowerCase();
+    refill(
+      ui.ourBone,
+      (host.articulation()?.segments ?? [])
+        .filter((seg) => !filter || seg.id.toLowerCase().includes(filter))
+        .map((seg) => ({ value: seg.id, label: seg.id })),
+    );
   };
   const fillBones = (): void => {
     const list = bonesFor(ui.model.value);
-    ui.bones.innerHTML = '';
-    for (const p of list) {
-      const option = document.createElement('option');
-      option.value = p.theirs;
-      option.textContent = `${p.theirs}  →  ${p.ours}`;
-      ui.bones.appendChild(option);
-    }
+    const missing = unbuilt(list);
     ui.bonesCount.textContent = `${list.length}`;
-    ui.unpairBone.disabled = list.length === 0;
     ui.retarget.disabled = list.length === 0;
-    fillBoneLists();
+    ui.clearBones.textContent = cleared
+      ? `Restore ${cleared.list.length} bone pairs`
+      : 'Clear bone pairs';
+    ui.clearBones.disabled = !cleared && list.length === 0;
+    ui.boneNote.textContent = [
+      boneAction,
+      missing.size > 0
+        ? `${missing.size} of these pairs name a segment not in this body, and fit nothing ` +
+          'until a body with it is built.'
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    refill(
+      ui.bones,
+      list.map((p) => ({
+        value: p.theirs,
+        label: `${p.theirs}  →  ${p.ours}${missing.has(p.theirs) ? ' (not in this body)' : ''}`,
+      })),
+    );
+    fillTheirBones();
   };
-  const refreshBoneButton = (): void => {
-    ui.pairBone.disabled = !(ui.theirBone.value && ui.ourBone.value);
+  /** Say what a bone pairing action did, and forget any clear that could still be restored. */
+  const boneChanged = (note: string): void => {
+    boneAction = note;
+    cleared = undefined;
+    fillBones();
   };
-  ui.theirBone.addEventListener('change', () => {
-    overlay.emphasiseBone(ui.theirBone.value || undefined);
-    refreshBoneButton();
-  });
-  ui.ourBone.addEventListener('change', () => {
-    highlighted = ui.ourBone.value || undefined;
-    host.highlightSegment(highlighted);
-    refreshBoneButton();
-  });
+  ui.theirBoneFind.addEventListener('input', fillTheirBones);
+  ui.ourBoneFind.addEventListener('input', fillOurBones);
+  ui.theirBone.addEventListener('change', syncSelection);
+  ui.ourBone.addEventListener('change', syncSelection);
+  ui.bones.addEventListener('change', syncSelection);
   ui.pairBone.addEventListener('click', () => {
     const theirs = ui.theirBone.value;
     const ours = ui.ourBone.value;
@@ -632,22 +866,32 @@ export function createAlignPanel(
     // One of their bones sits on exactly one of ours, so a second pairing replaces the first.
     if (at >= 0) list.splice(at, 1, { theirs, ours });
     else list.push({ theirs, ours });
-    ui.boneNote.textContent = `${theirs} → ${ours}.`;
-    fillBones();
+    boneChanged(`${theirs} → ${ours}.`);
   });
   ui.unpairBone.addEventListener('click', () => {
     const list = bonesFor(ui.model.value);
     const at = list.findIndex((p) => p.theirs === ui.bones.value);
-    if (at >= 0) {
-      list.splice(at, 1);
-      fillBones();
-    }
+    if (at < 0) return;
+    const [gone] = list.splice(at, 1);
+    ui.bones.selectedIndex = -1;
+    boneChanged(gone ? `${gone.theirs} is no longer paired with ${gone.ours}.` : '');
   });
   ui.clearBones.addEventListener('click', () => {
-    bonePairs.set(ui.model.value, []);
-    ui.boneNote.textContent = 'Bone pairs cleared.';
+    const model = ui.model.value;
+    if (cleared) {
+      bonePairs.set(cleared.model, cleared.list);
+      boneAction = `${cleared.list.length} bone pairs restored.`;
+      cleared = undefined;
+      fillBones();
+      return;
+    }
+    const list = bonesFor(model);
+    if (list.length === 0) return;
+    cleared = { model, list };
+    bonePairs.set(model, []);
+    boneAction = `${list.length} bone pairs cleared. Click Restore to put them back.`;
+    // A redraw made from the pairs is dropped with them; `showModel` redraws the list as well.
     showModel();
-    fillBones();
   });
   ui.suggest.addEventListener('click', () => {
     const model = overlay.model(ui.model.value);
@@ -665,22 +909,24 @@ export function createAlignPanel(
         added += 1;
       }
     }
-    ui.boneNote.textContent = added
-      ? `${added} pairs suggested by name. Check them: a wrong pair is worse than an absent one.`
-      : 'Nothing further could be matched by name; the rest are yours to pair.';
-    fillBones();
+    boneChanged(
+      added
+        ? `${added} pairs suggested by name. Check them: a wrong pair is worse than an absent one.`
+        : 'Nothing further could be matched by name; the rest are yours to pair.',
+    );
   });
 
   /** Redraw their muscles on our bones, through the bone pairs as they stand. */
   const doRetarget = (): void => {
-    const model = overlay.model(ui.model.value);
+    const name = ui.model.value;
+    const model = overlay.model(name);
     const articulation = host.articulation();
-    const list = bonesFor(ui.model.value);
+    const list = bonesFor(name);
     if (!model || !articulation || list.length === 0) return;
     // Read before the placement goes to neutral below. A bone with nothing fitted above it takes
     // the model's placement, so it keeps the turn that stood the model up rather than the
     // identity, which left it lying in their axes.
-    const placedAt = beforeRetarget ?? placement;
+    const placedAt = beforeRetarget?.placement ?? placement();
     const result = fitBodies(
       model,
       list,
@@ -689,34 +935,42 @@ export function createAlignPanel(
       fittedFromPlacement(placedAt),
     );
     const { fits } = result;
+    const notBuilt = unbuilt(list);
     const paths = new Map<string, readonly number[]>();
-    let dropped = 0;
+    // A muscle is left out for one of two reasons, and they want different fixes: a bone it runs
+    // over has no pair yet, or its pair names a segment this body was built without.
+    let unpaired = 0;
+    let absent = 0;
     for (const muscle of model.muscles) {
       const moved = retargetPath(muscle.path, muscle.on, fits);
       if (moved) paths.set(muscle.name, moved);
-      else dropped += 1;
+      else if (muscle.on.some((body) => notBuilt.has(body))) absent += 1;
+      else unpaired += 1;
     }
     overlay.showRetargeted(paths);
     // Their bones go through the same fits, or the muscles end up floating beside a skeleton
     // they no longer belong to.
     overlay.retargetBones(fits, model.bodies);
     // Everything is in our space now, so the model transform must not move it again. The
-    // sliders follow, rather than silently disagreeing with what is on screen.
+    // sliders follow, rather than silently disagreeing with what is on screen. The person's
+    // placement is kept first, and `??=` keeps the first redraw's when this is a second one.
+    beforeRetarget ??= { model: name, placement: placement() };
     applyPlacement({ ...NEUTRAL_PLACEMENT });
-    beforeRetarget = placedAt;
-    retargeted = true;
+    // A gizmo left on the model would move the redrawn drawing off our bones.
+    if (gizmoTarget() === 'model') setGizmo('off');
     // A redraw nobody can see is the same as no redraw: whichever layer was off comes on.
-    if (!ui.show.checked) {
-      ui.show.checked = true;
-      overlay.visible = true;
-    }
+    if (!ui.show.checked) ui.show.checked = true;
     overlay.visible = ui.show.checked;
     overlay.bonesVisible = ui.showBones.checked;
+    settleGizmo();
     // What each fit rested on, because a fit from five matched joints and one that inherited its
     // parent's roll are not the same claim, and the note should not flatten them together.
     ui.fitNote.textContent =
       `${paths.size} of ${model.muscles.length} muscles redrawn on our bones` +
-      (dropped ? `; ${dropped} left out, a bone they run over is not paired yet` : '') +
+      (absent
+        ? `; ${absent} left out, a bone they run over is paired with a segment not in this body`
+        : '') +
+      (unpaired ? `; ${unpaired} left out, a bone they run over is not paired yet` : '') +
       `. ${describeFits(result, model.bodies)}`;
   };
   ui.retarget.addEventListener('click', doRetarget);
@@ -742,15 +996,18 @@ export function createAlignPanel(
   fillOurs();
   fillPairs();
   fillMoves();
+  fillOurBones();
   fillBones();
-  writeSliders(placement);
+  writeSliders(placement());
+  settleGizmo();
 
   const setActive = (on: boolean): void => {
     if (on === active) return;
     active = on;
     if (!on) {
-      parked = gizmo.object;
-      gizmo.detach();
+      const target = gizmoTarget();
+      parked = target === 'off' ? undefined : { target, mode: gizmo.mode as GizmoMode };
+      setGizmo('off');
       gizmo.enabled = false;
       host.setGizmoDragging(false);
       host.highlightSegment(undefined);
@@ -768,9 +1025,13 @@ export function createAlignPanel(
     handles.visible = ui.points.value !== '' && host.articulation() !== undefined;
     host.highlightSegment(highlighted);
     // The proxy only means something while the point it stood for is still picked: a rebuild
-    // while the tab was closed redraws the handles and forgets the pick.
-    if (parked === overlay.group || (parked === proxy && handles.pickedHandle)) {
-      gizmo.attach(parked);
+    // while the tab was closed redraws the handles and forgets the pick. The model only while
+    // there is still a model on screen to hold.
+    if (
+      (parked?.target === 'model' && modelMovable()) ||
+      (parked?.target === 'point' && handles.pickedHandle)
+    ) {
+      setGizmo(parked.target, parked.mode);
     }
     parked = undefined;
   };
@@ -811,10 +1072,14 @@ export function createAlignPanel(
     },
     refresh(): void {
       fillOurs();
+      // The body is a new one: its segments, and which bone pairs it has no segment for.
+      fillOurBones();
+      fillBones();
       showPoints();
     },
     dispose(): void {
       window.removeEventListener('click', onClick, { capture: true });
+      window.removeEventListener('keydown', onKey);
       document.removeEventListener(TAB_CHANGE, onTab);
       host.highlightSegment(undefined);
       overlay.dispose();

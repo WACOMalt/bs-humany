@@ -454,15 +454,23 @@
                 <label for="align-scale">Scale <output id="align-scale-value">1.00</output></label>
                 <input type="range" id="align-scale" min="0.5" max="1.6" step="0.005" value="1" />
               </div>
-              <p class="note">The pitch and roll are the change of axes between the two models:
-              theirs is Z-up with the right side on negative X, ours is Y-up with the right side
-              on positive X. That part is a fact. Where along the body, and the scale, are yours
-              to set. This places the whole model at once, which can never put their
-              shoulder and their hip on ours at the same time -- the proportions differ, and that
-              difference is what is being measured. Use it to get the model roughly on screen; the
-              bone pairing below is what actually registers the two.</p>
+              <p class="note">A model starts at our origin, turned by its own change of axes: the
+              legs and the torso are Z-up with the right side on negative X, and the arm is already
+              Y-up and needs only a quarter turn about the vertical. That turn is measured from each
+              model, and Reset placement puts it back. Where along the body it sits, and the scale,
+              are yours to set; nothing seats it on our body, so it may start part-way through the
+              floor. Each model keeps its own placement. This places the whole model at once, which
+              can never put their shoulder and their hip on ours at the same time -- the
+              proportions differ, and that difference is what is being measured. Use it to get the
+              model roughly on screen; the bone pairing below is what actually registers the
+              two.</p>
+              <div class="buttons" role="group" aria-label="Gizmo on their model">
+                <button type="button" id="align-gizmo-off" class="active" aria-pressed="true" title="No gizmo in the viewport (Esc)">Off</button>
+                <button type="button" id="align-gizmo-move" aria-pressed="false" title="Move the whole model with the gizmo's arrows (W)">Move</button>
+                <button type="button" id="align-gizmo-rotate" aria-pressed="false" title="Turn the whole model with the gizmo's rings (E)">Rotate</button>
+              </div>
+              <label class="checkbox"><input type="checkbox" id="align-snap" /> Snap the gizmo to 5 mm and 5&deg; steps</label>
               <div class="buttons">
-                <button type="button" id="align-grab">Grab with gizmo</button>
                 <button type="button" id="align-reset">Reset placement</button>
               </div>
             </details>
@@ -480,17 +488,19 @@
               <div class="buttons">
                 <button type="button" id="align-suggest">Suggest by name</button>
                 <button type="button" id="align-retarget">Redraw on our bones</button>
-                <button type="button" id="align-clear-bones">Clear pairs</button>
               </div>
               <div class="control grid2">
                 <label for="align-their-bone">Their bone</label>
                 <label for="align-our-bone">Our segment</label>
+                <input type="search" id="align-their-bone-find" placeholder="filter theirs" aria-label="Filter their bones" spellcheck="false" />
+                <input type="search" id="align-our-bone-find" placeholder="filter ours" aria-label="Filter our segments" spellcheck="false" />
                 <select id="align-their-bone" size="8"></select>
                 <select id="align-our-bone" size="8"></select>
               </div>
               <div class="buttons">
                 <button type="button" id="align-pair-bone" disabled>Pair these bones</button>
                 <button type="button" id="align-unpair-bone" disabled>Unpair</button>
+                <button type="button" id="align-clear-bones" disabled>Clear bone pairs</button>
               </div>
               <p class="note live" id="align-bone-note"></p>
               <div class="control">
@@ -511,11 +521,9 @@
               units that have never been compared against anything.</p>
               <div class="control grid2">
                 <label for="align-theirs">Theirs <output id="align-theirs-count"></output></label>
-                <input type="search" id="align-theirs-find" placeholder="filter" spellcheck="false" />
                 <label for="align-ours">Ours <output id="align-ours-count"></output></label>
-                <input type="search" id="align-ours-find" placeholder="filter" spellcheck="false" />
-              </div>
-              <div class="control grid2">
+                <input type="search" id="align-theirs-find" placeholder="filter theirs" aria-label="Filter their muscles" spellcheck="false" />
+                <input type="search" id="align-ours-find" placeholder="filter ours" aria-label="Filter our muscles" spellcheck="false" />
                 <select id="align-theirs" size="10"></select>
                 <select id="align-ours" size="10"></select>
               </div>

@@ -221,9 +221,6 @@ export function defaultPlacement(model: string): Placement {
   return changeOfAxes(model);
 }
 
-/** The legs' change of axes, MuJoCo's usual Z-up to our Y-up; `defaultPlacement` is per model. */
-export const Z_UP_TO_Y_UP: Placement = changeOfAxes('legs');
-
 /** What a mesh is: the geom it draws, the body wearing it, and its place in the declaration. */
 interface Worn {
   readonly body: SourceBody;
