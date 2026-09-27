@@ -55,6 +55,7 @@ import type {
   ModuleManifest,
   ModuleStepContext,
   SimModule,
+  Stateful,
 } from '@bs-humany/kernel';
 import { ACTUATION_BODY_WRENCH, BODY_POSE, CHANNEL_VERSION } from '@bs-humany/modules-mechanics';
 import {
@@ -110,7 +111,7 @@ export const RIGID_TENDON_SHARE = 0.15;
 const FIBER_FLOOR = 0.1;
 const FIBER_CEILING = 2.0;
 
-export class MuscleDynamicsModule implements SimModule {
+export class MuscleDynamicsModule implements SimModule, Stateful {
   readonly manifest: ModuleManifest;
 
   private readonly units: number;
@@ -259,10 +260,47 @@ export class MuscleDynamicsModule implements SimModule {
    * across, the next tick re-solves each fiber to the length that balances the forces at whatever
    * pose we have landed in, which is the same thing `init` does and for the same reason: a muscle
    * that starts out of equilibrium twitches, and nothing asked it to.
+   *
+   * That is what a restore without this module's state gets. A snapshot that carries it goes on
+   * to `setState` after this, which puts the fibers back exactly where they were.
    */
   reset(ctx: ModuleInitContext): void {
     this.bind(ctx);
     this.primed = false;
+  }
+
+  /**
+   * The fibers, for a snapshot: eight bytes whose first says whether they have been primed, then
+   * each unit's fiber length as it stands.
+   *
+   * `muscle.state` publishes a copy of the fiber lengths, but this module integrates its own array
+   * and never reads the channel back, so the channels alone do not restore it. And re-solving the
+   * fibers to equilibrium on a restore is a different run: they were mid-stride, not at rest, so a
+   * replay from a scrubbed-back moment drifted away from the frames it was replaying.
+   * `primed` travels too, so a snapshot taken at tick 0 still primes on its first tick, which is
+   * what the trainer and a freshly started simulation rely on.
+   */
+  getState(): Uint8Array {
+    const fibers = this.fiberLength;
+    const out = new Uint8Array(8 + fibers.byteLength);
+    out[0] = this.primed ? 1 : 0;
+    out.set(new Uint8Array(fibers.buffer, fibers.byteOffset, fibers.byteLength), 8);
+    return out;
+  }
+
+  setState(state: unknown): void {
+    const fibers = this.fiberLength;
+    if (!(state instanceof Uint8Array) || state.byteLength !== 8 + fibers.byteLength) {
+      const got = state instanceof Uint8Array ? `${state.byteLength} bytes` : typeof state;
+      throw new Error(
+        `MuscleDynamicsModule state is ${got}; expected ${8 + fibers.byteLength} bytes for ` +
+          `${this.units} units. The snapshot was taken with a different set of muscles.`,
+      );
+    }
+    this.primed = state[0] === 1;
+    // Byte by byte into this module's own array: the state may sit at any offset in its buffer,
+    // and a Float64Array view over it would need that offset to be a multiple of eight.
+    new Uint8Array(fibers.buffer, fibers.byteOffset, fibers.byteLength).set(state.subarray(8));
   }
 
   private bind(ctx: ModuleInitContext): void {

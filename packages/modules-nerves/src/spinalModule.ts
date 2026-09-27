@@ -44,8 +44,9 @@ import type {
   ModuleManifest,
   ModuleStepContext,
   SimModule,
+  Stateful,
 } from '@bs-humany/kernel';
-import { DelayLine } from '@bs-humany/kernel';
+import { DelayLine, packState, unpackState } from '@bs-humany/kernel';
 import {
   type CompiledMuscleSet,
   EFFERENT_ALPHA_MOTOR,
@@ -145,7 +146,7 @@ export interface SpinalOptions {
   readonly stepSeconds: number;
 }
 
-export class SpinalModule implements SimModule {
+export class SpinalModule implements SimModule, Stateful {
   readonly manifest: ModuleManifest;
   private gainsInUse: SpinalGains;
   private readonly stepSeconds: number;
@@ -204,6 +205,51 @@ export class SpinalModule implements SimModule {
   reset(ctx: ModuleInitContext): void {
     this.bind(ctx);
     this.line?.reset();
+  }
+
+  /**
+   * The conduction delay's history, for a snapshot: the ring's length in ticks, where it has got
+   * to, how much of it is filled, and every afferent in it.
+   *
+   * Thirty milliseconds of afferents in flight is state the channels do not hold. A restore that
+   * emptied the ring had the cord answer the restored body with the oldest value it had -- the
+   * body as it was on the first tick after the restore -- for a whole delay, where the captured run
+   * was answering the body of thirty milliseconds before. The reflex drive differed, and the run
+   * with it.
+   */
+  getState(): Uint8Array {
+    const line = this.line;
+    if (!line) return packState([-1, 0, 0]);
+    const { ring, head, filled } = line.getState();
+    const values = new Float64Array(3 + ring.length);
+    values[0] = line.maxDelayTicks;
+    values[1] = head;
+    values[2] = filled;
+    values.set(ring, 3);
+    return packState(values);
+  }
+
+  /**
+   * Put the history back. When the ring is a different size from the one captured -- the delay
+   * was changed after the snapshot, or the snapshot is from a body with other muscles -- there is
+   * no history of this length to put back, and the cord starts empty, as a restore without this
+   * state always did, rather than refusing a session over a slider.
+   */
+  setState(state: unknown): void {
+    const values = unpackState(state, SPINAL_MODULE_ID);
+    const line = this.line;
+    if (!line) return;
+    const ticks = values[0] as number;
+    const ringLength = values.length - 3;
+    if (ticks !== line.maxDelayTicks || ringLength !== (ticks + 1) * line.width) {
+      line.reset();
+      return;
+    }
+    line.setState({
+      ring: values.subarray(3),
+      head: values[1] as number,
+      filled: values[2] as number,
+    });
   }
 
   private bind(ctx: ModuleInitContext): void {
