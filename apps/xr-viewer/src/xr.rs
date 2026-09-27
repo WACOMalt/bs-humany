@@ -785,7 +785,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                         last_muscle_tick = Some(frame.tick);
                         let tension: &[f32] =
                             publisher.status.as_ref().map(|s| s.tension.as_slice()).unwrap_or(&[]);
-                        crate::render::tube_vertices(
+                        crate::geometry::tube_vertices(
                             &frame.rings,
                             m.rings,
                             m.segments,
@@ -1020,10 +1020,10 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             // runtime cannot aim this frame, and none for a hand holding a bone, which is not a
             // pointer and would only draw a line through the body it is holding.
             drawn[slots.ray(hand)] = match aimed {
-                Some((position, orientation)) if holding[hand].is_none() => crate::render::ray_matrix(
+                Some((position, orientation)) if holding[hand].is_none() => crate::geometry::ray_matrix(
                     position,
                     orientation,
-                    reach.unwrap_or(crate::render::RAY_REACH),
+                    reach.unwrap_or(crate::geometry::RAY_REACH),
                 ),
                 _ => crate::math::scale_matrix(0.0),
             };
