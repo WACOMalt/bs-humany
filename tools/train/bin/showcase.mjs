@@ -11,6 +11,9 @@
  * episode uses it. The status file names the generation, so the panel says what is being
  * watched, and the policy's layers go to `<data>/runs/<task>-activity.json` ten times a
  * second for the dashboard's picture of the brain.
+ *
+ * The status is a `PanelStatus` (`packages/pose-bridge/src/panel.ts`), the contract every
+ * publisher and the viewer keep, built in `src/showcaseStatus.ts` where it is typechecked.
  */
 
 import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -53,8 +56,16 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
-const { openPoseBridge, openMuscleBridge, claimBridge, temporaryName, DEFAULT_PATH } =
-  await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
+const { showcaseStatus } = await jiti.import(join(ROOT, 'tools/train/src/showcaseStatus.ts'));
+const {
+  openPoseBridge,
+  openMuscleBridge,
+  claimBridge,
+  temporaryName,
+  DEFAULT_PATH,
+  STATUS_SUFFIX,
+  COMMANDS_SUFFIX,
+} = await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
 // The codec states where the bridge lives, once; this only lets --path say otherwise.
 const path = flag('path', DEFAULT_PATH);
 // Unique to this run, so a viewer that followed the last showcase -- or `pnpm publish:pose`, or
@@ -83,7 +94,7 @@ order.forEach((id, i) => {
 const stature = evaluate(param('stature'), rig.restContext);
 // One publisher a path, claimed before anything of the last one is wiped.
 claimBridge(path, 'The studio, a showcase or a publisher');
-for (const suffix of ['', '.json', '-muscles', '-grab', '-status.json', '-commands.jsonl'])
+for (const suffix of ['', '.json', '-muscles', '-grab', STATUS_SUFFIX, COMMANDS_SUFFIX])
   rmSync(`${path}${suffix}`, { force: true });
 const writer = openPoseBridge(
   {
@@ -140,60 +151,28 @@ function reload() {
   }
 }
 function writeStatus(episode, upFor) {
-  const status = {
+  const status = showcaseStatus({
     generation: bridgeGeneration,
-    scenario: {
-      id: `training-${name}`,
-      title: `Training: ${name}, generation ${meta.generations ?? 0}`,
-    },
-    scenarios: [],
-    profiles: [],
+    name,
     profile: rig.profileId,
-    simSeconds: upFor,
+    upFor,
     wallSeconds: (performance.now() - started) / 1000,
-    speed: 1,
-    paused: false,
-    muscles: true,
-    holding: [],
-    grabStrength: 1,
-    settings: {},
-    driveGroups: [],
-    diagnostics: {
-      kinetic: 0,
-      potential: 0,
-      driftMm: 0,
-      limitsWorst: 0,
-      violations: 0,
-      contacts: 0,
-      costMs: 0,
-    },
-    groundHeight: rig.groundHeight,
-    // The scenario's scenery, where the solver has it this tick. It used to be published empty,
-    // which told every viewer there was nothing to stand on: a body balancing on a tilting
-    // platform appeared to be balancing on nothing, and the thing the run is about was the one
-    // thing not on screen.
-    staticBoxes: rig.scenery.map((box) => ({
-      halfExtents: [box.halfExtents.x, box.halfExtents.y, box.halfExtents.z],
-      position: [box.position.x, box.position.y, box.position.z],
-      rotation: box.rotation
-        ? [box.rotation.x, box.rotation.y, box.rotation.z, box.rotation.w]
-        : [0, 0, 0, 1],
-    })),
-    // The discs, the beads and the cartilage, in bone names: what a studio or a headset needs to
-    // draw this body's connective tissue from the poses it is already reading.
-    tissue,
+    stepsPerSecond: 1 / rig.stepSeconds,
+    fps,
     training: {
       task: name,
       episode,
       generation: meta.generations ?? 0,
       fitness: meta.fitness ?? 0,
     },
-    // Each unit's tendon force as a fraction of its maximum, in unit order: the tint.
-    tension: Array.from(rig.muscleTension(), (v) => Number(v.toFixed(3))),
-  };
-  const tmp = temporaryName(`${path}-status.json`);
+    groundHeight: rig.groundHeight,
+    scenery: rig.scenery,
+    tissue,
+    tension: rig.muscleTension(),
+  });
+  const tmp = temporaryName(`${path}${STATUS_SUFFIX}`);
   writeFileSync(tmp, JSON.stringify(status));
-  renameSync(tmp, `${path}-status.json`);
+  renameSync(tmp, `${path}${STATUS_SUFFIX}`);
 }
 function writePose(time, up) {
   const s = rig.segments();

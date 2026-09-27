@@ -830,10 +830,16 @@ fn world_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     }
     note(ui, "The discs and the costal cartilage are part of the skeleton and have no switch; the Connective tissue overlay shows them. These two take effect on the next run.");
     heading(ui, "Start pose");
-    if let Some(v) = slider(ui, editing, "dropHeight", "drop height m", st.drop_height as f32, 0.0..=1.5, 2, false) {
-        commands.push(set("dropHeight", v as f64));
+    // Only a publisher with a free drop sends one. The headless publisher always runs a scenario,
+    // and a slider there would read 0 and move nothing, so it says where the start pose is set.
+    if let Some(height) = st.drop_height {
+        if let Some(v) = slider(ui, editing, "dropHeight", "drop height m", height as f32, 0.0..=1.5, 2, false) {
+            commands.push(set("dropHeight", v as f64));
+        }
+        note(ui, "For a free drop only; a scenario places the body itself.");
+    } else {
+        note(ui, "The scenario places the body; its own parameters are under Scene.");
     }
-    note(ui, "For a free drop only; a scenario places the body itself.");
     heading(ui, "The hand");
     if let Some(v) = slider(ui, editing, "grabStrength", "grab strength", s.grab_strength as f32, 0.1..=5.0, 1, true) {
         commands.push(set("grabStrength", v as f64));
@@ -892,9 +898,15 @@ fn scene_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
             }
         }
     });
+    if let Some(description) = scenario_description(s) {
+        note(ui, description);
+    }
     for p in &s.scenario_parameters {
         let decimals = if p.step >= 1.0 { 0 } else if p.step >= 0.1 { 1 } else { 2 };
-        let label = if p.unit.is_empty() { p.title.clone() } else { format!("{} {}", p.title, p.unit) };
+        // Trimmed, because the studio's units are readout suffixes with their own leading space
+        // (` m`), and a label that adds one of its own showed two.
+        let unit = p.unit.trim();
+        let label = if unit.is_empty() { p.title.clone() } else { format!("{} {unit}", p.title) };
         let key = format!("scenario.{}", p.id);
         if let Some(v) = slider(ui, editing, &key, &label, p.value as f32, (p.min as f32)..=(p.max as f32), decimals, false) {
             let step = p.step.max(1e-9);
@@ -915,6 +927,16 @@ fn scene_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
         }
     });
     note(ui, "Rebuilds the body; the bridges reopen.");
+}
+
+/// What the chosen scenario is, as the desktop's note under its picker says it, when the
+/// publisher sent it: the sliders under the picker mean little without it.
+fn scenario_description(s: &Status) -> Option<&str> {
+    s.scenarios
+        .iter()
+        .find(|candidate| candidate.id == s.scenario.id)
+        .map(|candidate| candidate.description.as_str())
+        .filter(|description| !description.is_empty())
 }
 
 fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
@@ -1202,6 +1224,23 @@ mod tests {
             });
         });
         assert!(used <= size[1], "{used} points of content in a {} point strip", size[1]);
+    }
+
+    #[test]
+    fn the_chosen_scenario_is_described_under_the_picker_when_the_publisher_says_what_it_is() {
+        let status = crate::bridge::parse_status(include_str!("../fixtures/status.json")).expect("parses");
+        assert_eq!(
+            scenario_description(&status),
+            Some("The rest pose dropped onto the ground with nothing holding it up.")
+        );
+        // An older publisher, or a scenario the list does not carry, says nothing rather than
+        // showing another scenario's note.
+        let mut older = status.clone();
+        older.scenarios.iter_mut().for_each(|c| c.description.clear());
+        assert_eq!(scenario_description(&older), None);
+        let mut elsewhere = status;
+        elsewhere.scenario.id = "not-listed".into();
+        assert_eq!(scenario_description(&elsewhere), None);
     }
 
     #[test]

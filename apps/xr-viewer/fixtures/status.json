@@ -1,0 +1,193 @@
+{
+  "generation": 1790000000003,
+  "scenario": {
+    "id": "drop-standing-collapse",
+    "title": "Drop and collapse",
+    "description": "The rest pose dropped onto the ground with nothing holding it up."
+  },
+  "scenarios": [
+    {
+      "id": "quiet-standing",
+      "title": "Standing quietly",
+      "description": "The rest pose on the ground with the muscles at postural tone."
+    },
+    {
+      "id": "drop-standing-collapse",
+      "title": "Drop and collapse",
+      "description": "The rest pose dropped onto the ground with nothing holding it up."
+    }
+  ],
+  "profiles": [
+    "l1_standard",
+    "l3_anatomical"
+  ],
+  "profile": "l3_anatomical",
+  "simSeconds": 1.5,
+  "wallSeconds": 6.25,
+  "speed": 0.24,
+  "paused": true,
+  "muscles": true,
+  "holding": [
+    "radius_r"
+  ],
+  "grabStrength": 1.5,
+  "stepsPerSecond": 1000,
+  "fps": 90,
+  "settings": {
+    "muscles": true,
+    "sex": 0.25,
+    "stature": 1.62,
+    "mass": 58,
+    "crural": 1.02,
+    "brachial": 0.77,
+    "legLength": 1.03,
+    "percentile": 0.4,
+    "dropHeight": 0.35,
+    "passive": true,
+    "redistribute": true,
+    "gravity": true,
+    "floor": true,
+    "fps": 90,
+    "stepsPerSecond": 1000
+  },
+  "driveGroups": [
+    {
+      "title": "Elbow flexors",
+      "level": 20,
+      "section": "Arm"
+    },
+    {
+      "title": "Knee extensors",
+      "level": 5,
+      "section": "Leg"
+    }
+  ],
+  "diagnostics": {
+    "kinetic": 12.5,
+    "potential": 580.25,
+    "driftMm": 0.75,
+    "limitsWorst": 0.625,
+    "violations": 2,
+    "contacts": 14,
+    "costMs": 0.875
+  },
+  "groundHeight": -0.05,
+  "staticBoxes": [
+    {
+      "halfExtents": [
+        0.5,
+        0.25,
+        0.3
+      ],
+      "position": [
+        0,
+        0.25,
+        -0.4
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ]
+    }
+  ],
+  "tension": [
+    0.125,
+    0.5
+  ],
+  "tissue": {
+    "discs": [
+      {
+        "bone": "sacrum",
+        "kind": "disc",
+        "position": [
+          0.017,
+          0.013,
+          -0.051
+        ],
+        "rotation": [
+          -0.018,
+          0.6,
+          -0.018,
+          0.8
+        ]
+      }
+    ],
+    "bars": [
+      {
+        "boneA": "sternum",
+        "localA": [
+          0.02,
+          0.07,
+          0.04
+        ],
+        "boneB": "rib_2_r",
+        "localB": [
+          -0.01,
+          -0.05,
+          -0.07
+        ]
+      }
+    ]
+  },
+  "mode": "running",
+  "overlays": {
+    "muscles": true,
+    "tissue": false
+  },
+  "scenarioParameters": [
+    {
+      "id": "clearance",
+      "title": "Drop height",
+      "value": 0.3,
+      "min": 0,
+      "max": 1.5,
+      "step": 0.05,
+      "unit": "m"
+    }
+  ],
+  "muscleReadout": {
+    "loaded": "12 of 234"
+  },
+  "brain": {
+    "serverUp": true,
+    "active": true,
+    "authority": 0.3,
+    "selected": "stand-7",
+    "checkpoints": [
+      {
+        "id": "stand-7",
+        "name": "stand, generation 7"
+      }
+    ],
+    "fit": "In the loop",
+    "training": "generation 7, fitness 0.812",
+    "trainingRunning": true,
+    "trainingStoppable": true,
+    "following": true,
+    "reflex": {
+      "stretch": 2.5,
+      "velocity": 0.125,
+      "setPoint": 0.875,
+      "inhibition": 0.5,
+      "delaySeconds": 0.03
+    },
+    "memory": 8,
+    "canStart": false,
+    "canStop": true,
+    "canHandOver": true,
+    "canRelease": false,
+    "policyNote": "No dashboard server: checkpoints trained here are kept in this browser.",
+    "spineNote": "Stretch and Damping at zero is a body with no reflexes at all."
+  },
+  "training": {
+    "task": "stand",
+    "episode": 4,
+    "generation": 7,
+    "fitness": 0.812
+  },
+  "recordedSeconds": 2.75,
+  "playing": true,
+  "live": false
+}
