@@ -24,7 +24,6 @@
  */
 
 import {
-  DEFAULT_SPINAL_GAINS,
   type PolicyFile,
   type TrainedBody,
   compareCord,
@@ -308,6 +307,44 @@ export interface BrainState {
   readonly spineNote: string;
 }
 
+/**
+ * The cord the Spine panel opens on: the measured one, which is also the one the command-line
+ * trainer gives a run that names none. The owner chose this on 2026-09-26 over opening with the
+ * cord off, so that a body in the studio, a run trained in the window and a run trained at the
+ * terminal all stand on the same reflexes unless somebody moves a slider. It is the recipe's
+ * constant by name, not a copy of its numbers, so a re-measured cord reaches the panel by itself.
+ */
+export const OPENING_CORD = DEFAULT_REFLEX;
+
+/**
+ * The sentence the Spine note ends on: what a run trained from this panel will train with, and
+ * how that stands against what the command-line trainer uses. The two sources of a checkpoint's
+ * cord are the sliders here and the trainer's default there, and a person reading the note
+ * before pressing Start should not have to know that to know which body the checkpoint will be.
+ * Only the five gains the panel has a slider for are compared: the other two are the recipe's
+ * own in both places, so they cannot differ.
+ */
+export function trainingCordNote(gains: {
+  readonly stretch: number;
+  readonly velocity: number;
+  readonly setPoint: number;
+  readonly inhibition: number;
+  readonly delaySeconds: number;
+}): string {
+  // Within a hair rather than exactly, because a range input snaps its value to its step and a
+  // browser is free to hand the snapped number back a rounding away from the one it was given.
+  const same = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9;
+  const measured =
+    same(gains.stretch, DEFAULT_REFLEX.stretch) &&
+    same(gains.velocity, DEFAULT_REFLEX.velocity) &&
+    same(gains.setPoint, DEFAULT_REFLEX.setPoint) &&
+    same(gains.inhibition, DEFAULT_REFLEX.inhibition) &&
+    same(gains.delaySeconds, DEFAULT_REFLEX.delaySeconds);
+  return measured
+    ? 'A run trained here trains on this cord, the measured one the command-line trainer uses too.'
+    : `A run trained here trains on this cord as set; the command-line trainer uses the measured one (stretch ${DEFAULT_REFLEX.stretch.toFixed(2)}, damping ${DEFAULT_REFLEX.velocity.toFixed(2)}) unless told otherwise.`;
+}
+
 /** What the headset is sent when there is no panel to ask: nothing chosen, nothing offered. */
 export const IDLE_BRAIN_STATE: BrainState = {
   serverUp: false,
@@ -321,11 +358,11 @@ export const IDLE_BRAIN_STATE: BrainState = {
   trainingStoppable: false,
   following: false,
   reflex: {
-    stretch: DEFAULT_SPINAL_GAINS.stretch,
-    velocity: DEFAULT_SPINAL_GAINS.velocity,
-    setPoint: DEFAULT_SPINAL_GAINS.setPoint,
-    inhibition: DEFAULT_SPINAL_GAINS.inhibition,
-    delaySeconds: DEFAULT_SPINAL_GAINS.delaySeconds,
+    stretch: OPENING_CORD.stretch,
+    velocity: OPENING_CORD.velocity,
+    setPoint: OPENING_CORD.setPoint,
+    inhibition: OPENING_CORD.inhibition,
+    delaySeconds: OPENING_CORD.delaySeconds,
   },
   memory: 0,
   canStart: false,
@@ -662,14 +699,20 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     delaySeconds: Number(ui.spineDelay.value),
   });
 
-  // The sliders open on the cord a run opens with, from the module's own defaults rather than
-  // from numbers typed into the page a second time. They used to open with damping at a quarter
-  // over a body whose damping was zero, so the panel described a cord no run had.
-  ui.spineStretch.value = String(DEFAULT_SPINAL_GAINS.stretch);
-  ui.spineVelocity.value = String(DEFAULT_SPINAL_GAINS.velocity);
-  ui.spineSetPoint.value = String(DEFAULT_SPINAL_GAINS.setPoint);
-  ui.spineInhibition.value = String(DEFAULT_SPINAL_GAINS.inhibition);
-  ui.spineDelay.value = String(DEFAULT_SPINAL_GAINS.delaySeconds);
+  // The sliders open on the measured cord, the recipe's `DEFAULT_REFLEX` by name, because the
+  // owner decided (2026-09-26) that the studio runs the cord the command-line trainer trains with.
+  // Every run is built with what these sliders show and a run trained here takes its cord from
+  // them too, so opening them anywhere else would have the live body, a scripted scenario with no
+  // policy, and a checkpoint trained in this window all stand on a different cord from one trained
+  // at the terminal -- which is how the panel used to open, with the cord off. The numbers come
+  // from the recipe module rather than being typed into the page a second time, so the panel and
+  // the trainer cannot drift apart; a checkpoint trained with no cord still gets its own body back
+  // through Set up as trained, which puts its recipe's cord on these sliders.
+  ui.spineStretch.value = String(OPENING_CORD.stretch);
+  ui.spineVelocity.value = String(OPENING_CORD.velocity);
+  ui.spineSetPoint.value = String(OPENING_CORD.setPoint);
+  ui.spineInhibition.value = String(OPENING_CORD.inhibition);
+  ui.spineDelay.value = String(OPENING_CORD.delaySeconds);
 
   const showSpine = () => {
     must<HTMLOutputElement>('#spine-stretch-value').textContent = stretchLabel(
@@ -1981,10 +2024,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         canSetUp: !ui.setUp.disabled,
         canUndoSetUp: !ui.undoSetUp.disabled,
         policyNote: ui.policyNote.textContent ?? '',
-        spineNote: spineNote({
+        spineNote: `${spineNote({
           stretch: Number(ui.spineStretch.value),
           velocity: Number(ui.spineVelocity.value),
-        }),
+        })} ${trainingCordNote(reflexFromUi())}`,
       };
     },
     reflex: reflexFromUi,
