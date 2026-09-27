@@ -1,0 +1,37 @@
+@bs-humany/muscle-data
+
+This package is in the Data tier of ADR-009 and is distributed under Creative Commons
+Attribution-ShareAlike 4.0 International (see LICENSE). The package as a whole carries that
+licence, its schema and validation code included, because the data and the code that holds it
+share the same source files.
+
+The muscle definitions are laid on this project's skeleton, and part of what they hold is
+measured on it: each attachment names a site that @bs-humany/skeleton locates on the bone meshes
+of @bs-humany/assets-anatomical, the muscle length ranges in src/ranges.ts are swept on those
+bones, the fibre lengths of the neck muscles are fractions of the distance between their
+attachments there, and the intercostals are sized on the rib lengths in the rib arcs of
+assets-anatomical. Those values are derivatives of the following, and carry its licence:
+
+  "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"
+  "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+
+Z-Anatomy authors: Kousaku Okubo (original BodyParts3D model), Gauthier Kervyn (design, 3D,
+anatomy), Marcin Zielinski (Blender add-on), Lluis Vinent (Unity development).
+Source: https://github.com/LluisV/Z-Anatomy (Resources/Models/FBX/SkeletalSystem100.fbx) and
+https://github.com/Z-Anatomy/Models-of-human-anatomy.
+
+The other values come from sources whose licences permit their use in a CC BY-SA work. Each value
+carries its citation at the point of use, and docs/sources/bibliography.md is the complete list:
+
+  - MyoSuite myo_sim (MyoHub), Apache-2.0, cited caggiano2022: the peak isometric forces, optimal
+    fibre lengths and tendon slack lengths that the tools/cli/bin/generate-*-muscles.mjs
+    generators extract, and the source-model travel in src/sourceTravel.ts, measured by running
+    those models. The licence and the pinned commit are in tools/validate-external/myo_sim.
+  - Seth et al. (2019), CC BY, cited seth2019: the shoulder girdle parameters.
+  - Gray's Anatomy (1918), public domain, cited gray1918: which bony feature each muscle attaches
+    to.
+  - The published measurements and sizing rules that the neck and thorax sets apply (zheng2013,
+    vasavada1998, bruno2015), used as facts with a citation, not copied as a work.
+
+The other bs-humany code packages, which load this data, remain Apache-2.0: they are not
+derivatives of it. See ADR-009 and ADR-011, and the root NOTICE.

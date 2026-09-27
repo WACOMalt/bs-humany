@@ -76,9 +76,22 @@ Where a value cannot be found in a compatible source, record it in
 
 | Tier | Packages | Licence | May draw on |
 |---|---|---|---|
-| Code | `hsdl`, `frames`, `anthropometry`, `kernel`, `compiler`, `backend-*`, `modules-*`, `render-three`, `testkit`, `tools` | Apache-2.0 | Permissive software only. Not a derivative of the data it loads. |
-| Data | `skeleton`, `assets-anatomical`, scenario fixtures | **CC BY-SA 4.0** | Z-Anatomy / BodyParts3D (BY-SA), Rajagopal 2016, MyoSuite (Apache-2.0), de Leva, ANSUR II, ISB. **Not MyoSkeleton** -- licence incompatibility, see §11. |
+| Code | `packages/`: `anthropometry`, `backend-mujoco`, `compiler`, `export-gltf`, `frames`, `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves`, `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`, `pose-bridge`, `render-three`, `scenarios` (all but its `data/` fixtures), `testkit`. `apps/`: `studio` (with `src-tauri`), `xr-viewer`. `tools/`: `blender`, `cli`, `ingest`, `train`. The repository root. | Apache-2.0 | Permissive software only. Not a derivative of the data it loads. |
+| Data | `skeleton`, `assets-anatomical` (the data under `data/`), `muscle-data`, and the `scenarios` fixtures under `packages/scenarios/data/` | **CC BY-SA 4.0** | Z-Anatomy / BodyParts3D (BY-SA), Rajagopal 2016, MyoSuite (Apache-2.0), Seth 2019 (CC BY), de Leva, ANSUR II, ISB. **Not MyoSkeleton** -- licence incompatibility, see §11. |
 | Validation tooling | `tools/validate-external`, developer-local, never published | n/a | MyoSkeleton as a behavioural oracle. Compare; never transcribe. |
+
+Every workspace package is named in this table, and ADR-009 names the same ones. A new package
+adds itself to both before it lands: which tier it is in decides what it may draw on, and a
+package in neither is one nobody has decided about. A package wholly in the Data tier carries the
+licence in its `package.json` (`CC-BY-SA-4.0`), a copy of the licence text in `LICENSE`, and a
+`NOTICE` that says what it derives from. `scenarios` is split, code and fixtures, so its
+`package.json` names both licences and the root `NOTICE` covers its fixtures.
+
+`muscle-data` is in the Data tier as a whole, schema and validation code included. Its
+attachments, its muscle length ranges and some of its fibre lengths are measured on the skeleton,
+which makes them derivatives of the Z-Anatomy geometry; the MyoSuite scalars beside them are
+Apache-2.0, which may be combined into a CC BY-SA work. The code packages that load it stay
+Apache-2.0, for the same reason the ones that load `skeleton` do.
 
 ## Citations
 

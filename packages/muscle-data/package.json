@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The muscle.* HSDL extension schema, and the cited muscle definitions that populate it.",
-  "license": "Apache-2.0",
+  "license": "CC-BY-SA-4.0",
   "type": "module",
   "exports": {
     ".": {
