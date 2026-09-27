@@ -1,0 +1,533 @@
+/**
+ * The top bar and the status bar: Start, Pause and Reset, the mode beside them, the run readout
+ * and the event line under the viewport, and the keyboard that drives them.
+ *
+ * What pressing each button does to the run is the run controller's; this is how the buttons
+ * look and what they say, and how a run that stopped itself is told.
+ */
+
+import type { StudioRuns } from '../runController.js';
+import { keyOwnedByTarget } from '../shortcuts.js';
+import type { Simulation } from '../simulation.js';
+import { blurAfterMouse, messageOf, must, setText } from './dom.js';
+
+// ---------------------------------------------------------------------------------------------
+// The status bar
+// ---------------------------------------------------------------------------------------------
+
+export interface StatusLine {
+  /**
+   * The run readout: what the run is doing right now, rewritten every frame.
+   *
+   * Only for the state of the run -- running, paused, at rest, following -- because anything else
+   * written here is gone a sixtieth of a second later, when the frame loop writes the readout over
+   * it. One-off messages and errors go to `announce`, which has a line of its own.
+   */
+  setSimulationStatus(text: string, error?: boolean): void;
+  /**
+   * Say something once, in the status bar's event line, and leave it there.
+   *
+   * The readout beside it is rewritten every frame, and everything that used to be written into
+   * it -- "Wrote the session", "Muscles start with the next run", a failed save, a checkpoint that
+   * would not load -- was on screen for one frame and then overwritten by "Running, 3.21 s
+   * simulated". So messages have their own line: it holds until the next message replaces it or
+   * somebody clicks it away. An error is marked as one and read out at once; the same message
+   * sent twice does not rewrite the line, so a log that repeats itself does not churn the page.
+   */
+  announce(text: string, options?: { error?: boolean }): void;
+  /**
+   * Say something without taking the line from whatever is already on it.
+   *
+   * For a message that belongs with the others one action produced rather than in place of them:
+   * a loaded session can be refused its run and also lack its checkpoint, and each is worth
+   * knowing. What stands keeps its place, and its standing as an error, and the new text follows.
+   */
+  announceAlongside(text: string): void;
+  /** Clear the event line; with `noticesOnly`, leave an error where it is. */
+  dismissAnnouncement(noticesOnly?: boolean): void;
+}
+
+export function createStatusLine(): StatusLine {
+  const status = must<HTMLElement>('#sim-status');
+  const slot = must<HTMLElement>('#sim-event');
+
+  const announce = (text: string, options: { error?: boolean } = {}): void => {
+    const error = options.error === true;
+    if (!slot.hidden && slot.textContent === text && slot.classList.contains('error') === error) {
+      return;
+    }
+    slot.textContent = text;
+    slot.classList.toggle('error', error);
+    slot.setAttribute('role', error ? 'alert' : 'status');
+    slot.title = error
+      ? 'Stays until you click it or another message replaces it'
+      : 'Click to dismiss';
+    slot.hidden = false;
+  };
+
+  const dismissAnnouncement = (noticesOnly = false): void => {
+    if (noticesOnly && slot.classList.contains('error')) return;
+    slot.hidden = true;
+    slot.textContent = '';
+    slot.classList.remove('error');
+  };
+  slot.addEventListener('click', () => dismissAnnouncement());
+
+  // Whatever else throws on the page -- a handler, a promise nobody awaited -- says so on the event
+  // line too, rather than only in a console nobody has open. Not prevented: the console still gets
+  // it, with its stack. The one error that is not an error is the resize observer's notice that it
+  // deferred a notification, which browsers raise as one and which a layout that resizes itself in
+  // a resize callback (the viewport's does) meets routinely.
+  window.addEventListener('error', (event) => {
+    if (event.error === null && /ResizeObserver/.test(event.message)) return;
+    announce(`Something on the page failed: ${event.message || messageOf(event.error)}`, {
+      error: true,
+    });
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    announce(`Something on the page failed: ${messageOf(event.reason)}`, { error: true });
+  });
+
+  return {
+    setSimulationStatus(text, error = false) {
+      setText(status, text);
+      status.classList.toggle('error', error);
+    },
+    announce,
+    announceAlongside(text) {
+      if (slot.hidden || !slot.textContent) {
+        announce(text);
+        return;
+      }
+      const error = slot.classList.contains('error');
+      if (slot.textContent.endsWith(text)) return;
+      announce(`${slot.textContent} ${text}`, { error });
+    },
+    dismissAnnouncement,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The top bar
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * What pressing Start does, in words, one face for each thing it can do.
+ *
+ * The button is three buttons in one -- start a run, carry a paused one on, or throw a live one
+ * away and start again -- and it used to be labelled as though it were always the first. Each face
+ * has its own title, because Restart is the one that discards a recording and the title is where
+ * somebody hovering to find out would look. Space is named only where Space does the same thing:
+ * on a live run it pauses, it never restarts.
+ */
+const START_FACES = {
+  start: { label: '▶ Start sim', title: 'Start a run with the current settings (Space)' },
+  resume: {
+    label: '▶ Resume sim',
+    title: 'Carry the run on from its newest frame; nothing computed is lost (Space)',
+  },
+  restart: {
+    label: '↻ Restart',
+    title: 'Throw this run and its recording away and start a new one with the current settings',
+  },
+  compiling: {
+    label: 'Compiling…',
+    title: 'Building the body and the solver for a new run; the page may stop for a moment',
+  },
+} as const;
+
+/** Write a button's label and title, only when they change: this runs every frame. */
+export function setFace(button: HTMLButtonElement, face: { label: string; title: string }): void {
+  if (button.textContent !== face.label) button.textContent = face.label;
+  if (button.title !== face.title) button.title = face.title;
+}
+
+/** The overlay checkboxes a followed run has nothing to draw with. */
+export interface UnfollowedOverlayBoxes {
+  readonly showMuscles: HTMLInputElement;
+  readonly showProxies: HTMLInputElement;
+  readonly showAxes: HTMLInputElement;
+  readonly showCom: HTMLInputElement;
+  readonly showContacts: HTMLInputElement;
+}
+
+export interface TransportHost {
+  readonly runs: StudioRuns;
+  readonly status: StatusLine;
+  readonly boxes: UnfollowedOverlayBoxes;
+  /** Whether the full-detail mesh pack is still on its way. */
+  fullDetailPending(): boolean;
+  /** Every set of run buttons on the page, refreshed together; see `setControls`. */
+  setRunControls(running: boolean): void;
+}
+
+export type Mode = 'rest' | 'running' | 'paused' | 'following';
+
+export interface Transport {
+  readonly buttons: {
+    readonly start: HTMLButtonElement;
+    readonly pause: HTMLButtonElement;
+    readonly reset: HTMLButtonElement;
+    readonly stopFollowing: HTMLButtonElement;
+  };
+  /**
+   * The top bar's mode: at rest, a run of our own, or following the bridge.
+   *
+   * Start and Pause, in the top bar beside it, are about whether this page's simulation is
+   * computing; the mode is what the viewport is showing, which while following is nobody's run on
+   * this page. So following gets its own way out beside the mode, where the eye already is: the
+   * Follow button that starts it is on the Brain tab. At rest, the Overlays popover says what
+   * fills it, because every overlay in it draws from a run and at rest they are all empty.
+   */
+  setMode(mode: Mode): void;
+  /**
+   * Start, Pause and Reset, and the mode, for a run that is going or not.
+   *
+   * Start and Pause are about whether the simulation is computing; the timeline's buttons are
+   * about where in what it has already computed you are looking. They were one set before -- Run,
+   * Pause, Step, Reset and a timeline that re-simulated what you scrubbed over -- and the reason
+   * that was confusing is that it was two things wearing one set of labels.
+   */
+  setControls(running: boolean): void;
+  /**
+   * What the readout says with no run: at rest, and whether the full mesh is still on its way. At
+   * rest it says what to press, because a skeleton standing still with every overlay empty is
+   * otherwise a page that looks like it has not finished loading.
+   */
+  restStatus(): string;
+  /** A tick run outside `Simulation.advance` threw: pause the run where it stopped and say so. */
+  stalled(sim: Simulation, error: unknown): void;
+  /** Say, once, that the run stopped itself, and put the buttons in a paused run's state. */
+  reportStop(sim: Simulation): void;
+  /** The stop's text while the run still stands where it stopped, for the status line. */
+  stoppedHere(sim: Simulation): string | undefined;
+  /** Something in the run's part of the frame threw: pause the run and say so. */
+  frameFailed(sim: Simulation, error: unknown): void;
+  /** The run readout for a frame of a run of this page's own. */
+  showRunStatus(sim: Simulation): void;
+}
+
+export function createTransport(host: TransportHost): Transport {
+  const { runs, status } = host;
+  const buttons = {
+    start: must<HTMLButtonElement>('#simStart'),
+    pause: must<HTMLButtonElement>('#simPause'),
+    reset: must<HTMLButtonElement>('#reset'),
+    stopFollowing: must<HTMLButtonElement>('#stop-following'),
+  };
+  const overlaysAtRest = must<HTMLElement>('#overlays-at-rest');
+  const indicator = must<HTMLElement>('#mode-indicator');
+  const modeLabel = must<HTMLElement>('#mode-label');
+
+  /**
+   * The overlays a followed run has nothing to draw with, what they said before following, and
+   * whether they are greyed now; see `setFollowOverlayAvailability`.
+   *
+   * The bridge carries bones, muscle rings, tension and tissue. Collision proxies, joint axes, the
+   * centres of mass, the contacts and the muscle path polylines are all read off a simulation of
+   * this page's own, and while following there is none: the boxes stayed live and ticking one did
+   * nothing, which reads as a broken overlay rather than one the publisher does not send.
+   */
+  const unfollowedOverlays = {
+    greyed: false,
+    boxes: [
+      host.boxes.showMuscles,
+      host.boxes.showProxies,
+      host.boxes.showAxes,
+      host.boxes.showCom,
+      host.boxes.showContacts,
+    ].map((input) => {
+      const label = input.closest('label');
+      return { input, label, inputTitle: input.title, labelTitle: label?.title ?? '' };
+    }),
+  };
+
+  /**
+   * Grey the overlays with no followed counterpart while following, and give them back after.
+   *
+   * Only `disabled` and the hover text change, never `checked`: what somebody ticked is what they
+   * want for their own runs, and it is remembered for them, so following must not untick it. The
+   * label is dimmed with the same `stale` style a readout of another frame gets, because a
+   * disabled checkbox greys only its own square and the words beside it read as live. `setMode`
+   * runs every frame a run is drawn, so nothing is written unless the answer changes.
+   */
+  const setFollowOverlayAvailability = (following: boolean): void => {
+    if (unfollowedOverlays.greyed === following) return;
+    unfollowedOverlays.greyed = following;
+    const why = 'Not published on the bridge: drawn only for a run of this studio’s own';
+    for (const { input, label, inputTitle, labelTitle } of unfollowedOverlays.boxes) {
+      input.disabled = following;
+      input.title = following ? why : inputTitle;
+      if (label) {
+        label.classList.toggle('stale', following);
+        label.title = following ? why : labelTitle;
+      }
+    }
+  };
+
+  const setMode = (mode: Mode): void => {
+    const stop = buttons.stopFollowing;
+    if (stop.hidden !== (mode !== 'following')) stop.hidden = mode !== 'following';
+    if (overlaysAtRest.hidden !== (mode !== 'rest')) overlaysAtRest.hidden = mode !== 'rest';
+    indicator.classList.toggle('running', mode === 'running');
+    indicator.classList.toggle('following', mode === 'following');
+    modeLabel.textContent =
+      mode === 'following'
+        ? 'Following the bridge'
+        : mode === 'running'
+          ? 'Own run'
+          : mode === 'paused'
+            ? 'Own run, paused'
+            : 'At rest';
+    setFollowOverlayAvailability(mode === 'following');
+  };
+
+  /**
+   * What a run that stopped itself says, in the status line and the event line: a failed tick
+   * when there was one, since that stops the run for good, and otherwise the solver's reset.
+   */
+  const stopText = (sim: Simulation, only?: 'failure' | 'diverged'): string | undefined => {
+    if (sim.failure && only !== 'diverged') {
+      return (
+        `Stopped at ${(sim.failure.tick * sim.dt).toFixed(3)} s: ${sim.failure.message}. ` +
+        'Reset or Restart to go on.'
+      );
+    }
+    if (sim.divergedAt !== undefined && only !== 'failure') {
+      return (
+        `Diverged at ${(sim.divergedAt * sim.dt).toFixed(3)} s: MuJoCo reset the body ` +
+        '(bad acceleration). Paused.'
+      );
+    }
+    return undefined;
+  };
+
+  /**
+   * The stop last said, so it is said once: the frame loop asks every frame, and the event line is
+   * for saying a thing when it happens, not sixty times a second.
+   */
+  let reportedStop:
+    | { sim: Simulation; failure: Simulation['failure']; diverged: number | undefined }
+    | undefined;
+
+  /**
+   * The run records why it stopped (`failure`, `divergedAt`); this is only the telling, and it
+   * tells each new reason once.
+   */
+  const reportStop = (sim: Simulation): void => {
+    const last = reportedStop;
+    if (last?.sim === sim && last.failure === sim.failure && last.diverged === sim.divergedAt) {
+      return;
+    }
+    // Only the solver's reset is new when the failure is the one already told.
+    const text =
+      last?.sim === sim && last.failure === sim.failure ? stopText(sim, 'diverged') : stopText(sim);
+    reportedStop = { sim, failure: sim.failure, diverged: sim.divergedAt };
+    if (!text) return;
+    status.announce(text, { error: true });
+    host.setRunControls(true);
+  };
+
+  /**
+   * The stop's text while the run is still standing where it stopped, for the status line; once
+   * it has been reset or carried on past that tick, the run is an ordinary one again and the
+   * event line alone remembers what happened.
+   */
+  const stoppedHere = (sim: Simulation): string | undefined => {
+    if (!sim.paused) return undefined;
+    if (sim.failure && sim.ticks === sim.failure.tick) return stopText(sim, 'failure');
+    if (sim.divergedAt !== undefined && sim.ticks === sim.divergedAt) {
+      return stopText(sim, 'diverged');
+    }
+    return undefined;
+  };
+
+  /** The last message `frameFailed` logged, so a frame that throws every frame logs it once. */
+  let lastFrameFailure = '';
+
+  buttons.start.addEventListener('click', (event) => {
+    blurAfterMouse(event);
+    // Paused mid-run, or scrubbed back into it: carry on from the newest frame rather than
+    // throwing the run away. Anything else starts a fresh one with the settings as they stand.
+    const sim = runs.simulation;
+    if (sim && (sim.paused || !runs.atLiveEdge)) {
+      runs.resume();
+      return;
+    }
+    void runs.start();
+  });
+  buttons.pause.addEventListener('click', (event) => {
+    blurAfterMouse(event);
+    runs.pause();
+  });
+  buttons.reset.addEventListener('click', (event) => {
+    blurAfterMouse(event);
+    runs.reset();
+  });
+
+  return {
+    buttons,
+    setMode,
+    setControls(running) {
+      const sim = runs.simulation;
+      setMode(!running ? 'rest' : sim?.paused ? 'paused' : 'running');
+      // Busy while a start compiles, so a second press cannot begin a second start and the page
+      // says why it is about to stop answering for a moment.
+      const compiling = runs.busy;
+      buttons.start.disabled = compiling;
+      if (compiling) buttons.start.setAttribute('aria-busy', 'true');
+      else buttons.start.removeAttribute('aria-busy');
+      // Nothing computed yet -- no run, or one Reset back to its first tick -- is a start,
+      // whatever the paused flag says: there is nothing to carry on from.
+      setFace(
+        buttons.start,
+        compiling
+          ? START_FACES.compiling
+          : !running || !sim || sim.ticks === 0
+            ? START_FACES.start
+            : sim.paused
+              ? START_FACES.resume
+              : START_FACES.restart,
+      );
+      buttons.pause.disabled = !running || sim?.paused === true;
+      buttons.reset.disabled = !running;
+    },
+    restStatus() {
+      return host.fullDetailPending()
+        ? 'Loading full detail…'
+        : 'At rest. Press Start sim to see the muscles work.';
+    },
+    stalled(sim, error) {
+      // Left alone, the frame loop would call the same tick again next frame and the one after,
+      // sixty times a second, each throwing into the console while the readout went on saying
+      // "Running" over a body that had not moved. Paused, what was computed up to the failure is
+      // still there to scrub and export, and the event line says what went wrong and when.
+      //
+      // `Simulation.advance` catches its own ticks' failures and records them on the run; this is
+      // for the ticks run outside it -- a frame stepped by hand -- which are recorded the same
+      // way, so the status line and the event line say the one thing whichever path it came by.
+      sim.paused = true;
+      sim.failure ??= { message: messageOf(error), tick: sim.ticks };
+      console.error('A simulation tick failed; the run is paused.', error);
+      reportStop(sim);
+    },
+    reportStop,
+    stoppedHere,
+    frameFailed(sim, error) {
+      // Pause the run where it is -- a paused run draws the same frame every frame, which is the
+      // likeliest way out of whatever threw -- and say so on the event line, which does not
+      // rewrite itself for the same message.
+      const message = messageOf(error);
+      if (message !== lastFrameFailure) {
+        lastFrameFailure = message;
+        console.error('Drawing the run failed; the run is paused.', error);
+      }
+      sim.paused = true;
+      status.announce(
+        `Drawing the run failed at ${(sim.ticks * sim.dt).toFixed(3)} s and it is paused: ${message}.`,
+        { error: true },
+      );
+      host.setRunControls(true);
+    },
+    showRunStatus(sim) {
+      const seconds = (sim.ticks * sim.dt).toFixed(2);
+      // How fast, never whether anything was lost: nothing is. Below life speed the machine is
+      // simply taking longer over the same ticks, and the run it produces is the same run.
+      const speed = sim.achievedRateHz / sim.declaredRateHz;
+      // A run that stopped itself says why for as long as it stands where it stopped, in red.
+      const stopped = stoppedHere(sim);
+      status.setSimulationStatus(
+        stopped ??
+          (sim.paused
+            ? `Paused at ${seconds} s.`
+            : speed > 0.01 && Math.abs(speed - 1) >= 0.05
+              ? `Running, ${seconds} s simulated, at ${speed.toFixed(2)}x life speed.`
+              : `Running, ${seconds} s simulated.`),
+        stopped !== undefined,
+      );
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The keyboard
+// ---------------------------------------------------------------------------------------------
+
+export interface ShortcutHost {
+  readonly runs: StudioRuns;
+  readonly transport: Transport;
+  /** The timeline's buttons, pressed as a click would press them, so a greyed one does nothing. */
+  readonly timeline: {
+    readonly frameBack: HTMLButtonElement;
+    readonly frameForward: HTMLButtonElement;
+    readonly goLive: HTMLButtonElement;
+  };
+  /** Frame the body from where the camera already looks. */
+  frameBody(): void;
+}
+
+/**
+ * Keyboard, as the reference has it: Space for the transport, arrows for a frame, Home for live,
+ * the numbers for the views, and F to frame the body from where the camera already is. A focused
+ * control keeps the keys it acts on -- Space on a checkbox toggles it, the arrows move a slider --
+ * and gives the rest to these.
+ */
+export function wireShortcuts(host: ShortcutHost): void {
+  const { runs, timeline } = host;
+  const { start, pause } = host.transport.buttons;
+  window.addEventListener('keydown', (event) => {
+    // Space on Start or Pause is the transport, not the button. The button would otherwise take
+    // it as a press, and a press of Start on a live run is Restart: after a mouse click on Start,
+    // focus stayed on it, and the Space meant to pause threw the run away instead.
+    if (event.key === ' ' && (event.target === start || event.target === pause)) {
+      event.preventDefault();
+      if (!event.repeat) runs.toggleTransport();
+      return;
+    }
+    if (keyOwnedByTarget(event.target, event.key)) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    switch (event.key) {
+      case ' ':
+        event.preventDefault();
+        // Held down, Space repeats; a transport that toggled at the key-repeat rate would flicker
+        // between paused and running and land wherever the finger happened to lift.
+        if (event.repeat) return;
+        runs.toggleTransport();
+        break;
+      case 'ArrowLeft':
+        if (!timeline.frameBack.disabled) timeline.frameBack.click();
+        break;
+      case 'ArrowRight':
+        if (!timeline.frameForward.disabled) timeline.frameForward.click();
+        break;
+      case 'Home':
+        if (!timeline.goLive.disabled) timeline.goLive.click();
+        break;
+      case '1':
+        window.document.querySelector<HTMLButtonElement>('[data-view="front"]')?.click();
+        break;
+      case '3':
+        window.document.querySelector<HTMLButtonElement>('[data-view="left"]')?.click();
+        break;
+      case '7':
+        window.document.querySelector<HTMLButtonElement>('[data-view="three-quarter"]')?.click();
+        break;
+      case '9':
+        window.document.querySelector<HTMLButtonElement>('[data-view="back"]')?.click();
+        break;
+      case 'f':
+      case 'F':
+        host.frameBody();
+        break;
+      default:
+        return;
+    }
+  });
+  // A button activates on Space's release, so the keydown above is not enough on its own to keep
+  // Start from being pressed by the Space that paused the run.
+  window.addEventListener('keyup', (event) => {
+    if (event.key === ' ' && (event.target === start || event.target === pause)) {
+      event.preventDefault();
+    }
+  });
+}
