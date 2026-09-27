@@ -555,6 +555,87 @@ describe('what the geodesic solver refuses', () => {
     expect(report.problems.some((p) => p.message.includes('positive radius'))).toBe(true);
   });
 
+  /**
+   * The length of the same path with no wrap at all: what a refused surface must leave behind.
+   *
+   * KNUCKLE sits squarely on this line of action, so a sphere of its radius really does lengthen
+   * the path. That is what makes these tests mean something: a solver that quietly treated the
+   * refused shape as that sphere would come out measurably longer than this.
+   */
+  const unwrapped = () => solved([{ ...wrappingPath('none'), elements: [] }], [], 0);
+
+  it('the knuckle these refusals borrow really would wrap, if it were a sphere', () => {
+    const sphere = solved([wrappingPath('knuckle')], [KNUCKLE], 0).length[0] as number;
+    expect(sphere).toBeGreaterThan((unwrapped().length[0] as number) + 1e-4);
+  });
+
+  it('runs a span straight past an ellipsoid, rather than solving it as a sphere', () => {
+    // The surface carries a radius as well as its semi-axes, which is exactly the case that used
+    // to be wrapped as a sphere of that radius: a plausible length for a shape nobody declared.
+    const ellipsoid: WrapSurface = {
+      ...KNUCKLE,
+      id: 'ellipsoid',
+      type: 'ellipsoid',
+      semiAxes: { x: 0.05, y: 0.03, z: 0.04 },
+    };
+    const { report, length, contacts } = solved([wrappingPath('ellipsoid')], [ellipsoid], 0);
+    expect(length[0]).toBeCloseTo(unwrapped().length[0] as number, 12);
+    expect(contacts.count).toBe(0);
+    // Reported twice, and both matter: once against the surface for what it is, once against the
+    // path for what it cost.
+    expect(report.problems.some((p) => p.path === 'ellipsoid' && p.severity === 'error')).toBe(
+      true,
+    );
+    expect(
+      report.problems.some(
+        (p) => p.path === 'wrapped' && p.severity === 'error' && p.message.includes('straight'),
+      ),
+    ).toBe(true);
+    // No arc is budgeted for a span that can never wrap.
+    expect(report.polylineCapacity).toBe(2);
+  });
+
+  it('runs a span straight past a torus, and says it is a torus', () => {
+    const torus: WrapSurface = { ...KNUCKLE, id: 'torus', type: 'torus' };
+    const { report, length } = solved([wrappingPath('torus')], [torus], 0);
+    expect(length[0]).toBeCloseTo(unwrapped().length[0] as number, 12);
+    const own = report.problems.find((p) => p.path === 'torus');
+    expect(own?.message).toContain("'torus'");
+    expect(own?.message).not.toContain('ellipsoid');
+  });
+
+  it('runs a span straight past a surface with no radius, or on a bone that is not there', () => {
+    const flat: WrapSurface = { ...KNUCKLE, id: 'flat', radius: 0 };
+    const stray: WrapSurface = { ...KNUCKLE, id: 'stray', bone: 'nowhere' };
+    const straight = unwrapped().length[0] as number;
+    for (const surface of [flat, stray]) {
+      const { report, length } = solved([wrappingPath(surface.id)], [surface], 0);
+      expect(length[0], surface.id).toBeCloseTo(straight, 12);
+      expect(
+        report.problems.some((p) => p.path === 'wrapped' && p.severity === 'error'),
+        surface.id,
+      ).toBe(true);
+    }
+  });
+
+  it('still refuses two wraps in a span when the first of them is refused', () => {
+    // Refusing the ellipsoid leaves the span with no surface, but the data still asks for two
+    // surfaces in one span, and quietly wrapping the second would hide that it does.
+    const ellipsoid: WrapSurface = { ...KNUCKLE, id: 'ellipsoid', type: 'ellipsoid' };
+    const path: MusclePath = {
+      ...STRAIGHT,
+      id: 'greedy',
+      elements: [
+        { kind: 'wrap', surface: 'ellipsoid' },
+        { kind: 'wrap', surface: 'trochlea' },
+      ],
+    };
+    const { report } = solved([path], [ellipsoid, TROCHLEA], 0);
+    expect(report.problems.some((p) => p.message.includes('N1.5') && p.path === 'greedy')).toBe(
+      true,
+    );
+  });
+
   it('reports a wrap element naming a surface nobody declared', () => {
     const { report } = solved([wrappingPath('imaginary')], [], 0);
     expect(report.problems[0]?.message).toContain('not declared');

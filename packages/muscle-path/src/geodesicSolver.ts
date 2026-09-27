@@ -116,7 +116,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
     this.pathIds = [];
 
     const index = new Map(surfaces.map((s, i) => [s.id, i]));
-    this.packSurfaces(surfaces, problems);
+    const usable = this.packSurfaces(surfaces, problems);
 
     let longest = 0;
     for (const path of paths) {
@@ -125,10 +125,15 @@ export class GeodesicPathSolver implements IMusclePathSolver {
       const sites = [path.origin];
       const perSpan: number[] = [];
       let pending = NO_SURFACE;
+      // Whether this span has named a wrap at all, usable or not. Kept apart from `pending`
+      // because a refused surface leaves `pending` empty, and a second wrap after it is still two
+      // wraps in one span: the data asks for N1.5 whether or not the first surface could be built.
+      let spanWrapped = false;
 
       const closeSpan = () => {
         perSpan.push(pending);
         pending = NO_SURFACE;
+        spanWrapped = false;
       };
 
       for (const element of path.elements) {
@@ -142,7 +147,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
             });
             continue;
           }
-          if (pending !== NO_SURFACE) {
+          if (spanWrapped) {
             problems.push({
               path: path.id,
               severity: 'error',
@@ -151,6 +156,21 @@ export class GeodesicPathSolver implements IMusclePathSolver {
                 'them together is the multi-surface problem of N1.5; this solver takes one ' +
                 'surface per span, and reports it rather than routing round each in turn, ' +
                 'which would not give the shortest path.',
+            });
+            continue;
+          }
+          spanWrapped = true;
+          if (!usable[found]) {
+            // The surface's own defect is already reported against the surface. This says what
+            // it costs the path: the span runs straight through where the surface should be,
+            // shorter than the truth, rather than around a sphere substituted for a shape that
+            // is not one. A wrong length that says so beats a plausible one that does not.
+            problems.push({
+              path: path.id,
+              severity: 'error',
+              message:
+                `wrap element names surface '${element.surface}', which this solver cannot ` +
+                "wrap around (see that surface's own report), so the span runs straight.",
             });
             continue;
           }
@@ -213,8 +233,18 @@ export class GeodesicPathSolver implements IMusclePathSolver {
     };
   }
 
-  /** Flatten the surfaces, rotating each declared side into its own surface's frame. */
-  private packSurfaces(surfaces: readonly WrapSurface[], problems: PathCompileProblem[]): void {
+  /**
+   * Flatten the surfaces, rotating each declared side into its own surface's frame.
+   *
+   * Returns, per surface, whether a path may wrap around it. One that may not is still packed, so
+   * the tables stay indexed by declaration order, but `compile` never attaches it to a span: a
+   * shape this solver cannot represent is reported and straight-lined, never quietly solved as
+   * the sphere its radius would otherwise have made it.
+   */
+  private packSurfaces(
+    surfaces: readonly WrapSurface[],
+    problems: PathCompileProblem[],
+  ): boolean[] {
     const n = surfaces.length;
     this.surfaceBody = new Int32Array(n);
     this.surfaceKind = new Int32Array(n);
@@ -223,34 +253,63 @@ export class GeodesicPathSolver implements IMusclePathSolver {
     this.surfaceRadius = new Float64Array(n);
     this.surfaceHalfLength = new Float64Array(n);
     this.surfaceSide = new Float64Array(3 * n);
+    const usable: boolean[] = [];
 
     for (let i = 0; i < n; i++) {
       const surface = surfaces[i] as WrapSurface;
+      let valid = true;
       const body = this.resolver.bodyOf(surface.bone);
       if (body < 0) {
+        valid = false;
         problems.push({
           path: surface.id,
           severity: 'error',
           message: `wrap surface is attached to bone '${surface.bone}', which is not present.`,
         });
       }
-      if (surface.type !== 'sphere' && surface.type !== 'cylinder') {
+      if (surface.type === 'ellipsoid') {
+        valid = false;
         problems.push({
           path: surface.id,
           severity: 'error',
           message:
-            `wrap surface is a '${surface.type}', which this solver cannot represent. An ` +
-            'ellipsoid has no closed-form geodesic; see OQ-016 and ticket N1.5.',
+            "wrap surface is an 'ellipsoid', which this solver cannot represent. An ellipsoid " +
+            'has no closed-form geodesic; see OQ-016 and ticket N1.5. Paths that wrap it run ' +
+            'straight.',
+        });
+      } else if (surface.type === 'torus') {
+        valid = false;
+        problems.push({
+          path: surface.id,
+          severity: 'error',
+          message:
+            "wrap surface is a 'torus', which this solver cannot represent. The muscle spec " +
+            '(section 4.3) reserves it for muscles routing round a groove, and nothing here wraps ' +
+            'one yet. Paths that wrap it run straight.',
+        });
+      } else if (surface.type !== 'sphere' && surface.type !== 'cylinder') {
+        // Unreachable while `WrapSurfaceType` has four members, and here so a fifth cannot slip
+        // through as a sphere the day it is added.
+        valid = false;
+        problems.push({
+          path: surface.id,
+          severity: 'error',
+          message: `wrap surface is a '${surface.type}', which this solver cannot represent.`,
         });
       }
       const radius = surface.radius ?? 0;
-      if (!(radius > 0)) {
+      // Only asked of the shapes a radius describes. An ellipsoid carries semi-axes instead, and
+      // saying it has no radius as well would be a second complaint about the same defect.
+      const round = surface.type === 'sphere' || surface.type === 'cylinder';
+      if (round && !(radius > 0)) {
+        valid = false;
         problems.push({
           path: surface.id,
           severity: 'error',
           message: 'wrap surface has no positive radius, so there is nothing to wrap around.',
         });
       }
+      usable.push(valid);
 
       this.surfaceBody[i] = body;
       this.surfaceKind[i] = surface.type === 'cylinder' ? CYLINDER : SPHERE;
@@ -279,6 +338,7 @@ export class GeodesicPathSolver implements IMusclePathSolver {
       this.surfaceSide[3 * i + 1] = side.y - sw * ty + (sz * tx - sx * tz);
       this.surfaceSide[3 * i + 2] = side.z - sw * tz + (sx * ty - sy * tx);
     }
+    return usable;
   }
 
   solve(
