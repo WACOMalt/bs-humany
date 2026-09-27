@@ -193,8 +193,9 @@ async function heldAt(set: CompiledMuscleSet, lengthOf: (unit: number) => number
 describe('MusclePathModule', () => {
   it('compiles every elbow unit, with nothing it could not represent', async () => {
     const s = await session();
-    // The elbow set declares no wrap surfaces yet (OQ-015), so the via-point solver has no
-    // complaint. When N1.4 lands and the wraps are authored, this is where it will start talking.
+    // The elbow set's wraps are authored and compile cleanly under the geodesic solver: every
+    // surface is a sphere or a cylinder, and no span names two. A surface it had to run straight
+    // past would be an error here, not a quietly shorter muscle.
     expect(s.path.compileReport.pathCount).toBe(UNITS);
     expect(s.path.compileReport.problems).toEqual([]);
     s.kernel.dispose();

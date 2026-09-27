@@ -14,11 +14,17 @@
  *
  * ## What it is not
  *
- * The solver it owns is the via-point solver, which cannot wrap. A muscle whose data declares a
- * wrap surface is reported at compile time and its length is then the length of a path that runs
- * straight through whatever it should have gone around -- shorter than the truth, with the moment
- * arm wrong in exactly the region the surface was placed to correct. The compile report says so;
- * nothing here hides it. N1.4 is the fix.
+ * The solver it owns is the geodesic solver of N1.4, and its limits are this module's limits.
+ * Each span between two attachment points may route around at most one wrap surface; two wraps
+ * with no site between them have to be solved together, which is N1.5's multi-surface problem,
+ * so they are refused at compile time rather than wrapped one after the other. It wraps spheres
+ * and finite cylinders only. An ellipsoid has no closed-form geodesic (OQ-016), so a span that
+ * names one -- or a torus, or a surface with no radius or no bone -- is reported and runs
+ * straight, shorter than the truth, rather than around a sphere substituted for it. Conditional
+ * via points are treated as unconditional, with a warning, until N1.3 adds the blend.
+ *
+ * Every one of those lands in `compileReport.problems`, for whoever reports on the session to
+ * show. Nothing here hides a path it could not solve as declared.
  */
 
 import type { CompiledArticulation, PoseBuffer, VelocityBuffer } from '@bs-humany/compiler';
@@ -60,7 +66,10 @@ export const MUSCLE_PATH_MODULE_ID = 'bsums.xyz.bs-humany.muscle.path';
 export interface MusclePathOptions {
   /** Wrap contacts reportable per tick. Overflow is counted, never dropped silently. */
   readonly contactCapacity?: number;
-  /** A solver other than the default via-point one, once there is one. */
+  /**
+   * Replaces the default geodesic solver (N1.4) -- `ViaPointPathSolver`, for instance, to compare
+   * a set against its straight-line paths.
+   */
   readonly solver?: IMusclePathSolver;
 }
 
@@ -105,7 +114,10 @@ export class MusclePathModule implements SimModule {
   private readonly contacts: PathContactBuffer;
   private readonly polyline: PathPolylineBuffer;
 
-  /** How many contacts the last tick could not fit. Zero in every case the via-point solver sees. */
+  /**
+   * How many wrap contacts the last tick could not fit in `contactCapacity`. Non-zero means the
+   * capacity is too small for the set.
+   */
   contactOverflow = 0;
 
   constructor(
@@ -263,7 +275,7 @@ export class MusclePathModule implements SimModule {
     for (let i = written; i < this.capacity; i++) unit[i] = -1;
   }
 
-  /** How many contacts the last solve reported. Zero until a wrapping solver exists. */
+  /** How many wrap contacts the last solve reported, capped at `contactCapacity`. */
   get contactCount(): number {
     return Math.min(this.contacts.count, this.capacity);
   }

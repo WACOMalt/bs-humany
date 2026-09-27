@@ -40,7 +40,7 @@ export function validateMuscleExtension(
 ): MuscleValidationReport {
   const problems: MuscleReferenceProblem[] = [];
   const sites = new Map(document.attachmentSites.map((s) => [s.id, s]));
-  const surfaces = new Set((document.wrappingSurfaces ?? []).map((s) => s.id));
+  const surfaces = new Map((document.wrappingSurfaces ?? []).map((s) => [s.id, s]));
   const unitIds = new Set<string>();
   let unitCount = 0;
 
@@ -79,8 +79,18 @@ export function validateMuscleExtension(
 
       for (const element of unit.path) {
         if (element.kind === 'wrap') {
-          if (!surfaces.has(element.surface)) {
+          const surface = surfaces.get(element.surface);
+          if (surface === undefined) {
             report(`wraps surface '${element.surface}', which this document does not define.`);
+          } else if (surface.shape.kind === 'ellipsoid') {
+            // The schema admits the ellipsoid so published models can be written down, and
+            // promises that a path naming one is refused rather than approximated (OQ-016). The
+            // path solver keeps that promise at compile time by running the span straight; this
+            // keeps it at load, against the muscle that asked, before anything is solved.
+            report(
+              `wraps surface '${element.surface}', an ellipsoid. No solver here can wrap an ` +
+                'ellipsoid (OQ-016), so the path would run straight through it.',
+            );
           }
           continue;
         }
