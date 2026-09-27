@@ -91,6 +91,24 @@ const CONTACTS: readonly ContactTarget[] = [
     feature: 'Head_of_talus__contact_centre',
     description: 'Where the talar head meets the navicular: the talonavicular joint centre',
   },
+  // The thumb's saddle and the second ray's tarsometatarsal were placed where the two bones'
+  // bounding boxes meet along one axis, at the distal bone's centroid on the other two. For a bone
+  // that points along two axes at once that is not the joint: the thumb's centre came out 20 mm
+  // from the base of its own metacarpal, 17.5 mm of it lateral, and the tarsometatarsal's 10.6 mm
+  // off. Both are joints between two surfaces, which is what a contact centre measures.
+  {
+    a: 'trapezium',
+    b: 'metacarpal_1',
+    feature: 'Metacarpal_facet__contact_centre',
+    description: 'Where the trapezium meets the first metacarpal: the thumb carpometacarpal centre',
+  },
+  {
+    a: 'cuneiform_intermediate',
+    b: 'metatarsal_2',
+    feature: 'Metatarsal_facet__contact_centre',
+    description:
+      'Where the intermediate cuneiform meets the second metatarsal: the tarsometatarsal centre',
+  },
 ];
 
 /** Vertex pairs no further apart than the closest pair plus this count as touching, metres. */

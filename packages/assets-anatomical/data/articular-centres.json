@@ -137,6 +137,70 @@
    "gap": 0.001023,
    "pairs": 123,
    "rule": "midpoint of every vertex pair within 2 mm of the closest approach between talus_l and navicular_l"
+  },
+  {
+   "bones": [
+    "trapezium_r",
+    "metacarpal_1_r"
+   ],
+   "feature": "Metacarpal_facet__contact_centre",
+   "description": "Where the trapezium meets the first metacarpal: the thumb carpometacarpal centre",
+   "centre": [
+    0.287986,
+    0.834424,
+    -0.027672
+   ],
+   "gap": 0.000472,
+   "pairs": 54,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between trapezium_r and metacarpal_1_r"
+  },
+  {
+   "bones": [
+    "trapezium_l",
+    "metacarpal_1_l"
+   ],
+   "feature": "Metacarpal_facet__contact_centre",
+   "description": "Where the trapezium meets the first metacarpal: the thumb carpometacarpal centre",
+   "centre": [
+    -0.287986,
+    0.834424,
+    -0.027672
+   ],
+   "gap": 0.000472,
+   "pairs": 54,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between trapezium_l and metacarpal_1_l"
+  },
+  {
+   "bones": [
+    "cuneiform_intermediate_r",
+    "metatarsal_2_r"
+   ],
+   "feature": "Metatarsal_facet__contact_centre",
+   "description": "Where the intermediate cuneiform meets the second metatarsal: the tarsometatarsal centre",
+   "centre": [
+    0.087782,
+    0.04854,
+    -0.018559
+   ],
+   "gap": 0.00037,
+   "pairs": 140,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between cuneiform_intermediate_r and metatarsal_2_r"
+  },
+  {
+   "bones": [
+    "cuneiform_intermediate_l",
+    "metatarsal_2_l"
+   ],
+   "feature": "Metatarsal_facet__contact_centre",
+   "description": "Where the intermediate cuneiform meets the second metatarsal: the tarsometatarsal centre",
+   "centre": [
+    -0.087783,
+    0.04854,
+    -0.018559
+   ],
+   "gap": 0.00037,
+   "pairs": 140,
+   "rule": "midpoint of every vertex pair within 2 mm of the closest approach between cuneiform_intermediate_l and metatarsal_2_l"
   }
  ]
 }
