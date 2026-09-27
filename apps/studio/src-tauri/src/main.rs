@@ -1,9 +1,38 @@
-// The desktop shell around the studio, and it is deliberately only that.
+// The desktop shell around the studio, and it is deliberately little more than that.
 //
 // Everything the application does happens in the web view: the same bundle `pnpm build:studio`
-// produces and the container serves, embedded in the binary rather than fetched. No Tauri
-// commands, no plugins, no filesystem or shell access handed to the page -- a body simulator has
-// nothing to ask the host for, and the smallest surface is the one with nothing on it.
+// produces and the container serves, embedded in the binary rather than fetched. What the page can
+// ask the host for is the list of commands registered in `main()` at the bottom of this file, in
+// five families. None of them takes a path from the page, and each is bounded so that a page doing
+// its worst reaches only what that family is for:
+//
+// - File dialogs: `save_file`, `save_file_set`, `open_text_file`. A web view has no download
+//   handler and no file chooser, so saving and loading go through a native dialog. The page
+//   supplies the bytes and bare file names, and the dialog picks the path; the page never names
+//   one and never learns the one chosen. `save_file_set` refuses any name that is not a plain file
+//   name, so it cannot write outside the folder that was picked.
+// - The VR bridge: `bridge_claim`, `bridge_release`, `bridge_create`, `bridge_write`,
+//   `bridge_text`, `bridge_read_pair`, `bridge_commands`, `bridge_close`, `bridge_clear`. Fixed
+//   files under `/dev/shm/bs-humany-studio` and nothing else: a ring is one of `BRIDGE_NAMES` (the
+//   pose ring, `-muscles`, `-grab`), a text file is the `.json` or `-status.json` suffix, and the
+//   command log and the single-writer claim have names of their own. A ring is at most
+//   `BRIDGE_MAX_BYTES`, and every write in a batch is checked to lie inside the file at the length
+//   it was created with before any of them is made. Quitting clears the bridge only if this process
+//   claimed it.
+// - Checkpoints: `checkpoint_write`, `checkpoint_read`, `checkpoint_list`. Files under
+//   `data_home()` (which `BS_HUMANY_HOME` overrides), named by the checkpoint rule -- lower-case
+//   letters, digits, `-` and `_`, starting with a letter or a digit, forty at most -- and one of
+//   three kinds, `policy`, `centre` or `latest`, each with a fixed directory and suffix.
+// - The viewer's lifecycle: `xr_viewer_launch`, `xr_viewer_state`, `xr_viewer_stop`. The viewer
+//   binary and the mesh pack come from `BS_HUMANY_XR_VIEWER` and `BS_HUMANY_PACK_DIR`, from beside
+//   the executable, or from the checkout -- never from the page -- and the arguments it is started
+//   with are fixed. `xr_viewer_state` reports whether it runs and, once it has stopped, its exit
+//   code or signal and the last lines it printed. It is killed when the studio exits.
+// - `studio_log`: a line from the page onto this process's stderr, and nowhere else.
+//
+// The dialog plugin is registered for its Rust side alone. There is no capabilities file, so none
+// of the plugin's own commands is reachable from JavaScript, and neither is any filesystem or
+// shell access beyond the commands above.
 //
 // `windows_subsystem` keeps a console from opening behind the window on Windows. This crate is
 // built for Linux today and the attribute costs nothing there.
@@ -916,8 +945,8 @@ fn main() {
     prefer_a_window_that_opens();
 
     tauri::Builder::default()
-        // The dialog plugin is here for its Rust side only: the two commands above call it, and
-        // the page cannot. Nothing of it is exposed to JavaScript.
+        // The dialog plugin is here for its Rust side only: the three dialog commands above call
+        // it, and the page cannot. None of its own commands is exposed to JavaScript.
         .plugin(tauri_plugin_dialog::init())
         .manage(Bridges::default())
         .invoke_handler(tauri::generate_handler![
