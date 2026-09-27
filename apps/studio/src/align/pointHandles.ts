@@ -14,7 +14,6 @@
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
-import { transformPoint } from '@bs-humany/frames';
 import {
   BufferGeometry,
   type Camera,
@@ -25,6 +24,7 @@ import {
   PointsMaterial,
   Vector3,
 } from 'three';
+import { restJointCentre } from './ourBody.js';
 
 export type HandleKind = 'joints' | 'sites';
 
@@ -103,8 +103,7 @@ export class PointHandles {
     for (const joint of model.joints) {
       const parent = model.segments[joint.parentSegment];
       if (!parent) continue;
-      const p = transformPoint(parent.restWorld, joint.frameInParent.translation);
-      const world = new Vector3(p.x, p.y, p.z);
+      const world = restJointCentre(model, joint, 'parent');
       out.push({
         id: joint.id,
         kind: 'joints',
@@ -116,14 +115,26 @@ export class PointHandles {
     return out;
   }
 
-  /** Every muscle attachment, in the world at rest, from the compiled muscle set. */
+  /**
+   * Every muscle attachment, in the world at rest, from the compiled muscle set.
+   *
+   * A site is kept when the segment carrying it is in this body. Sites from `attachmentSites`
+   * name that segment; a site that names only its bone is taken to be on the segment of the same
+   * name, which is all an anchor bone can be. The handle is on the bone either way, because the
+   * bone is what an override of the site has to name.
+   */
   static sitesOf(
     model: CompiledArticulation,
-    sites: readonly { id: string; bone: string; world: { x: number; y: number; z: number } }[],
+    sites: readonly {
+      id: string;
+      bone: string;
+      segment?: string;
+      world: { x: number; y: number; z: number };
+    }[],
   ): Handle[] {
     const known = new Set(model.segments.map((s) => s.id));
     return sites
-      .filter((s) => known.has(s.bone))
+      .filter((s) => known.has(s.segment ?? s.bone))
       .map((s) => {
         const world = new Vector3(s.world.x, s.world.y, s.world.z);
         return { id: s.id, kind: 'sites' as const, on: s.bone, world, original: world.clone() };

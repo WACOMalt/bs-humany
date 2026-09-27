@@ -19,14 +19,21 @@ import { Object3D } from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { DRAG_THRESHOLD } from '../orbit.js';
 import { TAB_CHANGE } from '../ui/tabs.js';
+import { describeFits } from './fit.js';
 import { type Move, PointHandles } from './pointHandles.js';
-import { type BodyPair, fitBodies, retargetPath, suggestBodyPairs } from './retarget.js';
+import {
+  type BodyPair,
+  fitBodies,
+  fittedFromPlacement,
+  retargetPath,
+  suggestBodyPairs,
+} from './retarget.js';
 import {
   NEUTRAL as NEUTRAL_PLACEMENT,
   type Placement,
   SourceOverlay,
   type SourceSites,
-  Z_UP_TO_Y_UP,
+  defaultPlacement,
 } from './sourceOverlay.js';
 
 export interface Pair {
@@ -47,16 +54,29 @@ export interface AlignHost {
    * Our joints touching a segment: where each sits at rest, and the segment on the other side.
    *
    * The other side is what lets a joint of theirs be matched to one of ours -- both models agree
-   * a hip is a hip, so the joint between two paired bones is the same joint in both.
+   * a hip is a hip, so the joint between two paired bones is the same joint in both. The pure
+   * answer is `jointsOnSegment` in `ourBody.ts`, which a host can hand straight through.
    */
   jointsOn(segment: string): readonly {
     at: import('three').Vector3;
     other: string;
-    /** The joint's own hinge axes in the world, for settling a bone's roll. */
+    /**
+     * The joint's own hinge axes in the world. Nothing reads them any more: settling a bone's
+     * roll by them measured worse than inheriting it (see `fit.ts`). They stay in the shape until
+     * the host hands `jointsOnSegment` through.
+     */
     axes: import('three').Vector3[];
   }[];
-  /** Attachment sites in the world at rest. */
-  sites(): readonly { id: string; bone: string; world: { x: number; y: number; z: number } }[];
+  /**
+   * Attachment sites in the world at rest; `attachmentSites` in `ourBody.ts` is the pure answer.
+   * `segment`, when given, is the segment carrying the site's bone.
+   */
+  sites(): readonly {
+    id: string;
+    bone: string;
+    segment?: string;
+    world: { x: number; y: number; z: number };
+  }[];
   /** Light up one of our segments in the viewport, or clear it with undefined. */
   highlightSegment(id: string | undefined): void;
   /** Hand a file to the user, however this studio does that. */
@@ -183,7 +203,16 @@ export function createAlignPanel(
   const slider = (id: string) => must<HTMLInputElement>(`#align-${id}`);
   const PLACE: (keyof Placement)[] = ['x', 'y', 'z', 'rx', 'ry', 'rz', 'scale'];
 
-  let placement: Placement = { ...Z_UP_TO_Y_UP };
+  let placement: Placement = defaultPlacement(ui.model.value);
+  /**
+   * The placement the model had before it was redrawn on our bones, while it is.
+   *
+   * A redraw sets the placement to neutral, since the fits carry everything into our space
+   * themselves. So the placement a redraw has to start from -- the model's turn, which the bones
+   * with nothing fitted above them inherit -- is the one from before the first redraw, not the
+   * neutral one a second redraw would otherwise read.
+   */
+  let beforeRetarget: Placement | undefined;
   const pairs: Pair[] = [];
   const moves: Move[] = [];
   /** Whether the overlay is currently on our bones rather than in their own world. */
@@ -224,7 +253,8 @@ export function createAlignPanel(
   for (const key of PLACE) {
     slider(key).addEventListener('input', () => {
       // Moving the whole model once it is on our bones would take it back off them, so the
-      // first nudge of a slider drops the retarget and puts their own geometry back.
+      // first nudge of a slider drops the retarget and puts their own geometry back, where it
+      // was placed before the redraw; the slider being dragged carries on from there.
       if (retargeted) {
         retargeted = false;
         showModel();
@@ -232,11 +262,25 @@ export function createAlignPanel(
       applyPlacement(readSliders());
     });
   }
-  ui.reset.addEventListener('click', () => applyPlacement({ ...Z_UP_TO_Y_UP }));
+  // The model's own default, not one shared by all: a Z-up model and a Y-up one need different
+  // turns to stand up in ours, and one turn for both laid the arm on the floor.
+  ui.reset.addEventListener('click', () => {
+    if (retargeted) {
+      retargeted = false;
+      showModel();
+    }
+    applyPlacement(defaultPlacement(ui.model.value));
+  });
 
   const showModel = (): void => {
     const model = ui.model.value;
     retargeted = false;
+    // Leaving a redraw puts the model back where it was placed before it.
+    if (beforeRetarget) {
+      placement = beforeRetarget;
+      writeSliders(placement);
+      beforeRetarget = undefined;
+    }
     overlay.clear();
     if (model) overlay.show(model);
     overlay.visible = ui.show.checked && model !== '';
@@ -250,7 +294,15 @@ export function createAlignPanel(
     fillTheirs();
     fillBones();
   };
-  ui.model.addEventListener('change', showModel);
+  // A newly picked model starts from its own default placement: the last model's placement, or
+  // its turn, means nothing for a model in other axes.
+  ui.model.addEventListener('change', () => {
+    beforeRetarget = undefined;
+    retargeted = false;
+    placement = defaultPlacement(ui.model.value);
+    writeSliders(placement);
+    showModel();
+  });
   ui.show.addEventListener('change', () => {
     overlay.visible = ui.show.checked && ui.model.value !== '';
   });
@@ -625,7 +677,18 @@ export function createAlignPanel(
     const articulation = host.articulation();
     const list = bonesFor(ui.model.value);
     if (!model || !articulation || list.length === 0) return;
-    const fits = fitBodies(model, list, articulation, (segment) => host.jointsOn(segment));
+    // Read before the placement goes to neutral below. A bone with nothing fitted above it takes
+    // the model's placement, so it keeps the turn that stood the model up rather than the
+    // identity, which left it lying in their axes.
+    const placedAt = beforeRetarget ?? placement;
+    const result = fitBodies(
+      model,
+      list,
+      articulation,
+      (segment) => host.jointsOn(segment),
+      fittedFromPlacement(placedAt),
+    );
+    const { fits } = result;
     const paths = new Map<string, readonly number[]>();
     let dropped = 0;
     for (const muscle of model.muscles) {
@@ -640,6 +703,7 @@ export function createAlignPanel(
     // Everything is in our space now, so the model transform must not move it again. The
     // sliders follow, rather than silently disagreeing with what is on screen.
     applyPlacement({ ...NEUTRAL_PLACEMENT });
+    beforeRetarget = placedAt;
     retargeted = true;
     // A redraw nobody can see is the same as no redraw: whichever layer was off comes on.
     if (!ui.show.checked) {
@@ -650,26 +714,10 @@ export function createAlignPanel(
     overlay.bonesVisible = ui.showBones.checked;
     // What each fit rested on, because a fit from five matched joints and one that inherited its
     // parent's roll are not the same claim, and the note should not flatten them together.
-    const all = [...fits.values()];
-    const full = all.filter((f) => f.kind === 'kabsch');
-    const axis = all.filter((f) => f.kind.startsWith('axis and'));
-    const inherited = all.filter((f) => f.kind === 'inherited' || f.kind === 'model');
-    const ratios = all.map((f) => f.scale).sort((a, b) => a - b);
-    const residuals = full.map((f) => f.residual ?? 0).sort((a, b) => a - b);
     ui.fitNote.textContent =
       `${paths.size} of ${model.muscles.length} muscles redrawn on our bones` +
       (dropped ? `; ${dropped} left out, a bone they run over is not paired yet` : '') +
-      `. ${full.length} bones fitted from three joints or more` +
-      (residuals.length
-        ? ` (worst ${(residuals[residuals.length - 1] as number).toFixed(1)} mm out)`
-        : '') +
-      (axis.length ? `, ${axis.length} from two with the roll off the hinges` : '') +
-      (inherited.length ? `, ${inherited.length} inherited whole` : '') +
-      (ratios.length
-        ? `. Scale ${(ratios[0] as number).toFixed(2)}x to ` +
-          `${(ratios[ratios.length - 1] as number).toFixed(2)}x, ` +
-          `median ${(ratios[Math.floor(ratios.length / 2)] as number).toFixed(2)}x.`
-        : '.');
+      `. ${describeFits(result, model.bodies)}`;
   };
   ui.retarget.addEventListener('click', doRetarget);
   ui.saveBones.addEventListener('click', () => {

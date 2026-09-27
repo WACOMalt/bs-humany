@@ -13,32 +13,50 @@
  *
  * How much that determines depends on how many joints a bone has:
  *
- * - **three or more** and the fit is complete: a rotation, a scale and a translation, by
- *   Kabsch. A femur has the hip, the knee and the patella, so a femur is fully determined.
+ * - **three or more**, not all on one line, and the fit is complete: a rotation, a scale and a
+ *   translation, by Horn's method. A pelvis in a model that carries both hips and the
+ *   lumbosacral joint is fully determined.
  * - **two** gives the bone's long axis and its length but leaves the roll about that axis free.
- *   The roll is settled by the joint *axes*: a knee hinges about the same anatomical line in
- *   both models, so the roll that best lines their hinges up with ours is the right one. They
- *   are matched as unordered sets rather than by name, because the naming is exactly what does
- *   not correspond between the two models. Failing that -- a bone whose joints state no axes --
- *   the parent's roll is kept, which is right whenever a bone is not twisted against the one
- *   above it.
+ *   The roll is kept from the bone above, which is right whenever a bone is not twisted against
+ *   the one above it; at the top of the chain, where there is no bone above, it is taken from the
+ *   model's placement, which is what stands the model up in our axes in the first place. The
+ *   joint *axes* looked like the better evidence and were tried: a knee hinges about the same
+ *   anatomical line in both models. But their joints carry slides and coupled degrees of freedom
+ *   beside the hinges, and matching those as axes measured worse -- the knee 25 degrees off and
+ *   the pelvis upside down -- so they are not used.
  * - **one** gives a position and nothing else; the parent's rotation and scale are inherited
  *   whole.
- * - **none** leaves the bone where the model's overall scale puts it.
+ * - **none** leaves the bone where the bone above it puts it: the parent's placement entire, or
+ *   the model's own placement for a bone with nothing fitted above it.
  *
  * Every fit says which of those happened, because a fit from two points and a fit from five are
  * not the same claim and a person choosing whether to trust one should be told which they have.
  */
 
-import { Matrix3, Quaternion, Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 
 export type FitKind =
   | 'kabsch'
-  | 'axis and hinge roll'
   | 'axis and inherited roll'
   | 'axis and inherited scale'
   | 'inherited'
   | 'model';
+
+/**
+ * What each kind of fit rested on, in the words the fit note uses.
+ *
+ * A record over the whole union rather than a switch, so a kind added to `FitKind` without words
+ * of its own fails the typecheck instead of printing nothing. `kabsch` is still called that for
+ * the family of fits it names -- the rotation that best carries one cloud of points onto another
+ * -- whichever algorithm finds it.
+ */
+export const FIT_KIND_NOTE: Readonly<Record<FitKind, string>> = {
+  kabsch: 'from three joints or more',
+  'axis and inherited roll': 'from two joints, roll from the bone above',
+  'axis and inherited scale': 'from two joints, too short to size, size from the bone above',
+  inherited: 'placed at one joint, turned and sized as the bone above',
+  model: 'with no matched joint',
+};
 
 export interface Fitted {
   readonly rotation: Quaternion;
@@ -52,72 +70,95 @@ export interface Fitted {
 }
 
 /**
- * The rotation nearest a 3x3 matrix, by Newton's polar decomposition.
+ * The rotation that best carries one centred cloud onto another, by Horn's quaternion method.
  *
- * `R <- (R + R^-T) / 2` converges on the orthogonal factor quickly -- a handful of steps is
- * plenty at this size -- and needs no singular value decomposition, which is a great deal of
- * code to carry for one use. A negative determinant would be a reflection rather than a
- * rotation, which no arrangement of bones can be, so it is refused.
+ * Horn (1987), "Closed-form solution of absolute orientation using unit quaternions", J. Opt.
+ * Soc. Am. A 4(4):629-642: the best rotation is the unit quaternion along the eigenvector of the
+ * largest eigenvalue of a symmetric 4x4 matrix built from the cross-covariance `S`, where
+ * `S[j][k]` sums their coordinate j against our coordinate k.
+ *
+ * This replaced the polar decomposition of `S`, which inverts it on every step and so needs it to
+ * have full rank. Three points are always in one plane and so are four that happen to be; their
+ * `S` has rank two, the inverse does not exist, and three joints -- the commonest case there is
+ * after two -- came out 170 mm wrong or not at all. Horn's matrix has a single largest eigenvalue
+ * whenever the points are not on one line, planar or not, and its eigenvector is a rotation by
+ * construction, never a reflection.
  */
-function nearestRotation(m: Matrix3): Matrix3 | undefined {
-  const r = m.clone();
-  for (let i = 0; i < 24; i++) {
-    const inverseTranspose = r.clone().invert().transpose();
-    const next = new Matrix3();
-    for (let k = 0; k < 9; k++) {
-      next.elements[k] =
-        0.5 * ((r.elements[k] as number) + (inverseTranspose.elements[k] as number));
-    }
-    let delta = 0;
-    for (let k = 0; k < 9; k++) {
-      delta += Math.abs((next.elements[k] as number) - (r.elements[k] as number));
-    }
-    r.copy(next);
-    if (delta < 1e-12) break;
-  }
-  return r.determinant() > 0 ? r : undefined;
+function hornRotation(s: readonly (readonly number[])[]): Quaternion {
+  const at = (j: number, k: number): number => (s[j] as readonly number[])[k] as number;
+  const [xx, xy, xz] = [at(0, 0), at(0, 1), at(0, 2)];
+  const [yx, yy, yz] = [at(1, 0), at(1, 1), at(1, 2)];
+  const [zx, zy, zz] = [at(2, 0), at(2, 1), at(2, 2)];
+  const n = [
+    [xx + yy + zz, yz - zy, zx - xz, xy - yx],
+    [yz - zy, xx - yy - zz, xy + yx, zx + xz],
+    [zx - xz, xy + yx, -xx + yy - zz, yz + zy],
+    [xy - yx, zx + xz, yz + zy, -xx - yy + zz],
+  ];
+  const { values, vectors } = symmetricEigen(n);
+  let best = 0;
+  for (let i = 1; i < 4; i++) if ((values[i] as number) > (values[best] as number)) best = i;
+  const column = (row: number): number => (vectors[row] as number[])[best] as number;
+  // Horn's quaternion is w first; three's is w last.
+  return new Quaternion(column(1), column(2), column(3), column(0)).normalize();
 }
 
-const quatFrom = (m: Matrix3): Quaternion => {
-  const e = m.elements;
-  // three's Matrix3 is column-major; Quaternion.setFromRotationMatrix wants a Matrix4.
-  const q = new Quaternion();
-  const trace = (e[0] as number) + (e[4] as number) + (e[8] as number);
-  if (trace > 0) {
-    const s = 0.5 / Math.sqrt(trace + 1);
-    q.set(
-      ((e[5] as number) - (e[7] as number)) * s,
-      ((e[6] as number) - (e[2] as number)) * s,
-      ((e[1] as number) - (e[3] as number)) * s,
-      0.25 / s,
-    );
-  } else if ((e[0] as number) > (e[4] as number) && (e[0] as number) > (e[8] as number)) {
-    const s = 2 * Math.sqrt(1 + (e[0] as number) - (e[4] as number) - (e[8] as number));
-    q.set(
-      0.25 * s,
-      ((e[3] as number) + (e[1] as number)) / s,
-      ((e[6] as number) + (e[2] as number)) / s,
-      ((e[5] as number) - (e[7] as number)) / s,
-    );
-  } else if ((e[4] as number) > (e[8] as number)) {
-    const s = 2 * Math.sqrt(1 + (e[4] as number) - (e[0] as number) - (e[8] as number));
-    q.set(
-      ((e[3] as number) + (e[1] as number)) / s,
-      0.25 * s,
-      ((e[7] as number) + (e[5] as number)) / s,
-      ((e[6] as number) - (e[2] as number)) / s,
-    );
-  } else {
-    const s = 2 * Math.sqrt(1 + (e[8] as number) - (e[0] as number) - (e[4] as number));
-    q.set(
-      ((e[6] as number) + (e[2] as number)) / s,
-      ((e[7] as number) + (e[5] as number)) / s,
-      0.25 * s,
-      ((e[1] as number) - (e[3] as number)) / s,
-    );
+/**
+ * Eigenvalues and eigenvectors of a small symmetric matrix, by cyclic Jacobi rotations.
+ *
+ * Jacobi is the method for this size: each rotation zeroes one off-diagonal entry, a sweep
+ * visits them all, and the off-diagonal mass falls quadratically once it is small, so a 4x4
+ * settles in a handful of sweeps to the last bit. It needs nothing but arithmetic, where a
+ * general eigensolver is a great deal of code to carry for one use. The eigenvectors come back
+ * as the columns of `vectors`.
+ */
+function symmetricEigen(input: readonly (readonly number[])[]): {
+  values: number[];
+  vectors: number[][];
+} {
+  const size = input.length;
+  const a = input.map((row) => [...row]);
+  const v = a.map((_, i) => a.map((__, j) => (i === j ? 1 : 0)));
+  const get = (m: number[][], i: number, j: number): number => (m[i] as number[])[j] as number;
+  const put = (m: number[][], i: number, j: number, x: number): void => {
+    (m[i] as number[])[j] = x;
+  };
+  for (let sweep = 0; sweep < 50; sweep++) {
+    let off = 0;
+    for (let p = 0; p < size; p++) for (let q = p + 1; q < size; q++) off += get(a, p, q) ** 2;
+    if (off < 1e-30) break;
+    for (let p = 0; p < size; p++) {
+      for (let q = p + 1; q < size; q++) {
+        const apq = get(a, p, q);
+        if (Math.abs(apq) < 1e-300) continue;
+        // The angle that zeroes a[p][q], taken as its tangent the numerically stable way.
+        const theta = (get(a, q, q) - get(a, p, p)) / (2 * apq);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1);
+        const sn = t * c;
+        for (let k = 0; k < size; k++) {
+          const akp = get(a, k, p);
+          const akq = get(a, k, q);
+          put(a, k, p, c * akp - sn * akq);
+          put(a, k, q, sn * akp + c * akq);
+        }
+        for (let k = 0; k < size; k++) {
+          const apk = get(a, p, k);
+          const aqk = get(a, q, k);
+          put(a, p, k, c * apk - sn * aqk);
+          put(a, q, k, sn * apk + c * aqk);
+        }
+        for (let k = 0; k < size; k++) {
+          const vkp = get(v, k, p);
+          const vkq = get(v, k, q);
+          put(v, k, p, c * vkp - sn * vkq);
+          put(v, k, q, sn * vkp + c * vkq);
+        }
+      }
+    }
   }
-  return q.normalize();
-};
+  return { values: a.map((_, i) => get(a, i, i)), vectors: v };
+}
 
 /**
  * How long a bone has to be before the ratio of its length to theirs means anything.
@@ -130,9 +171,10 @@ const quatFrom = (m: Matrix3): Quaternion => {
  * right; the question was bad.
  *
  * A bone shorter than this keeps its place -- which the matched joints give exactly -- and takes
- * its size from the bone above, which is a guess but an honest one.
+ * its size from the bone above, which is a guess but an honest one. The whole model's scale is
+ * held to the same line (see `fitBodies`).
  */
-const RELIABLE_SPAN = 0.15;
+export const RELIABLE_SPAN = 0.15;
 
 const centroid = (points: readonly Vector3[]): Vector3 =>
   points
@@ -143,16 +185,14 @@ const centroid = (points: readonly Vector3[]): Vector3 =>
  * Fit one bone from matched points, falling back as far as the evidence runs out.
  *
  * `parent` is the fit already worked out for the bone above, which is where a roll or a whole
- * orientation is inherited from when this bone's own joints cannot say.
+ * orientation is inherited from when this bone's own joints cannot say. `fallbackScale` stands in
+ * for the parent's scale when there is no parent at all.
  */
 export function fitOne(
   theirs: readonly Vector3[],
   ours: readonly Vector3[],
   parent: Fitted | undefined,
   fallbackScale: number,
-  /** Joint axes in each world, for settling the roll a two-point fit leaves free. */
-  theirAxes: readonly Vector3[] = [],
-  ourAxes: readonly Vector3[] = [],
 ): Fitted {
   const n = Math.min(theirs.length, ours.length);
   const inheritedRotation = parent?.rotation.clone() ?? new Quaternion();
@@ -175,19 +215,19 @@ export function fitOne(
 
   const theirMid = centroid(theirs.slice(0, n));
   const ourMid = centroid(ours.slice(0, n));
+  /** Put at the matched point with the parent's turn and size, when nothing better is known. */
+  const placedAtMid = (matched: number): Fitted => ({
+    rotation: inheritedRotation,
+    position: ourMid
+      .clone()
+      .sub(theirMid.clone().multiplyScalar(inheritedScale).applyQuaternion(inheritedRotation)),
+    scale: inheritedScale,
+    kind: 'inherited',
+    matched,
+    residual: null,
+  });
 
-  if (n === 1) {
-    return {
-      rotation: inheritedRotation,
-      position: ourMid
-        .clone()
-        .sub(theirMid.clone().multiplyScalar(inheritedScale).applyQuaternion(inheritedRotation)),
-      scale: inheritedScale,
-      kind: 'inherited',
-      matched: 1,
-      residual: null,
-    };
-  }
+  if (n === 1) return placedAtMid(1);
 
   if (n === 2) {
     // Two points give the bone's axis and its length. The roll about that axis is not in the
@@ -196,73 +236,26 @@ export function fitOne(
     const ourAxis = (ours[1] as Vector3).clone().sub(ours[0] as Vector3);
     const theirLength = theirAxis.length();
     const ourLength = ourAxis.length();
-    if (theirLength < 1e-6 || ourLength < 1e-6) {
-      return {
-        rotation: inheritedRotation,
-        position: ourMid
-          .clone()
-          .sub(theirMid.clone().multiplyScalar(inheritedScale).applyQuaternion(inheritedRotation)),
-        scale: inheritedScale,
-        kind: 'inherited',
-        matched: n,
-        residual: null,
-      };
-    }
+    if (theirLength < 1e-6 || ourLength < 1e-6) return placedAtMid(n);
     // Only over a long enough bone; otherwise the parent's, since a ratio taken across twenty
     // millimetres is measuring where the two models disagree rather than how big the bone is.
     const measurable = theirLength > RELIABLE_SPAN && ourLength > RELIABLE_SPAN;
     const scale = measurable ? ourLength / theirLength : inheritedScale;
     // Start from the parent's orientation, then turn by the least that carries their axis onto
     // ours. Whatever roll the parent had about the shared direction survives that.
-    const along = ourAxis.clone().normalize();
-    const rotation = new Quaternion().setFromUnitVectors(
-      theirAxis.clone().normalize().applyQuaternion(inheritedRotation),
-      along,
-    );
-    rotation.multiply(inheritedRotation);
-
-    // The roll about the bone's own axis is still free. A hinge is the same anatomical line in
-    // both models, so the roll that best lines their hinges up with ours is the one to take.
-    // Swept rather than solved: it is one angle, the score has no closed form once the axes are
-    // matched as sets, and a degree at a time over a full turn is nothing to compute.
-    let kind: FitKind = 'axis and inherited roll';
-    if (theirAxes.length > 0 && ourAxes.length > 0) {
-      const score = (turn: Quaternion): number => {
-        let total = 0;
-        for (const theirAxisVector of theirAxes) {
-          const moved = theirAxisVector.clone().applyQuaternion(turn).normalize();
-          let best = 0;
-          for (const ourAxisVector of ourAxes) {
-            // Absolute, because a hinge has no preferred end: the two models may state one axis
-            // pointing opposite ways and mean the same joint.
-            best = Math.max(best, Math.abs(moved.dot(ourAxisVector)));
-          }
-          total += best;
-        }
-        return total;
-      };
-      let bestTurn = rotation.clone();
-      let bestScore = score(rotation);
-      for (let degrees = 1; degrees < 360; degrees += 1) {
-        const turn = new Quaternion()
-          .setFromAxisAngle(along, (degrees * Math.PI) / 180)
-          .multiply(rotation);
-        const value = score(turn);
-        if (value > bestScore) {
-          bestScore = value;
-          bestTurn = turn;
-        }
-      }
-      rotation.copy(bestTurn);
-      kind = 'axis and hinge roll';
-    }
+    const rotation = new Quaternion()
+      .setFromUnitVectors(
+        theirAxis.clone().normalize().applyQuaternion(inheritedRotation),
+        ourAxis.clone().normalize(),
+      )
+      .multiply(inheritedRotation);
     return {
       rotation,
       position: ourMid
         .clone()
         .sub(theirMid.clone().multiplyScalar(scale).applyQuaternion(rotation)),
       scale,
-      kind: measurable ? kind : 'axis and inherited scale',
+      kind: measurable ? 'axis and inherited roll' : 'axis and inherited scale',
       matched: n,
       residual: null,
     };
@@ -271,8 +264,8 @@ export function fitOne(
   // Three or more points determine a rotation only if they are not on a line, and a bone's
   // joints very often are: a hip, a knee and a patella are three points down the length of a
   // femur, with the patella barely off the line between the other two. Fitting a rotation to
-  // that is fitting the roll to rounding error. Collinear sets fall back to the long axis and
-  // the hinges, which is the information actually present.
+  // that is fitting the roll to rounding error. Collinear sets fall back to the long axis and the
+  // inherited roll, which is the information actually present.
   const spread = (points: readonly Vector3[], mid: Vector3): number => {
     let longest = new Vector3();
     let extent = 0;
@@ -313,50 +306,33 @@ export function fitOne(
       [ours[best[0]] as Vector3, ours[best[1]] as Vector3],
       parent,
       fallbackScale,
-      theirAxes,
-      ourAxes,
     );
   }
 
-  // Not on a line: Kabsch. The cross-covariance of the centred clouds, its nearest rotation, and
-  // the scale from the ratio of their spreads.
-  const cov = new Matrix3().set(0, 0, 0, 0, 0, 0, 0, 0, 0);
+  // Not on a line: the cross-covariance of the centred clouds, the rotation Horn's method takes
+  // from it, and the scale from the ratio of their spreads.
+  const cov = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
   let theirSpread = 0;
-  for (let i = 0; i < n; i++) {
-    const a = (theirs[i] as Vector3).clone().sub(theirMid);
-    const b = (ours[i] as Vector3).clone().sub(ourMid);
-    theirSpread += a.lengthSq();
-    // Column-major: element(row, column) sits at column * 3 + row.
-    const e = cov.elements;
-    e[0] = (e[0] as number) + b.x * a.x;
-    e[1] = (e[1] as number) + b.y * a.x;
-    e[2] = (e[2] as number) + b.z * a.x;
-    e[3] = (e[3] as number) + b.x * a.y;
-    e[4] = (e[4] as number) + b.y * a.y;
-    e[5] = (e[5] as number) + b.z * a.y;
-    e[6] = (e[6] as number) + b.x * a.z;
-    e[7] = (e[7] as number) + b.y * a.z;
-    e[8] = (e[8] as number) + b.z * a.z;
-  }
-  const rotationMatrix = nearestRotation(cov);
-  if (!rotationMatrix || theirSpread < 1e-12) {
-    return {
-      rotation: inheritedRotation,
-      position: ourMid
-        .clone()
-        .sub(theirMid.clone().multiplyScalar(inheritedScale).applyQuaternion(inheritedRotation)),
-      scale: inheritedScale,
-      kind: 'inherited',
-      matched: n,
-      residual: null,
-    };
-  }
-  const rotation = quatFrom(rotationMatrix);
-  // Scale from the spreads rather than from one pair of points, so a stray joint moves it less.
   let ourSpread = 0;
-  for (let i = 0; i < n; i++) ourSpread += (ours[i] as Vector3).clone().sub(ourMid).lengthSq();
-  // The same guard as the two-point case: a spread of a couple of centimetres is not a length
-  // the two models can be compared over.
+  for (let i = 0; i < n; i++) {
+    const a = (theirs[i] as Vector3).clone().sub(theirMid).toArray();
+    const b = (ours[i] as Vector3).clone().sub(ourMid).toArray();
+    for (let j = 0; j < 3; j++) {
+      theirSpread += (a[j] as number) ** 2;
+      ourSpread += (b[j] as number) ** 2;
+      const row = cov[j] as number[];
+      for (let k = 0; k < 3; k++) row[k] = (row[k] as number) + (a[j] as number) * (b[k] as number);
+    }
+  }
+  if (theirSpread < 1e-12) return placedAtMid(n);
+  const rotation = hornRotation(cov);
+  // Scale from the spreads rather than from one pair of points, so a stray joint moves it less.
+  // The same guard as the two-point case: a spread of a couple of centimetres is not a length the
+  // two models can be compared over.
   const measurableSpread =
     Math.sqrt(theirSpread / n) > RELIABLE_SPAN && Math.sqrt(ourSpread / n) > RELIABLE_SPAN;
   const scale = measurableSpread ? Math.sqrt(ourSpread / theirSpread) : inheritedScale;
@@ -383,4 +359,66 @@ export function fitOne(
     matched: n,
     residual: Number((1000 * Math.sqrt(squared / n)).toFixed(2)),
   };
+}
+
+/** A body fit as `describeFits` needs it: whose it is, what it rested on, and how well. */
+interface Described {
+  readonly theirs: string;
+  readonly ours: string;
+  readonly kind: FitKind;
+  readonly residual: number | null;
+}
+
+/** A scale for the eye: two places, and no trailing zeros, so a model at its own size reads 1x. */
+const times = (scale: number): string => `${Number(scale.toFixed(2))}x`;
+
+/**
+ * What a set of body fits rested on, as one line for the Align tab.
+ *
+ * Each kind is counted and named in its own words, and a kind that did not happen is left out
+ * rather than printed as a zero. Every bone that matched no joint at all is named, theirs to
+ * ours, because those are the ones a person has to do something about: one below a bone that
+ * matched something is merely unmeasured, and one with no such bone above it is still in their
+ * model's own frame, which no amount of looking at it will fix -- a neighbouring bone has
+ * to be paired. The scale the whole model took is said last, with whether it was measured.
+ */
+export function describeFits(
+  result: {
+    readonly fits: ReadonlyMap<string, Described>;
+    readonly overallScale: number;
+    readonly overallMeasured: boolean;
+  },
+  bodies: readonly { readonly name: string; readonly parent: string | null }[],
+): string {
+  const parentOf = new Map(bodies.map((b) => [b.name, b.parent]));
+  const all = [...result.fits.values()];
+  const kinds = Object.keys(FIT_KIND_NOTE) as FitKind[];
+  const parts: string[] = [];
+  for (const kind of kinds) {
+    const these = all.filter((f) => f.kind === kind);
+    if (these.length === 0) continue;
+    let text = `${these.length} ${FIT_KIND_NOTE[kind]}`;
+    if (kind === 'kabsch') {
+      const worst = Math.max(...these.map((f) => f.residual ?? 0));
+      text += ` (worst ${worst.toFixed(1)} mm out)`;
+    }
+    if (kind === 'model') {
+      const named = these.map((f) => {
+        // Hanging off a bone above that something was fitted to, or off nothing but the model.
+        let above = parentOf.get(f.theirs) ?? null;
+        while (above && (result.fits.get(above)?.kind ?? 'model') === 'model') {
+          above = parentOf.get(above) ?? null;
+        }
+        return above
+          ? `${f.theirs} → ${f.ours}`
+          : `${f.theirs} → ${f.ours} left in their own frame; pair a neighbouring bone`;
+      });
+      text += `: ${named.join(', ')}`;
+    }
+    parts.push(text);
+  }
+  const scale = result.overallMeasured
+    ? `Overall scale ${times(result.overallScale)}, measured across the matched joints.`
+    : `Overall scale at ${times(result.overallScale)}, no span long enough to measure one.`;
+  return `${all.length} of their bones placed: ${parts.join('; ')}. ${scale}`;
 }
