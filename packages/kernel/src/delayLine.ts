@@ -1,13 +1,17 @@
 /**
- * Delay lines -- M2.4. Built and tested in Phase 1; used by nothing in Phase 1.
+ * Delay lines. Built in M2.4 per spec 10.5; `SpinalModule` (ADR-014) delays every afferent
+ * through one. No allocation after construction.
  *
- * Spec section 10.5 and 14.1: neural conduction delay is a first-order determinant of whether a
+ * Spec sections 10.5 and 14.1: neural conduction delay is a first-order determinant of whether a
  * reflex loop behaves or oscillates, and retrofitting delay into a synchronous channel system is
- * architecturally invasive. So the primitive exists now.
+ * architecturally invasive. So the primitive was built in Phase 1, before anything used it, and
+ * the cord was its first consumer.
  *
  * A `DelayLine` is a ring of snapshots of one channel field, sized in ticks. Each tick the current
- * value is pushed and the value from `k` ticks ago becomes readable. No allocation after
- * construction: the ring is preallocated and pushes copy into it.
+ * value is pushed and the value from `k` ticks ago becomes readable. The ring is preallocated,
+ * pushes copy into it and reads copy out of it, and a read answers with a plain number rather
+ * than an object, so a module that pushes and reads every tick allocates nothing in its step
+ * (CONTRIBUTING rule 9).
  */
 
 export class DelayLine {
@@ -60,14 +64,20 @@ export class DelayLine {
   }
 
   /**
-   * Copy the value from `delayTicks` ago into `out`. `0` is the most recent push.
+   * Copy the value from `delayTicks` ago into `out`, and return how many ticks ago the value
+   * actually delivered is. `0` is the most recent push.
    *
-   * Before the line has filled that far back, the oldest available value is returned instead
-   * of garbage, and `available` reports what was actually delivered. A reflex arc at t = 0 has
+   * Before the line has filled that far back, the oldest available value is delivered instead
+   * of garbage, and the return says how old it really is: less than `delayTicks` while the line
+   * fills, and -1 before anything has been pushed, when `out` is zeros. A reflex arc at t = 0 has
    * nothing to react to; returning the earliest known value is the physically honest choice and
    * avoids a startup transient from zeros.
+   *
+   * The answer is a number rather than a `{ requested, available }` pair because this is called
+   * every tick from inside a module's step, and an object per call is an allocation per tick. The
+   * caller already knows what it requested.
    */
-  read(delayTicks: number, out: Float64Array): { requested: number; available: number } {
+  read(delayTicks: number, out: Float64Array): number {
     if (!Number.isInteger(delayTicks) || delayTicks < 0 || delayTicks > this.maxDelayTicks) {
       throw new Error(`Delay ${delayTicks} is outside 0..${this.maxDelayTicks}.`);
     }
@@ -76,13 +86,13 @@ export class DelayLine {
     }
     if (this.#filled === 0) {
       out.fill(0);
-      return { requested: delayTicks, available: -1 };
+      return -1;
     }
     const available = Math.min(delayTicks, this.#filled - 1);
     const slot = (this.#head - 1 - available + this.#capacity * 2) % this.#capacity;
     const base = slot * this.#width;
     for (let i = 0; i < this.#width; i++) out[i] = this.#ring[base + i] ?? 0;
-    return { requested: delayTicks, available };
+    return available;
   }
 
   reset(): void {
