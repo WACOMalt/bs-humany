@@ -26,6 +26,16 @@
 //! `fixtures/pose-bridge.bin` is written by the TypeScript side with a fixed clock, and the test
 //! at the bottom reads it and pins the numbers. Two implementations of one layout in two languages
 //! cannot share code; they can share a file, and a gate on each side of it.
+//!
+//! ## Following a file that is replaced
+//!
+//! A map is of an inode, not of a name. A publisher that restarts, or rebuilds its bridges, puts
+//! new files at the same names, and a reader still holding the old map would go on showing the
+//! last frame of a run that has ended. So each reader records which file it mapped, as the
+//! device and inode numbers, and `feeds_changed` says when the names now lead somewhere else.
+//! The generation in the status says the same thing when the publisher bumps it, but a publisher
+//! that restarts from generation 1, as `pnpm publish:pose` does, cannot be told from itself that
+//! way; the inode can.
 
 use anyhow::{Context, Result, bail};
 use memmap2::{Mmap, MmapMut};
@@ -62,6 +72,9 @@ pub struct PoseBridge {
     last_published: u64,
     last_change: Instant,
     scratch: Vec<f32>,
+    /// Which file this mapped: taken from the open file rather than the name, so a file swapped
+    /// in between the open and the look is seen as the change it is.
+    pub id: Option<FileId>,
 }
 
 impl PoseBridge {
@@ -69,6 +82,7 @@ impl PoseBridge {
         let file = std::fs::File::open(path)
             .with_context(|| format!("opening {} -- is `pnpm publish:pose` running?", path.display()))?;
         let map = unsafe { Mmap::map(&file) }.context("mapping the pose bridge")?;
+        let id = open_file_id(&file);
         if map.len() < HEADER_BYTES {
             bail!("{} is {} bytes, which is not even a header.", path.display(), map.len());
         }
@@ -126,6 +140,7 @@ impl PoseBridge {
             last_published: 0,
             last_change: Instant::now(),
             scratch: vec![0.0; bones * FLOATS_PER_BONE],
+            id,
         })
     }
 
@@ -211,6 +226,8 @@ pub struct MuscleBridge {
     pub slots: usize,
     slot_bytes: usize,
     scratch: Vec<f32>,
+    /// Which file this mapped, as `PoseBridge::id`.
+    pub id: Option<FileId>,
 }
 
 impl MuscleBridge {
@@ -218,6 +235,7 @@ impl MuscleBridge {
         let file = std::fs::File::open(path)
             .with_context(|| format!("opening {}", path.display()))?;
         let map = unsafe { Mmap::map(&file) }.context("mapping the muscle bridge")?;
+        let id = open_file_id(&file);
         if map.len() < HEADER_BYTES {
             bail!("{} is {} bytes, which is not even a header.", path.display(), map.len());
         }
@@ -247,6 +265,7 @@ impl MuscleBridge {
             slots,
             slot_bytes,
             scratch: vec![0.0; units * rings * FLOATS_PER_RING],
+            id,
         })
     }
 
@@ -284,6 +303,68 @@ impl MuscleBridge {
         }
         None
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Which files are mapped, and whether the names still lead to them.
+// ---------------------------------------------------------------------------------------------
+
+/// A file's identity, device and inode, which a replacement at the same name does not keep.
+pub type FileId = (u64, u64);
+
+#[cfg(unix)]
+fn open_file_id(file: &std::fs::File) -> Option<FileId> {
+    use std::os::unix::fs::MetadataExt;
+    file.metadata().ok().map(|m| (m.dev(), m.ino()))
+}
+
+#[cfg(not(unix))]
+fn open_file_id(_file: &std::fs::File) -> Option<FileId> {
+    None
+}
+
+/// The identity of whatever is at `path` now, or `None` if nothing is there -- or if this
+/// platform has no inodes to ask about, in which case no replacement is ever seen and the
+/// generation in the status is the only signal left.
+#[cfg(unix)]
+pub fn file_id(path: &Path) -> Option<FileId> {
+    use std::os::unix::fs::MetadataExt;
+    std::fs::metadata(path).ok().map(|m| (m.dev(), m.ino()))
+}
+
+#[cfg(not(unix))]
+pub fn file_id(_path: &Path) -> Option<FileId> {
+    None
+}
+
+/// The muscle ring's name beside a pose bridge's.
+pub fn muscle_path(pose: &Path) -> std::path::PathBuf {
+    std::path::PathBuf::from(format!("{}-muscles", pose.display()))
+}
+
+/// What one set of feeds mapped: the pose ring, and the muscle ring or the fact there was none.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MappedId {
+    pub pose: Option<FileId>,
+    /// The muscle file that was at its name when the feeds opened, whether or not it could be
+    /// mapped: one that exists and cannot be read must not look replaced at every poll.
+    pub muscles: Option<FileId>,
+}
+
+/// Whether the files at `path` are no longer the ones `mapped` describes, so the feeds should be
+/// opened again.
+///
+/// A pose file that is missing is not a change: a publisher between removing its files and
+/// writing new ones, or one that has stopped and cleaned up, leaves the last frame standing
+/// rather than a blank room, and the new file, when it comes, is a change. The muscle file is
+/// different, because a publisher turns muscles off by removing it; one that comes or goes
+/// while the pose file stays is a change too.
+pub fn feeds_changed(path: &Path, mapped: &MappedId) -> bool {
+    let Some(pose) = file_id(path) else { return false };
+    if mapped.pose.is_some_and(|was| was != pose) {
+        return true;
+    }
+    file_id(&muscle_path(path)) != mapped.muscles
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -536,6 +617,111 @@ mod tests {
         assert!(brain.policy_note.is_empty() && brain.spine_note.is_empty());
     }
 
+    #[test]
+    fn a_status_that_does_not_parse_says_why_and_a_missing_one_says_so() {
+        // The panel shows serde's words, so they had better name the field.
+        let Err(StatusError::Unreadable(why)) = parse_status(r#"{"generation":null}"#) else {
+            panic!("a null generation parsed");
+        };
+        assert!(why.contains("null"), "{why}");
+        let Err(StatusError::Unreadable(why)) = parse_status(r#"{"generation":1}"#) else {
+            panic!("a status with no scenario parsed");
+        };
+        assert!(why.contains("scenario"), "{why}");
+        let nowhere = scratch("no-status").join("status.json");
+        assert_eq!(read_status(&nowhere).err(), Some(StatusError::Missing));
+    }
+
+    /// A directory of this test's own, emptied first, so parallel tests and earlier runs do not
+    /// meet in it.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("bs-humany-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        dir
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_pose_file_renamed_over_the_mapped_one_is_seen_while_the_old_map_still_reads() {
+        // What a publisher that restarts does: a new file at the same name. The viewer's map is
+        // of the old inode, which lives on until it lets go, so it has to ask the name.
+        let dir = scratch("feeds-changed");
+        let path = dir.join("pose");
+        std::fs::copy(fixture(), &path).expect("the fixture copies");
+        std::fs::copy(fixture().with_file_name("pose-bridge.bin.json"), dir.join("pose.json"))
+            .expect("the sidecar copies");
+        let mut old = PoseBridge::open(&path).expect("the copy opens");
+        let mapped = MappedId {
+            pose: old.id,
+            muscles: file_id(&muscle_path(&path)),
+        };
+        assert!(old.id.is_some() && mapped.muscles.is_none());
+        assert!(!feeds_changed(&path, &mapped), "nothing has moved yet");
+
+        // The new run's file: the same bytes except that no frame is published yet.
+        let mut bytes = std::fs::read(fixture()).expect("readable");
+        bytes[16..20].copy_from_slice(&NO_FRAME.to_le_bytes());
+        let incoming = dir.join("pose.tmp");
+        std::fs::write(&incoming, &bytes).expect("written");
+        std::fs::rename(&incoming, &path).expect("renamed into place");
+
+        assert!(feeds_changed(&path, &mapped), "the name leads to another file now");
+        let frame = old.newest().expect("the old map still holds the old run");
+        assert_eq!(frame.tick, 40);
+        let mut new = PoseBridge::open(&path).expect("the new file opens");
+        assert!(new.newest().is_none(), "the new file has published nothing");
+        assert_ne!(new.id, old.id);
+
+        // Once reopened, a muscle ring arriving beside the same pose file is a change too, and a
+        // pose file that is simply gone is not: the last frame stands until a new one comes.
+        let reopened = MappedId {
+            pose: new.id,
+            muscles: file_id(&muscle_path(&path)),
+        };
+        assert!(!feeds_changed(&path, &reopened));
+        std::fs::copy(fixture().with_file_name("pose-bridge.bin-muscles"), muscle_path(&path))
+            .expect("the muscle fixture copies");
+        assert!(feeds_changed(&path, &reopened), "muscles appeared");
+        std::fs::remove_file(&path).expect("removed");
+        assert!(!feeds_changed(&path, &reopened), "a missing pose file keeps what is mapped");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_command_after_the_file_is_replaced_reaches_the_new_file() {
+        let dir = scratch("commands");
+        let path = dir.join("pose-commands.jsonl");
+        std::fs::write(&path, "left over from before\n").expect("written");
+        let mut writer = CommandWriter::create(&path).expect("created");
+        writer.send(r#"{"kind":"pause"}"#).expect("sent");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"kind\":\"pause\"}\n");
+
+        // A publisher restarts: it removes the file, and something is there again before the
+        // next press. The press lands in the new file, after what it already holds.
+        std::fs::remove_file(&path).expect("removed");
+        std::fs::write(&path, "{\"kind\":\"reset\"}\n").expect("recreated");
+        writer.send(r#"{"kind":"resume"}"#).expect("sent");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "{\"kind\":\"reset\"}\n{\"kind\":\"resume\"}\n"
+        );
+
+        // Removed and not recreated: the press makes the file, so a publisher that comes later
+        // finds it.
+        std::fs::remove_file(&path).expect("removed");
+        writer.send(r#"{"kind":"pause"}"#).expect("sent");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"kind\":\"pause\"}\n");
+
+        // Reopened with the feeds: nothing already there is lost.
+        writer.reopen().expect("reopened");
+        writer.send(r#"{"kind":"reset"}"#).expect("sent");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "{\"kind\":\"pause\"}\n{\"kind\":\"reset\"}\n"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -552,8 +738,9 @@ pub struct Named {
 #[derive(serde::Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
-    /// Bumped every time the publisher rebuilds its bridge files; a reader that sees it change
-    /// reopens them.
+    /// Unique per publisher run (a publisher starts it at its start time in ms) and bumped on
+    /// every rebuild of its bridge files; a reader that sees it change reopens them. A publisher
+    /// that still starts from 1 is caught by the files' inodes instead -- see `feeds_changed`.
     pub generation: u64,
     pub scenario: Named,
     pub scenarios: Vec<Named>,
@@ -804,32 +991,91 @@ pub struct Diagnostics {
     pub cost_ms: f64,
 }
 
-/// The status as it stands, or `None` if there is none or it could not be parsed -- a file
-/// renamed into place is whole or absent, so a parse failure means an older publisher.
-pub fn read_status(path: &Path) -> Option<Status> {
-    let text = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&text).ok()
+/// Why there is no status to show.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StatusError {
+    /// No file: no publisher yet, or one that has stopped and cleaned up after itself.
+    Missing,
+    /// A file that is there and is not a status this reads, with the reader's own words for
+    /// why. A file renamed into place is whole or absent, so this is a publisher and a viewer
+    /// that disagree about the contract -- which is worth saying, where keeping the last status
+    /// that did parse would show a panel that has quietly stopped changing.
+    Unreadable(String),
+}
+
+impl std::fmt::Display for StatusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StatusError::Missing => write!(f, "no status file"),
+            StatusError::Unreadable(why) => write!(f, "{why}"),
+        }
+    }
+}
+
+/// A status from its text. serde's message names the field and the column, which is what a
+/// reader needs to find which side of the contract moved.
+pub fn parse_status(text: &str) -> std::result::Result<Status, StatusError> {
+    serde_json::from_str(text).map_err(|e| StatusError::Unreadable(e.to_string()))
+}
+
+/// The status as it stands.
+pub fn read_status(path: &Path) -> std::result::Result<Status, StatusError> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => parse_status(&text),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(StatusError::Missing),
+        Err(e) => Err(StatusError::Unreadable(format!("{}: {e}", path.display()))),
+    }
 }
 
 /// Commands to the publisher: one JSON object a line, appended to `<pose path>-commands.jsonl`.
-/// The file is truncated when this opens, so the publisher starts reading it from the top.
+/// The file is truncated when this is created, so the publisher starts reading it from the top.
+///
+/// A publisher that restarts removes the file along with the rest of its session, and the next
+/// line appended to the old, unlinked one would reach nobody. So the writer keeps the name and
+/// the identity of the file it holds, and before each line -- which is a press on a panel, not a
+/// frame -- makes sure the name still leads to it, opening whatever is there now, or a new file,
+/// if not. Reopening never truncates: the publisher may already have read part of what is there.
 pub struct CommandWriter {
+    path: std::path::PathBuf,
     file: std::fs::File,
+    id: Option<FileId>,
 }
 
 impl CommandWriter {
     pub fn create(path: &Path) -> Result<Self> {
+        let mut writer = Self::open(path)?;
+        writer.file.set_len(0)?;
+        writer.id = open_file_id(&writer.file);
+        Ok(writer)
+    }
+
+    fn open(path: &Path) -> Result<Self> {
         let file = std::fs::OpenOptions::new()
             .append(true)
             .create(true)
             .open(path)
-            .with_context(|| format!("creating {}", path.display()))?;
-        file.set_len(0)?;
-        Ok(Self { file })
+            .with_context(|| format!("opening {}", path.display()))?;
+        let id = open_file_id(&file);
+        Ok(Self {
+            path: path.to_path_buf(),
+            file,
+            id,
+        })
+    }
+
+    /// Open whatever is at the name now, appending, whether or not it has changed. Called when
+    /// the feeds are reopened, which is the moment a new publisher is known to be there.
+    pub fn reopen(&mut self) -> Result<()> {
+        *self = Self::open(&self.path)?;
+        Ok(())
     }
 
     pub fn send(&mut self, line: &str) -> Result<()> {
         use std::io::Write;
+        let current = file_id(&self.path);
+        if current.is_none() || current != self.id {
+            self.reopen()?;
+        }
         // One write for the line and its newline, so the publisher never reads half a command.
         self.file.write_all(format!("{line}\n").as_bytes())?;
         Ok(())

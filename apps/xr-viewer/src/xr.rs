@@ -115,6 +115,21 @@ pub fn probe() -> Result<()> {
     Ok(())
 }
 
+/// The head-mounted display, or an error that says in plain words that there is none.
+///
+/// A headset asleep, or one the runtime has not found, is the commonest reason the viewer stops
+/// at once, and the runtime's name for it, `ERROR_FORM_FACTOR_UNAVAILABLE`, says nothing to
+/// somebody who pressed Connect in the studio and is reading the reason there.
+fn headset(xr: &openxr::Instance) -> Result<openxr::SystemId> {
+    match xr.system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY) {
+        Ok(system) => Ok(system),
+        Err(openxr::sys::Result::ERROR_FORM_FACTOR_UNAVAILABLE) => bail!(
+            "no headset is available to the OpenXR runtime: wake the headset and check SteamVR/Monado lists it"
+        ),
+        Err(e) => Err(e).context("asking the OpenXR runtime for a head-mounted display"),
+    }
+}
+
 /// A Vulkan instance and device built the way the runtime insists, and nothing more.
 pub struct Graphics {
     /// Held so the loaded Vulkan library outlives everything created from it.
@@ -236,22 +251,26 @@ impl Graphics {
 pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::Path>) -> Result<()> {
     let entry = unsafe { openxr::Entry::load(&()) }
         .context("opening libopenxr_loader.so.1 -- install an OpenXR runtime (SteamVR, Monado)")?;
-    let available = entry.enumerate_extensions()?;
+    let available = entry
+        .enumerate_extensions()
+        .context("asking the OpenXR loader which extensions it has")?;
     let mut wanted = openxr::ExtensionSet::default();
     wanted.khr_vulkan_enable2 = available.khr_vulkan_enable2;
-    let xr = entry.create_instance(
-        &openxr::ApplicationInfo {
-            application_name: "bs-humany xr viewer",
-            application_version: 1,
-            engine_name: "bs-humany",
-            engine_version: 1,
-            api_version: openxr::Version::new(1, 0, 0),
-        },
-        &wanted,
-        &[],
-        &(),
-    )?;
-    let system = xr.system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY)?;
+    let xr = entry
+        .create_instance(
+            &openxr::ApplicationInfo {
+                application_name: "bs-humany xr viewer",
+                application_version: 1,
+                engine_name: "bs-humany",
+                engine_version: 1,
+                api_version: openxr::Version::new(1, 0, 0),
+            },
+            &wanted,
+            &[],
+            &(),
+        )
+        .context("creating the OpenXR instance -- is a runtime installed and active?")?;
+    let system = headset(&xr)?;
     let graphics = Graphics::for_runtime(&xr, system)?;
 
     let configs = xr.enumerate_view_configuration_views(
@@ -354,7 +373,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
 
     // What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
     // together, and reopened together whenever the publisher's generation changes, which is how
-    // a scenario switch reaches this side.
+    // a scenario switch reaches this side, or the files at their names are not the ones mapped,
+    // which is how a publisher that restarted from the same generation does.
     // Opened now if the publisher is already there; otherwise the loop keeps trying every status
     // poll, drawing the rest pose meanwhile, because "viewer first, then the run" is a perfectly
     // good order to do things in and the studio's Connect button does exactly that.
@@ -369,7 +389,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         None => None,
     };
     let status_path = follow.map(|p| std::path::PathBuf::from(format!("{}-status.json", p.display())));
-    let mut status: Option<crate::bridge::Status> = None;
+    let mut publisher = StatusFeed::default();
+    let mut said = SaidLiveness::Fine;
     let mut commands = match follow {
         Some(path) => Some(crate::bridge::CommandWriter::create(&std::path::PathBuf::from(
             format!("{}-commands.jsonl", path.display()),
@@ -424,6 +445,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut event_storage = openxr::EventDataBuffer::new();
     let mut running = false;
     let mut frames = 0u32;
+    let mut last_poll: Option<std::time::Instant> = None;
     let mut worst_cpu = 0f64;
     let started = std::time::Instant::now();
     // Reported as it goes rather than only at the end, because the natural way to stop watching
@@ -478,55 +500,83 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             &stage,
         )?;
 
-        // The publisher's status, ten times a second, and the feeds reopened if its generation
-        // moved. A publisher that has not written one yet, or that is between generations, is
-        // simply not there this poll.
-        if frames % 15 == 0 {
+        // The publisher's status, ten times a second by the clock rather than by the frame, so a
+        // 144 Hz headset and a 90 Hz one poll at the rate every publisher writes; and the feeds
+        // reopened if its generation moved or its files were replaced. A publisher that has not
+        // written a status yet, or that has stopped and removed it, is simply not there this
+        // poll. None of this waits on the publisher: a stat and a read of a small file on tmpfs.
+        if last_poll.map_or(true, |at| at.elapsed() >= STATUS_POLL) {
+            last_poll = Some(std::time::Instant::now());
             if let (None, Some(follow_path)) = (feeds.as_ref(), follow) {
                 if let Ok(opened) = Feeds::open(follow_path, pack, &mut renderer) {
                     feeds = Some(opened);
                     last_tick = None;
                     last_muscle_tick = None;
                     muscle_vertices.clear();
+                    reopen_commands(&mut commands);
                 }
             }
             if let Some(path) = &status_path {
-                if let Some(fresh) = crate::bridge::read_status(path) {
-                    let generation = fresh.generation;
-                    if scene_generation != Some(generation) {
-                        scene_generation = Some(generation);
-                        ground = fresh.ground_height as f32;
-                        place = crate::render::placement(ground);
-                        matrices[renderer.world_slot()] = place;
-                        matrices[renderer.scene_slot()] = place;
-                        renderer.set_scene(&fresh.static_boxes)?;
-                        println!(
-                            "scene: ground at {:.2} m, {} static boxes",
-                            fresh.ground_height,
-                            fresh.static_boxes.len()
-                        );
+                publisher.observe(read_status_file(path), std::time::Instant::now());
+            }
+            if let (Some(f), Some(follow_path)) = (feeds.as_ref(), follow) {
+                // The generation is only trusted from a status that read cleanly: the feeds
+                // take theirs from the file when they open, and one that did not parse then
+                // would disagree with the last good status at every poll. The files' identity
+                // needs no status at all.
+                let why = match publisher.status.as_ref() {
+                    Some(s) if publisher.error.is_none() && s.generation != f.generation => {
+                        Some(format!("generation {}", s.generation))
                     }
-                    status = Some(fresh);
-                    if let (Some(f), Some(follow_path)) = (feeds.as_ref(), follow) {
-                        if f.generation != generation {
-                            println!("publisher: generation {generation}, reopening the bridges");
-                            match Feeds::open(follow_path, pack, &mut renderer) {
-                                Ok(reopened) => {
-                                    feeds = Some(reopened);
-                                    holding = [None, None];
-                                    last_tick = None;
-                                    last_muscle_tick = None;
-                                    muscle_vertices.clear();
-                                }
-                                Err(e) => println!("publisher: could not reopen yet: {e}"),
-                            }
+                    _ if crate::bridge::feeds_changed(follow_path, &f.mapped) => {
+                        Some(if crate::bridge::file_id(follow_path) != f.mapped.pose {
+                            "pose file replaced".to_string()
+                        } else {
+                            "muscle ring came or went".to_string()
+                        })
+                    }
+                    _ => None,
+                };
+                if let Some(why) = why {
+                    println!("publisher: {why}, reopening the bridges");
+                    match Feeds::open(follow_path, pack, &mut renderer) {
+                        Ok(reopened) => {
+                            feeds = Some(reopened);
+                            holding = [None, None];
+                            last_tick = None;
+                            last_muscle_tick = None;
+                            muscle_vertices.clear();
+                            // A publisher that restarted may have kept its generation, so the
+                            // scene and the tissue are taken again from whatever it says next,
+                            // rather than only when the number moves.
+                            scene_generation = None;
+                            tissue_generation = None;
+                            reopen_commands(&mut commands);
                         }
+                        Err(e) => println!("publisher: could not reopen yet: {e}"),
                     }
+                }
+            }
+            // The scenery, once a generation. `set_scene` waits for the device to idle and
+            // reallocates, so it is never called on a poll that changed nothing.
+            if let Some(s) = publisher.status.as_ref() {
+                if scene_generation != Some(s.generation) {
+                    scene_generation = Some(s.generation);
+                    ground = s.ground_height as f32;
+                    place = crate::render::placement(ground);
+                    matrices[renderer.world_slot()] = place;
+                    matrices[renderer.scene_slot()] = place;
+                    renderer.set_scene(&s.static_boxes)?;
+                    println!(
+                        "scene: ground at {:.2} m, {} static boxes",
+                        s.ground_height,
+                        s.static_boxes.len()
+                    );
                 }
             }
             // The tissue's shape, from the status's table and the bridge's bone order, once a
             // generation -- or when a table first arrives from a publisher that had none.
-            if let (Some(f), Some(s)) = (feeds.as_ref(), status.as_ref()) {
+            if let (Some(f), Some(s)) = (feeds.as_ref(), publisher.status.as_ref()) {
                 let table_arrived = tissue_shape.is_none() && !s.tissue.discs.is_empty();
                 if tissue_generation != Some(f.generation) || table_arrived {
                     tissue_generation = Some(f.generation);
@@ -586,7 +636,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 if let Some(frame) = m.newest() {
                     if last_muscle_tick != Some(frame.tick) {
                         last_muscle_tick = Some(frame.tick);
-                        let tension: &[f32] = status.as_ref().map(|s| s.tension.as_slice()).unwrap_or(&[]);
+                        let tension: &[f32] =
+                            publisher.status.as_ref().map(|s| s.tension.as_slice()).unwrap_or(&[]);
                         crate::render::tube_vertices(
                             &frame.rings,
                             m.rings,
@@ -645,7 +696,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let shift = view_point.shift();
         // The overlays as the studio has them; a publisher that says nothing shows everything.
         let overlay = |name: &str| {
-            status
+            publisher
+                .status
                 .as_ref()
                 .and_then(|s| s.overlays.get(name).copied())
                 .unwrap_or(true)
@@ -859,14 +911,27 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
         }
 
-        // The panels, laid out afresh; their textures applied before the draw that samples them,
-        // and what was pressed sent on.
+        // How lively the publisher is: how long since the status last changed and since a new
+        // pose arrived, which the panels say in numbers and, past a threshold, in words.
+        let status_age = publisher.age();
+        let pose_age = feeds.as_ref().map(|f| f.bridge.stale_for());
+        let alive = liveness(
+            status_age,
+            pose_age,
+            publisher.status.as_ref().is_some_and(|s| s.paused),
+        );
+        said = said.report(alive.as_ref());
+        let status_age_text = match status_age {
+            Some(age) => format!("status {:.1} s old", age.as_secs_f64()),
+            None => "no status".to_string(),
+        };
         let feeds_line = match (&feeds, follow) {
             (Some(f), _) => format!(
-                "{} of {} bones posed, {}",
+                "{} of {} bones posed, {}, pose {:.0} ms old, {status_age_text}",
                 f.pose_index.iter().filter(|m| m.is_some()).count(),
                 pack.bones.len(),
-                if f.muscles.is_some() { "muscles on" } else { "no muscles" }
+                if f.muscles.is_some() { "muscles on" } else { "no muscles" },
+                f.bridge.stale_for().as_secs_f64() * 1000.0,
             ),
             (None, Some(path)) => format!(
                 "Waiting for a publisher at {}: start a run in the studio, or `pnpm publish:pose`.",
@@ -874,16 +939,28 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             ),
             (None, None) => "Not following a simulation: run with --follow.".to_string(),
         };
+        // The panels, laid out afresh; their textures applied before the draw that samples them,
+        // and what was pressed sent on.
         let mut panel_meshes = Vec::with_capacity(2);
         for (which, panel) in panels.iter_mut().enumerate() {
-            let frame = panel.run(status.as_ref(), pointers[which], &feeds_line);
+            let frame = panel.run(
+                publisher.status.as_ref(),
+                pointers[which],
+                &feeds_line,
+                alive.as_ref(),
+                publisher.error.as_deref(),
+            );
             if !frame.textures.is_empty() {
                 renderer.update_panel_textures(&frame.textures)?;
             }
             if let Some(writer) = commands.as_mut() {
                 for command in &frame.commands {
                     println!("panel: {command:?}");
-                    writer.send(&command.to_json())?;
+                    // A press that cannot be written is lost, and said so; it is no reason to
+                    // take the headset's view away.
+                    if let Err(e) = writer.send(&command.to_json()) {
+                        println!("panel: could not send {command:?}: {e:#}");
+                    }
                 }
             }
             panel_meshes.push(frame.meshes);
@@ -986,6 +1063,9 @@ struct Feeds {
     grabs: crate::bridge::GrabIntentWriter,
     /// For each pack bone, its index in the bridge's bone order, matched by name once.
     pose_index: Vec<Option<usize>>,
+    /// Which files these are, so a publisher that replaces them is noticed even when it keeps
+    /// its generation.
+    mapped: crate::bridge::MappedId,
 }
 
 impl Feeds {
@@ -1012,7 +1092,7 @@ impl Feeds {
         // The muscles, if the simulation has them: rings in their own bridge beside the poses,
         // swept into tubes every time a new frame arrives. A publisher with muscles off writes
         // no such file, which is not an error.
-        let muscle_path = std::path::PathBuf::from(format!("{}-muscles", path.display()));
+        let muscle_path = crate::bridge::muscle_path(path);
         let muscles = match crate::bridge::MuscleBridge::open(&muscle_path) {
             Ok(m) => {
                 println!(
@@ -1022,10 +1102,21 @@ impl Feeds {
                 renderer.enable_muscles(m.units, m.rings, m.segments)?;
                 Some(m)
             }
-            Err(_) => {
-                println!("muscles: none published");
+            Err(e) => {
+                if muscle_path.exists() {
+                    println!("muscles: {e:#}");
+                } else {
+                    println!("muscles: none published");
+                }
                 None
             }
+        };
+        let mapped = crate::bridge::MappedId {
+            pose: bridge.id,
+            muscles: match &muscles {
+                Some(m) => m.id,
+                None => crate::bridge::file_id(&muscle_path),
+            },
         };
         let grabs = crate::bridge::GrabIntentWriter::create(&std::path::PathBuf::from(format!(
             "{}-grab",
@@ -1039,11 +1130,183 @@ impl Feeds {
         .unwrap_or(0);
         Ok(Self {
             generation,
+            mapped,
             bridge,
             muscles,
             grabs,
             pose_index,
         })
+    }
+}
+
+/// How often the publisher's status is read: every publisher writes it about this often, so a
+/// faster poll would read the same file twice and a slower one would lag a scenario switch.
+const STATUS_POLL: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// The status file as it stands: when it was last modified, and its text.
+fn read_status_file(path: &std::path::Path) -> std::io::Result<(Option<std::time::SystemTime>, String)> {
+    let modified = std::fs::metadata(path)?.modified().ok();
+    Ok((modified, std::fs::read_to_string(path)?))
+}
+
+/// Point the command log at whatever file is at its name now: a new publisher has just been
+/// found, and it may have removed the old one.
+fn reopen_commands(commands: &mut Option<crate::bridge::CommandWriter>) {
+    if let Some(writer) = commands.as_mut() {
+        if let Err(e) = writer.reopen() {
+            println!("panel: could not reopen the command log: {e:#}");
+        }
+    }
+}
+
+/// The publisher's status as the viewer follows it: the last one that parsed, why the newest one
+/// did not if it did not, and when it last changed.
+#[derive(Default)]
+struct StatusFeed {
+    status: Option<crate::bridge::Status>,
+    /// Why the file that is there now is not a status, in serde's words. The last good status is
+    /// kept beside it, so the panels still show where things stood, but they say this at the
+    /// top: a panel that has silently stopped changing is the thing this is here to prevent.
+    error: Option<String>,
+    /// When the status last changed. Every publisher renames a new file into place on every
+    /// write and puts its wall-clock seconds in it, so the text changes whenever it is alive,
+    /// and the modification time is compared too for one that writes the same text twice.
+    seen: Option<std::time::Instant>,
+    last: Option<(Option<std::time::SystemTime>, String)>,
+}
+
+impl StatusFeed {
+    /// Take one reading of the status file, parsed only if it is not the reading before.
+    fn observe(
+        &mut self,
+        reading: std::io::Result<(Option<std::time::SystemTime>, String)>,
+        now: std::time::Instant,
+    ) {
+        match reading {
+            // No file: the publisher has not started, or has stopped and cleaned up. There is
+            // nothing to show, and nothing is wrong with a status that is not there.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                if self.status.is_some() || self.error.is_some() {
+                    println!("status: gone");
+                }
+                *self = Self::default();
+            }
+            Err(e) => self.fail(e.to_string()),
+            Ok(reading) => {
+                if self.last.as_ref() == Some(&reading) {
+                    return;
+                }
+                self.seen = Some(now);
+                match crate::bridge::parse_status(&reading.1) {
+                    Ok(status) => {
+                        if self.error.take().is_some() {
+                            println!("status: readable again");
+                        }
+                        self.status = Some(status);
+                    }
+                    Err(e) => self.fail(e.to_string()),
+                }
+                self.last = Some(reading);
+            }
+        }
+    }
+
+    /// Keep the reason, and say it on the terminal once rather than ten times a second.
+    fn fail(&mut self, why: String) {
+        if self.error.as_deref() != Some(why.as_str()) {
+            println!("status unreadable: {why}");
+        }
+        self.error = Some(why);
+    }
+
+    /// How long since the status last changed.
+    fn age(&self) -> Option<std::time::Duration> {
+        self.seen.map(|at| at.elapsed())
+    }
+}
+
+/// What is wrong with the publisher, as far as the headset can tell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Liveness {
+    /// The status has not changed for this many whole seconds: whatever was writing it is gone
+    /// or stuck, and nothing pressed on a panel will be read.
+    Silent(u64),
+    /// The status is fresh and says the run is not paused, but no new pose has come for a while.
+    NotAdvancing,
+}
+
+impl Liveness {
+    /// What the panels say, in words somebody in a headset can act on.
+    pub fn message(&self) -> String {
+        match self {
+            Liveness::Silent(seconds) => format!(
+                "Publisher silent for {seconds} s: the studio or publish:pose has stopped"
+            ),
+            Liveness::NotAdvancing => {
+                "Simulation not advancing: the publisher is there but no new pose has come".to_string()
+            }
+        }
+    }
+}
+
+/// A status this much older than the last one is a publisher that has stopped. Three seconds,
+/// not one: the training showcase stops writing for 1.2 s between episodes, and every publisher
+/// writes at least four times a second while it lives.
+const SILENT_AFTER: std::time::Duration = std::time::Duration::from_secs(3);
+/// A status seen this recently is a publisher that is certainly still there.
+const FRESH: std::time::Duration = std::time::Duration::from_secs(1);
+/// A pose this old, from a run that is not paused, is a simulation that is not moving.
+const POSE_STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(1);
+/// How much longer ago the last pose must be than the last status. Both stop together when a
+/// publisher pauses between episodes, as the showcase does, and a status noticed a poll after the
+/// last pose must not read as a publisher that talks without moving; one that is really stuck
+/// goes on writing its status while the pose ages past this.
+const TALKING_WITHOUT_MOVING: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Whether to warn about the publisher, from how long ago its status last changed and a new pose
+/// last came, and whether it says it is paused. Paused, a still body is what was asked for.
+pub fn liveness(
+    status_age: Option<std::time::Duration>,
+    pose_age: Option<std::time::Duration>,
+    paused: bool,
+) -> Option<Liveness> {
+    let status_age = status_age?;
+    if status_age > SILENT_AFTER {
+        return Some(Liveness::Silent(status_age.as_secs()));
+    }
+    let pose_age = pose_age?;
+    let talking_without_moving = pose_age
+        .checked_sub(status_age)
+        .is_some_and(|gap| gap >= TALKING_WITHOUT_MOVING);
+    if !paused && status_age <= FRESH && pose_age > POSE_STALE_AFTER && talking_without_moving {
+        return Some(Liveness::NotAdvancing);
+    }
+    None
+}
+
+/// What the terminal was last told about the publisher's liveness, so it is told of a change
+/// once, rather than every frame, and a silence is not reported again every second it lasts.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SaidLiveness {
+    Fine,
+    Silent,
+    NotAdvancing,
+}
+
+impl SaidLiveness {
+    fn report(self, now: Option<&Liveness>) -> Self {
+        let next = match now {
+            None => SaidLiveness::Fine,
+            Some(Liveness::Silent(_)) => SaidLiveness::Silent,
+            Some(Liveness::NotAdvancing) => SaidLiveness::NotAdvancing,
+        };
+        if next != self {
+            match now {
+                Some(l) => println!("publisher: {}", l.message()),
+                None => println!("publisher: live again"),
+            }
+        }
+        next
     }
 }
 
@@ -1325,22 +1588,26 @@ impl Hands {
 pub fn run_session(seconds: f32) -> Result<()> {
     let entry = unsafe { openxr::Entry::load(&()) }
         .context("opening libopenxr_loader.so.1 -- install an OpenXR runtime (SteamVR, Monado)")?;
-    let available = entry.enumerate_extensions()?;
+    let available = entry
+        .enumerate_extensions()
+        .context("asking the OpenXR loader which extensions it has")?;
     let mut wanted = openxr::ExtensionSet::default();
     wanted.khr_vulkan_enable2 = available.khr_vulkan_enable2;
-    let xr = entry.create_instance(
-        &openxr::ApplicationInfo {
-            application_name: "bs-humany xr viewer",
-            application_version: 1,
-            engine_name: "bs-humany",
-            engine_version: 1,
-            api_version: openxr::Version::new(1, 0, 0),
-        },
-        &wanted,
-        &[],
-        &(),
-    )?;
-    let system = xr.system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY)?;
+    let xr = entry
+        .create_instance(
+            &openxr::ApplicationInfo {
+                application_name: "bs-humany xr viewer",
+                application_version: 1,
+                engine_name: "bs-humany",
+                engine_version: 1,
+                api_version: openxr::Version::new(1, 0, 0),
+            },
+            &wanted,
+            &[],
+            &(),
+        )
+        .context("creating the OpenXR instance -- is a runtime installed and active?")?;
+    let system = headset(&xr)?;
     let graphics = Graphics::for_runtime(&xr, system)?;
 
     let (session, mut frame_wait, mut frame_stream) = unsafe {
@@ -1500,6 +1767,81 @@ mod tests {
         // The stick pushed forward raises the offset, and the world is then drawn lower down.
         let v = Viewpoint { offset: [0.0, 1.5, 0.0], yaw: 0.0 };
         assert!(close(v.to_stage([0.0, 0.0, 0.0]), [0.0, -1.5, 0.0]));
+    }
+
+    fn secs(s: f64) -> Option<std::time::Duration> {
+        Some(std::time::Duration::from_secs_f64(s))
+    }
+
+    #[test]
+    fn a_paused_run_with_a_fresh_status_is_nothing_to_warn_about() {
+        assert_eq!(liveness(secs(0.1), secs(30.0), true), None);
+    }
+
+    #[test]
+    fn a_status_four_seconds_old_is_a_silent_publisher() {
+        assert_eq!(liveness(secs(4.0), secs(4.0), false), Some(Liveness::Silent(4)));
+        // Paused or not: a publisher that has stopped writing will not read a press either.
+        assert_eq!(liveness(secs(4.0), None, true), Some(Liveness::Silent(4)));
+    }
+
+    #[test]
+    fn a_fresh_status_over_a_pose_two_seconds_old_is_a_simulation_not_advancing() {
+        assert_eq!(liveness(secs(0.1), secs(2.0), false), Some(Liveness::NotAdvancing));
+    }
+
+    #[test]
+    fn the_showcase_between_episodes_is_not_a_warning() {
+        // Status and poses stop together for 1.2 s. The status is noticed up to a poll after the
+        // last pose, and neither reading is a warning.
+        assert_eq!(liveness(secs(1.3), secs(1.3), false), None);
+        assert_eq!(liveness(secs(1.1), secs(1.2), false), None);
+        assert_eq!(liveness(secs(0.95), secs(1.05), false), None);
+        // No status yet, or no feeds yet: nothing to measure against.
+        assert_eq!(liveness(None, secs(9.0), false), None);
+        assert_eq!(liveness(secs(0.1), None, false), None);
+    }
+
+    fn reading(text: &str) -> std::io::Result<(Option<std::time::SystemTime>, String)> {
+        Ok((None, text.to_string()))
+    }
+
+    const STATUS: &str = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
+        "profile":"l1_standard","simSeconds":0,"speed":1,"paused":false,"muscles":false,
+        "holding":[],"grabStrength":1,"wallSeconds":1.0}"#;
+
+    #[test]
+    fn a_status_is_seen_when_it_changes_and_not_when_it_is_read_again() {
+        let mut feed = StatusFeed::default();
+        let start = std::time::Instant::now();
+        feed.observe(reading(STATUS), start);
+        assert!(feed.status.is_some() && feed.error.is_none());
+        assert_eq!(feed.seen, Some(start));
+        // The same text again is a publisher that has not written since.
+        let later = start + std::time::Duration::from_millis(100);
+        feed.observe(reading(STATUS), later);
+        assert_eq!(feed.seen, Some(start));
+        // A new write moves it.
+        let next = STATUS.replace("\"wallSeconds\":1.0", "\"wallSeconds\":1.1");
+        feed.observe(reading(&next), later);
+        assert_eq!(feed.seen, Some(later));
+    }
+
+    #[test]
+    fn an_unreadable_status_is_said_rather_than_hidden_behind_the_last_good_one() {
+        let mut feed = StatusFeed::default();
+        let at = std::time::Instant::now();
+        feed.observe(reading(STATUS), at);
+        feed.observe(reading(&STATUS.replace("\"generation\":1", "\"generation\":null")), at);
+        let why = feed.error.clone().expect("the error is kept");
+        assert!(why.contains("null"), "{why}");
+        assert!(feed.status.is_some(), "the last good status stays for the panels to show");
+        // Readable again: the error goes.
+        feed.observe(reading(&STATUS.replace("1.0", "2.0")), at);
+        assert!(feed.error.is_none());
+        // Gone: nothing to show and nothing wrong, and no age to warn about.
+        feed.observe(Err(std::io::ErrorKind::NotFound.into()), at);
+        assert!(feed.status.is_none() && feed.error.is_none() && feed.age().is_none());
     }
 
     #[test]

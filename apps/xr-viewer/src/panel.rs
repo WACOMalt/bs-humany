@@ -414,7 +414,18 @@ impl Panel {
     }
 
     /// Lay the panel out for this frame and say what to draw and what was asked.
-    pub fn run(&mut self, status: Option<&Status>, pointer: Pointer, feeds: &str) -> Frame {
+    ///
+    /// `liveness` is what is wrong with the publisher, if anything, and `status_error` why its
+    /// newest status could not be read; both are said at the top of the panel. While the
+    /// publisher is silent the controls are drawn but greyed: nothing pressed would be read.
+    pub fn run(
+        &mut self,
+        status: Option<&Status>,
+        pointer: Pointer,
+        feeds: &str,
+        liveness: Option<&crate::xr::Liveness>,
+        status_error: Option<&str>,
+    ) -> Frame {
         let size = self.kind.size();
         let mut events = Vec::new();
         match pointer.at {
@@ -470,6 +481,7 @@ impl Panel {
         };
         let kind = self.kind;
         let grabbed = self.grabbed;
+        let live = !matches!(liveness, Some(crate::xr::Liveness::Silent(_)));
         let output = self.ctx.run(input, |ctx| {
             egui::CentralPanel::default()
                 .frame(
@@ -487,11 +499,16 @@ impl Panel {
                                 ui.vertical(|ui| {
                                     ui.set_width(size[0] - GRAB_WIDTH - 118.0);
                                     ui.add_space(14.0);
+                                    let warned = warnings(ui, status.is_some(), liveness, status_error, false);
                                     egui::ScrollArea::vertical()
-                                        .max_height(size[1] - 60.0)
+                                        .max_height(size[1] - 60.0 - warned)
                                         .show(ui, |ui| match status {
-                                            Some(s) => properties(ui, tab, s, &mut editing, &mut commands, feeds),
-                                            None => waiting(ui, feeds),
+                                            Some(s) => {
+                                                ui.add_enabled_ui(live, |ui| {
+                                                    properties(ui, tab, s, &mut editing, &mut commands, feeds)
+                                                });
+                                            }
+                                            None => waiting(ui, feeds, status_error),
                                         });
                                     ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                                         note(ui, feeds);
@@ -502,10 +519,19 @@ impl Panel {
                                 ui.add_space(10.0);
                                 ui.vertical(|ui| {
                                     ui.set_width(size[0] - GRAB_WIDTH - 20.0);
-                                    ui.add_space(12.0);
+                                    // The strip is 150 points tall and full without a warning;
+                                    // one takes its line out of the margin above, not the
+                                    // overlays below.
+                                    let warned = status.is_some() && (liveness.is_some() || status_error.is_some());
+                                    ui.add_space(if warned { 2.0 } else { 12.0 });
+                                    warnings(ui, status.is_some(), liveness, status_error, true);
                                     match status {
-                                        Some(s) => transport(ui, s, &mut editing, &mut commands),
-                                        None => waiting(ui, feeds),
+                                        Some(s) => {
+                                            ui.add_enabled_ui(live, |ui| {
+                                                transport(ui, s, &mut editing, &mut commands)
+                                            });
+                                        }
+                                        None => waiting(ui, feeds, status_error),
                                     }
                                 });
                             }
@@ -583,9 +609,61 @@ fn tab_column(ui: &mut egui::Ui, tab: &mut Tab, height: f32) {
         });
 }
 
-fn waiting(ui: &mut egui::Ui, feeds: &str) {
+fn waiting(ui: &mut egui::Ui, feeds: &str, status_error: Option<&str>) {
     ui.label("Waiting for the publisher: start a run in the studio, or run `pnpm publish:pose`.");
+    if let Some(why) = status_error {
+        unreadable(ui, why);
+    }
     note(ui, feeds);
+}
+
+/// A status file that is there and cannot be read: a publisher and a viewer that disagree about
+/// the contract, in serde's words, which name the field.
+fn unreadable_text(ui: &egui::Ui, why: &str) -> egui::RichText {
+    egui::RichText::new(format!("status unreadable: {why}")).color(ui.visuals().error_fg_color)
+}
+
+fn unreadable(ui: &mut egui::Ui, why: &str) {
+    let text = unreadable_text(ui, why);
+    ui.label(text);
+}
+
+/// What is wrong with the publisher, at the top of a panel that is showing a status: the
+/// liveness in the theme's warning colour, an unreadable status in its error colour. Returns the
+/// height it took, so the scrolled part below can give it back. The waiting view says the status
+/// error itself, since it has no status to be above.
+///
+/// `one_line` is for the transport strip, which is 150 points tall and full without a warning:
+/// both go on one line there, cut short if they must be, and the properties panel, which has
+/// the room, says them whole.
+fn warnings(
+    ui: &mut egui::Ui,
+    showing_status: bool,
+    liveness: Option<&crate::xr::Liveness>,
+    status_error: Option<&str>,
+    one_line: bool,
+) -> f32 {
+    if !showing_status || (liveness.is_none() && status_error.is_none()) {
+        return 0.0;
+    }
+    let texts: Vec<egui::RichText> = liveness
+        .map(|l| egui::RichText::new(l.message()).strong().color(ui.visuals().warn_fg_color))
+        .into_iter()
+        .chain(status_error.map(|why| unreadable_text(ui, why)))
+        .collect();
+    let top = ui.cursor().top();
+    if one_line {
+        ui.horizontal(|ui| {
+            for text in texts {
+                ui.add(egui::Label::new(text).truncate());
+            }
+        });
+    } else {
+        for text in texts {
+            ui.label(text);
+        }
+    }
+    ui.cursor().top() - top
 }
 
 fn properties(
@@ -1079,6 +1157,51 @@ mod tests {
         let quarter = [0.0, std::f32::consts::FRAC_1_SQRT_2, 0.0, std::f32::consts::FRAC_1_SQRT_2];
         let turned = panel.carried(&held, hand_at, quarter);
         assert!(turned.normal[0].abs() > 0.99, "{:?}", turned.normal);
+    }
+
+    #[test]
+    fn the_transport_strip_has_room_for_a_warning() {
+        // The strip is a fixed 150 points. Both warnings at once, with the 2-point margin `run`
+        // leaves above them, must not push the overlays off its bottom, even with a hand holding
+        // something, which adds a line of its own. Laid out as `run` lays the strip out, without
+        // the grab strip beside it, which takes width and not height.
+        let status: Status = serde_json::from_str(
+            r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
+            "profile":"l1_standard","simSeconds":12.5,"speed":1,"paused":false,"muscles":true,
+            "holding":["femur_r"],"grabStrength":1}"#,
+        )
+        .expect("parses");
+        let silent = crate::xr::Liveness::Silent(4);
+        let panel = Panel::new(Kind::Transport);
+        let size = Kind::Transport.size();
+        let mut used = 0.0;
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(size[0], size[1]),
+            )),
+            ..Default::default()
+        };
+        let _ = panel.ctx.run(input, |ctx| {
+            egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+                let content = ui.vertical(|ui| {
+                    ui.set_width(size[0] - GRAB_WIDTH - 20.0);
+                    let mut editing = Editing {
+                        current: None,
+                        on_panel: false,
+                        last_live_send: 0.0,
+                        now: 0.0,
+                    };
+                    let mut commands = Vec::new();
+                    let why = "invalid type: null, expected u64 at line 1 column 18";
+                    ui.add_space(2.0);
+                    warnings(ui, true, Some(&silent), Some(why), true);
+                    ui.add_enabled_ui(false, |ui| transport(ui, &status, &mut editing, &mut commands));
+                });
+                used = content.response.rect.height();
+            });
+        });
+        assert!(used <= size[1], "{used} points of content in a {} point strip", size[1]);
     }
 
     #[test]
