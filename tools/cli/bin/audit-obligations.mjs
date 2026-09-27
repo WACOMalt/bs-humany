@@ -35,8 +35,12 @@ const compiler = await jiti.import(join(ROOT, 'packages/compiler/src/index.ts'))
 const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropometry/src/index.ts'));
 
 const document = skeleton.buildDocument();
-const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
-const { articulation } = compiler.compileArticulation(document, 'l3_anatomical', morphology);
+const morphology = resolveMorphology(skeleton.REFERENCE_MORPHOLOGY);
+const { articulation } = compiler.compileArticulation(
+  document,
+  skeleton.REFERENCE_PROFILE,
+  morphology,
+);
 
 // --- Helpers ------------------------------------------------------------------------------------
 

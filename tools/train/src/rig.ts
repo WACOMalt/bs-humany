@@ -85,7 +85,7 @@ import {
   reflexGroups,
   unitsNamedByClips,
 } from '@bs-humany/scenarios';
-import { buildDocument } from '@bs-humany/skeleton';
+import { REFERENCE_MORPHOLOGY, buildDocument } from '@bs-humany/skeleton';
 import { DEFAULT_NOISE, NO_REFLEX, type RigOptions, TASKS, type Task, isTask } from './recipe.js';
 
 // The recipe -- its types, its defaults, its limits and the rig options it turns into -- lives
@@ -350,7 +350,7 @@ export class StandRig {
       scenario = definition.build(options.scenario.parameters);
     }
     const morphology = resolveMorphology(
-      options.morphology ?? scenario?.morphology ?? { sex: 0.5, stature: 1.7, mass: 70 },
+      options.morphology ?? scenario?.morphology ?? REFERENCE_MORPHOLOGY,
     );
     const compiled = compileArticulation(document, options.profileId, morphology).articulation;
     const groundHeight = scenario?.ground.height ?? 0;

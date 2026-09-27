@@ -10,6 +10,7 @@ export * from './taxonomy.js';
 export * from './segmentation.js';
 export * from './dataset.js';
 export * from './document.js';
+export * from './reference.js';
 export * from './landmarks.js';
 export * from './frames.js';
 export * from './joints.js';

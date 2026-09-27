@@ -11,6 +11,7 @@
     { "path": "../hsdl" },
     { "path": "../anthropometry" },
     { "path": "../modules-mechanics" },
-    { "path": "../modules-nerves" }
+    { "path": "../modules-nerves" },
+    { "path": "../skeleton" }
   ]
 }

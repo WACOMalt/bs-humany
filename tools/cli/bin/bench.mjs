@@ -68,7 +68,9 @@ const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropomet
 const { compileArticulation, transferJointState, allocateBuffers } = await jiti.import(
   join(ROOT, 'packages/compiler/src/index.ts'),
 );
-const { buildDocument } = await jiti.import(join(ROOT, 'packages/skeleton/src/index.ts'));
+const { buildDocument, REFERENCE_MORPHOLOGY } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/index.ts'),
+);
 const { Kernel } = await jiti.import(join(ROOT, 'packages/kernel/src/index.ts'));
 const { MujocoBackend } = await jiti.import(join(ROOT, 'packages/backend-mujoco/src/index.ts'));
 const { scenario } = await jiti.import(join(ROOT, 'packages/scenarios/src/index.ts'));
@@ -257,7 +259,7 @@ for (const row of fullRows) {
 // backend at the running one's joint state.
 
 const document = buildDocument();
-const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
+const morphology = resolveMorphology(REFERENCE_MORPHOLOGY);
 const restoreRows = [];
 for (const profileId of ['l1_standard', 'l2_biomechanical']) {
   const from = compileArticulation(document, profileId, morphology).articulation;
