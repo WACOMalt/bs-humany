@@ -842,10 +842,31 @@ controller uses. Widening that interface is the fix and it is not a one-line one
 data, deliberately ignorant of the muscle and articulation packages, and handing it joint state
 means deciding what a scenario is allowed to know.
 
+**What changed, 2026-09-26.** A cord now exists. It starts down the second route in "Closes
+when" below: a control module of its own rather than a wider `ScenarioApi`. ADR-014 added
+`SpinalModule` in the control phase, a stretch reflex under the nerves that answers the body as
+it was thirty milliseconds ago. Its gains were measured again once ba50a95 fixed its length
+afferent (`docs/validation/reflex-gains.md`). With them, in the trainer's rig and under the
+committed standing policy, it roughly doubles the time the body stays upright: 0.894 s against
+0.456 s with no cord, over eight seeds. With the policy silent it adds less than a tenth of a
+second (0.568 s against 0.484 s). The body still falls within a second either way. So the cord is
+a floor under a controller, not a controller that stands, and it does not close this question.
+ADR-014's first figures (0.67 s, 0.87 s) do not apply: they were measured against the broken
+afferent, and its amendment says so.
+
+It is also not what `quiet-standing` runs as the studio opens it. The studio builds the cord at
+zero gains unless the Spine sliders or a checkpoint's recipe set them, so the scenario as it opens
+is still the ankle loop alone. The owner decided on 2026-09-26 that the studio and the scripted
+scenarios will run with the measured cord on; until that change lands, the cord is off by
+default. Nobody has yet measured `quiet-standing` with the cord on, and nobody has tried the
+joint-state route through `ScenarioApi`.
+
 **Closes when:** either `ScenarioApi` carries joint state and `quiet-standing` closes a servo per
 postural joint, or the scenario is honest about being a posture and a separate control module owns
 standing. Until then the scenario stands for a second and says so in its own description.
-**Status:** open. The muscle loads are right; the reflexes above the ankle are missing.
+**Status:** open — a cord now exists (ADR-014) but is off by default in the studio and does not by
+itself hold standing; the joint-state route through `ScenarioApi` is untried. The muscle loads are
+right.
 
 ### OQ-025 — The intercostals have no source for what they can pull with
 **Needed for:** muscles between the ribs, which the rib cage has none of

@@ -1,6 +1,7 @@
 # ADR-003 — Two backends in Phase 1: Rapier as default, MuJoCo as the accuracy backend
 
-**Status:** Accepted
+**Status:** Accepted; reassessed 2026-09-13 — MuJoCo is the only enabled backend. Deletion of
+Rapier decided 2026-09-26. See [Reassessed 2026-09-13 (M5.8)](#reassessed-2026-09-13-m58).
 
 ## Decision
 
@@ -30,3 +31,38 @@ Roughly 1.5x the adapter work of a single backend. Accepted deliberately.
 
 MuJoCo-WASM proves fast enough at low fidelity to be the only backend. Reassess after the M3.19
 benchmarks.
+
+It did, and it was: see the reassessment below.
+
+## Reassessed 2026-09-13 (M5.8)
+
+Recorded here on 2026-09-26. Until then the reassessment lived only in the specification
+(`docs/spec/bs-humany-spec.md`, the paragraph closing its copy of this ADR), while the code and
+the conformance report cited it as "the ADR-003 reassessment". This section records the
+project owner's decisions. It does not reopen them.
+
+**What was measured.** MuJoCo-WASM is fast enough: 0.11 ms per step at L0 and 0.17 ms at L1 on
+the desktop benchmark, unchanged by the move to convex-hull collision proxies (ADR-006, M5.8),
+with every scenario plausible and golden trajectories that do not depend on the platform. Rapier
+went from 0.24 and 0.33 ms to 0.95 and 1.6 ms with the hulls, and became unstable in three
+scenarios: it injected energy and tore joints. It also already carried a joint-angle solver,
+emulated range stops and couplings, and OQ-009, only so that it would behave like a
+reduced-coordinate engine. The one reason left in its favour was untested: its payload and
+behaviour on a phone, where its wasm is 2 MB against MuJoCo's 10 MB.
+
+**Decision of 2026-09-13.** MuJoCo is the only enabled backend. `RapierBackend` stays in the
+tree as a vestigial remnant, disabled and hidden from the studio, with its scenario checks
+skipped, so that it can be revisited. Measuring MuJoCo on real mobile hardware was the condition
+for deleting Rapier outright.
+
+**Decision of 2026-09-26.** The owner decided to delete Rapier now, and waived the
+phone-measurement condition. So the "Decision" and "Implementation ordering" sections above are
+history: there is one backend, and the conformance harness has one engine to hold to its
+scenarios. The deletion itself is a separate change, and that change sets the final status line
+of this ADR.
+
+What this gives up is the reason the ADR gave for building two adapters: a single-implementation
+interface is a fiction. `IPhysicsBackend` stays, and the next second backend (a native or remote
+MuJoCo, or MJX) is what will test it again. The platform floor (ADR-010, `L0` on mobile) is not
+changed by any of this. What MuJoCo costs on a phone is still unmeasured, and that measurement is
+now a question about the floor, not about Rapier.

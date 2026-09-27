@@ -78,3 +78,28 @@ Which behaviours beyond standing, how the goal vector grows, whether the observa
 head-mounted vestibular sense or an efference copy, and when evolution strategies stop being
 enough and a gradient method on a learned model takes over. Each is a training run away, and
 none changes the module's contract.
+
+## Note, 2026-09-26 — what has since been decided and built
+
+This note points forward and changes nothing above.
+
+- **The vestibular sense and the spinal layer were decided in ADR-014**, and both are built. The
+  observation now carries the head's own down and spin in the head's frame (`head.down.*` and
+  `head.spin.*` in `packages/modules-nerves/src/observation.ts`), appended by name so every older
+  checkpoint still fits. Under the nerves, a `SpinalModule` closes the stretch reflex, and every
+  afferent it reads goes through the `DelayLine` that §10.5 built in Phase 1 and nothing used
+  until then.
+- **Efference copy was in the observation from the start.** Each group's activation is not an
+  afferent; it is what was last asked of the muscle, and `observation.ts` names it that. ADR-014
+  added the other half, the policy's memory: context units the policy writes and reads back on
+  the next control step, named like any other sense.
+- **The drives are now seventy, thirty-five groups a side**, because the muscle set grew. The
+  checkpoints that ship were trained on fifty-eight. They still fit by name, as described above,
+  and the drives they do not know start from nothing.
+- **Where trained weights go.** The scenario still imports its policy as a JSON file from
+  `packages/modules-nerves/policies`. That directory now holds only the checkpoints that ship. A
+  run writes its checkpoints to the data directory instead (`<data>/policies`; see ADR-014's
+  amendment and `pnpm train:where`), and the studio takes one live, between one control step and
+  the next.
+- **The gains of the cord** are measured in `docs/validation/reflex-gains.md`, not in ADR-014's
+  first text; ADR-014's amendment says why.
