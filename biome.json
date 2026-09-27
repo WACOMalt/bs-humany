@@ -11,6 +11,7 @@
       "packages/modules-nerves/policies/**",
       "**/*.tsbuildinfo",
       "packages/assets-anatomical/data/**",
+      "tools/ingest/.cache",
       "apps/xr-viewer/target",
       "apps/xr-viewer/fixtures/**",
       "test-results",

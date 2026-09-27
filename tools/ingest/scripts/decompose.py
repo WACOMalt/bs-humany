@@ -8,9 +8,16 @@ stature. Driven by `pnpm --filter @bs-humany/ingest hulls`; not meant to be run 
 
     python decompose.py <dataDir> <groups.json> <out.json>
 
-Every group runs in its own fresh interpreter under a time limit, and a group that overruns is
-retried with cheaper settings, then with one plain hull per bone, so the batch always finishes. The settings
-that produced each group are recorded next to its hulls.
+Every group runs in its own fresh interpreter. A group the groups file gives a `tier` for (the
+one the committed hulls.json records) runs at that tier only, with no time limit: CoACD is seeded,
+so the same tier on the same mesh gives the same pieces, and a limit could only make the result
+depend on how busy the machine is. A group with no recorded tier -- new, or re-budgeted -- runs
+under a time limit, and if it overruns is retried with cheaper settings, then with one plain hull
+per bone, so the batch always finishes. The tier that produced each group is recorded next to its
+hulls, which is what the next run replays.
+
+The installed versions of the packages that shape the result are written into the output too:
+the pieces are reproducible for the versions requirements.txt pins, not across them.
 
 Offline only, by design (spec section 8.1): hulls are never generated at runtime.
 """
@@ -21,7 +28,8 @@ import subprocess
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from importlib.metadata import version
 
 import numpy as np
 import trimesh
@@ -31,7 +39,8 @@ SEED = 0
 TIME_LIMIT_SECONDS = 120
 WORKERS = 8
 
-# Tried in order; a group moves to the next tier when the previous one overruns the limit.
+# Tried in order by a group with no recorded tier; it moves to the next tier when the previous
+# one overruns the limit.
 SETTINGS = [
     {
         'name': 'standard',
@@ -53,6 +62,12 @@ SETTINGS = [
     },
     {'name': 'hull-per-bone'},
 ]
+TIER_NAMES = [s['name'] for s in SETTINGS]
+
+# Everything that shapes the pieces: CoACD cuts them, trimesh and SciPy (under trimesh) take their
+# hulls, NumPy does the arithmetic. Read from the installed distributions, because coacd has no
+# __version__ and the table used to record 'unknown'.
+VERSIONED = ['coacd', 'trimesh', 'numpy', 'scipy']
 
 
 def load_pack(data_dir):
@@ -135,10 +150,18 @@ def decompose_one(data_dir, names, max_hulls, tier):
     return [reduce_hull(np.asarray(p[0]), np.asarray(p[1])) for p in parts]
 
 
-def run_group(data_dir, key, names, max_hulls):
-    """Try each tier in a subprocess under the time limit; return (hulls, tier, seconds)."""
+def run_group(data_dir, key, names, max_hulls, recorded):
+    """
+    Decompose one group in a subprocess; return (hulls, tier, seconds).
+
+    With a recorded tier, run that tier alone and with no time limit, and fail rather than fall
+    back: a fallback would quietly write a different decomposition than the one being replayed.
+    Without one, climb the tiers, each but the last under the time limit.
+    """
     started = time.time()
-    for tier in range(len(SETTINGS)):
+    tiers = [TIER_NAMES.index(recorded)] if recorded is not None else range(len(SETTINGS))
+    for tier in tiers:
+        timed = recorded is None and tier < len(SETTINGS) - 1
         with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as tmp:
             out_path = tmp.name
         args = [
@@ -155,7 +178,7 @@ def run_group(data_dir, key, names, max_hulls):
         try:
             run = subprocess.run(
                 args,
-                timeout=None if tier == len(SETTINGS) - 1 else TIME_LIMIT_SECONDS,
+                timeout=TIME_LIMIT_SECONDS if timed else None,
                 env=env,
                 capture_output=True,
                 text=True,
@@ -171,6 +194,8 @@ def run_group(data_dir, key, names, max_hulls):
         hulls = json.load(open(out_path))
         os.unlink(out_path)
         return hulls, tier, time.time() - started
+    if recorded is not None:
+        raise RuntimeError(f'the recorded tier {recorded} failed for {key}')
     raise RuntimeError(f'every settings tier failed for {key}')
 
 
@@ -183,6 +208,9 @@ def main():
 
     data_dir, groups_path, out_path = sys.argv[1:4]
     groups = json.load(open(groups_path))
+    for k, g in groups.items():
+        if g.get('tier') is not None and g['tier'] not in TIER_NAMES:
+            raise ValueError(f'{k}: recorded tier {g["tier"]!r} is not one of {TIER_NAMES}')
     parameters = {
         'settings': SETTINGS,
         'timeLimitSeconds': TIME_LIMIT_SECONDS,
@@ -190,27 +218,31 @@ def main():
         'seed': SEED,
         'preprocessMode': 'auto',
     }
-    # Resume: a previous run's partial output with the same parameters and budgets is kept.
+    versions = {name: version(name) for name in VERSIONED}
+    # Resume: a previous run's partial output is kept for a group when the parameters, the
+    # package versions, the budget and -- if one is recorded -- the tier all match. src/hulls.ts
+    # already keys the whole cache on the pack; these are what can change under the same pack.
     out = {}
     if os.path.exists(out_path):
         previous = json.load(open(out_path))
-        if previous.get('parameters') == parameters:
+        if previous.get('parameters') == parameters and previous.get('versions') == versions:
             out = {
                 k: v
                 for k, v in previous['groups'].items()
-                if k in groups and v.get('maxHulls') == groups[k]['maxHulls']
+                if k in groups
+                and v.get('maxHulls') == groups[k]['maxHulls']
+                and groups[k].get('tier') in (None, v.get('settings'))
             }
-    jobs = [(k, g['bones'], g['maxHulls']) for k, g in groups.items() if k not in out]
+    jobs = [(k, g['bones'], g['maxHulls'], g.get('tier')) for k, g in groups.items() if k not in out]
     # Largest groups first so the pool's tail is short.
     jobs.sort(key=lambda j: -len(j[1]))
     print(f'{len(out)} groups resumed, {len(jobs)} to decompose', file=sys.stderr, flush=True)
 
-    import coacd
-
     def save():
         json.dump(
             {
-                'coacd': getattr(coacd, '__version__', 'unknown'),
+                'coacd': versions['coacd'],
+                'versions': versions,
                 'parameters': parameters,
                 'groups': out,
             },
@@ -219,9 +251,9 @@ def main():
 
     done = 0
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        futures = {pool.submit(run_group, data_dir, k, names, m): (k, names, m) for k, names, m in jobs}
-        from concurrent.futures import as_completed
-
+        futures = {
+            pool.submit(run_group, data_dir, k, names, m, t): (k, names, m) for k, names, m, t in jobs
+        }
         for future in as_completed(futures):
             key, names, max_hulls = futures[future]
             hulls, tier, seconds = future.result()

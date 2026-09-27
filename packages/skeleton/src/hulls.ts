@@ -10,6 +10,9 @@
 import type { SkeletonManifest } from '@bs-humany/assets-anatomical';
 import hullsJson from '@bs-humany/assets-anatomical/data/hulls.json' with { type: 'json' };
 
+// The key is defined once, in a module the ingest tool can import without this one's JSON.
+export { hullGroupKey } from './hullKey.js';
+
 export interface HullGroup {
   /** `anchor|sorted,bone,ids`; see `hullGroupKey`. */
   readonly key: string;
@@ -18,7 +21,10 @@ export interface HullGroup {
   /** `profile/segment` labels of every segment that owns exactly this bone set. */
   readonly segments: readonly string[];
   readonly maxHulls: number;
-  /** The settings tier that produced the pieces: `standard`, `coarse` or `hull-per-bone`. */
+  /**
+   * The settings tier that produced the pieces: `standard`, `coarse` or `hull-per-bone`. A
+   * regeneration replays this tier, with no time limit, so the pieces come out the same.
+   */
   readonly settings: string;
   /** One flat `x y z ...` list per hull, metres relative to the anchor centroid at dataset stature. */
   readonly hulls: readonly (readonly number[])[];
@@ -29,9 +35,19 @@ export interface HullTable {
   /** Licence and attribution of the meshes the hulls derive from, copied from the manifest. */
   readonly dataset: SkeletonManifest['dataset'];
   readonly generator: string;
+  /** The CoACD version that produced the pieces (`unknown` in tables written before it was read). */
   readonly coacd: string;
+  /**
+   * Every Python package whose version shapes the pieces -- CoACD cuts them, trimesh and SciPy take
+   * their hulls, NumPy does the arithmetic -- as installed when the table was written. Absent from
+   * tables written before the dependencies were pinned.
+   */
+  readonly versions?: Readonly<Record<string, string>>;
   readonly parameters: {
-    /** Settings tiers tried in order; a group overrunning the time limit moves to the next. */
+    /**
+     * Settings tiers, cheapest last. A group with a recorded tier replays it; a new group tries
+     * them in order, moving to the next when one overruns the time limit.
+     */
     readonly settings: readonly { readonly name: string; readonly threshold?: number }[];
     readonly timeLimitSeconds: number;
     readonly maxVertices: number;
@@ -49,11 +65,6 @@ export interface HullTable {
 }
 
 export const HULL_TABLE: HullTable = hullsJson as unknown as HullTable;
-
-/** The key a segment's bone set is filed under. Must match `tools/ingest/src/hulls.ts`. */
-export function hullGroupKey(anchor: string, bones: readonly string[]): string {
-  return `${anchor}|${[...bones].sort().join(',')}`;
-}
 
 export const HULL_GROUPS: ReadonlyMap<string, HullGroup> = new Map(
   HULL_TABLE.groups.map((g) => [g.key, g]),
