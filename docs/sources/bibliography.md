@@ -111,6 +111,22 @@ lawful measurement source under ADR-009 — no mesh required.
 Adopting them means joint angles here are directly comparable to published literature and to
 motion-capture pipelines, at essentially zero implementation cost beyond care in frame definition.
 
+## Clinical range of motion
+
+### `aaos1965` — T1
+American Academy of Orthopaedic Surgeons (1965). *Joint Motion: Method of Measuring and
+Recording*. AAOS, Chicago. Reprinted by the British Orthopaedic Association (1966), Churchill
+Livingstone, Edinburgh.
+
+The goniometric method and the table of average ranges of motion that clinical practice still
+quotes: for the wrist, 20 degrees of radial and 30 of ulnar deviation from the neutral position.
+The source of the wrist's deviation range here (joints.ts, `wrist_*` ulnar_deviation), because
+MyoSuite's `deviation_r` gives the reverse, 25 degrees radial and 10 ulnar. The values are
+population averages from the neutral-zero method, not a single subject's limits, and the booklet
+itself was not to hand: they are its table's wrist row as the goniometry literature reproduces it
+(Norkin and White's *Measurement of Joint Motion* lists it among its normative sources), so no
+page is given.
+
 ---
 
 ## Musculoskeletal models

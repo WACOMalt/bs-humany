@@ -5,7 +5,7 @@ with the change that moved it.
 
 7 coordinates swept, each against the vendored MyoSuite model at commit `eb327acbae` loaded into MuJoCo and measured the same way, in the pose each section names. Both sides are computed here: nothing is transcribed, and no value from the reference reaches the model (ADR-009). The shoulder is not swept until the glenohumeral coordinates are mapped, and the trunk's tendons not until the arm and torso chains are joined.
 
-Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 7 sign change(s) accepted by the owner, 0 to investigate, 48 recorded.
+Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 7 sign change(s) accepted by the owner, 0 to investigate, 47 recorded.
 
 The sign changes accepted by the owner were found when their rows were first swept. Each is a hard failure by muscle spec 13.2 and none is excused by a bound; on 2026-09-27 the owner accepted them as recorded differences, each with the reason in its note, and they are listed in `OWNER_ACCEPTED`. A sign change not on that list fails `--check`:
 
@@ -183,14 +183,14 @@ Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinat
 
 ## Wrist ulnar deviation
 
-Swept from -25 to 10 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at minus ours, its moment arms turned to our sign, + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
+Swept from -20 to 30 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at minus ours, its moment arms turned to our sign, + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| flexor_carpi_radialis_r | -41.4 at -25° | -5.6 at -25° | 30.7 | 35.8 at -25° | recorded (OQ-015) |
-| flexor_carpi_ulnaris_r | 15.6 at 10° | 11.5 at 10° | 2.6 | 4.1 at 10° | ok |
-| extensor_carpi_radialis_longus_r | -13.0 at 10° | -24.3 at -15° | 11.7 | 13.4 at -25° | recorded (OQ-015) |
-| extensor_carpi_radialis_brevis_r | -9.9 at -10° | -16.3 at -25° | 5.2 | 6.9 at -25° | recorded (OQ-015) |
+| flexor_carpi_radialis_r | -40.0 at -20° | -5.3 at -20° | 26.2 | 34.7 at -20° | recorded (OQ-015) |
+| flexor_carpi_ulnaris_r | 18.6 at 30° | 12.9 at 30° | 3.6 | 5.7 at 30° | ok |
+| extensor_carpi_radialis_longus_r | -13.0 at 10° | -24.3 at -15° | 10.3 | 13.2 at -20° | recorded (OQ-015) |
+| extensor_carpi_radialis_brevis_r | -9.9 at -10° | -16.0 at -20° | 4.2 | 6.3 at -20° | ok |
 
 ### Notes
 
@@ -203,7 +203,6 @@ Swept from -25 to 10 degrees in 5-degree steps, elbow straight, forearm supinate
 
 | Ulnar deviation | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|
-| -25° | -41.4 | 8.9 | -10.1 | -9.5 |
 | -20° | -40.0 | 9.9 | -10.9 | -9.7 |
 | -15° | -38.3 | 10.9 | -11.6 | -9.8 |
 | -10° | -36.5 | 11.9 | -12.2 | -9.9 |
@@ -211,12 +210,15 @@ Swept from -25 to 10 degrees in 5-degree steps, elbow straight, forearm supinate
 | 0° | -32.5 | 13.8 | -12.8 | -9.8 |
 | 5° | -30.2 | 14.7 | -13.0 | -9.6 |
 | 10° | -27.8 | 15.6 | -13.0 | -9.4 |
+| 15° | -25.3 | 16.4 | -12.9 | -9.1 |
+| 20° | -22.7 | 17.2 | -12.8 | -8.8 |
+| 25° | -20.1 | 17.9 | -12.5 | -8.4 |
+| 30° | -17.3 | 18.6 | -12.2 | -8.0 |
 
 ### The reference, millimetres
 
 | Ulnar deviation | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|
-| -25° | -5.6 | 7.8 | -23.5 | -16.3 |
 | -20° | -5.3 | 8.4 | -24.1 | -16.0 |
 | -15° | -5.0 | 9.0 | -24.3 | -15.7 |
 | -10° | -4.7 | 9.5 | -24.3 | -15.2 |
@@ -224,6 +226,10 @@ Swept from -25 to 10 degrees in 5-degree steps, elbow straight, forearm supinate
 | 0° | -4.0 | 10.6 | -23.6 | -14.2 |
 | 5° | -3.6 | 11.0 | -23.2 | -13.6 |
 | 10° | -3.1 | 11.5 | -22.6 | -13.0 |
+| 15° | -2.6 | 11.9 | -22.0 | -12.4 |
+| 20° | -2.1 | 12.3 | -21.3 | -11.8 |
+| 25° | -1.5 | 12.6 | -20.5 | -11.1 |
+| 30° | -0.9 | 12.9 | -19.7 | -10.4 |
 
 ## Hip flexion
 

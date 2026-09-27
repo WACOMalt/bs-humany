@@ -8,7 +8,7 @@ Reference: MyoSuite `myo_sim` at commit `eb327acbae`, vendored under
 `tools/validate-external/` with its Apache-2.0 licence. See that directory for how to verify
 or advance the pin.
 
-Generated 2026-09-27. 190 comparisons, 0 to investigate, 6 differing by a recorded decision, 67 values provisional and so not compared.
+Generated 2026-09-27. 186 comparisons, 0 to investigate, 6 differing by a recorded decision, 67 values provisional and so not compared.
 
 ## What is compared
 
@@ -81,7 +81,6 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_r/internal_rotation | [-1.571, 2.094] | [-1.571, 2.094] | as stated |
 | ok | elbow_r/flexion | [0, 2.269] | [0, 2.269] | as stated |
 | ok | wrist_r/flexion | [-0.785398, 0.785398] | [-0.785398, 0.785398] | as stated |
-| ok | wrist_r/ulnar_deviation | [-0.436332, 0.174533] | [-0.174533, 0.436332] | flexion-positive |
 | ok | hip_l/flexion | [-0.523599, 2.0944] | [-0.523599, 2.0944] | as stated |
 | ok | hip_l/adduction | [-0.872665, 0.523599] | [-0.872665, 0.523599] | as stated |
 | ok | hip_l/internal_rotation | [-0.698132, 0.698132] | [-0.698132, 0.698132] | as stated |
@@ -96,7 +95,6 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_l/internal_rotation | [-1.571, 2.094] | [-1.571, 2.094] | as stated |
 | ok | elbow_l/flexion | [0, 2.269] | [0, 2.269] | as stated |
 | ok | wrist_l/flexion | [-0.785398, 0.785398] | [-0.785398, 0.785398] | as stated |
-| ok | wrist_l/ulnar_deviation | [-0.436332, 0.174533] | [-0.174533, 0.436332] | flexion-positive |
 | ok | acromioclavicular_r/unrotate_clavicle_elevation | [-0.318, 0] | [-0.318, 0] | as stated |
 | ok | acromioclavicular_r/unrotate_clavicle_protraction | [0, 0.75] | [0, 0.75] | as stated |
 | ok | acromioclavicular_r/protraction | [-0.152, 0] | [-0.152, 0] | as stated |
@@ -188,7 +186,6 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_r: plane_of_elevation to elevation | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | glenohumeral_r: plane_of_elevation to internal_rotation | 0.000 deg | 0.000 deg | same angle between the axes |
 | ok | glenohumeral_r: elevation to internal_rotation | 90.000 deg | 90.000 deg | same angle between the axes |
-| ok | wrist_r: flexion to ulnar_deviation | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | hip_l: flexion to adduction | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | hip_l: flexion to internal_rotation | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | hip_l: adduction to internal_rotation | 90.000 deg | 90.000 deg | same angle between the axes |
@@ -196,7 +193,6 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | glenohumeral_l: plane_of_elevation to elevation | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | glenohumeral_l: plane_of_elevation to internal_rotation | 0.000 deg | 0.000 deg | same angle between the axes |
 | ok | glenohumeral_l: elevation to internal_rotation | 90.000 deg | 90.000 deg | same angle between the axes |
-| ok | wrist_l: flexion to ulnar_deviation | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | cmc_1_r: flexion to abduction | 99.150 deg | 99.150 deg | same angle between the axes |
 | ok | mcp_3_r: flexion to abduction | 90.000 deg | 90.000 deg | same angle between the axes |
 | ok | mcp_4_r: flexion to abduction | 90.000 deg | 90.000 deg | same angle between the axes |

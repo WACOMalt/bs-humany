@@ -14,7 +14,9 @@
  *     first metatarsal -- use the ISB orientation directly: X anterior, Y superior, Z right.
  *   - **How far** it moves. Ranges are MyoSuite's (Caggiano et al. 2022), file and joint named in
  *     each citation. MyoSuite is the Apache-2.0 conversion of the OpenSim reference models, so the
- *     numbers trace back to Rajagopal 2016 (leg), MoBL-ARMS (arm) and the myoTorso work.
+ *     numbers trace back to Rajagopal 2016 (leg), MoBL-ARMS (arm) and the myoTorso work. The
+ *     wrist's deviation is the exception: the source's interval is the reverse of a living wrist's,
+ *     so it takes the clinical norm instead (see the wrist).
  *
  * ## Sign policy
  *
@@ -372,22 +374,26 @@ function limbJoints(s: Side): JointSpec[] {
         {
           axis: 'ulnar_deviation',
           vector: [1, 0, 0],
-          // The source's interval with its sign turned, because the two count deviation opposite
-          // ways. Ours is ulnar deviation, positive toward the little finger: turned +0.3 rad the
-          // third finger's base moves 34 mm toward the ulna. The source's `deviation_r` is the
-          // other way: turned +0.3 rad, palm forward or thumb up, its third finger's base moves
-          // 23 mm toward the thumb. Its -0.174533..0.436332 is therefore ten degrees of ulnar and
-          // twenty-five of radial deviation, and read as stated it gave this joint the mirror
-          // image. validate-moment-arms compares the two with the sign turned.
-          range: [-0.436332, 0.174533],
-          romSource: myo(ARM, 'deviation_r (sign turned: positive is radial there)'),
+          // Twenty degrees radial and thirty ulnar, the clinical norm, rather than the source's
+          // interval. Ours is ulnar deviation, positive toward the little finger: turned +0.3 rad
+          // the third finger's base moves 34 mm toward the ulna. The source's `deviation_r` counts
+          // the other way (turned +0.3 rad, palm forward or thumb up, its third finger's base moves
+          // 23 mm toward the thumb), so its -0.174533..0.436332 is ten degrees of ulnar and
+          // twenty-five of radial deviation. That is the reverse of a living wrist, which goes
+          // further toward the little finger than toward the thumb, as the clinical tables record;
+          // the owner's decision of 2026-09-27 was to take a cited clinical range instead of
+          // the source's. validate-moment-arms still compares the two models with the sign turned.
+          range: [-0.349066, 0.523599],
+          romSource: cite(
+            'aaos1965',
+            'average ranges of motion, wrist: radial deviation 20 degrees, ulnar deviation 30 degrees',
+          ),
         },
       ],
       limitations: [
         'Radiocarpal and midcarpal motion are lumped into one joint between radius and capitate.',
-        'The deviation range is the source’s, 25 degrees radial and 10 ulnar. A living wrist ' +
-          'deviates further toward the ulna than toward the thumb, so the source’s interval may ' +
-          'itself be turned; it is kept as the source states it until a cited wrist range replaces it.',
+        'The deviation range is the clinical average, 20 degrees radial and 30 ulnar, measured ' +
+          'goniometrically on living wrists; the flexion range beside it is still the source model’s.',
         'The source arm model is right-sided only; the left mirrors it.',
       ],
     },

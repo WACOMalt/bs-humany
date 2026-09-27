@@ -87,11 +87,15 @@ describe('joint definitions', () => {
   });
 
   it('cite MyoSuite on every range, or record the open question a provisional range belongs to', () => {
+    // The one sourced range that is not MyoSuite's: the source's wrist deviation is the reverse
+    // of a living wrist's, so the owner chose the clinical norm on 2026-09-27 (joints.ts).
+    const clinical = new Set(['wrist_r.ulnar_deviation', 'wrist_l.ulnar_deviation']);
     const provisionalQuestions = new Set<string>();
     for (const joint of document.joints) {
       for (const dof of joint.dofs) {
         if (isSourced(dof.romSource)) {
-          expect(dof.romSource.key, `${joint.id}.${dof.axis}`).toBe('caggiano2022');
+          const at = `${joint.id}.${dof.axis}`;
+          expect(dof.romSource.key, at).toBe(clinical.has(at) ? 'aaos1965' : 'caggiano2022');
         } else {
           const question = dof.romSource.provisional?.openQuestion ?? '';
           expect(['OQ-007', 'OQ-010', 'OQ-011', 'OQ-012'], `${joint.id}.${dof.axis}`).toContain(
