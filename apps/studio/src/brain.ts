@@ -706,8 +706,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   // policy, and a checkpoint trained in this window all stand on a different cord from one trained
   // at the terminal -- which is how the panel used to open, with the cord off. The numbers come
   // from the recipe module rather than being typed into the page a second time, so the panel and
-  // the trainer cannot drift apart; a checkpoint trained with no cord still gets its own body back
-  // through Set up as trained, which puts its recipe's cord on these sliders.
+  // the trainer cannot drift apart. A checkpoint whose recipe records a cord puts that cord on
+  // these sliders through Set up as trained and Hand over. One whose recipe records none -- every
+  // policy shipped today -- leaves the sliders where they are, so it runs over the measured cord,
+  // not the no-cord body it learnt in, until it is retrained (the owner's Q4) or someone lowers
+  // the sliders.
   ui.spineStretch.value = String(OPENING_CORD.stretch);
   ui.spineVelocity.value = String(OPENING_CORD.velocity);
   ui.spineSetPoint.value = String(OPENING_CORD.setPoint);
