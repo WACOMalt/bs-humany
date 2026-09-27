@@ -16,9 +16,10 @@
  * Forty characters in all: the name input's `maxlength`, and the length `checkpoint_path` in
  * `apps/studio/src-tauri/src/main.rs` refuses beyond. The dashboard's copy of this used to allow
  * one more -- `{0,40}` after the first character is forty-one -- so a name the dashboard trained
- * happily was one the studio binary then refused to read. The Rust check is deliberately looser
- * than this one (it takes capitals), and this rule must stay a strict subset of it: a name that
- * passes here must pass there, never the other way about.
+ * happily was one the studio binary then refused to read. The Rust check (`valid_checkpoint_name`)
+ * is now this same rule, not a looser one: a name either side refuses, the other refuses too, so
+ * a file in the data folder is listed and readable by every one of them or by none.
+ * `tools/train/src/home.test.ts` holds the two equal.
  */
 
 /** A checkpoint's name: up to forty lower-case letters, digits, dashes and underscores. */
