@@ -52,6 +52,10 @@ pub const FLOATS_PER_BONE: usize = 7;
 /// One complete pose, copied out of the ring.
 pub struct Frame {
     pub tick: u64,
+    /// The simulated seconds the publisher stamped the frame with. The viewer takes its time from
+    /// the status, which says it for the frame on screen, so only the reader's tests read this:
+    /// it is kept because it is half of what the layout says a frame is.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub sim_time: f64,
     /// `bones * 7`: position xyz, orientation xyzw, in the sidecar's bone order.
     pub pose: Vec<f32>,
@@ -500,6 +504,7 @@ mod tests {
 
     #[test]
     fn writes_a_grab_intent_where_the_typescript_reader_looks() {
+        use std::f32::consts::FRAC_1_SQRT_2;
         // The same offsets the TypeScript test builds by hand; the two tests pin one layout.
         let dir = std::env::temp_dir().join(format!("bs-humany-grab-{}", std::process::id()));
         let _ = std::fs::remove_file(&dir);
@@ -512,7 +517,7 @@ mod tests {
                 point: [0.1, 1.2, -0.3],
                 target: [0.15, 1.25, -0.35],
                 strength: 1.0,
-                rotation: [0.0, 0.7071, 0.0, 0.7071],
+                rotation: [0.0, FRAC_1_SQRT_2, 0.0, FRAC_1_SQRT_2],
             },
         );
         writer.publish(1, &GrabIntent::default());
@@ -539,8 +544,8 @@ mod tests {
         assert_eq!(f32_at(96), 1.25);
         assert_eq!(f32_at(100), -0.35);
         assert_eq!(f32_at(104), 1.0);
-        assert_eq!(f32_at(112), 0.7071, "rotation y at 44");
-        assert_eq!(f32_at(120), 0.7071, "rotation w at 56");
+        assert_eq!(f32_at(112), FRAC_1_SQRT_2, "rotation y at 44");
+        assert_eq!(f32_at(120), FRAC_1_SQRT_2, "rotation w at 56");
         // Right hand, slot 1 at 128: written twice, so its sequence is four, and it holds nothing.
         assert_eq!(u64_at(128), 4);
         assert_eq!(u32_at(136), 0);
@@ -603,7 +608,9 @@ mod tests {
         assert_eq!(status.scenarios.len(), 2);
         assert_eq!(status.scenarios[0].title, "Standing quietly");
         assert!(status.scenarios[1].description.starts_with("The rest pose dropped"));
-        assert_eq!(status.profiles, ["l1_standard", "l3_anatomical"]);
+        let ids: Vec<&str> = status.profiles.iter().map(ProfileEntry::id).collect();
+        assert_eq!(ids, ["l1_standard", "l3_anatomical"]);
+        assert!(status.profiles[1].title().starts_with("L3 — Anatomical"), "{:?}", status.profiles[1]);
         assert_eq!(status.profile, "l3_anatomical");
         assert_eq!((status.sim_seconds, status.speed), (1.5, 0.24));
         assert!(status.paused && status.muscles);
@@ -643,6 +650,10 @@ mod tests {
         assert_eq!((p.id.as_str(), p.title.as_str(), p.unit.as_str()), ("clearance", "Drop height", "m"));
         assert_eq!((p.value, p.min, p.max, p.step), (0.3, 0.0, 1.5, 0.05));
         assert_eq!(status.muscle_readout.get("loaded").map(String::as_str), Some("12 of 234"));
+        assert_eq!(status.muscle_readout.get("section.arm").map(String::as_str), Some("310 N"));
+        // The slider table, as `CONTROL_RANGES` in packages/scenarios has it.
+        assert_eq!(status.controls.get("stature"), Some(&ControlRange { min: 1.4, max: 2.05, step: 0.005 }));
+        assert_eq!(status.controls.get("train.memory"), Some(&ControlRange { min: 0.0, max: 32.0, step: 4.0 }));
         assert_eq!(status.tension, [0.125, 0.5]);
         let disc = &status.tissue.discs[0];
         assert_eq!((disc.bone.as_str(), disc.kind.as_str()), ("sacrum", "disc"));
@@ -675,12 +686,60 @@ mod tests {
             "holding":[],"grabStrength":1}"#;
         let status: Status = serde_json::from_str(before).expect("parses");
         assert!(status.overlays.is_empty() && status.tissue.discs.is_empty());
+        assert!(status.profiles.is_empty() && status.controls.is_empty());
         assert!(status.training.is_none() && !status.brain.active);
         assert_eq!(status.settings.drop_height, None);
         assert_eq!((status.recorded_seconds, status.playing, status.live), (None, None, None));
         let b = &status.brain;
         assert!(!b.can_start && !b.can_stop && !b.can_hand_over && !b.can_release);
         assert!(b.policy_note.is_empty() && b.spine_note.is_empty());
+    }
+
+    #[test]
+    fn profiles_parse_as_ids_alone_and_as_ids_with_titles() {
+        // A publisher from before the titles sends the ids alone; the Body row then shows the id,
+        // and still sends it.
+        let before = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
+            "profiles":["l1_standard","l3_anatomical"],"profile":"l1_standard","simSeconds":0,
+            "speed":1,"paused":true,"muscles":false,"holding":[],"grabStrength":1}"#;
+        let status: Status = serde_json::from_str(before).expect("parses");
+        assert_eq!(status.profiles[1], ProfileEntry::Id("l3_anatomical".into()));
+        assert_eq!((status.profiles[1].id(), status.profiles[1].title()), ("l3_anatomical", "l3_anatomical"));
+        assert_eq!(status.profile_title(), "l1_standard");
+
+        let now = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
+            "profiles":[{"id":"l1_standard","title":"L1 — Standard"},{"id":"l3_anatomical","title":"L3 — Anatomical"}],
+            "profile":"l3_anatomical","simSeconds":0,"speed":1,"paused":true,"muscles":false,
+            "holding":[],"grabStrength":1}"#;
+        let status: Status = serde_json::from_str(now).expect("parses");
+        assert_eq!((status.profiles[0].id(), status.profiles[0].title()), ("l1_standard", "L1 — Standard"));
+        assert_eq!(status.profile_title(), "L3 — Anatomical");
+        // A profile the list does not name is said by its id.
+        let status = Status { profile: "l9_imaginary".into(), ..status };
+        assert_eq!(status.profile_title(), "l9_imaginary");
+    }
+
+    #[test]
+    fn the_slider_table_parses_and_a_publisher_without_one_offers_no_sliders() {
+        let with = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
+            "profile":"l1_standard","simSeconds":0,"speed":1,"paused":true,"muscles":false,
+            "holding":[],"grabStrength":1,
+            "controls":{"stature":{"min":1.4,"max":2.05,"step":0.005},"fps":{"min":1,"max":240,"step":1}}}"#;
+        let status: Status = serde_json::from_str(with).expect("parses");
+        assert_eq!(status.controls.len(), 2);
+        assert_eq!(status.controls["fps"], ControlRange { min: 1.0, max: 240.0, step: 1.0 });
+        let stature = &status.controls["stature"];
+        assert_eq!(stature.decimals(), 3);
+        assert_eq!(stature.snap(1.7342), 1.735);
+        assert_eq!(stature.snap(9.0), 2.05);
+        assert_eq!(stature.snap(0.0), 1.4);
+        // The value a slider holds is an f32; widened, it is still sent as the desktop writes it.
+        assert_eq!(stature.snap(1.735_f32 as f64), 1.735);
+        assert_eq!(status.controls["fps"].decimals(), 0);
+        let setpoint = ControlRange { min: -0.2, max: 0.2, step: 0.01 };
+        assert_eq!((setpoint.decimals(), setpoint.snap(-0.123)), (2, -0.12));
+        let memory = ControlRange { min: 0.0, max: 32.0, step: 4.0 };
+        assert_eq!(memory.snap(7.0), 8.0);
     }
 
     #[test]
@@ -814,6 +873,71 @@ pub struct Named {
     pub title: String,
 }
 
+/// A fidelity profile the Body row offers: `{id, title}` from a publisher that names them as the
+/// desktop's picker does, or the bare id from one written before titles were sent.
+#[derive(serde::Deserialize, Clone, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum ProfileEntry {
+    Named(Named),
+    Id(String),
+}
+
+impl ProfileEntry {
+    /// What a `set profile` command sends.
+    pub fn id(&self) -> &str {
+        match self {
+            ProfileEntry::Named(named) => &named.id,
+            ProfileEntry::Id(id) => id,
+        }
+    }
+
+    /// What the panel shows: the title, or the id when the publisher sent none.
+    pub fn title(&self) -> &str {
+        match self {
+            ProfileEntry::Named(named) if !named.title.is_empty() => &named.title,
+            _ => self.id(),
+        }
+    }
+}
+
+/// A slider's reach and step, from `CONTROL_RANGES` in packages/scenarios/src/controls.ts by way
+/// of the status: the one table the desktop's sliders are held to as well.
+#[derive(serde::Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct ControlRange {
+    pub min: f64,
+    pub max: f64,
+    pub step: f64,
+}
+
+impl ControlRange {
+    /// Places after the point to show and send a value at: as many as the step or the minimum
+    /// has, so a stature in steps of 0.005 reads 1.735 and a rate in steps of 20 reads 1000.
+    pub fn decimals(&self) -> usize {
+        places(self.step).max(places(self.min))
+    }
+
+    /// `value` on a whole number of steps from the minimum, inside the bounds, and rounded to
+    /// `decimals` places: what the desktop's range input would hold for it, and so what is sent.
+    /// The last rounding is for the f32 a slider keeps its value in, whose 1.735 is
+    /// 1.7350000143 once widened.
+    pub fn snap(&self, value: f64) -> f64 {
+        let steps = if self.step > 0.0 { ((value - self.min) / self.step).round() } else { 0.0 };
+        let snapped = (self.min + steps * self.step).clamp(self.min, self.max);
+        let scale = 10f64.powi(self.decimals() as i32);
+        (snapped * scale).round() / scale
+    }
+}
+
+/// Decimal places in a number as written, to nine at most.
+fn places(value: f64) -> usize {
+    (0..9)
+        .find(|&p| {
+            let scaled = value * 10f64.powi(p as i32);
+            (scaled - scaled.round()).abs() < 1e-9 * scaled.abs().max(1.0)
+        })
+        .unwrap_or(9)
+}
+
 /// A scenario the picker offers.
 #[derive(serde::Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct ScenarioEntry {
@@ -847,8 +971,10 @@ pub struct Status {
     pub muscles: bool,
     pub holding: Vec<String>,
     pub grab_strength: f64,
+    /// The profiles the Body row offers. See `ProfileEntry`: titled, or ids alone from an older
+    /// publisher.
     #[serde(default)]
-    pub profiles: Vec<String>,
+    pub profiles: Vec<ProfileEntry>,
     #[serde(default)]
     pub settings: Settings,
     #[serde(default)]
@@ -867,8 +993,14 @@ pub struct Status {
     pub overlays: std::collections::HashMap<String, bool>,
     #[serde(default)]
     pub scenario_parameters: Vec<ScenarioParameter>,
+    /// The Muscles tab's readout, text by key: `section.arm` .. `section.neck`, then `loaded`,
+    /// `wrapping` and `strained`.
     #[serde(default)]
     pub muscle_readout: std::collections::HashMap<String, String>,
+    /// Each slider's reach and step by the key it is set with. A slider whose key is missing is
+    /// not drawn: the publisher does not honour it, and the showcase sends none at all.
+    #[serde(default)]
+    pub controls: std::collections::HashMap<String, ControlRange>,
     /// Tendon force as a fraction of each unit's maximum, in the muscle bridge's unit order.
     #[serde(default)]
     pub tension: Vec<f32>,
@@ -889,6 +1021,17 @@ pub struct Status {
     /// Whether the studio's playhead is on the live edge rather than scrubbed back.
     #[serde(default)]
     pub live: Option<bool>,
+}
+
+impl Status {
+    /// The run's profile by the name the Body row gives it, or by its id when the list does not
+    /// name it: the Health tab says which body is running as the desktop's picker would.
+    pub fn profile_title(&self) -> &str {
+        self.profiles
+            .iter()
+            .find(|entry| entry.id() == self.profile)
+            .map_or(self.profile.as_str(), ProfileEntry::title)
+    }
 }
 
 #[derive(serde::Deserialize, Clone, Debug, Default)]

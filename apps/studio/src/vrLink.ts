@@ -37,6 +37,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { BrainAction, BrainState } from './brain.js';
 import type { BridgeFollower, FollowedMuscles, FollowedShape } from './follow.js';
 import { GrabIntents } from './grabIntents.js';
+import { type EchoedCommand, PanelEcho } from './panelEcho.js';
 import type { Simulation } from './simulation.js';
 
 /** What the panel can ask for; the shapes the viewer writes, parsed. */
@@ -67,7 +68,9 @@ type LinkKeys =
  * headset gets the button rules and the policy note the desktop shows rather than a copy.
  */
 export type VrStatus = Omit<PanelStatus, LinkKeys | 'brain'> &
-  Required<Pick<PanelStatus, 'mode' | 'overlays' | 'scenarioParameters' | 'muscleReadout'>> & {
+  Required<
+    Pick<PanelStatus, 'mode' | 'overlays' | 'scenarioParameters' | 'muscleReadout' | 'controls'>
+  > & {
     readonly brain: BrainState;
   };
 
@@ -102,7 +105,14 @@ export interface VrHost {
   /** With no run, what the controls are set to and that there is nothing running. */
   status(simulation: Simulation | null): VrStatus;
   command(command: VrCommand): void;
+  /** The status line and the terminal: what the desktop user should see happen. */
   log(message: string): void;
+  /**
+   * The terminal only, for traffic the desktop user does not need in the status line: the
+   * panel's commands, echoed as they are applied. A host with no terminal leaves it out, and the
+   * traffic is then not said at all.
+   */
+  trace?(message: string): void;
   /**
    * The viewer has gone -- closed from the headset, failed to find one, crashed. `code` is its
    * exit status, or null when a signal ended it, and `tail` is the last it printed.
@@ -243,6 +253,8 @@ export class VrLink {
   private grabsInFlight = false;
   private grabsComplained = false;
   private lastCommands = 0;
+  /** The panel's commands as said on the terminal, a drag at a time; see `PanelEcho`. */
+  private readonly echo: PanelEcho;
   private lastStatus = 0;
   private ticksAtStatus = 0;
   private speed = 0;
@@ -261,6 +273,7 @@ export class VrLink {
 
   constructor(private readonly host: VrHost) {
     this.queue = new BridgeQueue(host.log);
+    this.echo = new PanelEcho((message) => host.trace?.(message));
   }
 
   get connected(): boolean {
@@ -299,6 +312,8 @@ export class VrLink {
 
   async disconnect(): Promise<void> {
     this.live = false;
+    // A drag cut off by the disconnect is still said, with its count.
+    this.echo.flush();
     if (this.viewerWatch !== null) clearInterval(this.viewerWatch);
     this.viewerWatch = null;
     this.intents.letGo(this.simulation);
@@ -663,15 +678,29 @@ export class VrLink {
     } catch {
       return;
     }
+    // Every command is applied as it comes; only what is said of them is merged, a drag to a
+    // line, and said on the terminal alone -- the status line is the desktop's, and a drive
+    // slider dragged in the headset sends a few dozen commands a second.
+    const echoed: EchoedCommand[] = [];
     for (const line of lines) {
+      let parsed: VrCommand;
       try {
-        const parsed = JSON.parse(line) as VrCommand;
-        this.host.log(`VR panel: ${line}`);
-        this.host.command(parsed);
+        parsed = JSON.parse(line) as VrCommand;
       } catch {
         this.host.log(`VR panel: not a command: ${line}`);
+        continue;
+      }
+      echoed.push({ line, command: parsed });
+      // One command that throws is said and passed over; the rest of the poll still applies.
+      try {
+        this.host.command(parsed);
+      } catch (error) {
+        this.host.log(
+          `VR panel: ${line} failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
+    this.echo.batch(echoed);
   }
 
   /**

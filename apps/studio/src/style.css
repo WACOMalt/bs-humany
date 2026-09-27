@@ -426,6 +426,42 @@ label.inline {
   margin-bottom: 2px;
 }
 
+/*
+ * A scenario parameter moved off the value the scenario was validated with: a mark before its
+ * name and its number in the warning colour, so a run that is not the committed experiment says
+ * so at a glance, and the Defaults button under them has a reason to be there.
+ */
+.control.changed .parameter-name {
+  color: var(--ink);
+}
+
+.control.changed .parameter-name::before {
+  content: "\25CF\00a0";
+  color: var(--warn);
+}
+
+.control.changed output {
+  color: var(--warn);
+}
+
+/* A parameter with more notches than a slider can reach one by one: the tilting floor's seed. */
+.control input[type="number"] {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.control input[type="number"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 /* What a drive group is pulling with, beside the level it is driven at. */
 .control .force {
   margin-left: auto;

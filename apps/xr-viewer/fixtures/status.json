@@ -18,8 +18,14 @@
     }
   ],
   "profiles": [
-    "l1_standard",
-    "l3_anatomical"
+    {
+      "id": "l1_standard",
+      "title": "L1 — Standard (23 bodies, 500 Hz)"
+    },
+    {
+      "id": "l3_anatomical",
+      "title": "L3 — Anatomical (~135 bodies, 1000 Hz)"
+    }
   ],
   "profile": "l3_anatomical",
   "simSeconds": 1.5,
@@ -148,7 +154,85 @@
     }
   ],
   "muscleReadout": {
+    "section.arm": "310 N",
     "loaded": "12 of 234"
+  },
+  "controls": {
+    "sex": {
+      "min": 0,
+      "max": 1,
+      "step": 0.01
+    },
+    "stature": {
+      "min": 1.4,
+      "max": 2.05,
+      "step": 0.005
+    },
+    "mass": {
+      "min": 35,
+      "max": 150,
+      "step": 0.5
+    },
+    "percentile": {
+      "min": 0.01,
+      "max": 0.99,
+      "step": 0.01
+    },
+    "dropHeight": {
+      "min": 0,
+      "max": 1.5,
+      "step": 0.05
+    },
+    "grabStrength": {
+      "min": 0.1,
+      "max": 5,
+      "step": 0.1
+    },
+    "stepsPerSecond": {
+      "min": 60,
+      "max": 2000,
+      "step": 20
+    },
+    "fps": {
+      "min": 1,
+      "max": 240,
+      "step": 1
+    },
+    "brain.authority": {
+      "min": 0,
+      "max": 1,
+      "step": 0.05
+    },
+    "spine.stretch": {
+      "min": 0,
+      "max": 8,
+      "step": 0.1
+    },
+    "spine.velocity": {
+      "min": 0,
+      "max": 2,
+      "step": 0.05
+    },
+    "spine.setPoint": {
+      "min": -0.2,
+      "max": 0.2,
+      "step": 0.01
+    },
+    "spine.inhibition": {
+      "min": 0,
+      "max": 1,
+      "step": 0.05
+    },
+    "spine.delay": {
+      "min": 0,
+      "max": 0.12,
+      "step": 0.005
+    },
+    "train.memory": {
+      "min": 0,
+      "max": 32,
+      "step": 4
+    }
   },
   "brain": {
     "serverUp": true,

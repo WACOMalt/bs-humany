@@ -25,7 +25,7 @@
 //! and `render.rs` gives every texture a mip chain, so text read from across the room is averaged
 //! rather than shimmering.
 
-use crate::bridge::Status;
+use crate::bridge::{ControlRange, Status};
 
 /// Metres a point.
 pub const POINT_METRES: f32 = 0.001;
@@ -161,7 +161,7 @@ impl Placement {
     }
 
     /// A point on the panel, back in the room.
-    pub fn to_world(&self, p: egui::Pos2) -> [f32; 3] {
+    pub fn to_world(self, p: egui::Pos2) -> [f32; 3] {
         let s = POINT_METRES;
         [
             self.origin[0] + self.right[0] * p.x * s + self.down[0] * p.y * s,
@@ -384,18 +384,43 @@ pub struct Editing {
 /// release -- drives, the timeline, grab strength, which the run takes in its stride. One that is
 /// not live sends only at the end of a drag or on a click, because what it sets rebuilds the run
 /// and a stature dragged across its range must not rebuild fifty bodies on the way.
-#[allow(clippy::too_many_arguments)]
+///
+/// Its bounds and step are the publisher's, from the status's `controls` -- the one table the
+/// desktop's sliders are held to -- and a key the publisher sent none for draws nothing: that
+/// publisher does not honour it. The ranges written out here, and the snaps that rounded a value
+/// once it was let go, used to be a second copy of the desktop's, which drifted from it.
 fn slider(
+    ui: &mut egui::Ui,
+    editing: &mut Editing,
+    s: &Status,
+    key: &str,
+    label: &str,
+    from_status: f64,
+    live: bool,
+) -> Option<f64> {
+    let range = *s.controls.get(key)?;
+    slider_in(ui, editing, key, label, from_status, range, live)
+}
+
+/// `slider`, for a range the caller has rather than one from the table: a scenario's own
+/// parameter, whose bounds and step travel with it. The slider moves in whole steps while it is
+/// dragged, as the desktop's does, so what is let go of is what was shown, and the value sent is
+/// written to the step's places rather than as the f32 the slider holds.
+fn slider_in(
     ui: &mut egui::Ui,
     editing: &mut Editing,
     key: &str,
     label: &str,
-    from_status: f32,
-    range: std::ops::RangeInclusive<f32>,
-    decimals: usize,
+    from_status: f64,
+    range: ControlRange,
     live: bool,
-) -> Option<f32> {
-    slider_shown(ui, editing, key, label, from_status, range, live, |s| s.fixed_decimals(decimals))
+) -> Option<f64> {
+    let decimals = range.decimals();
+    let bounds = (range.min as f32)..=(range.max as f32);
+    slider_shown(ui, editing, key, label, from_status as f32, bounds, live, |s| {
+        s.fixed_decimals(decimals).step_by(range.step)
+    })
+    .map(|value| range.snap(value as f64))
 }
 
 /// `slider`, with the number beside it written and read by `shown` rather than to a fixed number
@@ -559,7 +584,7 @@ impl Panel {
             options.input_options.max_click_duration = 3.0;
         });
         ctx.style_mut(|style| {
-            for (_, font) in style.text_styles.iter_mut() {
+            for font in style.text_styles.values_mut() {
                 font.size *= 1.3;
             }
             style.spacing.button_padding = egui::vec2(12.0, 8.0);
@@ -1051,35 +1076,41 @@ fn run_row(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut 
     });
 }
 
-/// The overlay boxes: the four the headset draws, then the four only the desktop does.
+/// The overlay boxes: the three the headset draws, then the five only the desktop does.
+///
+/// Muscle paths are the desktop's: the lines it draws from origin to insertion. What the headset
+/// draws of the muscles is their volumes, the tubes swept from the belly rings, so those follow
+/// the Muscle volumes box alone -- they used to follow either box, and a desktop showing paths
+/// with volumes off still got tubes in the headset.
 fn overlay_boxes(ui: &mut egui::Ui, s: &Status, commands: &mut Vec<Command>) {
     ui.horizontal_wrapped(|ui| {
         // A little closer than the panel's spacing: the eight boxes and their heading only just
         // fill the strip's width, and a second line would push the row below it off the strip.
         ui.spacing_mut().item_spacing.x = 6.0;
-        let on = |name: &str| s.overlays.get(name).copied().unwrap_or(true);
+        // Each box as the publisher last said it, or, from one that says nothing, as a fresh
+        // studio starts: the three drawn here and the desktop's muscle paths on, the rest off.
+        let shown = |name: &str, fresh: bool| s.overlays.get(name).copied().unwrap_or(fresh);
         for (name, label) in [
             ("grid", "Grid"),
-            ("muscles", "Muscle paths"),
             ("muscleVolumes", "Muscle volumes"),
             ("tissue", "Connective tissue"),
         ] {
-            if let Some(v) = checkbox(ui, on(name), label) {
+            if let Some(v) = checkbox(ui, shown(name, true), label) {
                 commands.push(set(&format!("overlay.{name}"), v));
             }
         }
         ui.separator();
-        // A heading and not a note: it names the four boxes after it, which a dim note beside
-        // bright checkboxes did not read as doing.
+        // A heading and not a note: it names the boxes after it, which a dim note beside bright
+        // checkboxes did not read as doing.
         heading(ui, "Desktop view:");
-        let off = |name: &str| s.overlays.get(name).copied().unwrap_or(false);
-        for (name, label) in [
-            ("proxies", "Proxies"),
-            ("axes", "Axes"),
-            ("com", "Centres of mass"),
-            ("contacts", "Contacts"),
+        for (name, label, fresh) in [
+            ("muscles", "Muscle paths", true),
+            ("proxies", "Proxies", false),
+            ("axes", "Axes", false),
+            ("com", "Centres of mass", false),
+            ("contacts", "Contacts", false),
         ] {
-            if let Some(v) = checkbox(ui, off(name), label) {
+            if let Some(v) = checkbox(ui, shown(name, fresh), label) {
                 commands.push(set(&format!("overlay.{name}"), v));
             }
         }
@@ -1091,15 +1122,15 @@ fn overlay_boxes(ui: &mut egui::Ui, s: &Status, commands: &mut Vec<Command>) {
 fn body_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     let st = &s.settings;
     heading(ui, "Who");
-    let rows: [(&str, &str, f32, std::ops::RangeInclusive<f32>, usize); 4] = [
-        ("sex", "skeletal proportions, 0 F .. 1 M", st.sex as f32, 0.0..=1.0, 2),
-        ("stature", "stature m", st.stature as f32, 1.4..=2.05, 3),
-        ("mass", "body mass kg", st.mass as f32, 35.0..=150.0, 1),
-        ("percentile", "ANSUR II percentile", st.percentile as f32, 0.01..=0.99, 2),
+    let rows: [(&str, &str, f64); 4] = [
+        ("sex", "skeletal proportions, 0 F .. 1 M", st.sex),
+        ("stature", "stature m", st.stature),
+        ("mass", "body mass kg", st.mass),
+        ("percentile", "ANSUR II percentile", st.percentile),
     ];
-    for (key, label, value, range, decimals) in rows {
-        if let Some(v) = slider(ui, editing, key, label, value, range, decimals, false) {
-            commands.push(set(key, v as f64));
+    for (key, label, value) in rows {
+        if let Some(v) = slider(ui, editing, s, key, label, value, false) {
+            commands.push(set(key, v));
         }
     }
     // The desktop's notes, said as it says them: what the proportions slider changes today, and
@@ -1148,16 +1179,16 @@ fn world_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     // Only a publisher with a free drop sends one. The headless publisher always runs a scenario,
     // and a slider there would read 0 and move nothing, so it says where the start pose is set.
     if let Some(height) = st.drop_height {
-        if let Some(v) = slider(ui, editing, "dropHeight", "drop height m", height as f32, 0.0..=1.5, 2, false) {
-            commands.push(set("dropHeight", v as f64));
+        if let Some(v) = slider(ui, editing, s, "dropHeight", "drop height m", height, false) {
+            commands.push(set("dropHeight", v));
         }
         note(ui, "For a free drop only; a scenario places the body itself.");
     } else {
         note(ui, "The scenario places the body; its own parameters are under Scene.");
     }
     heading(ui, "The hand");
-    if let Some(v) = slider(ui, editing, "grabStrength", "grab strength", s.grab_strength as f32, 0.1..=5.0, 1, true) {
-        commands.push(set("grabStrength", v as f64));
+    if let Some(v) = slider(ui, editing, s, "grabStrength", "grab strength", s.grab_strength, true) {
+        commands.push(set("grabStrength", v));
     }
     note(ui, "Squeeze a controller on a bone to pull the body about. At 1x a hold carries a good fraction of the body's weight.");
 }
@@ -1165,11 +1196,11 @@ fn world_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
 fn sim_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     let st = &s.settings;
     heading(ui, "Time");
-    if let Some(v) = slider(ui, editing, "stepsPerSecond", "simulation steps / s", st.steps_per_second as f32, 60.0..=2000.0, 0, false) {
-        commands.push(set("stepsPerSecond", ((v / 20.0).round() * 20.0) as f64));
+    if let Some(v) = slider(ui, editing, s, "stepsPerSecond", "simulation steps / s", st.steps_per_second, false) {
+        commands.push(set("stepsPerSecond", v));
     }
-    if let Some(v) = slider(ui, editing, "fps", "output frames / s", st.fps as f32, 1.0..=240.0, 0, false) {
-        commands.push(set("fps", v.round() as f64));
+    if let Some(v) = slider(ui, editing, s, "fps", "output frames / s", st.fps, false) {
+        commands.push(set("fps", v));
     }
     note(ui, "A second of simulated time is a second of the timeline, always. Changing the step rate starts a new run.");
     heading(ui, "Recording");
@@ -1196,11 +1227,27 @@ fn sim_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut 
         ui.label("Contacts");
         ui.label(format!("{}", d.contacts as i64));
         ui.end_row();
+        ui.label("Tick rate");
+        ui.label(tick_rate_text(s));
+        ui.end_row();
         ui.label("Cost / tick");
         ui.label(format!("{:.3} ms", d.cost_ms));
         ui.end_row();
     });
-    let _ = editing;
+}
+
+/// The Sim tab's tick rate, as the desktop's Run readout says it: how fast steps are coming out
+/// against how finely a second is divided, and so how fast against life. The status's speed is
+/// simulated seconds a wall second, which is that ratio already.
+fn tick_rate_text(s: &Status) -> String {
+    let declared = s.settings.steps_per_second;
+    if s.paused {
+        format!("{declared:.0} Hz steps · paused")
+    } else if s.speed > 0.0 {
+        format!("{:.0} Hz of {declared:.0} steps · {:.2}x life", s.speed * declared, s.speed)
+    } else {
+        format!("{declared:.0} Hz steps")
+    }
 }
 
 fn scene_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
@@ -1217,15 +1264,14 @@ fn scene_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
         note(ui, description);
     }
     for p in &s.scenario_parameters {
-        let decimals = if p.step >= 1.0 { 0 } else if p.step >= 0.1 { 1 } else { 2 };
         // Trimmed, because the studio's units are readout suffixes with their own leading space
         // (` m`), and a label that adds one of its own showed two.
         let unit = p.unit.trim();
         let label = if unit.is_empty() { p.title.clone() } else { format!("{} {unit}", p.title) };
         let key = format!("scenario.{}", p.id);
-        if let Some(v) = slider(ui, editing, &key, &label, p.value as f32, (p.min as f32)..=(p.max as f32), decimals, false) {
-            let step = p.step.max(1e-9);
-            commands.push(set(&key, ((v as f64) / step).round() * step));
+        let range = ControlRange { min: p.min, max: p.max, step: p.step };
+        if let Some(v) = slider_in(ui, editing, &key, &label, p.value, range, false) {
+            commands.push(set(&key, v));
         }
     }
     if let Some(v) = checkbox(ui, s.settings.muscles, "Muscles") {
@@ -1233,11 +1279,12 @@ fn scene_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     }
     note(ui, "A scenario that needs muscles turns them on itself. Muscles start with the next run.");
     heading(ui, "Body");
+    // By the desktop picker's names, sending the ids a `set profile` takes.
     ui.horizontal_wrapped(|ui| {
         for profile in &s.profiles {
-            let current = *profile == s.profile;
-            if ui.selectable_label(current, profile).clicked() && !current {
-                commands.push(set("profile", profile.clone()));
+            let current = profile.id() == s.profile;
+            if ui.selectable_label(current, profile.title()).clicked() && !current {
+                commands.push(set("profile", profile.id()));
             }
         }
     });
@@ -1284,6 +1331,20 @@ fn position_from_excitation_text(text: &str) -> Option<f64> {
     Some((percent / 100.0).sqrt() * 100.0)
 }
 
+/// The Muscles tab's readout rows, by the key the publisher sends each under: the five body
+/// sections the drive groups fall into, in the order the desktop lists them, then the three
+/// counts. The elbow and knee rows this used to show covered four groups of thirty-five.
+const MUSCLE_READOUT_ROWS: [(&str, &str); 8] = [
+    ("section.arm", "Arm"),
+    ("section.hand", "Hand"),
+    ("section.leg", "Leg"),
+    ("section.trunk", "Trunk"),
+    ("section.neck", "Neck"),
+    ("loaded", "Loaded"),
+    ("wrapping", "Wrapping"),
+    ("strained", "Out of range"),
+];
+
 fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     if !s.muscles {
         ui.label("Muscles are off for this run. Turn them on under Scene.");
@@ -1320,14 +1381,9 @@ fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &
     }
     note(ui, "Each slider drives its muscles on both sides at once; the number is the excitation, the square of the slider's travel.");
     heading(ui, "Readout");
+    note(ui, "Tendon force summed over every drive group in each body section, both sides.");
     egui::Grid::new("muscle-readout").num_columns(2).show(ui, |ui| {
-        for (key, label) in [
-            ("flexion", "Elbow, flex / ext"),
-            ("extension", "Knee, flex / ext"),
-            ("loaded", "Loaded"),
-            ("wrapping", "Wrapping"),
-            ("strained", "Out of range"),
-        ] {
+        for (key, label) in MUSCLE_READOUT_ROWS {
             ui.label(label);
             ui.label(s.muscle_readout.get(key).cloned().unwrap_or_else(|| "—".to_string()));
             ui.end_row();
@@ -1356,8 +1412,8 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
             }
         }
     });
-    if let Some(v) = slider(ui, editing, "brain.authority", "authority", b.authority as f32, 0.0..=1.0, 2, false) {
-        commands.push(Command::Brain { action: "authority", id: None, value: Some(((v as f64) * 20.0).round() / 20.0) });
+    if let Some(v) = slider(ui, editing, s, "brain.authority", "authority", b.authority, false) {
+        commands.push(Command::Brain { action: "authority", id: None, value: Some(v) });
     }
     note(ui, "The most one output may add to or take from a group's excitation.");
     // Every button on this tab is enabled exactly when the desktop's is, from the flags it sends:
@@ -1381,20 +1437,16 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     heading(ui, "Spine");
     note(ui, "The reflexes: a muscle pulled past its set point excites itself and inhibits its opposite. Needs no training, and it is most of what holds a body up. Stretch and Damping at zero is a body with no reflexes at all.");
     let r = &b.reflex;
-    if let Some(v) = slider(ui, editing, "spine.stretch", "stretch", r.stretch as f32, 0.0..=8.0, 2, false) {
-        commands.push(Command::Brain { action: "reflexStretch", id: None, value: Some(v as f64) });
-    }
-    if let Some(v) = slider(ui, editing, "spine.velocity", "damping", r.velocity as f32, 0.0..=2.0, 2, false) {
-        commands.push(Command::Brain { action: "reflexVelocity", id: None, value: Some(v as f64) });
-    }
-    if let Some(v) = slider(ui, editing, "spine.setPoint", "set point", r.set_point as f32, -0.2..=0.2, 2, false) {
-        commands.push(Command::Brain { action: "reflexSetPoint", id: None, value: Some(v as f64) });
-    }
-    if let Some(v) = slider(ui, editing, "spine.inhibition", "reciprocal", r.inhibition as f32, 0.0..=1.0, 2, false) {
-        commands.push(Command::Brain { action: "reflexInhibition", id: None, value: Some(v as f64) });
-    }
-    if let Some(v) = slider(ui, editing, "spine.delay", "conduction s", r.delay_seconds as f32, 0.0..=0.12, 3, false) {
-        commands.push(Command::Brain { action: "reflexDelay", id: None, value: Some(v as f64) });
+    for (key, label, value, action) in [
+        ("spine.stretch", "stretch", r.stretch, "reflexStretch"),
+        ("spine.velocity", "damping", r.velocity, "reflexVelocity"),
+        ("spine.setPoint", "set point", r.set_point, "reflexSetPoint"),
+        ("spine.inhibition", "reciprocal", r.inhibition, "reflexInhibition"),
+        ("spine.delay", "conduction s", r.delay_seconds, "reflexDelay"),
+    ] {
+        if let Some(v) = slider(ui, editing, s, key, label, value, false) {
+            commands.push(Command::Brain { action, id: None, value: Some(v) });
+        }
     }
     // What depends on the cord's setting and on what has been measured of it comes from the
     // desktop, which is the one place it is kept. The measured table that used to be copied here
@@ -1406,8 +1458,8 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
 
     heading(ui, "Training");
     note(ui, "Generations, population, episode seconds and workers are as set on the desktop.");
-    if let Some(v) = slider(ui, editing, "train.memory", "memory", b.memory as f32, 0.0..=32.0, 0, false) {
-        commands.push(Command::Brain { action: "memory", id: None, value: Some((v as f64 / 4.0).round() * 4.0) });
+    if let Some(v) = slider(ui, editing, s, "train.memory", "memory", b.memory as f64, false) {
+        commands.push(Command::Brain { action: "memory", id: None, value: Some(v) });
     }
     note(ui, if b.memory == 0 {
         "No memory: the policy answers the instant it is shown and nothing else."
@@ -1460,15 +1512,13 @@ fn health_tab(ui: &mut egui::Ui, s: &Status, feeds: &str, headset: &Headset) {
     ui.label(format!(
         "{} on {}, {} steps / s, {} fps out",
         if s.muscles { "muscles" } else { "bones only" },
-        s.profile,
+        s.profile_title(),
         s.settings.steps_per_second,
         s.settings.fps
     ));
-    let d = &s.diagnostics;
-    ui.label(format!(
-        "kinetic {:.1} J, potential {:.1} J, drift {:.1} mm, {} contacts, {:.3} ms a tick",
-        d.kinetic, d.potential, d.drift_mm, d.contacts as i64, d.cost_ms
-    ));
+    // The energies, the drift and the contacts were said here a second time; they are the Sim
+    // tab's Run readout, as they are on the desktop.
+    note(ui, "Energy, drift, contacts and the tick rate are under Sim.");
     heading(ui, "The bridge");
     ui.label(feeds);
     // The guide the waiting view shows, kept here for once a publisher is running and the
@@ -1712,6 +1762,55 @@ mod tests {
         };
         assert!(value > pressed + 0.05, "sent {value}, pressed at {pressed}");
         assert!(value < 2.05 + 1e-6);
+    }
+
+    /// Where the Body tab's stature slider is, found as a person would: by clicking down its
+    /// slider column until a click sets stature. None when no click does.
+    fn stature_row(status: &Status, column: f32) -> Option<f32> {
+        let mut panel = Panel::new(Kind::Properties);
+        (40..400).step_by(3).map(|y| y as f32).find(|&y| {
+            let at = egui::pos2(column, y);
+            step(&mut panel, status, Some(at), false, 0.0);
+            step(&mut panel, status, Some(at), true, 0.0);
+            let clicked = step(&mut panel, status, Some(at), false, 0.0);
+            stature_sent(&clicked.commands).is_some()
+        })
+    }
+
+    #[test]
+    fn a_dragged_slider_moves_in_the_tables_steps_and_sends_what_the_desktop_would_hold() {
+        let status = fixture();
+        let range = status.controls["stature"];
+        assert_eq!((range.min, range.max, range.step), (1.4, 2.05, 0.005), "the table's stature");
+        let column = 230.0;
+        let row = stature_row(&status, column).expect("a stature slider on the Body tab");
+        // Dragged a little at a time, so most frames land between two notches, then let go on
+        // the panel.
+        let mut panel = Panel::new(Kind::Properties);
+        step(&mut panel, &status, Some(egui::pos2(column, row)), false, 0.0);
+        step(&mut panel, &status, Some(egui::pos2(column, row)), true, 0.0);
+        let mut x = column;
+        while x < 300.0 {
+            x += 1.3;
+            step(&mut panel, &status, Some(egui::pos2(x, row)), true, 0.0);
+            // While it is held, the slider shows a notch of the table's, never a value between.
+            let (_, held) = panel.editing.clone().expect("the stature slider is being dragged");
+            let notches = (held as f64 - range.min) / range.step;
+            assert!((notches - notches.round()).abs() < 1e-3, "held at {held}, {notches} notches");
+        }
+        let released = step(&mut panel, &status, Some(egui::pos2(x, row)), false, 0.0);
+        let value = stature_sent(&released.commands).expect("a released drag sends");
+        assert!((range.min..=range.max).contains(&value), "sent {value}");
+        let notches = (value - range.min) / range.step;
+        assert!((notches - notches.round()).abs() < 1e-9, "sent {value}, off a step of {}", range.step);
+        // Written as the desktop writes it, not as an f32 widened: 1.735, not 1.7350000143.
+        assert_eq!(value, (value * 1000.0).round() / 1000.0, "sent {value}");
+        assert!(value > 1.5, "dragged right, and sent {value}");
+
+        // A publisher that sends no range for stature does not honour it, and gets no slider.
+        let mut without = fixture();
+        without.controls.remove("stature");
+        assert_eq!(stature_row(&without, column), None);
     }
 
     #[test]

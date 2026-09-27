@@ -109,7 +109,7 @@ export interface PublisherRun {
   /** Which run of the bridge files, as the viewer is told. */
   readonly generation: number;
   readonly settings: Readonly<PublisherSettings>;
-  readonly profiles: readonly string[];
+  readonly profiles: PanelStatus['profiles'];
   readonly definition: ScenarioDefinition;
   /** The scenario the simulation was built from, at `values`. */
   readonly scenario: Scenario;

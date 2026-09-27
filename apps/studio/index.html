@@ -243,6 +243,10 @@
                 </select>
                 <p class="note live" id="scenario-note"></p>
                 <div id="scenario-parameters"></div>
+                <!-- Shown only while a parameter is off the value the scenario was validated with. -->
+                <div class="buttons" id="scenario-defaults-row" hidden>
+                  <button type="button" id="scenario-defaults" title="Put every parameter of this scenario back to the value it was validated with; used from the next run">Defaults</button>
+                </div>
               </div>
               <label for="muscles" class="checkbox"><input type="checkbox" id="muscles" checked /> Muscles</label>
               <p class="note">A scenario that needs muscles turns them on itself. Muscles start with the next run.</p>

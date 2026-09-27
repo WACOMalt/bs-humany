@@ -298,15 +298,19 @@ tab, the same controls sending the same keys:
   stays on the desktop.
 - **World** -- gravity, floor; passive joint resistance, spinal redistribution; drop height;
   grab strength.
-- **Sim** -- steps a second, output frames a second; the diagnostics readout. The capture
-  budget is the desktop's.
+- **Sim** -- steps a second, output frames a second; the diagnostics readout, with the tick
+  rate as the desktop words it (steps coming out against the step rate, and how fast against
+  life). The capture budget is the desktop's.
 - **Scene** -- a button per scenario and a slider per parameter the scenario has; muscles on or
-  off; a button per fidelity profile.
+  off; a button per fidelity profile, named as the desktop's picker names it ("L3 — Anatomical
+  ...") and sending the profile's id.
 - **Muscles** -- a drive slider per muscle group, folded by region as the desktop folds them:
   the same twenty-nine groups, one table in `packages/scenarios`; the readout. The number
   beside a slider is the excitation it asks for, the square of its travel, as the desktop
   prints it (50 along reads 25%); what is sent is still the position, which the publisher
-  squares, and a number typed into the box is read as that excitation.
+  squares, and a number typed into the box is read as that excitation. The readout is the
+  desktop's: the pull of each body section -- arm, hand, leg, trunk, neck, every drive group in
+  it summed over both sides -- then how many units are loaded, wrapping and out of range.
 - **Brain** -- the checkpoints the dashboard lists, the authority, Hand over and Release, the
   fit line; Start and Stop training, and Follow bridge, which reads Stop following once it is
   following, with the training line. Stop training stops the showcase that plays the run as well
@@ -314,9 +318,16 @@ tab, the same controls sending the same keys:
   generations, population, episode length and workers are as set on the desktop; the activity
   bitmap stays there too.
 - **Export** -- what cannot be done from a headset, disabled, with the line that says why.
-- **Health** -- this run's rates and diagnostics and the bridge's state, and the controls
-  guide with the controllers the runtime says are in hand; the compile report, the inertia audit
-  and the joint sweep stay on the desktop.
+- **Health** -- this run's profile, by name, and rates, the bridge's state, and the controls
+  guide with the controllers the runtime says are in hand; the diagnostics are under Sim, and
+  the compile report, the inertia audit and the joint sweep stay on the desktop.
+
+Every slider but the drives and the timeline takes its bounds and its step from the status's
+`controls`, which is `CONTROL_RANGES` in `packages/scenarios/src/controls.ts` -- the same table
+the desktop's sliders are held to by a test -- and moves in those steps while it is dragged, so
+what is let go of is what was shown and is what is sent. A slider whose key the publisher sends
+no range for is not drawn: that publisher does not honour it. A scenario's own parameters carry
+their bounds and step with them.
 
 The transport strip is the desktop's top bar and timeline in one: Start or Resume, Pause,
 Reset; the mode -- own run, paused, at rest, or following the bridge -- with the speed, and
@@ -327,9 +338,10 @@ where the desktop's playhead is, scrubbed back or replaying, and runs to the end
 recording. Play is the desktop's play and pause: it reads Pause while the desktop plays its
 recording back, and each press sends the state it names -- `play` false to pause, true to
 play -- rather than a bare toggle. The headless publisher has no recording;
-there the timeline is the run's own time and Play resumes it. Grid, muscle
-paths, muscle volumes and connective tissue are honoured here; proxies, axes, centres of mass
-and contacts are the desktop viewport's, toggled from here all the same.
+there the timeline is the run's own time and Play resumes it. Grid, muscle volumes and
+connective tissue are honoured here; muscle paths, proxies, axes, centres of mass and contacts
+are the desktop viewport's, toggled from here all the same. The muscles are drawn here as their
+volumes, so the Muscle volumes box alone shows or hides them.
 
 What changes the articulation -- scenario, profile, muscles, the body, the rates -- rebuilds the
 simulation on the publisher's side and the bridges reopen, and those sliders send only when let

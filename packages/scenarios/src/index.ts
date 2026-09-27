@@ -207,6 +207,7 @@ const ELBOW_EXTENSORS_L = ELBOW_EXTENSORS_R.map((id) => id.replace(/_r$/, '_l'))
 export {
   ANTAGONISTS,
   MUSCLE_GROUPS,
+  applyDriveSliders,
   driveForSlider,
   reflexGroups,
   type DriveGroup,
@@ -235,6 +236,13 @@ export {
   type NervesSetup,
 } from './nerves.js';
 export { defaultControlDivisor, profileRateHz } from './solverRate.js';
+export {
+  CONTROL_RANGES,
+  type ControlKey,
+  type ControlRange,
+  isControlKey,
+  snapToControl,
+} from './controls.js';
 
 /**
  * The activation clips, compiled once against the units they name. That every one of those is a
