@@ -662,6 +662,31 @@ select {
   color: var(--warn);
 }
 
+/* The event line: one-off messages beside the readout, held until clicked or replaced. The
+   readout gives up its width first, because it is rewritten every frame and a truncated readout
+   is back in full a frame later, while a truncated message is simply lost. */
+#statusbar #sim-status {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+#statusbar #sim-event {
+  margin: 0;
+  min-width: 0;
+  flex: 0 3 auto;
+  max-width: 60%;
+  color: var(--ink-dim);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+#statusbar #sim-event.error {
+  color: var(--warn);
+}
+
 #statusbar #hint {
   margin-left: auto;
   color: var(--ink-faint);

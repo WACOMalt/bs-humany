@@ -28,6 +28,7 @@ import {
 } from '@bs-humany/export-gltf';
 import { transformPoint } from '@bs-humany/frames';
 import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
+import type { PolicyFile } from '@bs-humany/modules-nerves';
 import {
   QUALITY_HIGH,
   QUALITY_LOW,
@@ -75,6 +76,7 @@ import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
 import { Playback } from './playback.js';
 import { RingTubes } from './ringTubes.js';
+import { createRunGate, startSingleFlight } from './runController.js';
 import {
   type SessionFile,
   type SessionSettings,
@@ -86,6 +88,7 @@ import {
   serializeSnapshot,
   usesNativeFilePickers,
 } from './session.js';
+import { keyOwnedByTarget } from './shortcuts.js';
 import { type BackendId, Simulation } from './simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
 import { type TissueTable, tissueTable } from './tissue.js';
@@ -242,6 +245,17 @@ const bridgeFollower = new BridgeFollower();
 let overlays: Overlays | null = null;
 let furniture: Group | null = null;
 let groundY = 0;
+/** Whether the full mesh pack is still on its way, for the readout at rest. */
+let fullDetailPending = false;
+/** The gate every run start goes through, so only one can land; see `runController.ts`. */
+const runGate = createRunGate();
+/** The carry a run start in flight was asked for, when it was one. */
+type Carry = { state: ReturnType<Simulation['jointState']>; ticks: number; paused: boolean };
+/**
+ * What the start in flight was asked to do, so a change to the body while it compiles can ask
+ * again rather than let a run built from the old body land. Null when nothing is starting.
+ */
+let pendingStart: { restoreFrom?: SessionFile['simulation']; carry?: Carry } | null = null;
 
 // ---------------------------------------------------------------------------------------------
 // Controls
@@ -361,7 +375,14 @@ function currentMorphology(): Morphology {
 
 let buildMs = 0;
 
-function rebuild(): void {
+/**
+ * Rebuild the mesh and, when a run is going, restart it with its pose carried across.
+ *
+ * `cause` names what changed, for the message a carry restart owes: it keeps the pose, but the
+ * recording starts again, and a person who has been capturing for a minute should hear that from
+ * the page rather than find it out at Export.
+ */
+function rebuild(cause = 'Body changed'): void {
   if (!assets) return;
   const started = performance.now();
   // A running simulation survives a morphology change: its joint state is carried into the
@@ -369,15 +390,23 @@ function rebuild(): void {
   const carry = simulation
     ? { state: simulation.jointState(), ticks: simulation.ticks, paused: simulation.paused }
     : null;
+  const discarded = simulation?.capture.frameCount ?? 0;
+  // No run yet, but one compiling: it was built from the body as it was, and this rebuild is
+  // about to invalidate it. Ask again with what it was asked for, so the run that lands is the
+  // body the sliders now show rather than none at all.
+  const reissue = !carry && runGate.busy ? pendingStart : null;
 
   const morphology = currentMorphology();
   const resolved = resolveMorphology(morphology);
 
   // Spec section 6.4 step 5. A body that fails these checks would still render; it would simply be
-  // wrong, so the failure is surfaced rather than swallowed.
+  // wrong, so the failure is surfaced rather than swallowed: listed in Health, said in the event
+  // line, and kept on the console with the detail.
   const validation = validateResolvedBody(resolved);
+  showBodyValidity(validation.problems);
   if (!validation.valid) {
     console.error('Resolved body failed physical validity checks:', validation.problems);
+    announce('The resolved body failed its validity checks; see Health.', { error: true });
   }
 
   const quality = QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM;
@@ -401,7 +430,33 @@ function rebuild(): void {
   refreshSelection();
   updateReadouts(resolved.input.stature, resolved.input.mass);
   showValidation();
-  if (carry) void startSimulation(undefined, carry);
+  if (reissue) void startSimulation(reissue.restoreFrom, reissue.carry);
+  if (!carry) return;
+  void startSimulation(undefined, carry);
+  // After the start is under way, because a start clears the last run's notices as it begins.
+  if (discarded > 0) {
+    announce(
+      `${cause}: the run carried on from its pose; ${discarded} captured frames were ` +
+        'discarded — export first to keep them.',
+    );
+  }
+}
+
+/**
+ * The resolved body's validity problems, listed in Health above the inertia audit, or nothing.
+ *
+ * They used to reach the console and nowhere else, which in the desktop shell is nowhere at all.
+ */
+function showBodyValidity(problems: readonly string[]): void {
+  const list = must<HTMLUListElement>('#body-validity');
+  list.replaceChildren(
+    ...problems.map((problem) => {
+      const item = window.document.createElement('li');
+      item.textContent = problem;
+      return item;
+    }),
+  );
+  must<HTMLElement>('#body-validity-panel').hidden = problems.length === 0;
 }
 
 function updateReadouts(stature: number, mass: number): void {
@@ -421,9 +476,9 @@ function updateReadouts(stature: number, mass: number): void {
 }
 
 for (const input of [ui.sex, ui.stature, ui.mass, ui.crural, ui.brachial, ui.legLength]) {
-  input.addEventListener('input', rebuild);
+  input.addEventListener('input', () => rebuild());
 }
-ui.quality.addEventListener('change', rebuild);
+ui.quality.addEventListener('change', () => rebuild('Tessellation changed'));
 /**
  * View presets.
  *
@@ -438,7 +493,8 @@ const VIEWS: Record<string, { theta: number; phi: number }> = {
 };
 
 for (const button of window.document.querySelectorAll<HTMLButtonElement>('[data-view]')) {
-  button.addEventListener('click', () => {
+  button.addEventListener('click', (event) => {
+    blurAfterMouse(event);
     const view = VIEWS[button.dataset.view ?? ''];
     if (!view) return;
     controls.target.set(0, 0.88, 0);
@@ -536,10 +592,68 @@ function refreshSelection(): void {
 // Simulation
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Write an element's text only when it has changed.
+ *
+ * The frame loop writes its readouts sixty times a second, and most frames they say what they
+ * said the frame before. A write of the same string still replaces the text node, which a screen
+ * reader may announce again and which throws away a selection somebody was making in it.
+ */
+function setText(element: HTMLElement, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
+}
+
+/**
+ * The run readout: what the run is doing right now, rewritten every frame.
+ *
+ * Only for the state of the run -- running, paused, at rest, following -- because anything else
+ * written here is gone a sixtieth of a second later, when the frame loop writes the readout over
+ * it. One-off messages and errors go to `announce`, which has a line of its own.
+ */
 function setSimulationStatus(text: string, error = false): void {
   const status = must<HTMLElement>('#sim-status');
-  status.textContent = text;
+  setText(status, text);
   status.classList.toggle('error', error);
+}
+
+/**
+ * Say something once, in the status bar's event line, and leave it there.
+ *
+ * The readout beside it is rewritten every frame, and everything that used to be written into it
+ * -- "Wrote the session", "Muscles start with the next run", a failed save, a checkpoint that
+ * would not load -- was on screen for one frame and then overwritten by "Running, 3.21 s
+ * simulated". So messages have their own line: it holds until the next message replaces it or
+ * somebody clicks it away. An error is marked as one and read out at once; the same message sent
+ * twice does not rewrite the line, so a log that repeats itself does not churn the page.
+ */
+function announce(text: string, options: { error?: boolean } = {}): void {
+  const slot = must<HTMLElement>('#sim-event');
+  const error = options.error === true;
+  if (!slot.hidden && slot.textContent === text && slot.classList.contains('error') === error) {
+    return;
+  }
+  slot.textContent = text;
+  slot.classList.toggle('error', error);
+  slot.setAttribute('role', error ? 'alert' : 'status');
+  slot.title = error
+    ? 'Stays until you click it or another message replaces it'
+    : 'Click to dismiss';
+  slot.hidden = false;
+}
+
+/** Clear the event line; with `noticesOnly`, leave an error where it is. */
+function dismissAnnouncement(noticesOnly = false): void {
+  const slot = must<HTMLElement>('#sim-event');
+  if (noticesOnly && slot.classList.contains('error')) return;
+  slot.hidden = true;
+  slot.textContent = '';
+  slot.classList.remove('error');
+}
+must<HTMLElement>('#sim-event').addEventListener('click', () => dismissAnnouncement());
+
+/** What the readout says with no run: at rest, and whether the full mesh is still on its way. */
+function restStatus(): string {
+  return fullDetailPending ? 'Loading full detail…' : 'At rest.';
 }
 
 /** Surface every warning from the compiler and the backend (spec section 9.3). */
@@ -573,9 +687,25 @@ function showReports(sim: Simulation): void {
 }
 
 function stopSimulation(): void {
-  if (!simulation) return;
-  grabState = null;
+  // A start still compiling is abandoned too: a stop, a follow or a new start wants no run from
+  // before it to land afterwards.
+  const wasStarting = runGate.busy;
+  runGate.invalidate();
+  pendingStart = null;
+  if (!simulation) {
+    if (wasStarting) {
+      setRunControls(false);
+      setSimulationStatus(restStatus());
+    }
+    return;
+  }
   simulation.dispose();
+  forgetRun();
+}
+
+/** Take a run's traces off the page, without disposing it: whoever calls this has, or will. */
+function forgetRun(): void {
+  grabState = null;
   simulation = null;
   overlays?.dispose();
   overlays = null;
@@ -585,7 +715,7 @@ function stopSimulation(): void {
   must<HTMLElement>('#timeline-control').hidden = true;
   skinned?.rest();
   setRunControls(false);
-  setSimulationStatus('At rest.');
+  setSimulationStatus(restStatus());
 }
 
 /**
@@ -611,11 +741,57 @@ function setMode(mode: 'rest' | 'running' | 'paused' | 'following'): void {
           : 'At rest';
 }
 
+/**
+ * What pressing Start does, in words, one face for each thing it can do.
+ *
+ * The button is three buttons in one -- start a run, carry a paused one on, or throw a live one
+ * away and start again -- and it used to be labelled as though it were always the first. Each face
+ * has its own title, because Restart is the one that discards a recording and the title is where
+ * somebody hovering to find out would look. Space is named only where Space does the same thing:
+ * on a live run it pauses, it never restarts.
+ */
+const START_FACES = {
+  start: { label: '\u25b6 Start sim', title: 'Start a run with the current settings (Space)' },
+  resume: {
+    label: '\u25b6 Resume sim',
+    title: 'Carry the run on from its newest frame; nothing computed is lost (Space)',
+  },
+  restart: {
+    label: '\u21bb Restart',
+    title: 'Throw this run and its recording away and start a new one with the current settings',
+  },
+  compiling: {
+    label: 'Compiling\u2026',
+    title: 'Building the body and the solver for a new run; the page may stop for a moment',
+  },
+} as const;
+
+/** Write a button's label and title, only when they change: this runs every frame. */
+function setFace(button: HTMLButtonElement, face: { label: string; title: string }): void {
+  if (button.textContent !== face.label) button.textContent = face.label;
+  if (button.title !== face.title) button.title = face.title;
+}
+
 function setRunControls(running: boolean): void {
-  // Start always begins a run with the current settings; a run in progress is replaced.
   setMode(!running ? 'rest' : simulation?.paused ? 'paused' : 'running');
-  ui.simStart.disabled = false;
-  ui.simStart.textContent = !running ? 'Start sim' : simulation?.paused ? 'Resume sim' : 'Restart';
+  // Busy while a start compiles, so a second press cannot begin a second start and the page says
+  // why it is about to stop answering for a moment.
+  const compiling = runGate.busy;
+  ui.simStart.disabled = compiling;
+  if (compiling) ui.simStart.setAttribute('aria-busy', 'true');
+  else ui.simStart.removeAttribute('aria-busy');
+  // Nothing computed yet -- no run, or one Reset back to its first tick -- is a start, whatever
+  // the paused flag says: there is nothing to carry on from.
+  setFace(
+    ui.simStart,
+    compiling
+      ? START_FACES.compiling
+      : !running || !simulation || simulation.ticks === 0
+        ? START_FACES.start
+        : simulation.paused
+          ? START_FACES.resume
+          : START_FACES.restart,
+  );
   ui.simPause.disabled = !running || simulation?.paused === true;
   ui.reset.disabled = !running;
   ui.exportRecording.disabled = !running;
@@ -722,6 +898,9 @@ interface DrawnBox {
 
 /** Draw a scenario's static boxes so the body has something visible to land on. */
 function showFurniture(boxes: readonly DrawnBox[]): void {
+  // Whatever was up comes down first: two starts landing close together each drew their own set,
+  // and the first set stayed in the scene with nothing left to take it down.
+  clearFurniture();
   if (boxes.length === 0) return;
   furniture = new Group();
   const material = new MeshStandardMaterial({ color: 0x4a5566, roughness: 0.9 });
@@ -813,76 +992,156 @@ function showCapabilities(sim: Simulation): void {
 
 async function startSimulation(
   restoreFrom?: SessionFile['simulation'],
-  carry?: { state: ReturnType<Simulation['jointState']>; ticks: number; paused: boolean },
+  carry?: Carry,
 ): Promise<void> {
-  if (!skeletonMesh || !skinned) return;
+  if (!skeletonMesh || !skinned) {
+    // Pressed before the bones arrived. It used to do nothing at all, which on a slow connection
+    // is indistinguishable from a Start button that does not work.
+    announce('The skeleton is still loading; Start works once it appears.');
+    return;
+  }
   if (bridgeFollower.active) stopFollowing();
   stopSimulation();
-  setSimulationStatus('Compiling…');
+  // What was said about the last run is not about this one. An error stays, because nobody has
+  // necessarily read it yet; and a carry is the same run going on, so what was said stays too --
+  // a slider dragged through a run carries it several times, and the first carry's notice that
+  // the capture was discarded is the one that matters.
+  if (!carry) dismissAnnouncement(true);
+  pendingStart = { ...(restoreFrom ? { restoreFrom } : {}), ...(carry ? { carry } : {}) };
+  // Kept so a failure after the run was put in place can take it out again.
+  let built: Simulation | undefined;
   try {
-    const chosen = currentScenario();
-    const sim = new Simulation(document_, resolveMorphology(currentMorphology()), {
-      profileId: ui.profile.value,
-      backend: ui.backend.value as BackendId,
-      passiveJoints: ui.passive.checked,
-      redistribute: ui.redistribute.checked,
-      scenario: chosen,
-      dropHeight: Number(ui.dropHeight.value),
-      groundHeight: groundY,
-      // A scenario that drives muscles gets them whether the box is ticked or not: the box is
-      // there to keep them off the runs that do not need them, not to make a muscle scenario
-      // silently run a bare skeleton.
-      muscles: ui.muscles.checked || chosen?.muscles === true,
-      // Only when somebody moved it. Left alone, each profile keeps the step rate its solver was
-      // tuned for, which is the number that ought to win by default.
-      ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
-      outputFramerate: Number(ui.outputFramerate.value),
-      nerves: brain?.setup,
-      // A checkpoint trained with nothing under the brain has never felt a scenario's tone, so
-      // the scenario's script does everything else it does and drives no muscle.
-      scriptMuscleDrive: brain?.chosenRecipe()?.feedforward.kind !== 'none',
+    await startSingleFlight(runGate, {
+      before: async () => {
+        setRunControls(false);
+        setSimulationStatus('Compiling the body…');
+        await paintYield();
+      },
+      // Built after the yield, so it reads the settings as they are when it is built: a slider
+      // still moving when Start was pressed lands at its final value.
+      build: () => {
+        const chosen = currentScenario();
+        built = new Simulation(document_, resolveMorphology(currentMorphology()), {
+          profileId: ui.profile.value,
+          backend: ui.backend.value as BackendId,
+          passiveJoints: ui.passive.checked,
+          redistribute: ui.redistribute.checked,
+          scenario: chosen,
+          dropHeight: Number(ui.dropHeight.value),
+          groundHeight: groundY,
+          // A scenario that drives muscles gets them whether the box is ticked or not: the box
+          // is there to keep them off the runs that do not need them, not to make a muscle
+          // scenario silently run a bare skeleton.
+          muscles: ui.muscles.checked || chosen?.muscles === true,
+          // Only when somebody moved it. Left alone, each profile keeps the step rate its solver
+          // was tuned for, which is the number that ought to win by default.
+          ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
+          outputFramerate: Number(ui.outputFramerate.value),
+          nerves: brain?.setup,
+          // The cord the Spine panel shows, so a Start, a Reset-and-Start, a carry restart and
+          // a restored session all run the reflexes the sliders say rather than none at all.
+          reflex: brain?.state().reflex,
+          // A checkpoint trained with nothing under the brain has never felt a scenario's tone,
+          // so the scenario's script does everything else it does and drives no muscle.
+          scriptMuscleDrive: brain?.chosenRecipe()?.feedforward.kind !== 'none',
+        });
+        return built;
+      },
+      install: (sim) => installRun(sim, restoreFrom, carry),
     });
-    await sim.start();
-    // A fresh backend always starts with gravity and a solid floor; both toggles are session
-    // settings rather than run ones.
-    if (!ui.gravity.checked) sim.setGravity(false);
-    if (!ui.floor.checked) sim.setGroundCollision(false);
-    applyMuscleDrive(sim);
-    // A fresh run opens at the profile's own step rate, unless the slider has been moved off it.
-    if (!fidelityTouched) ui.stepsPerSecond.value = String(sim.stepsPerSecond);
-    applyFidelity(sim);
-    showRates();
-    if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
-    if (carry) {
-      const unmatched = sim.carryFrom(carry.state, carry.ticks);
-      sim.paused = carry.paused;
-      if (unmatched.length > 0)
-        console.warn('DoFs without a counterpart, left at neutral:', unmatched);
-    }
-    simulation = sim;
-    following = true;
-    playback.rewind();
-    overlays = createOverlays(sim.articulation, {
-      musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
-    });
-    world.add(overlays.root);
-    applyOverlayVisibility();
-    showFurniture(sim.staticBoxes);
-    // The Align tab draws our own joints and attachments, which are this body's: when the body
-    // is rebuilt they are a different body's and have to be read again.
-    align?.refresh();
-    showCapabilities(sim);
-    must<HTMLElement>('#diagnostics').hidden = false;
-    must<HTMLElement>('#timeline-control').hidden = false;
-    showReports(sim);
-    refreshSelection();
-    setRunControls(true);
-    setSimulationStatus('Running.');
   } catch (error) {
+    // The run may have been put in place before something in the installing failed; the gate has
+    // disposed it, so it only has to come off the page.
+    if (built && simulation === built) forgetRun();
     console.error('The simulation failed to start.', error);
-    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
-    setRunControls(false);
+    announce(`The run failed to start: ${messageOf(error)}`, {
+      error: true,
+    });
+    setSimulationStatus(restStatus());
+  } finally {
+    if (!runGate.busy) pendingStart = null;
+    // Whichever start this was, the controls follow what is true now: a run, a newer start still
+    // compiling, or nothing.
+    setRunControls(simulation !== null);
   }
+}
+
+/**
+ * Wait until the busy Start has been painted, then a little more.
+ *
+ * Building the body freezes the page for as long as it takes, and a freeze that begins before
+ * the button has turned grey looks like a click that did nothing. One animation frame is not
+ * enough -- the callback runs before that frame paints -- so the wait is a frame and then a task.
+ * The timeout is for a page that is not painting at all, hidden or minimised, which would
+ * otherwise never start.
+ */
+function paintYield(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      setTimeout(resolve, 0);
+    };
+    requestAnimationFrame(go);
+    setTimeout(go, 100);
+  });
+}
+
+/**
+ * Put a started run in place: its settings, its restored or carried state, and everything on the
+ * page that shows it. Only ever called for the start that is still current.
+ *
+ * What can fail is done first, before the run is assigned, so a failure leaves nothing of it on
+ * the page.
+ */
+function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], carry?: Carry): void {
+  // A fresh backend always starts with gravity and a solid floor; both toggles are session
+  // settings rather than run ones.
+  if (!ui.gravity.checked) sim.setGravity(false);
+  if (!ui.floor.checked) sim.setGroundCollision(false);
+  applyMuscleDrive(sim);
+  // A fresh run opens at the profile's own step rate, unless the slider has been moved off it.
+  if (!fidelityTouched) ui.stepsPerSecond.value = String(sim.stepsPerSecond);
+  applyFidelity(sim);
+  showRates();
+  if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
+  let unmatched: string[] = [];
+  if (carry) {
+    unmatched = sim.carryFrom(carry.state, carry.ticks);
+    sim.paused = carry.paused;
+    if (unmatched.length > 0)
+      console.warn('DoFs without a counterpart, left at neutral:', unmatched);
+  }
+  simulation = sim;
+  following = true;
+  playback.rewind();
+  overlays = createOverlays(sim.articulation, {
+    musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
+  });
+  world.add(overlays.root);
+  applyOverlayVisibility();
+  showFurniture(sim.staticBoxes);
+  // The Align tab draws our own joints and attachments, which are this body's: when the body
+  // is rebuilt they are a different body's and have to be read again.
+  align?.refresh();
+  showCapabilities(sim);
+  must<HTMLElement>('#diagnostics').hidden = false;
+  must<HTMLElement>('#timeline-control').hidden = false;
+  showReports(sim);
+  // A body carried into a profile with other joints leaves some of the old pose behind. That
+  // is expected and not an error, but it is a difference in the body that is running, so it is
+  // listed with the other things the compile had to say rather than only on the console.
+  if (unmatched.length > 0) {
+    const item = window.document.createElement('li');
+    item.textContent =
+      `[carry] ${unmatched.length} DoFs had no counterpart in ${sim.recording.profile} ` +
+      `and start at neutral: ${unmatched.join(', ')}`;
+    must<HTMLUListElement>('#sim-report').appendChild(item);
+  }
+  refreshSelection();
+  setRunControls(true);
+  setSimulationStatus('Running.');
 }
 
 /**
@@ -914,6 +1173,25 @@ function scrubTo(frame: number): void {
   applyOverlayVisibility();
   setRunControls(true);
   updateTimeline(simulation);
+}
+
+/**
+ * A tick threw: pause the run where it stopped and say so.
+ *
+ * Left alone, the frame loop would call the same tick again next frame and the one after, sixty
+ * times a second, each throwing into the console while the readout went on saying "Running" over
+ * a body that had not moved. Paused, what was computed up to the failure is still there to scrub
+ * and export, and the event line says what went wrong and when.
+ */
+function stalled(sim: Simulation, error: unknown): void {
+  sim.paused = true;
+  console.error('A simulation tick failed; the run is paused.', error);
+  announce(
+    `The simulation failed at ${(sim.ticks * sim.dt).toFixed(3)} s and is paused: ` +
+      `${messageOf(error)}. Reset or Restart to go on.`,
+    { error: true },
+  );
+  setRunControls(true);
 }
 
 /** Back to the newest frame, and following it again. */
@@ -957,7 +1235,8 @@ window.addEventListener('pointerup', () => {
   scrubbing = false;
 });
 
-ui.playToggle.addEventListener('click', () => {
+ui.playToggle.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   if (!simulation || capturedFrames() <= 1) return;
   if (playback.playing) {
     playback.playing = false;
@@ -971,10 +1250,12 @@ ui.playToggle.addEventListener('click', () => {
   applyOverlayVisibility();
   setRunControls(true);
 });
-ui.frameBack.addEventListener('click', () => {
+ui.frameBack.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   scrubTo(playback.clampedFrame(capturedFrames()) - 1);
 });
-ui.frameForward.addEventListener('click', () => {
+ui.frameForward.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   if (!simulation) return;
   const frames = capturedFrames();
   const at = following ? frames - 1 : playback.clampedFrame(frames);
@@ -983,7 +1264,12 @@ ui.frameForward.addEventListener('click', () => {
   if (at >= frames - 1) {
     simulation.paused = true;
     const ticks = Math.max(1, Math.round(simulation.ticksPerOutputFrame));
-    for (let i = 0; i < ticks; i++) simulation.tick();
+    try {
+      for (let i = 0; i < ticks; i++) simulation.tick();
+    } catch (error) {
+      stalled(simulation, error);
+      return;
+    }
     simulation.pose.step();
     simulation.metrics.step();
     // The belly sweep runs on a divisor while the simulation is running; a hand-stepped frame
@@ -994,7 +1280,10 @@ ui.frameForward.addEventListener('click', () => {
   }
   scrubTo(at + 1);
 });
-ui.goLive.addEventListener('click', goLive);
+ui.goLive.addEventListener('click', (event) => {
+  blurAfterMouse(event);
+  goLive();
+});
 
 /**
  * Which overlays are drawn, and which cannot be while the playhead is behind the newest frame.
@@ -1346,7 +1635,7 @@ ui.muscles.addEventListener('change', () => {
   // The modules are registered when a run starts, so turning this on mid-run changes nothing
   // until the next one. Saying so beats a checkbox that appears to do nothing.
   if (simulation && ui.muscles.checked && !simulation.muscles) {
-    setSimulationStatus('Muscles start with the next run.');
+    announce('Muscles start with the next run.');
   }
 });
 // Explanatory text is off by default: the panel has thirteen paragraphs and a reader wants at
@@ -1402,20 +1691,26 @@ for (const panel of window.document.querySelectorAll<HTMLDetailsElement>('detail
 }
 
 // Keyboard, as the reference has it: Space for the transport, arrows for a frame, Home for live,
-// and the numbers for the views. Never while typing into a control.
+// and the numbers for the views. A focused control keeps the keys it acts on -- Space on a
+// checkbox toggles it, the arrows move a slider -- and gives the rest to these.
 window.addEventListener('keydown', (event) => {
-  const target = event.target as HTMLElement | null;
-  const typing =
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLSelectElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLButtonElement;
-  if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+  // Space on Start or Pause is the transport, not the button. The button would otherwise take it
+  // as a press, and a press of Start on a live run is Restart: after a mouse click on Start,
+  // focus stayed on it, and the Space meant to pause threw the run away instead.
+  if (event.key === ' ' && (event.target === ui.simStart || event.target === ui.simPause)) {
+    event.preventDefault();
+    if (!event.repeat) toggleTransport();
+    return;
+  }
+  if (keyOwnedByTarget(event.target, event.key)) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
   switch (event.key) {
     case ' ':
       event.preventDefault();
-      if (simulation && !simulation.paused && !bridgeFollower.active) ui.simPause.click();
-      else ui.simStart.click();
+      // Held down, Space repeats; a transport that toggled at the key-repeat rate would flicker
+      // between paused and running and land wherever the finger happened to lift.
+      if (event.repeat) return;
+      toggleTransport();
       break;
     case 'ArrowLeft':
       if (!ui.frameBack.disabled) ui.frameBack.click();
@@ -1435,8 +1730,18 @@ window.addEventListener('keydown', (event) => {
     case '7':
       window.document.querySelector<HTMLButtonElement>('[data-view="three-quarter"]')?.click();
       break;
+    case '9':
+      window.document.querySelector<HTMLButtonElement>('[data-view="back"]')?.click();
+      break;
     default:
       return;
+  }
+});
+// A button activates on Space's release, so the keydown above is not enough on its own to keep
+// Start from being pressed by the Space that paused the run.
+window.addEventListener('keyup', (event) => {
+  if (event.key === ' ' && (event.target === ui.simStart || event.target === ui.simPause)) {
+    event.preventDefault();
   }
 });
 
@@ -1453,22 +1758,69 @@ for (const slider of driveInputs.values()) {
   });
 }
 
-ui.simStart.addEventListener('click', () => {
+/**
+ * Give focus back to the page after a mouse click on a transport or view button.
+ *
+ * A clicked button keeps focus, and a focused button owns Space and Enter; left there, the next
+ * Space would press the button again rather than reach the transport. A keyboard activation has a
+ * `detail` of zero and keeps its focus, so somebody tabbing through the buttons stays where they
+ * are.
+ */
+function blurAfterMouse(event: MouseEvent): void {
+  if (event.detail > 0) (event.currentTarget as HTMLElement | null)?.blur();
+}
+
+/** Stop computing, keeping everything computed. */
+function pause(): void {
+  if (!simulation) return;
+  simulation.paused = true;
+  setRunControls(true);
+}
+
+/** Carry the run on from its newest frame, which is live again. */
+function resume(): void {
+  if (!simulation) return;
+  simulation.paused = false;
+  goLive();
+}
+
+/**
+ * What Space does: pause a live run, carry a paused one on, start one when there is none.
+ *
+ * Never a restart, which is only ever a deliberate press of the Restart button, and nothing at
+ * all while following the bridge: the body on screen is somebody else's run, and Space used to
+ * start one of this page's own over it and end the follow.
+ */
+function toggleTransport(): void {
+  // Nor while a run is compiling: the start in flight is the answer to the last press.
+  if (bridgeFollower.active || runGate.busy) return;
+  if (simulation && !simulation.paused) pause();
+  else startOrResume();
+}
+
+/** Carry a run on, or start one when there is none; never a restart. */
+function startOrResume(): void {
+  if (bridgeFollower.active || runGate.busy) return;
+  if (simulation) resume();
+  else void startSimulation();
+}
+
+ui.simStart.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   // Paused mid-run, or scrubbed back into it: carry on from the newest frame rather than
   // throwing the run away. Anything else starts a fresh one with the settings as they stand.
   if (simulation && (simulation.paused || !following)) {
-    simulation.paused = false;
-    goLive();
+    resume();
     return;
   }
   void startSimulation();
 });
-ui.simPause.addEventListener('click', () => {
-  if (!simulation) return;
-  simulation.paused = true;
-  setRunControls(true);
+ui.simPause.addEventListener('click', (event) => {
+  blurAfterMouse(event);
+  pause();
 });
-ui.reset.addEventListener('click', () => {
+ui.reset.addEventListener('click', (event) => {
+  blurAfterMouse(event);
   if (!simulation) return;
   simulation.reset();
   simulation.paused = true;
@@ -1601,10 +1953,12 @@ scenarioChanged();
  */
 async function saving(what: string, write: Promise<boolean>): Promise<void> {
   try {
-    if (await write) setSimulationStatus(`Wrote ${what}.`);
+    if (await write) announce(`Wrote ${what}.`);
   } catch (error) {
     console.error(`Writing ${what} failed.`, error);
-    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+    announce(`Writing ${what} failed: ${messageOf(error)}`, {
+      error: true,
+    });
   }
 }
 
@@ -1660,11 +2014,14 @@ async function loadSessionText(text: string): Promise<void> {
   try {
     const parsed: unknown = JSON.parse(text);
     if (!isSessionFile(parsed)) throw new Error('Not a bs-humany session file.');
+    // A session with a run in it starts that run. Stopped first, so the settings going in do not
+    // carry the old run across into a restart of their own that the snapshot then races.
+    if (parsed.simulation) stopSimulation();
     applySettings(parsed.settings);
     if (parsed.simulation) await startSimulation(parsed.simulation);
   } catch (error) {
     console.error('The session failed to load.', error);
-    setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+    announce(`The session failed to load: ${messageOf(error)}`, { error: true });
   }
 }
 
@@ -1694,7 +2051,13 @@ function showValidation(): void {
   let compiled: ReturnType<typeof compileArticulation>['articulation'];
   try {
     compiled = compileArticulation(document_, ui.profile.value, morphology).articulation;
-  } catch {
+  } catch (error) {
+    // Both tables say so, rather than go on showing the last body's numbers as though they were
+    // this one's -- which is what returning quietly here used to do.
+    const why = `Validation unavailable for ${ui.profile.value}: ${messageOf(error)}`;
+    const row = `<tbody><tr><td>${escapeHtml(why)}</td></tr></tbody>`;
+    must<HTMLTableElement>('#inertia-audit').innerHTML = row;
+    must<HTMLTableElement>('#joint-sweep').innerHTML = row;
     return;
   }
   const audit = inertiaAudit(compiled, morphology);
@@ -1863,7 +2226,11 @@ function animate(): void {
     if (following) {
       // The elapsed time is measurement only: what the frame advances is one output frame's worth
       // of simulated time, whatever the clock says.
-      simulation.advance(frameSeconds);
+      try {
+        simulation.advance(frameSeconds);
+      } catch (error) {
+        stalled(simulation, error);
+      }
     } else {
       // Playback is the other way round -- paced by the clock, because what is being watched is
       // finished and watching it should take the time it took.
@@ -1912,15 +2279,25 @@ function animate(): void {
     const held = simulation.muscleVolume
       ? `muscles ${mb(rings.bytes)}, bones ${mb(capture.bytes)}, of ${mb(simulation.captureBudgetBytes)} each`
       : `${mb(capture.bytes)} of ${mb(simulation.captureBudgetBytes)}`;
-    must<HTMLElement>('#capture-status').textContent =
+    // Which capture stopped, if one has. A bones-only run has nothing to level the two captures
+    // against, so nothing records which one stopped; a full bone capture is then the one.
+    const stoppedBy = simulation.capturesStoppedBy ?? (capture.full ? 'bones' : undefined);
+    // What raising the budget does after a stop is keep what is held, never carry on: the run has
+    // gone past the last captured tick, and a capture with a gap in it is not one the export can
+    // write. So the text says what a longer capture takes, which is a new run -- and a new run of
+    // the same settings is the same run, unless somebody reached into this one.
+    const stoppedAt = (capture.firstTick + capture.frameCount - 1) * simulation.dt;
+    setText(
+      must<HTMLElement>('#capture-status'),
       `Captured ${capture.frameCount} frames for export (${held})` +
-      (simulation.capturesStoppedBy === undefined
-        ? '.'
-        : simulation.capturesStoppedBy === 'muscles'
-          ? ' — the muscle capture reached its budget and both stopped; earlier frames kept. ' +
-            'Pause, raise the budget below, and it carries on.'
-          : ' — capture budget reached; earlier frames kept. Pause, raise the budget below, and ' +
-            'it carries on.');
+        (stoppedBy === undefined
+          ? '.'
+          : ` — the ${stoppedBy === 'muscles' ? 'muscle' : 'bone'} budget reached at ` +
+            `${stoppedAt.toFixed(2)} s; the ${capture.frameCount} frames held are kept and still ` +
+            'export. For a longer capture raise the budget, then Reset and Start: the run is ' +
+            'deterministic and replays the same unless you grabbed, dragged or changed ' +
+            'drive/gravity during it.'),
+    );
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     // How fast, never whether anything was lost: nothing is. Below life speed the machine is
     // simply taking longer over the same ticks, and the run it produces is the same run.
@@ -2036,8 +2413,11 @@ function drawNerves(sim: Simulation | undefined): void {
   });
   context.putImageData(ui.image, 0, 0);
   if (local && sim) {
-    const trained = sim.scenarioNerves?.policy.trained;
+    // The policy in charge now, which after a hand-over is not the one the run opened with.
+    const inCharge = sim.policyInCharge;
+    const trained = inCharge?.trained;
     ui.note.textContent =
+      `${inCharge?.task ? `${inCharge.task}: ` : ''}` +
       `${local.policy.sizes.join(' × ')} weights, ${local.evaluationsSoFar} evaluations` +
       (trained
         ? `; trained ${trained.generations} generations to fitness ${trained.fitness.toFixed(2)}`
@@ -2068,30 +2448,97 @@ Object.assign(window, {
   },
 });
 
-loadAssets('lod1')
-  .then((loaded) => {
+/** The Cost panel's Mesh row: which pack the bones on screen are from, and why. */
+function showMeshDetail(text: string, title = ''): void {
+  const row = must<HTMLElement>('#stat-mesh');
+  setText(row, text);
+  row.title = title;
+}
+
+/** The centre overlay, as an error: nothing else is on screen to carry one. */
+function loadFailed(message: string, error: unknown): void {
+  console.error(message, error);
+  const loading = must<HTMLElement>('#loading');
+  loading.hidden = false;
+  loading.textContent = `${message} See the console.`;
+  loading.classList.add('error');
+  announce(`${message} ${messageOf(error)}`, {
+    error: true,
+  });
+}
+
+/**
+ * The reduced pack went up and the full one did not: keep what is on screen and say so.
+ *
+ * The reduced bones are a whole skeleton, so this is a coarser picture rather than a broken one,
+ * and the run and the physics do not use the render mesh at all. It used to be said only on the
+ * console, and a studio showing coarse bones for no visible reason looks like a bug.
+ */
+function fullDetailFailed(error: unknown): void {
+  console.error('The full-detail bones failed to load; staying on the reduced set.', error);
+  const why = messageOf(error);
+  showMeshDetail('reduced (full detail failed to load)', why);
+  announce('Full-detail bones failed to load; showing the reduced set (see the console).', {
+    error: true,
+  });
+}
+
+loadAssets('lod1').then(
+  (loaded) => {
     assets = loaded;
     must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
     must<HTMLElement>('#attribution').hidden = false;
-    must<HTMLElement>('#loading').hidden = true;
-    rebuild();
-    if (STAY_ON_SMALL_PACK) return;
-    return loadAssets('full').then((full) => {
-      assets = full;
+    try {
       rebuild();
-    });
-  })
-  .catch((error: unknown) => {
-    console.error('The measured skeleton failed to load.', error);
-    const loading = must<HTMLElement>('#loading');
-    loading.textContent = 'The measured skeleton failed to load. See the console.';
-    loading.classList.add('error');
-  });
+    } catch (error) {
+      loadFailed('The measured skeleton loaded but failed to build.', error);
+      return;
+    }
+    // Only now: hidden before the first build, the overlay went away and a failure to build
+    // left an empty viewport with nothing in it to say why.
+    must<HTMLElement>('#loading').hidden = true;
+    if (STAY_ON_SMALL_PACK) {
+      showMeshDetail('reduced (this device stays on the small pack)');
+      return;
+    }
+    fullDetailPending = true;
+    showMeshDetail('reduced; loading full detail…');
+    if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
+    loadAssets('full')
+      .then((full) => {
+        const reduced = assets;
+        assets = full;
+        try {
+          rebuild('Full-detail bones arrived');
+          showMeshDetail('full');
+        } catch (error) {
+          // Back to the pack that built, so the viewport has a skeleton in it.
+          assets = reduced;
+          try {
+            rebuild();
+          } catch {
+            // Already said below; a second failure adds nothing a person can act on.
+          }
+          fullDetailFailed(error);
+        }
+      }, fullDetailFailed)
+      .finally(() => {
+        fullDetailPending = false;
+        if (!simulation && !bridgeFollower.active) setSimulationStatus(restStatus());
+      });
+  },
+  (error: unknown) => loadFailed('The measured skeleton failed to load.', error),
+);
 
 function must<T extends Element>(selector: string): T {
   const element = window.document.querySelector<T>(selector);
   if (!element) throw new Error(`Missing required element: ${selector}`);
   return element;
+}
+
+/** An error's message, or whatever was thrown as a string. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function escapeHtml(value: string): string {
@@ -2267,7 +2714,9 @@ const vrHost = {
         ui.simPause.click();
         break;
       case 'resume':
-        ui.simStart.click();
+        // Carry on, or start when nothing is running -- the headset shows no run as paused, so
+        // its Resume is Start there. Never the Restart a click on Start is on a live run.
+        startOrResume();
         break;
       case 'reset':
         ui.reset.click();
@@ -2308,6 +2757,10 @@ const vrHost = {
           case 'crural':
           case 'brachial':
           case 'legLength':
+            // The slider's own events rebuild the body and carry a running one across; a restart
+            // on top of that was a second run racing the first.
+            setFromPanel(ui[key], value);
+            break;
           case 'dropHeight':
           case 'passive':
           case 'redistribute':
@@ -2358,7 +2811,7 @@ const vrHost = {
     }
   },
   log: (message: string) => {
-    setSimulationStatus(message);
+    announce(message);
     // And on the terminal, beside the viewer's own lines, where a failure can actually be read.
     void invoke('studio_log', { message }).catch(() => undefined);
   },
@@ -2372,7 +2825,7 @@ if (isTauri()) {
         await vrLink.disconnect();
         vrLink = null;
         connectVr.textContent = 'Connect VR viewer';
-        setSimulationStatus('VR viewer disconnected.');
+        announce('VR viewer disconnected.');
         return;
       }
       connectVr.disabled = true;
@@ -2382,7 +2835,7 @@ if (isTauri()) {
         vrLink = link;
         connectVr.textContent = 'Disconnect VR viewer';
       } catch (error) {
-        setSimulationStatus(error instanceof Error ? error.message : String(error), true);
+        announce(`The VR viewer did not connect: ${messageOf(error)}`, { error: true });
       } finally {
         connectVr.disabled = false;
       }
@@ -2486,7 +2939,7 @@ function stopFollowing(): void {
   followButton.textContent = 'Follow bridge';
   // Back to whatever this page's own run is doing, which with nothing running is nothing.
   setMode(!simulation ? 'rest' : simulation.paused ? 'paused' : 'running');
-  setSimulationStatus('At rest.');
+  setSimulationStatus(restStatus());
 }
 
 followButton.addEventListener('click', () => {
@@ -2612,21 +3065,64 @@ void loadSourceSites().then((data) => {
   if (data) align?.adopt(data);
 });
 
+/**
+ * Put a cord on the Spine sliders, as though somebody had moved them.
+ *
+ * The sliders are the one owner of the cord: each one's `input` event sets the running body's
+ * gains, and every run the studio starts is built with what they show. So a checkpoint's cord
+ * goes onto the sliders rather than into the body behind them, and the panel and the body cannot
+ * disagree about which reflexes are running.
+ */
+function putSpine(cord: NonNullable<NonNullable<PolicyFile['recipe']>['reflex']>): void {
+  const put = (selector: string, value: number): void => {
+    const input = document.querySelector<HTMLInputElement>(selector);
+    if (!input) return;
+    input.value = String(value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  put('#spine-stretch', cord.stretch);
+  put('#spine-velocity', cord.velocity);
+  put('#spine-setpoint', cord.setPoint);
+  put('#spine-inhibition', cord.inhibition);
+  put('#spine-delay', cord.delaySeconds);
+}
+
+/**
+ * The policy file last handed over from the panel, to tell a new hand-over from a change of
+ * authority. The panel sends both through `handOver` with the same setup shape; only a new file
+ * should bring its cord onto the sliders or be adopted again, because adopting refits the weights
+ * and starts a remembering policy's context over, and a person who moved the sliders after the
+ * hand-over did not ask for the checkpoint's cord back because they touched Authority.
+ */
+let handedPolicy: PolicyFile | undefined;
+
 brain = createBrainPanel({
   handOver(setup) {
+    if (!setup) {
+      handedPolicy = undefined;
+      simulation?.releaseBrain();
+      return;
+    }
+    const fresh = setup.policy !== handedPolicy;
+    handedPolicy = setup.policy;
+    // Onto the sliders before anything else, run or no run: the cord the checkpoint was trained
+    // over is part of the body it knows, and the next run is built with what the sliders say.
+    const cord = setup.policy.recipe?.reflex;
+    if (fresh && cord) putSpine(cord);
     // Live: the nerves are in every muscle run, so the policy goes in between one control step
     // and the next, and nothing restarts. A run that is not going takes it when it starts.
     if (!simulation) return;
-    if (!setup) {
-      simulation.releaseBrain();
+    if (!fresh) {
+      simulation.setAuthority(setup.authority);
       return;
     }
     try {
-      // The cord the checkpoint was trained over travels with it: a policy brought up on a body
-      // that answered its own stretch is not the same controller on a body that does not.
-      simulation.handOver(setup.policy, setup.authority, setup.policy.recipe?.reflex);
+      simulation.handOver(setup.policy, setup.authority);
     } catch (error) {
-      setSimulationStatus(String(error), true);
+      announce(`The checkpoint could not be handed over: ${messageOf(error)}`, { error: true });
+      // And back to the panel, whose Hand over catches it and says the checkpoint could not be
+      // loaded -- rather than "Policy chosen", which is what it said while nothing was in charge.
+      throw error;
     }
   },
   setReflex(gains) {
@@ -2663,20 +3159,7 @@ brain = createBrainPanel({
     }
     // The cord and the memory it was brought up with, onto their sliders, so the panel says
     // what this checkpoint knows rather than what the last one did.
-    const cord = recipe.reflex;
-    if (cord) {
-      const put = (selector: string, value: number): void => {
-        const input = document.querySelector<HTMLInputElement>(selector);
-        if (!input) return;
-        input.value = String(value);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      };
-      put('#spine-stretch', cord.stretch);
-      put('#spine-velocity', cord.velocity);
-      put('#spine-setpoint', cord.setPoint);
-      put('#spine-inhibition', cord.inhibition);
-      put('#spine-delay', cord.delaySeconds);
-    }
+    if (recipe.reflex) putSpine(recipe.reflex);
     const memory = document.querySelector<HTMLInputElement>('#train-memory');
     if (memory && recipe.memory !== undefined) {
       memory.value = String(recipe.memory);
@@ -2690,6 +3173,9 @@ brain = createBrainPanel({
         slider.dispatchEvent(new Event('input', { bubbles: true }));
       }
     }
+    // Whether this lands on a running body, which the settings below restart with the body carried
+    // across, or waits for the next run: the message says which.
+    const running = simulation !== null;
     applySettings({
       ...currentSettings(),
       sex: recipe.morphology.sex,
@@ -2704,11 +3190,13 @@ brain = createBrainPanel({
       redistribute: recipe.redistribute,
       scenarioParameters: { ...recipe.parameters },
     });
-    setSimulationStatus(
+    announce(
       `Set from the checkpoint ${recipe.name}: its scene, body and joints` +
         (recipe.stepsPerSecond ? `, and its ${recipe.stepsPerSecond} steps a second` : '') +
         (recipe.feedforward.kind === 'none' ? ', with the muscle sliders back to zero' : '') +
-        '. They take effect on the next run.',
+        (running
+          ? '; the running body was restarted with them.'
+          : '. They take effect on the next run.'),
     );
   },
   fit() {

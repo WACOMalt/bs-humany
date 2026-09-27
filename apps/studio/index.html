@@ -27,7 +27,7 @@
           </select>
         </div>
         <div class="transport buttons">
-          <button type="button" id="simStart" title="Start a run, or carry one on from where it was left (Space)">&#9654; Start sim</button>
+          <button type="button" id="simStart" title="Start a run with the current settings (Space)">&#9654; Start sim</button>
           <button type="button" id="simPause" disabled title="Stop computing; everything computed stays (Space)">&#10074;&#10074; Pause sim</button>
           <button type="button" id="reset" disabled title="Back to the starting pose; the recording is thrown away">&#8634; Reset</button>
         </div>
@@ -48,7 +48,7 @@
           <div class="buttons views">
             <button type="button" data-view="front" title="Front (1)">Front</button>
             <button type="button" data-view="left" title="Left (3)">Left</button>
-            <button type="button" data-view="back" title="Back">Back</button>
+            <button type="button" data-view="back" title="Back (9)">Back</button>
             <button type="button" data-view="three-quarter" title="Three-quarter (7)">¾</button>
           </div>
           <div class="group">
@@ -213,18 +213,19 @@
                 <input type="range" id="captureBudget" min="32" max="4096" step="32" value="256" />
                 <p class="note live" id="capture-status"></p>
                 <p class="note">How much the Blender export may hold, per capture &mdash; one for the
-                bones and one for the muscle cross-sections, and whichever fills first stops both. Pause
-                before raising it and the capture carries on from where it stopped; raise it while the
-                run is going and capture starts again from that moment, because the ticks in between
-                were never taken and the export promises a keyframe for every one.</p>
+                bones and one for the muscle cross-sections, and whichever fills first stops both.
+                Raise it before it fills and the capture carries on. Once it has filled, raising it
+                keeps every frame already held, and they still export; it captures more only on a
+                new run, because the run has gone on past the last captured tick and the export
+                promises a keyframe for every tick it covers. Reset and Start replays the same run,
+                deterministically, with the room to capture more of it.</p>
                 <p class="note">The ceiling is this tab's own JavaScript heap rather than the machine's
                 memory: a page is not given the host, and a capture that runs past the heap does not stop
                 politely &mdash; the tab dies and takes the run with it. It opens at a fifth of that
                 ceiling because writing the file needs about five copies of the capture live at once, so
                 a bigger budget captures happily and then dies on the Export button. Above the default is
-                yours to judge. A muscle frame is about twenty times a bone frame: a run with the full
-                set costs roughly a hundred and ten kilobytes a tick, so a gigabyte is about nineteen
-                seconds at 500 Hz.</p>
+                yours to judge. A muscle frame is many times a bone frame, so with muscles running the
+                muscle capture is the one that fills; the status line above shows how fast.</p>
               </div>
             </details>
             <details class="panel" open>
@@ -324,13 +325,13 @@
               past its set point excites itself in proportion to how far and how fast -- the
               spindle's group II and Ia -- and inhibits its opposite through an interneuron. It
               needs no training and it is most of what holds a body up: a real person stands on
-              the cord, and the brain only decides where to put the set points. Stretch at zero
-              is the body every checkpoint before this was trained in.</p>
+              the cord, and the brain only decides where to put the set points. Stretch and
+              Damping both at zero is the body every checkpoint before the cord was trained in.</p>
               <div class="control grid2">
                 <label for="spine-stretch">Stretch <output id="spine-stretch-value">off</output></label>
                 <input type="range" id="spine-stretch" min="0" max="8" step="0.1" value="0" />
-                <label for="spine-velocity">Damping <output id="spine-velocity-value">0.25</output></label>
-                <input type="range" id="spine-velocity" min="0" max="2" step="0.05" value="0.25" />
+                <label for="spine-velocity">Damping <output id="spine-velocity-value">0.00</output></label>
+                <input type="range" id="spine-velocity" min="0" max="2" step="0.05" value="0" />
                 <label for="spine-setpoint">Set point <output id="spine-setpoint-value">0.00</output></label>
                 <input type="range" id="spine-setpoint" min="-0.2" max="0.2" step="0.01" value="0" />
                 <label for="spine-inhibition">Reciprocal <output id="spine-inhibition-value">0.30</output></label>
@@ -338,22 +339,17 @@
                 <label for="spine-delay">Conduction <output id="spine-delay-value">30 ms</output></label>
                 <input type="range" id="spine-delay" min="0" max="0.12" step="0.005" value="0.03" />
               </div>
-              <p class="note">Stretch is a strain: 0.1 means a fibre a tenth longer than its own
-              optimal length. Standing still, two of the body's 272 muscles are past a set point
-              of zero; falling, 61 are, and the worst reaches 0.39. So the gain is a few, not a
-              few thousandths. Measured under the committed standing policy: no cord keeps the
-              body up 0.46 s, stretch 2 gets 0.64, 3.5 gets 0.89, and 5 is back to 0.85 --
-              past the peak every muscle sits at the ceiling and the brain above goes deaf,
-              because its correction is added to an excitation already clamped and the clamp eats
-              it. Damping is nearly neutral at these gains and is there to stop the delayed loop
-              ringing, which it plainly does not past 2: 0.39 s upright at 4, 0.27 at 8. Set
-              point is the length the loop holds the fibre at, and zero -- its optimal length --
-              is what keeps the cord quiet until something actually stretches. Reciprocal cannot
-              be chosen by how long the body stays up, because more of it means less muscle doing
-              less and a limper body falls slower; one is the physiological statement and a third
-              of it is what is set. Conduction is the time to the cord and back, about thirty
-              milliseconds in a leg, and the specification is blunt that an arc modelled without
-              it will oscillate.</p>
+              <p class="note">Stretch is the gain on a strain: how hard a muscle answers being
+              longer than its set point, where 0.1 is a fibre a tenth longer than its own optimal
+              length. Damping is the gain on how fast it is being stretched, and is there to stop
+              the delayed loop ringing. Set point is the length the loop holds the fibre at; zero,
+              its optimal length, keeps the cord quiet until something actually stretches.
+              Reciprocal is how much a muscle's excitation inhibits its opposite. Conduction is
+              the time to the cord and back, about thirty milliseconds in a leg, without which a
+              modelled arc oscillates. The panel opens with no cord, which is the body a run has
+              always opened with; every run starts with what these sliders show. Under the
+              committed standing policy the best stretch measured is about 3.5–4; see
+              docs/validation/reflex-gains.md.</p>
               <div id="spine-activity-wrap" hidden>
                 <canvas id="spine-activity" width="320" height="40"></canvas>
                 <p class="note live" id="spine-note"></p>
@@ -593,6 +589,12 @@
               <dl class="readout" id="capabilities"></dl>
               <ul id="sim-report" class="limitations"></ul>
             </details>
+            <details class="panel" id="body-validity-panel" open hidden>
+              <summary>Body validity</summary>
+              <p class="note">The resolved body failed the physical checks of spec section 6.4. It
+              still renders and still runs; it is simply wrong in the ways listed.</p>
+              <ul id="body-validity" class="limitations"></ul>
+            </details>
             <details class="panel">
               <summary>Inertia audit</summary>
               <p class="note">Compiled segment masses against the body mass, and the whole-body centre of mass at rest.</p>
@@ -606,6 +608,7 @@
             <details class="panel" open>
               <summary>Cost</summary>
               <dl class="readout">
+                <dt>Mesh</dt><dd id="stat-mesh">—</dd>
                 <dt>Bones</dt><dd id="stat-bones">—</dd>
                 <dt>Triangles</dt><dd id="stat-tris">—</dd>
                 <dt>Rebuild</dt><dd id="stat-build">—</dd>
@@ -625,7 +628,7 @@
       <div id="timeline-region">
         <div id="timeline-control" hidden>
           <div class="buttons transport">
-            <button type="button" id="playToggle" title="Replay the recording at the output rate (Space)">Play</button>
+            <button type="button" id="playToggle" title="Replay the recording at the output rate">Play</button>
             <button type="button" id="frameBack" title="One output frame back (Left)">&#9664;</button>
             <button type="button" id="frameForward" title="One output frame on; at the end of the recording, computes one (Right)">&#9654;</button>
             <button type="button" id="goLive" title="Back to the newest frame (Home)">Live</button>
@@ -644,8 +647,9 @@
 
       <!-- The status bar. ------------------------------------------------------------------------- -->
       <footer id="statusbar">
-        <p class="note live" id="sim-status">At rest.</p>
-        <div id="hint">drag to orbit · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space play/pause</div>
+        <p class="note live" id="sim-status" aria-live="off">At rest.</p>
+        <p id="sim-event" role="status" aria-live="polite" hidden></p>
+        <div id="hint">drag to orbit · right- or Shift-drag to pan · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space start/pause</div>
         <label class="checkbox inline" title="Show the paragraphs that say why a control does what it does"><input type="checkbox" id="showNotes" /> Explain</label>
         <div id="attribution" hidden></div>
       </footer>
