@@ -181,9 +181,8 @@ a test and a build see it without running anything, and each can fall behind its
 test noticing, because the tests read the committed output.
 
 `pnpm check:generated` is the guard. It runs every root script named `generate:*`, `measure:*`,
-`validate:*` and `audit:*` (plus `extract:source-sites`, until it takes the `generate:` prefix)
-with `--check`, in dependency order, names every file that is not what its script would write, and
-fails if there is one. CI runs exactly this. The list and its order live in `tools/cli/lib/targets.mjs`, which
+`validate:*` and `audit:*` with `--check`, in dependency order, names every file that is not what
+its script would write, and fails if there is one. CI runs exactly this. The list and its order live in `tools/cli/lib/targets.mjs`, which
 reads the names off `package.json`, so adding a generator is adding the script.
 
 A script under one of those prefixes must honour `--check`: compare, exit non-zero on a

@@ -34,20 +34,18 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { MODELS, MYO_SIM } from '../../validate-external/src/models.mjs';
 
-const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-export const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
-export const ARM = {
-  muscle: 'myoarm_r_muscle.xml',
-  tendon: 'myoarm_r_tendon.xml',
-  chain: 'myoarm_r_chain.xml',
-};
-export const LEGS = {
-  muscle: 'myolegs_muscle.xml',
-  tendon: 'myolegs_tendon.xml',
-  chain: 'myolegs_chain.xml',
-};
+export { MYO_SIM };
+
+/**
+ * The models the generators read, under the names they have always used here. The file names are
+ * declared once, in `tools/validate-external/src/models.mjs`; these are those same entries, so a
+ * comparison by identity -- `renderGroups` asks `model === LEGS` -- still holds for a caller that
+ * imported either.
+ */
+export const ARM = MODELS.arm;
+export const LEGS = MODELS.legs;
 
 /**
  * The torso, which the reference splits in two.
@@ -58,16 +56,8 @@ export const LEGS = {
  * attaching to individual lumbar vertebrae -- far finer than anything here, and read only for the
  * two actuators the abdomen model leaves out.
  */
-export const TORSO = {
-  muscle: 'myotorso_abdomen_muscle.xml',
-  tendon: 'myotorso_abdomen_tendon.xml',
-  chain: 'myotorso_chain.xml',
-};
-export const TORSO_LUMBAR = {
-  muscle: 'myotorso_muscle.xml',
-  tendon: 'myotorso_tendon.xml',
-  chain: 'myotorso_chain.xml',
-};
+export const TORSO = MODELS.torso;
+export const TORSO_LUMBAR = MODELS.torso_lumbar;
 
 /**
  * How much of its own optimal fiber length a muscle typically travels over its joints' range.

@@ -37,10 +37,10 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { MODELS, MYO_SIM } from './models.mjs';
 
-const HERE = fileURLToPath(new URL('.', import.meta.url));
-const MYO_SIM = join(HERE, '..', 'myo_sim');
+/** Which files describe each reference model: declared once, in `models.mjs`. */
+export { MODELS };
 
 /** The tendons this project has units for, and the unit each one corresponds to. */
 export const ELBOW_TENDONS = Object.freeze({
@@ -158,27 +158,6 @@ export const LEG_TENDONS = Object.freeze({
   ehl_r_tendon: 'extensor_hallucis_longus_r',
   fdl_r_tendon: 'flexor_digitorum_longus_r',
   fhl_r_tendon: 'flexor_hallucis_longus_r',
-});
-
-/**
- * Which files describe each reference limb.
- *
- * `defaults` is where that file's class defaults begin, and the two models do not agree about it:
- * the arm opens its tree with a named root class and the legs with an anonymous one.
- */
-export const MODELS = Object.freeze({
-  arm: {
-    assets: 'myoarm_r_assets.xml',
-    chain: 'myoarm_r_chain.xml',
-    tendon: 'myoarm_r_tendon.xml',
-    defaults: '<default class="main">',
-  },
-  legs: {
-    assets: 'myolegs_assets.xml',
-    chain: 'myolegs_chain.xml',
-    tendon: 'myolegs_tendon.xml',
-    defaults: '<default>',
-  },
 });
 
 const read = (file) => readFileSync(join(MYO_SIM, file), 'utf8');

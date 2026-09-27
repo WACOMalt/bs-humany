@@ -21,13 +21,9 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { MYO_SIM_COMMIT as COMMIT, MODELS, MYO_SIM } from './src/models.mjs';
 
-const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
 const MESHES = join(MYO_SIM, 'meshes');
-/** The commit `tools/validate-external/README.md` pins. Change both together. */
-const COMMIT = 'eb327acbae0fad12279495040607f5235d962328';
 const check = process.argv.includes('--check');
 
 /** Git's blob id for these bytes: `sha1("blob <length>\0" + content)`. */
@@ -37,10 +33,10 @@ const blobId = (bytes) =>
     .digest('hex');
 
 // What the models ask for, read from their own asset files rather than listed here, so a model
-// that starts using another bone is followed without anyone remembering to edit this.
+// that starts using another bone is followed without anyone remembering to edit this. Which files
+// those are is the registry's to say, and the two torso models share one.
 const wanted = new Set();
-for (const file of readdirSync(MYO_SIM)) {
-  if (!file.endsWith('_assets.xml')) continue;
+for (const file of new Set(Object.values(MODELS).flatMap((m) => m.assets ?? []))) {
   const xml = readFileSync(join(MYO_SIM, file), 'utf8');
   for (const m of xml.matchAll(/file="([^"]+\.(?:stl|obj|msh))"/gi)) {
     wanted.add(basename(m[1]));

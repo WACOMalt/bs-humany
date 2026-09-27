@@ -2,8 +2,8 @@
 /**
  * Where every muscle of the reference models runs, in that model's own world.
  *
- *   pnpm extract:source-sites          # rewrite apps/studio/public/sourceSites.json
- *   pnpm extract:source-sites --check  # fail if the file is not what this would write
+ *   pnpm generate:source-sites          # rewrite apps/studio/public/sourceSites.json
+ *   pnpm generate:source-sites --check  # fail if its data is not what this would write
  *
  * ## What this is for
  *
@@ -28,65 +28,40 @@
  *
  * The file is committed, so it can fall behind the vendored models the same way generated muscle
  * data can fall behind its source; `pnpm check:generated` runs this with `--check` to catch it.
- * The output goes through Biome before it is written or compared: the committed file is held to
- * `pnpm lint`, and Biome lays JSON out differently from JSON.stringify, so formatting here makes a
- * write lint-clean as it stands and lets the check compare the exact bytes a write would produce.
+ * The check compares *data*, not bytes: the committed file is parsed and held against what this
+ * would write by deep equality. Biome lays JSON out differently from JSON.stringify, and a check
+ * of the exact bytes made the check hostage to the formatter's version -- a Biome upgrade that
+ * moved one bracket would have failed CI on a file whose every number was right. A write still
+ * leaves the file as Biome would, because the committed file is held to `pnpm lint`: it is written
+ * as JSON and then formatted in place.
+ *
  * A model that will not load fails the check outright rather than being left out of the
  * comparison, since a check that skipped it would pass on a file it never reproduced.
  */
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { createJiti } from 'jiti';
-import { MODELS, referenceArmXml } from '../../validate-external/src/referenceArm.mjs';
+import { MODELS, MYO_SIM } from '../../validate-external/src/models.mjs';
+import { referenceArmXml } from '../../validate-external/src/referenceArm.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
 // Served rather than bundled: only the Align tab reads it, and it is a hundred kilobytes.
 const OUT = join(ROOT, 'apps/studio/public/sourceSites.json');
 const check = process.argv.includes('--check');
 
 /**
- * The torso, which `referenceArm.mjs` does not list because nothing needed it until now. It is
- * rooted at the sacrum and stands on its own, unlike the four arm muscles whose paths end on a
- * trunk the arm model does not contain.
- */
-const TORSO = {
-  assets: 'myotorso_assets.xml',
-  chain: 'myotorso_chain.xml',
-  tendon: 'myotorso_tendon.xml',
-  defaults: '<default class="main">',
-  /**
-   * The torso chain includes the head from a path that is relative to the layout of the upstream
-   * repository, not to how it is vendored here. The file itself is vendored, beside the others,
-   * so the include is pointed at where it actually is rather than dropped -- the head hangs off
-   * the top of the cervical spine and several neck muscles end on it.
-   */
-  rewrite: (chain) =>
-    chain.replace(/<include file="[^"]*myohead_rigid_chain\.xml"\s*\/>/g, () =>
-      unwrapInclude(readFileSync(join(MYO_SIM, 'myohead_rigid_chain.xml'), 'utf8')),
-    ),
-};
-
-/**
- * An included fragment, with its wrapper taken off so it can be spliced in, and everything this
- * tool does not read removed with it.
+ * The models the Align tab offers, under the names it shows them by.
  *
- * Geoms go entirely: they name collision and mesh classes defined in that fragment's own
- * defaults, which are not spliced in beside it, and MuJoCo refuses a class it cannot resolve.
- * `childclass` goes for the same reason -- without it the bodies still nest exactly as stated
- * and inherit the including model's defaults instead. Sites and body transforms are what is
- * read here, and neither depends on any of it.
+ * The torso is its full lumbar model rather than the abdomen one the torso generator reads: both
+ * are the same skeleton, and the full tendon file is the one that says where every trunk fascicle
+ * runs, which is what a person pairing muscles by eye wants to see. The head is not offered on
+ * its own; the registry splices it into the torso's chain, where its muscles end.
  */
-const unwrapInclude = (xml) =>
-  xml
-    .replace(/<\/?mujocoinclude[^>]*>/g, '')
-    .replace(/<geom[\s\S]*?\/>/g, '')
-    .replace(/ childclass="[^"]*"/g, '')
-    .replace(/ class="[^"]*"/g, '');
-const ALL = { arm: MODELS.arm, legs: MODELS.legs, torso: TORSO };
+const ALL = { arm: MODELS.arm, legs: MODELS.legs, torso: MODELS.torso_lumbar };
 
 const jiti = createJiti(
   new URL('../../../packages/backend-mujoco/src/index.ts', import.meta.url).href,
@@ -282,33 +257,35 @@ for (const [key, spec] of Object.entries(ALL)) {
 }
 
 const name = relative(ROOT, OUT);
-const formatted = spawnSync(
-  join(ROOT, 'node_modules/.bin/biome'),
-  ['format', `--stdin-file-path=${name}`],
-  {
-    cwd: ROOT,
-    input: `${JSON.stringify({ format: 'bs-humany.source-sites/1', models }, null, 1)}\n`,
-    encoding: 'utf8',
-    maxBuffer: 1 << 26,
-  },
-);
-if (formatted.status !== 0) {
-  console.error(`extract-source-sites: biome could not format the output:\n${formatted.stderr}`);
-  process.exit(1);
-}
+const fresh = { format: 'bs-humany.source-sites/1', models };
 
 if (check) {
-  const committed = existsSync(OUT) ? readFileSync(OUT, 'utf8') : null;
-  if (unloaded.length > 0 || committed !== formatted.stdout) {
+  // By value: a model that loaded writes numbers, and the committed file is those numbers laid out
+  // however the formatter last left them. The round trip through JSON is what a write does to the
+  // fresh object -- an undefined field dropped, a -0 written as 0 -- so the two are compared as the
+  // same kind of thing.
+  const committed = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
+  const expected = JSON.parse(JSON.stringify(fresh));
+  if (unloaded.length > 0 || !isDeepStrictEqual(committed, expected)) {
     console.error(
-      `extract-source-sites: ${name} is not what the extraction would write` +
+      `generate-source-sites: ${name} is not what the extraction would write` +
         (unloaded.length > 0 ? ` (${unloaded.join(', ')} would not load)` : '') +
-        '.\n  Run `pnpm extract:source-sites`. If the vendored models changed, say so in the commit.',
+        '.\n  Run `pnpm generate:source-sites`. If the vendored models changed, say so in the commit.',
     );
     process.exit(1);
   }
-  console.log(`\nextract-source-sites: ok. ${total} muscles match the vendored models.`);
+  console.log(`\ngenerate-source-sites: ok. ${total} muscles match the vendored models.`);
 } else {
-  writeFileSync(OUT, formatted.stdout);
+  writeFileSync(OUT, `${JSON.stringify(fresh, null, 1)}\n`);
+  // Laid out as `pnpm lint` wants it, in place. The formatter is the repository's own, so the
+  // committed file stays whatever Biome would leave, and a failure here is a failure of the write.
+  const formatted = spawnSync(join(ROOT, 'node_modules/.bin/biome'), ['format', '--write', name], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  if (formatted.status !== 0) {
+    console.error(`generate-source-sites: biome could not format ${name}:\n${formatted.stderr}`);
+    process.exit(1);
+  }
   console.log(`\n${total} muscles written to ${name}`);
 }

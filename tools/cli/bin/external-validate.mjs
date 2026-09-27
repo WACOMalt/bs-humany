@@ -32,11 +32,10 @@ import {
   jointsByName,
   readMjcf,
 } from '../../validate-external/src/mjcf.mjs';
+import { MODELS, MYO_SIM, MYO_SIM_COMMIT } from '../../validate-external/src/models.mjs';
 import { reportIsCurrent } from '../lib/report.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const REFERENCE = join(ROOT, 'tools/validate-external/myo_sim');
-const COMMIT = 'eb327acbae0fad12279495040607f5235d962328';
 const check = process.argv.includes('--check');
 
 /** Angles closer than this count as the same axis: a hundredth of a degree. */
@@ -52,17 +51,15 @@ const document = buildDocument();
 
 // --- The reference ------------------------------------------------------------------------------
 
+// Every chain and assets file the registry names: the joints are in the chains and the couplings
+// in the assets files, and a citation may point at either. The two torso models share both, so
+// the set is taken by file name rather than by model.
 const models = new Map();
-for (const file of [
-  'myolegs_chain.xml',
-  'myolegs_assets.xml',
-  'myoarm_r_chain.xml',
-  'myoarm_r_assets.xml',
-  'myotorso_chain.xml',
-  'myotorso_assets.xml',
-  'myohead_rigid_chain.xml',
-]) {
-  const model = readMjcf(readFileSync(join(REFERENCE, file), 'utf8'));
+const files = new Set(
+  Object.values(MODELS).flatMap((m) => [m.chain, m.assets].filter((f) => f !== undefined)),
+);
+for (const file of files) {
+  const model = readMjcf(readFileSync(join(MYO_SIM, file), 'utf8'));
   models.set(file, {
     model,
     joints: jointsByName(model),
@@ -320,7 +317,7 @@ for (const constraint of document.constraints) {
 
 // Both models are built at their own subject's size, so the lengths are compared as fractions of
 // the thigh, which cancels the overall scale and leaves the proportions to disagree if they do.
-const legs = models.get('myolegs_chain.xml');
+const legs = models.get(MODELS.legs.chain);
 const proportions = [['shank', 'knee_r', 'ankle_r', 'talus_r']];
 const jointWorld = await (async () => {
   const { resolveMorphology } = await jiti.import(
@@ -423,7 +420,7 @@ const lines = [
   'that moved it. Every value this project takes from MyoSuite carries a citation naming the file',
   'and element it came from, and this puts each of them next to the file it cites.',
   '',
-  `Reference: MyoSuite \`myo_sim\` at commit \`${COMMIT.slice(0, 10)}\`, vendored under`,
+  `Reference: MyoSuite \`myo_sim\` at commit \`${MYO_SIM_COMMIT.slice(0, 10)}\`, vendored under`,
   '`tools/validate-external/` with its Apache-2.0 licence. See that directory for how to verify',
   'or advance the pin.',
   '',

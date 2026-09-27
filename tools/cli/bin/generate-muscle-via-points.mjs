@@ -118,10 +118,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { MODELS, MYO_SIM } from '../../validate-external/src/models.mjs';
 import { REFERENCE_FOREARM_AT_OUR_NEUTRAL } from '../../validate-external/src/referenceArm.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
 const OUT = join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts');
 const check = process.argv.includes('--check');
 
@@ -158,8 +158,7 @@ const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) 
 const LIMBS = [
   {
     id: 'arm',
-    chain: 'myoarm_r_chain.xml',
-    tendon: 'myoarm_r_tendon.xml',
+    model: MODELS.arm,
     /**
      * Where each body sits in the root's frame, as offsets accumulated down the chain.
      *
@@ -336,8 +335,7 @@ const LIMBS = [
   },
   {
     id: 'leg',
-    chain: 'myolegs_chain.xml',
-    tendon: 'myolegs_tendon.xml',
+    model: MODELS.legs,
     offsets: (bodyPos) => {
       const shank = bodyPos('tibia_r');
       const ankle = add(shank, bodyPos('talus_r'));
@@ -514,12 +512,12 @@ const LIMBS = [
 
 /** Everything one limb's reference files say, read once. */
 function readLimb(limb) {
-  const xml = readFileSync(join(MYO_SIM, limb.chain), 'utf8');
-  const tendonXml = readFileSync(join(MYO_SIM, limb.tendon), 'utf8');
+  const xml = readFileSync(join(MYO_SIM, limb.model.chain), 'utf8');
+  const tendonXml = readFileSync(join(MYO_SIM, limb.model.tendon), 'utf8');
 
   const bodyBlock = (name) => {
     const start = xml.indexOf(`<body name="${name}"`);
-    if (start < 0) throw new Error(`${limb.chain} has no body '${name}'`);
+    if (start < 0) throw new Error(`${limb.model.chain} has no body '${name}'`);
     // Up to the next nested body, which is where this body's own sites end.
     const next = xml.indexOf('<body ', start + 1);
     return xml.slice(start, next < 0 ? xml.length : next);
@@ -528,12 +526,12 @@ function readLimb(limb) {
     const m = tendonXml.match(
       new RegExp(`<spatial name="${name}_tendon"[^>]*>(.*?)</spatial>`, 's'),
     );
-    if (!m) throw new Error(`${limb.tendon} has no tendon '${name}'`);
+    if (!m) throw new Error(`${limb.model.tendon} has no tendon '${name}'`);
     return m[1];
   };
   const attribute = (block, pattern) => {
     const m = block.match(pattern);
-    if (!m) throw new Error(`${limb.chain}: no match for ${pattern}`);
+    if (!m) throw new Error(`${limb.model.chain}: no match for ${pattern}`);
     return m[1].trim().split(/\s+/).map(Number);
   };
   const bodyPos = (name) =>
@@ -769,12 +767,12 @@ for (const limb of LIMBS) {
   const ctx = {
     offset: (body) => {
       const at = offsets.get(body);
-      if (!at) throw new Error(`${limb.chain}: no offset for body '${body}'`);
+      if (!at) throw new Error(`${limb.model.chain}: no offset for body '${body}'`);
       return at;
     },
     site: (name) => {
       const site = sites.get(name);
-      if (!site) throw new Error(`${limb.chain}: no site '${name}'`);
+      if (!site) throw new Error(`${limb.model.chain}: no site '${name}'`);
       return site.point;
     },
     jointAxis: (joint) => axisOf(joint),
@@ -791,7 +789,7 @@ for (const limb of LIMBS) {
     let orientedAxis = frame.reference.axis(ctx);
     if (frame.probe) {
       const probeSite = sites.get(frame.probe.site);
-      if (!probeSite) throw new Error(`${limb.chain}: no probe site '${frame.probe.site}'`);
+      if (!probeSite) throw new Error(`${limb.model.chain}: no probe site '${frame.probe.site}'`);
       const along = { x: 0, y: 1, z: 2 }[frame.probe.along ?? 'x'];
       const oursProbe = dot(sub(frame.probe.ours(skeleton), ours.origin), ourBasis[along]);
       const oriented = orientAxis(
@@ -890,7 +888,7 @@ for (const limb of LIMBS) {
     for (const name of names) {
       index++;
       const site = sites.get(name);
-      if (!site) throw new Error(`${limb.chain}: no site '${name}' on any body of this limb`);
+      if (!site) throw new Error(`${limb.model.chain}: no site '${name}' on any body of this limb`);
       // The bone it rides: the reference's, unless this unit's tendon runs on another there.
       // Named by the point when only some of a unit's points move, and by the bone they came
       // from when all of them do.
@@ -1123,11 +1121,11 @@ if (check) {
     process.exit(1);
   }
   console.log(
-    `generate-via-points: ok. ${rows.length} points match ${LIMBS.map((l) => l.chain).join(' and ')}.`,
+    `generate-via-points: ok. ${rows.length} points match ${LIMBS.map((l) => l.model.chain).join(' and ')}.`,
   );
 } else {
   writeFileSync(OUT, rendered);
   console.log(
-    `generate-via-points: wrote ${relative(ROOT, OUT)} -- ${rows.length} points from ${LIMBS.map((l) => l.chain).join(' and ')}.`,
+    `generate-via-points: wrote ${relative(ROOT, OUT)} -- ${rows.length} points from ${LIMBS.map((l) => l.model.chain).join(' and ')}.`,
   );
 }
