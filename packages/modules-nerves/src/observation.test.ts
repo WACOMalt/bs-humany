@@ -1,6 +1,6 @@
 /**
  * The observation, pinned: what the policy is shown for one fixed body in one fixed state, to
- * the last bit.
+ * the last bit, and the feet it is shown on every profile.
  *
  * The pinned vector is there because the observation is what every checkpoint was trained on. A
  * refactor of `fill` that moves a rounding moves every input a shipped policy reads, and nothing
@@ -25,9 +25,10 @@ import {
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
 import { ANKLE_MUSCLES, KNEE_MUSCLES } from '@bs-humany/muscle-data';
-import { buildDocument } from '@bs-humany/skeleton';
+import { SEGMENTATION_PROFILES, buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { NervesModule } from './nervesModule.js';
+import { feetOf } from './observation.js';
 import { MlpPolicy } from './policy.js';
 
 const document = buildDocument();
@@ -227,4 +228,43 @@ describe('the observation', () => {
       }
     }
   }, 60_000);
+});
+
+describe('the feet', () => {
+  // Per side: the whole foot at L0; foot and toes at L1; hindfoot, midfoot, forefoot and toes at
+  // L2; and at L3 the talus, the calcaneus, the midfoot, the forefoot and fourteen phalanges.
+  const PER_SIDE: Record<string, number> = {
+    l0_ragdoll: 1,
+    l1_standard: 2,
+    l2_biomechanical: 4,
+    l3_anatomical: 18,
+  };
+
+  it('are found on every profile, the same number a side', () => {
+    expect(SEGMENTATION_PROFILES.map((p) => p.id).sort()).toEqual(Object.keys(PER_SIDE).sort());
+    for (const profile of SEGMENTATION_PROFILES) {
+      const { articulation } = compileArticulation(document, profile.id, morphology);
+      const feet = feetOf(articulation);
+      expect(feet.left.length, profile.id).toBe(PER_SIDE[profile.id]);
+      expect(feet.right.length, profile.id).toBe(PER_SIDE[profile.id]);
+      // Mirror images: a segment of the left foot is the right foot's with its side swapped.
+      expect(feet.right, profile.id).toEqual(feet.left.map((id) => id.replace(/_l$/, '_r')));
+    }
+  });
+
+  it('are the segments they always were on L0, L1 and L3, and the whole foot on L2', () => {
+    // L2 is the profile the anchor match was for: its root foot segment is `hindfoot_`, which
+    // the old `foot_`/`talus_` id match missed. Everywhere else nothing may change.
+    const at = (id: string) =>
+      feetOf(compileArticulation(document, id, morphology).articulation).left;
+    expect(at('l0_ragdoll')).toEqual(['foot_l']);
+    expect(at('l1_standard')).toEqual(['foot_l', 'toes_l']);
+    expect(at('l2_biomechanical')).toEqual(['hindfoot_l', 'midfoot_l', 'forefoot_l', 'toes_l']);
+    expect(at('l3_anatomical').slice(0, 4)).toEqual([
+      'talus_l',
+      'calcaneus_l',
+      'midfoot_l',
+      'forefoot_l',
+    ]);
+  });
 });
