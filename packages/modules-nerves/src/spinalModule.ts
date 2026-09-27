@@ -114,16 +114,21 @@ export interface SpinalGains {
    * Stretch is a strain: 0.1 is a fibre a tenth longer than its optimal length. Standing still,
    * hardly any muscle is past a set point of 0 -- two of 272 -- and a body on its way down puts
    * 61 of them there, reaching 0.39 at the worst. So a gain of a few turns a real stretch into a
-   * few tenths of excitation, and that is the range: measured under a trained policy, 2 is worth
-   * 0.64 s upright, 3.5 is worth 0.89, 5 is back to 0.85, and no reflex at all is worth 0.46.
+   * few tenths of excitation, and that is the range. Measured under a trained policy on this cord,
+   * a unit answering its own spindle, 2 is worth 0.73 s upright, 3.5 is worth 0.82 and 5 is worth
+   * 0.85, against 0.46 with no reflex at all.
    *
    * The ceiling still matters at the top of that range. The cord runs after the brain in the
    * control phase (see the header), so it adds its drive on top of the correction the brain has
    * just made and clamps the total at 1. Once the cord alone is enough to take a unit to the
    * ceiling, whatever the brain asked of that unit, up or down, is clamped away: a reflex that
-   * silences the policy is worse than no reflex. That is what the fall-off past 4 is. (A
-   * correction that would take a unit below 0 is lost earlier, at the brain's own clamp, before
-   * the cord adds anything.)
+   * silences the policy is worse than no reflex. On the pooled cord this replaced, where a group's
+   * mean drove every unit in it and both legs together, that was a fall-off past 4 -- 0.89 s at
+   * 3.5, 0.90 at 4, 0.85 at 5 -- and 3.5 was chosen on it. Per unit the cord drives less of the
+   * body at any gain and the fall-off has not been reached by 5, the top of the sweep; 3.5 stays
+   * until a sweep past 5, under a policy trained over this cord, finds where it is
+   * (reflex-gains.md). (A correction that would take a unit below 0 is lost earlier, at the
+   * brain's own clamp, before the cord adds anything.)
    *
    * This used to be five thousandths, and the reason is worth keeping: the length afferent was
    * divided by the optimal fibre length twice, so it read 2.3 to 41 instead of -0.44 to 0, and
@@ -139,17 +144,17 @@ export interface SpinalGains {
    * second for every unit in the body today, so 0.1 here is a fibre lengthening at one optimal
    * length a second.
    *
-   * Nearly neutral, and kept anyway. Fibre velocity reaches 0.044 of that maximum in a fall --
-   * about 0.44 optimal lengths a second -- where stretch reaches 0.39, so at any gain comparable
-   * to `stretch` this term is small.
-   * Measured, it is worth a little to a silent body (0.578 s at 0.5 against 0.573 at 0) and costs
-   * a little to a trained one (0.859 s at 0.5 against 0.876 at 0), which is to say it is worth
-   * nothing either way at these gains.
+   * Small, and worth having. Fibre velocity reaches 0.044 of that maximum in a fall -- about 0.44
+   * optimal lengths a second -- where stretch reaches 0.39, so at any gain comparable to `stretch`
+   * this term is small. Measured at stretch 3, it is worth 0.04 s upright to a silent body (0.611
+   * at 0.5 against 0.575 at 0) and as much to a trained one (0.800 against 0.761). On the pooled
+   * cord, where a unit's speed was averaged over a group mostly not moving, it was worth nothing
+   * either way (0.578 against 0.573 silent, 0.859 against 0.876 trained).
    *
-   * It is not zero because of what it is for. A length loop with a conduction delay in it rings,
-   * and this is the term that stops it: past 2 the ringing is plain -- 0.39 s upright at 4 and
-   * 0.27 at 8, against 0.57 with no damping at all -- so the useful range is narrow and below 1.
-   * A quarter is inside it with room on both sides.
+   * What it is for sets the top of it. A length loop with a conduction delay in it rings, and this
+   * is the term that stops it; past 2 the ringing is plain -- 0.37 s upright at 4 and 0.18 at 8,
+   * against 0.58 with no damping at all -- so the useful range is narrow and below 2. A quarter is
+   * inside it with room on both sides.
    */
   readonly velocity: number;
   /**
@@ -158,11 +163,12 @@ export interface SpinalGains {
    */
   readonly setPoint: number;
   /**
-   * How much of a group's reflex drive subtracts from its antagonist's, 0 to 1.
+   * How much of a group's mean reflex drive comes off every unit of its antagonist on the same
+   * side, 0 to 1.
    *
    * Not tuned by time upright, because that measure cannot choose it: more inhibition means less
    * muscle doing less, and a limper body takes longer to fall. It rises monotonically past every
-   * value that means anything -- 0.61 s at 1, 0.65 at 2, 0.68 at 3 -- which is the measure being
+   * value that means anything -- 0.66 s at 1, 0.68 at 1.5, 0.73 at 3 -- which is the measure being
    * gamed rather than the reflex being tuned. 1 is the physiological statement, that the
    * antagonist's reflex is fully cancelled; a third of it is what is here, and what chooses
    * between them is a pair of training runs, not a table.
@@ -194,7 +200,9 @@ export const SPINAL_CONDUCTION_DELAY_S = 0.03;
  * The cord as measured: the gains a run gets unless it says otherwise, and the one the owner has
  * decided the studio and the scripted scenarios will run with. Every number is from
  * `docs/validation/reflex-gains.md`, which has the tables and how to reproduce them;
- * `SpinalGains` says what each one is.
+ * `SpinalGains` says what each one is. They were chosen on the pooled cord and measured again on
+ * the cord per side and per unit; the second sweep moved none of them (`SpinalGains.stretch` says
+ * why the stretch gain stays where it is).
  *
  * The training recipe (`tools/train/src/recipe.ts`) keeps its own copy of these as
  * `DEFAULT_REFLEX`, because it loads without this package; a test here holds the two together

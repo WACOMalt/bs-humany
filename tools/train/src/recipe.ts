@@ -159,8 +159,9 @@ export const REFLEX_FIELDS = [
  * The cord a run gets unless it says otherwise. Every number is measured; see
  * `docs/validation/reflex-gains.md` for the tables and `SpinalGains` for what each one is.
  *
- * Under the committed standing policy this cord is worth 0.89 s upright against 0.46 with no
- * cord at all -- it very nearly doubles it. The set of numbers it replaces was worth 0.46, which
+ * Under the committed standing policy this cord is worth 0.82 s upright against 0.46 with no
+ * cord at all, on the cord per side and per unit; it was worth 0.89 on the pooled cord before it,
+ * where the numbers were chosen. The set of numbers it replaces was worth 0.46, which
  * is to say nothing, because the afferent it answered was normalised twice and read every muscle
  * in the body as hugely stretched at every instant.
  */

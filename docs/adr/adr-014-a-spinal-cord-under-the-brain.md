@@ -1,8 +1,9 @@
 # ADR-014 — A spinal cord under the brain, and a search that needs no terminal
 
 **Status:** accepted, 2026-09-21; amended 2026-09-22 (the gains, remeasured; see the
-[amendment](#amended-2026-09-22--the-gains-remeasured)); the run order and the per-group reflex
-noted under "The decision", 2026-09-27. **Depends on:** ADR-013 (the nerves),
+[amendment](#amended-2026-09-22--the-gains-remeasured)); the run order, and the cord built per side
+and per unit and its gains remeasured, noted under "The decision" and in the amendment,
+2026-09-27. **Depends on:** ADR-013 (the nerves),
 §14.1 (the nervous system module), §10.5 (delay lines), ADR-004 (accumulators). **Related:**
 OQ-024 (standing is a reflex, `docs/sources/open-questions.md`).
 
@@ -56,10 +57,17 @@ phase runs the motor tremor, then the nerves, then the cord. Each adds and clamp
 the cord's drive lands on the brain's correction rather than under it. Nothing in the decision
 depended on the order; `spinalModule.test.ts` now pins it.
 
-*Noted 2026-09-27 — per group, not per unit.* The reflex is worked out per reflex group, both
-sides together, and the group's mean applied to every unit in it; only the afferents are per
-unit. `SpinalModule`'s header describes this, and a cord per side and per unit was decided on
-2026-09-26 and is not yet built.
+*Built 2026-09-27 — per side and per unit.* Until this date the cord did not do what the paragraph
+above says. The reflex was worked out per reflex group, both sides of the body together, and the
+group's mean applied to every unit in it; only the afferents were per unit, so a stretched left
+soleus excited the right one as much as itself. The owner decided on 2026-09-26 that the cord
+would be per side and per unit, and it now is. `reflexGroups()` makes seventy groups, one side of
+one drive group each, with the policy's output ids, and pairs each with its antagonist on the same
+side. Each unit's stretch, velocity and Golgi terms drive that unit alone. Reciprocal inhibition
+stays per group, because the antagonist table is written between groups: a group's mean drive
+takes a share off every unit of its antagonist on its own side. `spinalModule.test.ts` pins both
+halves on a stretched right soleus. The gains were measured again on this cord, and the
+measurements are in the amendment below.
 
 **Every afferent goes through a `DelayLine`.** Built and tested in Phase 1 per §10.5 and used by
 nothing until now. The cord answers the body as it was thirty milliseconds ago, which is the
@@ -146,9 +154,19 @@ Stretch and velocity are measured. The set point is where the cord stops answeri
 stands still. Inhibition stays at 0.3, unchanged and unclaimed, because choosing it needs two
 training runs, not a table. The Golgi ceiling is never reached in a fall, so the two force terms
 are left where they were, and nothing has shown them right. Under the committed standing policy,
-over eight seeds of six seconds, this cord keeps the body upright 0.894 s against 0.456 s with no
-cord at all. With the policy silent it is 0.568 s against 0.484 s. The cord is a floor, not a
+over eight seeds of six seconds, this cord kept the body upright 0.894 s against 0.456 s with no
+cord at all. With the policy silent it was 0.568 s against 0.484 s. The cord is a floor, not a
 controller.
+
+*Remeasured 2026-09-27, on the cord per side and per unit.* Those numbers were taken on the pooled
+cord. On the cord as now built, the same seven numbers keep the body upright 0.819 s under the
+committed standing policy, and 0.611 s with the policy silent at the silent rows' stretch of 3,
+against the same 0.456 s and 0.484 s with no cord. No gain moved. The set point of 0 is now a peak
+rather than one end of a plateau. Inhibition still rises monotonically with time upright, and the
+Golgi ceiling still never fires. The damper is now worth about 0.04 s to both bodies rather than
+nothing. The stretch gain is the one open question: time upright no longer peaks near 3.5 but is
+still rising at 5, the top of the sweep. 3.5 stays until the retrained policies are measured over
+this cord, with a sweep that goes past 5. The tables for both cords are in reflex-gains.md.
 
 **What still holds.** A cord that silences the policy is worse than no cord. Past a stretch of 4
 the time upright falls again, because the brain adds its correction to an excitation the cord has
