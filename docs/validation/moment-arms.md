@@ -5,11 +5,10 @@ with the change that moved it.
 
 7 coordinates swept, each against the vendored MyoSuite model at commit `eb327acbae` loaded into MuJoCo and measured the same way, in the pose each section names. Both sides are computed here: nothing is transcribed, and no value from the reference reaches the model (ADR-009). The shoulder is not swept until the glenohumeral coordinates are mapped, and the trunk's tendons not until the arm and torso chains are joined.
 
-Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 8 sign change(s) awaiting the owner, 0 to investigate, 48 recorded.
+Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 7 sign change(s) awaiting the owner, 0 to investigate, 48 recorded.
 
 The sign changes awaiting the owner were found when their rows were first swept. Each is a hard failure by muscle spec 13.2 and none is excused by a bound; they are listed in `AWAITING_THE_OWNER` so the gate could go in for every other muscle in their rows, and a sign change not on that list fails `--check`:
 
-- Forearm pronation / flexor_carpi_ulnaris_r
 - Wrist flexion / flexor_carpi_radialis_r
 - Wrist flexion / flexor_carpi_ulnaris_r
 - Wrist flexion / extensor_carpi_radialis_longus_r
@@ -92,7 +91,7 @@ Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar
 | pronator_quadratus_r | 3.0 at 90° | 7.0 at 90° | 2.6 | 4.0 at 90° | ok |
 | supinator_r | -10.5 at 90° | -7.9 at 80° | 2.8 | 3.1 at 20° | ok |
 | flexor_carpi_radialis_r | 5.8 at 70° | 5.0 at 30° | 1.6 | 3.0 at 90° | ok |
-| flexor_carpi_ulnaris_r | -1.3 at 10° | 4.5 at 20° | 4.4 | 5.8 at 10° | sign change, awaiting the owner |
+| flexor_carpi_ulnaris_r | 4.8 at 90° | 4.5 at 20° | 2.4 | 4.5 at 0° | ok |
 | extensor_carpi_radialis_longus_r | -1.5 at 20° | -3.6 at 90° | 1.5 | 3.0 at 90° | ok |
 | extensor_carpi_radialis_brevis_r | -2.2 at 90° | 1.9 at 0° | 1.4 | 1.7 at 20° | ok |
 
@@ -102,7 +101,7 @@ Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar
 - **pronator_quadratus_r** — within tolerance of the reference
 - **supinator_r** — within tolerance of the reference
 - **flexor_carpi_radialis_r** — within tolerance of the reference
-- **flexor_carpi_ulnaris_r** — pulls the other way from the reference (muscle spec 13.2). Ours supinates by about 2 mm where the reference’s pronates by 1 to 4.5. The via-point generator moves this unit’s forearm points from the radius to the ulna (its `rebind`), which the reference does not.
+- **flexor_carpi_ulnaris_r** — within tolerance of the reference
 - **extensor_carpi_radialis_longus_r** — within tolerance of the reference
 - **extensor_carpi_radialis_brevis_r** — within tolerance of the reference
 
@@ -110,16 +109,16 @@ Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar
 
 | Pronation | pronator_teres | pronator_quadratus | supinator | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|---|---|---|
-| 0° | 1.2 | -1.2 | -9.7 | 1.7 | -1.2 | -1.4 | 0.3 |
-| 10° | 3.1 | -0.7 | -9.9 | 2.6 | -1.3 | -1.5 | -0.1 |
-| 20° | 5.0 | -0.1 | -10.0 | 3.4 | -1.2 | -1.5 | -0.5 |
-| 30° | 6.8 | 0.5 | -10.1 | 4.2 | -1.2 | -1.5 | -0.8 |
-| 40° | 8.6 | 1.0 | -10.2 | 4.8 | -1.1 | -1.5 | -1.2 |
-| 50° | 10.1 | 1.5 | -10.3 | 5.3 | -1.0 | -1.4 | -1.5 |
-| 60° | 11.5 | 2.0 | -10.4 | 5.6 | -0.8 | -1.2 | -1.7 |
-| 70° | 12.7 | 2.4 | -10.4 | 5.8 | -0.6 | -1.1 | -1.9 |
-| 80° | 13.6 | 2.7 | -10.5 | 5.8 | -0.5 | -0.8 | -2.1 |
-| 90° | 14.2 | 3.0 | -10.5 | 5.6 | -0.2 | -0.6 | -2.2 |
+| 0° | 1.2 | -1.2 | -9.7 | 1.7 | -0.1 | -1.4 | 0.3 |
+| 10° | 3.1 | -0.7 | -9.9 | 2.6 | 0.7 | -1.5 | -0.1 |
+| 20° | 5.0 | -0.1 | -10.0 | 3.4 | 1.5 | -1.5 | -0.5 |
+| 30° | 6.8 | 0.5 | -10.1 | 4.2 | 2.2 | -1.5 | -0.8 |
+| 40° | 8.6 | 1.0 | -10.2 | 4.8 | 2.9 | -1.5 | -1.2 |
+| 50° | 10.1 | 1.5 | -10.3 | 5.3 | 3.5 | -1.4 | -1.5 |
+| 60° | 11.5 | 2.0 | -10.4 | 5.6 | 4.0 | -1.2 | -1.7 |
+| 70° | 12.7 | 2.4 | -10.4 | 5.8 | 4.4 | -1.1 | -1.9 |
+| 80° | 13.6 | 2.7 | -10.5 | 5.8 | 4.7 | -0.8 | -2.1 |
+| 90° | 14.2 | 3.0 | -10.5 | 5.6 | 4.8 | -0.6 | -2.2 |
 
 ### The reference, millimetres
 

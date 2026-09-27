@@ -854,8 +854,8 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'flexor_carpi_ulnaris_r',
-    shortest: 0.979026,
-    longest: 1.01742,
+    shortest: 0.969391,
+    longest: 1.01653,
     crosses: 'elbow_r/flexion, radioulnar_r/pronation, wrist_r/flexion, wrist_r/ulnar_deviation',
   },
   {
@@ -902,8 +902,8 @@ export const MUSCLE_LENGTH_RANGES: readonly MuscleLengthRange[] = [
   },
   {
     unit: 'flexor_carpi_ulnaris_l',
-    shortest: 0.979026,
-    longest: 1.01742,
+    shortest: 0.969391,
+    longest: 1.01653,
     crosses: 'elbow_l/flexion, radioulnar_l/pronation, wrist_l/flexion, wrist_l/ulnar_deviation',
   },
   {

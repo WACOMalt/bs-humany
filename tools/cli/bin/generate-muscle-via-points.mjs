@@ -76,9 +76,9 @@
  * A carried point rides the bone the reference model's own body carries it on, which is usually
  * right and sometimes not: the reference's bodies are its skeleton's, not ours. Its radius body
  * carries the hand, so the flexor carpi ulnaris -- a muscle that runs down the ulna and inserts
- * on the pisiform -- has its forearm points on the radius, where they would turn with pronation
- * as the real tendon does not. Its tibia body carries the fibula, so the fibularis tendons, which
- * run behind the lateral malleolus, are on the tibia.
+ * on the pisiform -- has its point above the wrist on the radius, where it would turn with
+ * pronation as the real tendon does not. Its tibia body carries the fibula, so the fibularis
+ * tendons, which run behind the lateral malleolus, are on the tibia.
  *
  * `rebind` moves such a unit's points to the bone they belong on, and names the bone they came
  * from as well as the one they go to: the fibularis longus runs behind the malleolus *and* across
@@ -333,9 +333,13 @@ const LIMBS = [
     ],
     /** Points the reference carries on one bone that belong on another of ours. */
     rebind: {
-      // Down the ulna to the pisiform: the reference's radius body carries the hand, so its
-      // forearm points are on the radius, where pronation would swing them.
-      flexor_carpi_ulnaris_r: { radius_r: 'ulna_r' },
+      // Flexor carpi ulnaris's point above the wrist, on the ulna it runs down to the pisiform:
+      // the reference's radius body carries the hand, so its forearm points are on the radius.
+      // Only that one. Its point at mid-forearm stays on the radius, as the reference holds it:
+      // with both moved the muscle supinated by 1 to 2 mm where the reference's pronates by 1 to
+      // 4.5, and with neither the one above the wrist swung round with the hand and made it a
+      // radial deviator. With this one moved it pronates by up to 4.8 mm and deviates ulnarly.
+      flexor_carpi_ulnaris_r: { 'FCU-P3_r': 'ulna_r' },
     },
     units: [
       { unit: 'deltoid_anterior_r', tendon: 'DELT1', from: 'clavicle_r' },

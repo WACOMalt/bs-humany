@@ -596,11 +596,6 @@ const RECORDED = [
  */
 const AWAITING_THE_OWNER = [
   [
-    'Forearm pronation',
-    'flexor_carpi_ulnaris_r',
-    'Ours supinates by about 2 mm where the reference’s pronates by 1 to 4.5. The via-point generator moves this unit’s forearm points from the radius to the ulna (its `rebind`), which the reference does not.',
-  ],
-  [
     'Wrist flexion',
     'flexor_carpi_radialis_r',
     'A flexor in both from -20 degrees up, but ours turns extensor past about -25 (-7 mm at -40) where the reference’s keeps 15.',

@@ -183,8 +183,8 @@ which is a statement about the attachments rather than about the muscle.
 | pronator_quadratus_r | 6 mm | 15 mm | 0.42 | 23 mm | 23 mm | 144 mm | 0.60 .. 1.27 |
 | extensor_carpi_radialis_brevis_l | 10 mm | 23 mm | 0.41 | 47 mm | 47 mm | 291 mm | 0.65 .. 1.14 |
 | extensor_carpi_radialis_brevis_r | 10 mm | 23 mm | 0.41 | 47 mm | 47 mm | 291 mm | 0.65 .. 1.14 |
-| flexor_carpi_ulnaris_l | 11 mm | 35 mm | 0.31 | 59 mm | 59 mm | 285 mm | 0.56 .. 1.15 |
-| flexor_carpi_ulnaris_r | 11 mm | 35 mm | 0.31 | 59 mm | 59 mm | 285 mm | 0.56 .. 1.15 |
+| flexor_carpi_ulnaris_r | 14 mm | 35 mm | 0.40 | 59 mm | 59 mm | 300 mm | 0.56 .. 1.15 |
+| flexor_carpi_ulnaris_l | 14 mm | 35 mm | 0.40 | 59 mm | 59 mm | 300 mm | 0.56 .. 1.15 |
 | anconeus_r | 1 mm | 26 mm | 0.03 | 26 mm | 26 mm | 35 mm | 0.10 .. 1.11 |
 | anconeus_l | 1 mm | 26 mm | 0.03 | 26 mm | 26 mm | 35 mm | 0.10 .. 1.11 |
 
