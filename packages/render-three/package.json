@@ -2,7 +2,7 @@
   "name": "@bs-humany/render-three",
   "version": "0.0.0",
   "private": true,
-  "description": "three.js rendering and debug overlays.",
+  "description": "Procedural bone geometry and the three.js skeleton mesh.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

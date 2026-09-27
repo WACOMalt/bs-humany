@@ -396,9 +396,6 @@ importers:
       '@bs-humany/modules-nerves':
         specifier: workspace:*
         version: link:../modules-nerves
-      '@bs-humany/skeleton':
-        specifier: workspace:*
-        version: link:../skeleton
     devDependencies:
       '@bs-humany/muscle-data':
         specifier: workspace:*

@@ -2,7 +2,7 @@
   "name": "@bs-humany/scenarios",
   "version": "0.0.0",
   "private": true,
-  "description": "Scenario definitions and golden trajectory fixtures.",
+  "description": "Scenario definitions, activation clips, muscle groups, and the joint-sweep and inertia-audit reports (spec 13.5).",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -18,7 +18,6 @@
     "@bs-humany/frames": "workspace:*",
     "@bs-humany/hsdl": "workspace:*",
     "@bs-humany/anthropometry": "workspace:*",
-    "@bs-humany/skeleton": "workspace:*",
     "@bs-humany/modules-mechanics": "workspace:*",
     "@bs-humany/modules-nerves": "workspace:*"
   },
