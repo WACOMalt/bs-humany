@@ -37,6 +37,7 @@
     "generate:torso-muscles": "node tools/cli/bin/generate-torso-muscles.mjs",
     "generate:trunk-muscles": "node tools/cli/bin/generate-trunk-muscles.mjs",
     "generate:via-points": "node tools/cli/bin/generate-muscle-via-points.mjs",
+    "goldens:update": "UPDATE_GOLDENS=1 vitest run packages/testkit/src/goldens",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "measure:muscle-ranges": "node tools/cli/bin/measure-muscle-ranges.mjs",

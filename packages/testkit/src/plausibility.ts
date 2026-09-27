@@ -42,8 +42,10 @@ export interface PlausibilityTolerances {
   readonly rangeViolation: number;
   /** Metres of penetration. */
   readonly penetration: number;
-  /** Joules of kinetic energy that count as at rest. */
+  /** Joules of kinetic energy that count as at rest, checked at the end of a run that settles. */
   readonly restKinetic: number;
+  /** Joules of kinetic energy the body may have at any sample, over the whole run. */
+  readonly peakKinetic: number;
   /** Metres of joint separation. */
   readonly drift: number;
   /** Relative error of the CoM's vertical acceleration against g during free flight. */
@@ -51,8 +53,9 @@ export interface PlausibilityTolerances {
 }
 
 /**
- * Defaults and their reasons, for MuJoCo, the only backend. Rapier ran to looser ones (20 J,
- * 0.5 rad, 4 cm) until it was deleted; `docs/validation/conformance.md` keeps its figures.
+ * Tolerances for MuJoCo, the only backend, and their reasons. Rapier ran to looser ones (20 J,
+ * 0.5 rad, 4 cm) until it was deleted; `docs/validation/conformance.md` keeps its figures, and the
+ * figure each scenario reaches against these.
  *
  * - energyRisePerSample 2 J: kinetic plus gravitational plus the elastic energy of the passive
  *   curves, less the work of emulated couplings, should never rise in a passive system. What
@@ -65,20 +68,35 @@ export interface PlausibilityTolerances {
  *   hanging from its wrist.
  * - penetration 0.03 m: contacts at the same impedance stay under three centimetres, a hard
  *   landing on a box edge (the stairs) included.
- * - restKinetic 1 J: a 70 kg body with a joule of kinetic energy is twitching, not moving.
- * - drift 0.05 m: in reduced coordinates a joint cannot separate, and none does (0.0 mm in every
- *   scenario); five centimetres is visible, so a reading near it is a broken pose readout.
+ * - restKinetic 1 J: a 70 kg body with a joule of kinetic energy is twitching, not moving. Only a
+ *   scenario that settles is held to it (`Scenario.settles`); one whose drive never stops says so
+ *   there rather than raising this.
+ * - peakKinetic 700 J: the reference body's standing potential energy, m g h with m = 70 kg and
+ *   the centre of mass 0.91 m above the ground it stands on (measured in quiet-standing), is
+ *   623 J, rounded up to leave room for what a muscle or a script adds. A body moving with more
+ *   energy than it would gain falling flat from standing has either been thrown by something no
+ *   scenario does or is running away, and a runaway is what this is for: it watches the whole
+ *   run, so a scenario excused from the rest check is still held to it. The highest peaks
+ *   measured are 454 J (stairs-tumble, a 1 m flight) and 430 J (clip-walk-normal).
+ * - drift 0.001 m: in reduced coordinates a joint cannot separate, and none does (0.0000 mm in
+ *   every scenario on 2026-09-27), so the only thing that can read here is a pose readout that
+ *   disagrees with the joint coordinates. A millimetre is far above rounding and far below what
+ *   would show.
  * - ballistic 0.15: the CoM under free flight should fall at g; contacts start before a full
  *   parabola is available, so the fit is short and coarse.
  */
-export const DEFAULT_TOLERANCES: PlausibilityTolerances = {
+export const MUJOCO_TOLERANCES: PlausibilityTolerances = {
   energyRisePerSample: 2,
   rangeViolation: 0.2,
   penetration: 0.03,
   restKinetic: 1,
-  drift: 0.05,
+  peakKinetic: 700,
+  drift: 0.001,
   ballistic: 0.15,
 };
+
+/** The tolerances a check uses when nothing names a backend: MuJoCo's, since it is the only one. */
+export const DEFAULT_TOLERANCES: PlausibilityTolerances = MUJOCO_TOLERANCES;
 
 export interface Finding {
   readonly check: string;
@@ -182,9 +200,27 @@ export function checkPlausibility(
   if (options.expectRest && last && last.kinetic > tolerances.restKinetic) {
     findings.push({
       check: 'rest',
-      message: `still moving at the end: ${last.kinetic.toFixed(2)} J kinetic`,
+      message: `still moving at the end: ${last.kinetic.toFixed(3)} J kinetic`,
       value: last.kinetic,
       limit: tolerances.restKinetic,
+    });
+  }
+
+  // No runaway: the largest kinetic energy anywhere in the run, whether or not it settles.
+  let peak = 0;
+  let peakAt = 0;
+  for (const s of samples) {
+    if (s.kinetic > peak) {
+      peak = s.kinetic;
+      peakAt = s.time;
+    }
+  }
+  if (peak > tolerances.peakKinetic) {
+    findings.push({
+      check: 'peakKinetic',
+      message: `kinetic energy peaked at ${peak.toFixed(1)} J at t=${peakAt.toFixed(2)} s`,
+      value: peak,
+      limit: tolerances.peakKinetic,
     });
   }
 

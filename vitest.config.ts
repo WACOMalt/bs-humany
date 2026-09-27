@@ -17,6 +17,10 @@ export default defineConfig({
     // write through a read view without having to ask. Hosts that must not pay for it pass
     // `audit: false`.
     env: { BS_HUMANY_KERNEL_AUDIT: '1' },
+    // The golden scenarios are split over several files so they step side by side. Updating them
+    // (`pnpm goldens:update`) has each of those files read, modify and write the one goldens file,
+    // so in that mode the files run one after another rather than race each other's writes.
+    fileParallelism: !process.env.UPDATE_GOLDENS,
     reporters: ['default'],
   },
 });

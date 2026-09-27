@@ -16,6 +16,10 @@ Read this file before your first change. It is short on purpose.
 2. **Do not change a golden hash to make a test pass.** Escalate instead. A golden update is a
    deliberate, separately-reviewed commit carrying a written justification for the behavioral
    change. Editing a golden to get green is a serious process failure.
+   To rebaseline on purpose, run `pnpm goldens:update`, check that `git diff
+   packages/testkit/goldens/trajectories.json` moves only the keys the change was meant to move
+   (the command prints each one with its old and new hash), and commit that file alone with the
+   behavioural reason; `docs/validation/conformance.md` says what the goldens pin.
 3. **Do not introduce a joint range, mass, or dimension without a citation.** A number without a
    source is a bug. `pnpm cite:lint` enforces this.
 4. **Do not copy parameter values out of a non-commercially-licensed reference model**
@@ -147,6 +151,8 @@ on by the next person, and then turned off again.
 ```bash
 pnpm install
 pnpm test              # vitest, all packages
+pnpm vitest run packages/testkit -t "scenario drop-"   # a fast subset of the golden scenarios, by name
+pnpm goldens:update    # rewrite the golden trajectories and print what moved (rule 2: on purpose only)
 pnpm test:e2e          # the studio in Chromium: boots clean, Start, Space, tabs, hand over (needs `pnpm exec playwright install chromium` once)
 pnpm typecheck         # tsc --build across project references
 pnpm lint              # biome
