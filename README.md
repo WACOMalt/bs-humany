@@ -159,10 +159,15 @@ it, on every core. The redesign's plan, now a record: `docs/plans/studio-ui-rede
 | `bs-humany-studio-<version>-linux-x86_64.tar.gz` | the bare binaries, wanting a current `libwebkit2gtk-4.1` |
 
 `chmod +x` the AppImage and run it. The tarball holds the studio, the VR viewer, the mesh pack
-the viewer needs and the attribution; unpack it anywhere and run `./bs-humany-studio`. Build the
-AppImage yourself with `pnpm desktop:appimage` and the tarball with `pnpm desktop:tarball`
-(`pnpm desktop:build` is the bare binary alone); `apps/studio/src-tauri/README.md` says what they
-need.
+the viewer needs and the attribution; unpack it anywhere and run `./bs-humany-studio`. Beside
+them, `SHA256SUMS` holds both checksums, for `sha256sum -c`.
+
+Both come from one command, `pnpm release:linux`, run on a clean checkout of the commit being
+released: it builds the binary and the AppImage, packs the tarball in a fixed layout with the
+licence files, and writes the two files and their sums to `dist-release/`. It publishes nothing;
+tagging, pushing and uploading are done by hand. `pnpm desktop:appimage` and `pnpm desktop:build`
+(the bare binary alone) build either one for yourself, and `apps/studio/src-tauri/README.md` says
+what they need.
 
 **In a headset.** Both desktop builds carry a native OpenXR viewer. With SteamVR (or another
 OpenXR runtime) running, start a run in the studio and click **Connect VR viewer**: the body on

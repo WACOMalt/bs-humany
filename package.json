@@ -19,7 +19,6 @@
     "desktop:build": "pnpm desktop:sidecar && pnpm --filter @bs-humany/studio tauri build --no-bundle",
     "desktop:dev": "pnpm desktop:sidecar && pnpm --filter @bs-humany/studio tauri dev",
     "desktop:sidecar": "node tools/cli/bin/desktop-sidecar.mjs",
-    "desktop:tarball": "pnpm desktop:build && node tools/cli/bin/desktop-tarball.mjs",
     "dev": "pnpm --filter @bs-humany/studio dev",
     "generate:ankle-muscles": "node tools/cli/bin/generate-ankle-muscles.mjs",
     "generate:elbow-muscles": "node tools/cli/bin/generate-elbow-muscles.mjs",
@@ -47,6 +46,7 @@
     "module:lint": "node tools/cli/bin/module-lint.mjs",
     "publish:pose": "node tools/cli/bin/publish-pose.mjs",
     "regenerate": "node tools/cli/bin/regenerate.mjs",
+    "release:linux": "node tools/cli/bin/release.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
@@ -57,7 +57,7 @@
     "typecheck": "tsc --build --force && tsc -p apps/studio/e2e",
     "validate:external": "node tools/cli/bin/external-validate.mjs",
     "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs",
-    "verify": "pnpm lint && pnpm typecheck && pnpm cite:lint && pnpm module:lint && pnpm check:generated && pnpm test && pnpm build:studio"
+    "verify": "node tools/cli/bin/release.mjs --check-versions && pnpm lint && pnpm typecheck && pnpm cite:lint && pnpm module:lint && pnpm check:generated && pnpm test && pnpm build:studio"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

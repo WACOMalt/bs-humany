@@ -26,6 +26,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The version is written in six files -- package.json, tauri.conf.json, and both crates'
+      # Cargo.toml and Cargo.lock -- and a bump that misses one ships a release whose two halves
+      # disagree about which release they are. Reading six files costs nothing, so it is checked
+      # on every push rather than only when a release is built.
+      - name: One version everywhere
+        run: node tools/cli/bin/release.mjs --check-versions
+
       - name: Lint
         run: pnpm lint
 

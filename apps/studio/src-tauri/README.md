@@ -67,11 +67,11 @@ What is bundled comes from `tauri.conf.json`: `bundle.externalBin` names the vie
 ```bash
 pnpm desktop:build      # the binary alone, which is what most of this is for
 pnpm desktop:appimage   # the binary wrapped in an AppImage
-pnpm desktop:tarball    # desktop:build, then the release tarball in dist-release/
 pnpm desktop:dev        # a window on the vite dev server, with hot reload
+pnpm release:linux      # a release: both builds, the tarball and SHA256SUMS in dist-release/
 ```
 
-Every one of them runs `pnpm desktop:sidecar` first -- see the next section for why it cannot be
+Every desktop script runs `pnpm desktop:sidecar` first -- see the next section for why it cannot be
 skipped. After that, `desktop:build` and `desktop:appimage` build the bundle with
 `pnpm build:studio`, so the bundle in the binary is never stale; `desktop:dev` builds no bundle
 and starts the vite dev server instead (`pnpm -w run dev`), which is where its hot reload comes
@@ -80,22 +80,46 @@ from.
 | Command | Output | Built |
 | --- | --- | --- |
 | `pnpm desktop:build` | `target/release/bs-humany-studio` | 16.4 MB |
-| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_0.2.0_amd64.AppImage` | 128 MB |
-| `pnpm desktop:tarball` | `dist-release/bs-humany-studio-0.2.0-linux-x86_64.tar.gz` | 20.7 MB |
+| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_<version>_amd64.AppImage` | 128 MB |
+| `pnpm release:linux` | `dist-release/bs-humany-studio-<version>-linux-x86_64.tar.gz`, the AppImage and `SHA256SUMS` | 20.7 MB |
 
 The studio's `dist` is about 39 MB -- the MuJoCo wasm, the skeleton meshes, the landmark tables,
-and the Align tab's 8 MB of reference meshes when `pnpm sync:ref-meshes` has put them there --
-and all of it is embedded in the binary rather than fetched, so nothing is downloaded at run
+and the Align tab's 8 MB of reference meshes, which the `refMeshes` plugin in `vite.config.ts`
+copies in from `tools/validate-external` -- and all of it is embedded in the binary rather than fetched, so nothing is downloaded at run
 time. Tauri compresses it on the way in, which is why 39 MB of assets plus a web view shell comes
 out at a little over sixteen. The figures are from 26 September 2026 and move with the bundle.
 
-The tarball is what the root README promises beside the AppImage: the studio, the VR viewer, the
-mesh pack the viewer draws, the repository's `LICENSE` and `NOTICE`, the mesh pack's own CC BY-SA
-`LICENSE` and `NOTICE` under `assets-anatomical/`, and a `README.txt` written from
-`tools/cli/bin/desktop-tarball-readme.txt`. `tools/cli/bin/desktop-tarball.mjs` stages it in
-`dist-release/stage/`, clears the stage once the archive is written, and refuses to write it at
-all if any of those is missing. The AppImage carries the same two licence files, at
-`usr/lib/bs-humany-studio/assets-anatomical/`, beside the pack they cover.
+## Releasing
+
+`pnpm release:linux` (`tools/cli/bin/release.mjs`) makes the two files the root README promises
+on the releases page, and publishes nothing: tagging, pushing and uploading are done by hand from
+what it prints. It refuses a working tree with uncommitted changes, because a release is a commit,
+and warns when HEAD is not tagged `v<version>`. It checks first that the version is the same in
+the root `package.json`, `tauri.conf.json`, both crates' `Cargo.toml` and both `Cargo.lock` files;
+`node tools/cli/bin/release.mjs --check-versions` does only that, and CI runs it on every push.
+Then it runs `pnpm desktop:build`, packs the tarball from what that left in `target/release`, runs
+`pnpm desktop:appimage`, and writes both files and a `SHA256SUMS` to `dist-release/`. The tarball
+is packed before the AppImage is built because the AppImage bundler patches the binary in
+`target/release` in place, to record that it is an AppImage. It builds from each crate's own
+`target/` and so refuses to run with `CARGO_TARGET_DIR` set.
+
+The tarball, `bs-humany-studio-<version>-linux-<arch>.tar.gz`, is one directory of the same name:
+
+| Entry | What it is |
+| --- | --- |
+| `bs-humany-studio` | the studio |
+| `bs-humany-xr-viewer` | the VR viewer sidecar, beside it where the shell looks first |
+| `assets-anatomical/data/manifest.json`, `skeleton.bin` | the mesh pack the viewer draws |
+| `assets-anatomical/LICENSE`, `NOTICE` | the pack's own CC BY-SA licence and notice |
+| `LICENSE`, `NOTICE` | the repository's |
+| `README.txt` | how to run it and what needs what, from `tools/cli/bin/desktop-tarball-readme.txt` |
+
+Everything under `assets-anatomical/` is read from `bundle.resources`, at the path it gives there,
+so the tarball carries exactly the data the AppImage does; a resources map that stopped carrying
+the pack's licence and notice stops the release. Every input is checked before anything is
+written, and the stage in `dist-release/stage/` is cleared once the archive holds it. The AppImage
+carries the same two licence files, at `usr/lib/bs-humany-studio/assets-anatomical/`, beside the
+pack they cover.
 
 ## The VR viewer sidecar
 
