@@ -7,7 +7,17 @@
  * Rust side is going to depend on.
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -106,6 +116,42 @@ describe('the pose bridge file', () => {
     expect(f4.position[1]).toBeCloseTo(0.86, 5);
     expect(f4.position[8]).toBeCloseTo(4, 5);
     expect(writer.framesPublished).toBe(5);
+  });
+
+  it('is a new file every time it is created, and the old one stays whole for its reader', () => {
+    const path = join(dir, 'pose');
+    const first = openPoseBridge(rest, { path });
+    first.publish(7, 0.07, rest.position, rest.orientation);
+    const firstIno = statSync(path).ino;
+    // A reader holding the first file, the way the viewer holds its mapping.
+    const held = openSync(path, 'r');
+
+    const second = openPoseBridge(
+      {
+        ...rest,
+        bones: ['pelvis', 'femur_r'],
+        position: [0, 1, 0, 0, 0, 0],
+        orientation: [0, 0, 0, 1, 0, 0, 0, 1],
+      },
+      { path, slots: 2 },
+    );
+    expect(statSync(path).ino).not.toBe(firstIno);
+    // Complete the moment it has the name: a header, a rest table and no frame yet, with no
+    // publish needed first.
+    const now = readBridge(readFileSync(path));
+    expect(now.bones).toBe(2);
+    expect(now.newest).toBe(NO_FRAME);
+    // And the old file, never truncated under its reader, still reads as the bridge it was.
+    const old = Buffer.alloc(bridgeBytes(3, 3));
+    expect(readSync(held, old, 0, old.length, 0)).toBe(bridgeBytes(3, 3));
+    closeSync(held);
+    const before = readBridge(old);
+    expect(before.bones).toBe(3);
+    expect(before.frame(before.newest).tick).toBe(7);
+    // The temporaries were renamed, not left beside the bridge.
+    expect(readdirSync(dir).sort()).toEqual(['pose', 'pose.json']);
+    first.close();
+    second.close();
   });
 
   it('refuses a rest pose whose arrays do not match its bones', () => {

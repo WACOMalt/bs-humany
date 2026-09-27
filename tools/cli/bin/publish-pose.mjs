@@ -58,7 +58,6 @@ const scenarioArg = args.find(
 const fps = Number(flag('fps', 144));
 const profileId = flag('profile', 'l1_standard');
 const seconds = Number(flag('seconds', Number.POSITIVE_INFINITY));
-const path = flag('path', '/dev/shm/bs-humany-pose');
 
 const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropometry/src/index.ts'));
 const { buildDocument, computeWorldTransforms } = await jiti.import(
@@ -73,8 +72,16 @@ const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'
 const { scenario, SCENARIOS, DEFAULT_SCENARIO, MUSCLE_GROUPS, driveForSlider } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
-const { openPoseBridge, openMuscleBridge, GrabIntentReader, claimBridge, temporaryName } =
-  await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
+const {
+  openPoseBridge,
+  openMuscleBridge,
+  GrabIntentReader,
+  claimBridge,
+  temporaryName,
+  DEFAULT_PATH,
+} = await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
+// The codec states where the bridge lives, once; this only lets --path say otherwise.
+const path = flag('path', DEFAULT_PATH);
 
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
@@ -260,10 +267,14 @@ function clearBridgeFiles() {
 }
 // One publisher a path: a showcase and this one on the same bridge wipe each other's files and
 // race on the names a status is renamed through.
-claimBridge(path, 'A showcase or a publisher');
+claimBridge(path, 'The studio, a showcase or a publisher');
 clearBridgeFiles();
 
-let generation = 1;
+// Unique to this run rather than counted from one, so a viewer that followed the last run --
+// this program's, a showcase's, the studio's -- sees a generation it has not seen and reopens,
+// instead of taking the new files for the old ones because both said generation 1. The wall
+// clock only names the run; nothing simulated reads it.
+let generation = Date.now();
 let live = await build();
 console.log('  Ctrl-C to stop');
 

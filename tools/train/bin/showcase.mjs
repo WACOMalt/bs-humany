@@ -26,7 +26,6 @@ const flag = (name, fallback) => {
   const at = args.indexOf(`--${name}`);
   return at >= 0 && args[at + 1] !== undefined ? args[at + 1] : fallback;
 };
-const path = flag('path', '/dev/shm/bs-humany-pose');
 const fps = Number(flag('fps', 90));
 
 const { StandRig, rigOptionsFor, defaultRecipe } = await jiti.import(
@@ -54,9 +53,15 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
-const { openPoseBridge, openMuscleBridge, claimBridge, temporaryName } = await jiti.import(
-  join(ROOT, 'packages/pose-bridge/src/index.ts'),
-);
+const { openPoseBridge, openMuscleBridge, claimBridge, temporaryName, DEFAULT_PATH } =
+  await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
+// The codec states where the bridge lives, once; this only lets --path say otherwise.
+const path = flag('path', DEFAULT_PATH);
+// Unique to this run, so a viewer that followed the last showcase -- or `pnpm publish:pose`, or
+// the studio -- sees a generation it has not seen and reopens the bridges. A constant 1 here
+// froze the headset on the old files whenever one showcase replaced another. The wall clock only
+// names the run; nothing simulated reads it.
+const bridgeGeneration = Date.now();
 
 const rig = await StandRig.build(
   rigOptionsFor(recipe, { hidden: [32, 32], seconds: 30, poseBones: true }),
@@ -77,7 +82,7 @@ order.forEach((id, i) => {
 });
 const stature = evaluate(param('stature'), rig.restContext);
 // One publisher a path, claimed before anything of the last one is wiped.
-claimBridge(path, 'A showcase or a publisher');
+claimBridge(path, 'The studio, a showcase or a publisher');
 for (const suffix of ['', '.json', '-muscles', '-grab', '-status.json', '-commands.jsonl'])
   rmSync(`${path}${suffix}`, { force: true });
 const writer = openPoseBridge(
@@ -136,7 +141,7 @@ function reload() {
 }
 function writeStatus(episode, upFor) {
   const status = {
-    generation: 1,
+    generation: bridgeGeneration,
     scenario: {
       id: `training-${name}`,
       title: `Training: ${name}, generation ${meta.generations ?? 0}`,

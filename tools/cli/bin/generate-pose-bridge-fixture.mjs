@@ -7,9 +7,9 @@
  *
  * Two implementations of one binary layout, in two languages, cannot share code. What they can
  * share is a file: this side writes it, that side reads it, and a test on each end pins the
- * numbers. If either side drifts from the layout in `packages/pose-bridge/src/index.ts`, the
- * fixture stops matching and CI says so -- which is the same bargain every generated file in
- * this repository makes.
+ * numbers. If either side drifts from the layout -- stated once, in the header comments of
+ * `packages/pose-bridge/src/codec.ts` -- the fixture stops matching and CI says so, which is the
+ * same bargain every generated file in this repository makes.
  *
  * The contents are the ones the TypeScript unit test uses, so the two tests are literally
  * looking at the same bytes: three bones, three slots, five frames, a fixed clock.
