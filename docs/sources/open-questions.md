@@ -930,6 +930,12 @@ Where Zheng gives one share for a muscle carried in parts -- splenius, the scale
 is stated in the generator and is a guess. Neck models built from Vasavada's numbers have needed
 their forces raised by 1.4 to 2.7 to meet measured neck strengths (`mortensen2018`); nothing is
 raised here.
+**2026-09-27:** the distances are measured between the sites the muscles attach to, through the
+skeleton's `locateFeature`, and no longer between the export's markers, which name a feature and
+sat up to 18 mm off the bone. Five of the eleven units moved, by 0.8 to 3.8%: sternocleidomastoid
+216.1 -> 224.3 mm, splenius capitis 210.2 -> 213.4, longissimus capitis 160.0 -> 165.6, longus
+colli 124.8 -> 122.4 and longus capitis 93.2 -> 92.4; their forces moved by up to 4% the other way.
+The fraction is still the assumption this entry is about.
 **Closes when:** Kamibayashi & Richmond (1998) is read and each muscle's fascicle length and
 pennation replace the fraction, or the neck's strength is validated against the head-on-neck
 moments Roos et al. (2019) Table 1 collects and the forces scaled to them.
