@@ -28,6 +28,7 @@
     "generate:girdle-muscles": "node tools/cli/bin/generate-girdle-muscles.mjs",
     "generate:hand-muscles": "node tools/cli/bin/generate-hand-muscles.mjs",
     "generate:hip-muscles": "node tools/cli/bin/generate-hip-muscles.mjs",
+    "generate:hsdl-schema": "node packages/hsdl/scripts/generate-schema.mjs",
     "generate:knee-muscles": "node tools/cli/bin/generate-knee-muscles.mjs",
     "generate:neck-muscles": "node tools/cli/bin/generate-neck-muscles.mjs",
     "generate:pose-bridge-fixture": "node tools/cli/bin/generate-pose-bridge-fixture.mjs",
