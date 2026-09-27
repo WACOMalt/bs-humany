@@ -1,7 +1,9 @@
 # ADR-014 — A spinal cord under the brain, and a search that needs no terminal
 
-**Status:** accepted, 2026-09-21. **Depends on:** ADR-013 (the nerves), §14.1 (the nervous
-system module), §10.5 (delay lines), ADR-004 (accumulators).
+**Status:** accepted, 2026-09-21; amended 2026-09-22 (the gains, remeasured; see the
+[amendment](#amended-2026-09-22--the-gains-remeasured)). **Depends on:** ADR-013 (the nerves),
+§14.1 (the nervous system module), §10.5 (delay lines), ADR-004 (accumulators). **Related:**
+OQ-024 (standing is a reflex, `docs/sources/open-questions.md`).
 
 ## The question
 
@@ -65,6 +67,9 @@ file declares its own memory in its drive names so a handover cannot silently dr
 a quarter second.** A stumble that recovers is the behaviour worth rewarding and it could not be
 rewarded once the episode was already over.
 
+*(Superseded — this paragraph and the next: see the
+[amendment](#amended-2026-09-22--the-gains-remeasured). Its principle, in bold at the end, stands.)*
+
 **The gains are measured, not chosen.** This is the part that nearly went wrong. Fibre stretch
 is counted in whole optimal lengths, so the first defaults — a gain near one — drove every
 muscle to the excitation ceiling within a tick. The body became a rigid statue, survived
@@ -90,4 +95,66 @@ Whether the cord should be tuned per profile rather than once on the reference b
 set point should be something the brain writes rather than a constant — which is what a gamma
 motor neuron is, and the honest next step. Whether evolution strategies survive the larger
 policy that memory implies. And whether a body that now stays up for 0.87 seconds on reflexes
-alone can be trained to stand, which is a run, not a decision.
+alone can be trained to stand, which is a run, not a decision. (The 0.87 s is superseded: the
+amendment below gives what the cord is worth now.)
+
+## Amended 2026-09-22 — the gains, remeasured
+
+Recorded 2026-09-26. The decision above stands: a spinal module in the control phase, every
+afferent through a delay line, the vestibular pair, context units, the fitness change and a
+search that runs anywhere. What changed is every number in "The gains are measured, not chosen",
+and the reason given there for keeping the gains tiny. The text above is kept as it was written.
+The current measurements and the tables behind them are in
+[`docs/validation/reflex-gains.md`](../validation/reflex-gains.md).
+
+**Why the old numbers are void.** Two commits took them away. First, 79da900 repeated the
+measurement after every spinal joint had moved to its disc and the hands and toes had gained 38
+muscles, and found that the body had changed under it: with no policy, stretch at 0.005 now cost
+time (0.43 s against 0.48 s with no cord). Then ba50a95 found the real fault. `muscle.state`
+already publishes fibre length in optimal fibre lengths, and the cord divided it by the optimal
+fibre length in metres a second time. The length afferent therefore ran from 2.3 to 41 where the
+strain runs from -0.44 to 0, and it read every muscle as hugely stretched at every instant,
+standing still included. That was a constant tone, not a stretch reflex, and it is the whole
+explanation of the tiny gains: 0.005 was as much as could be applied before the tone saturated
+the body. So the "whole optimal lengths" rationale, the 0.33, 0.67 and 0.87 s, the 0.016 against
+1.006, and the "sharp optimum" of reciprocal inhibition were all measured against that tone, and
+none of them describes the cord that runs today. Remeasured, time upright rises monotonically
+with inhibition past every value that means anything, so this measure cannot choose inhibition at
+all.
+
+**What is set now.** The length afferent is `fiberLength - 1` against a set point of 0, so the
+cord is quiet until a fibre is actually stretched. `DEFAULT_REFLEX` (`tools/train/src/recipe.ts`)
+is:
+
+| stretch | velocity | setPoint | inhibition | forceCeiling | forceInhibition | delaySeconds |
+|---|---|---|---|---|---|---|
+| 3.5 | 0.25 | 0 | 0.3 | 1.2 | 0.5 | 0.03 |
+
+Stretch and velocity are measured. The set point is where the cord stops answering a body that
+stands still. Inhibition stays at 0.3, unchanged and unclaimed, because choosing it needs two
+training runs, not a table. The Golgi ceiling is never reached in a fall, so the two force terms
+are left where they were, and nothing has shown them right. Under the committed standing policy,
+over eight seeds of six seconds, this cord keeps the body upright 0.894 s against 0.456 s with no
+cord at all. With the policy silent it is 0.568 s against 0.484 s. The cord is a floor, not a
+controller.
+
+**What still holds.** A cord that silences the policy is worse than no cord. Past a stretch of 4
+the time upright falls again, because the brain adds its correction to an excitation the cord has
+already clamped at 1, and the clamp eats it. The principle was right; only the scale it was
+measured at was wrong.
+
+**Where the evidence lives.** `tools/train/runs/cordlevel.mjs` and `cordsweep.mjs`, which the
+superseded paragraph cites, were local probes in an ignored directory. They were never committed,
+and they measured the afferent before the fix, at settings nothing uses now. They are superseded,
+not promoted. The section "Reproducing all of it" in reflex-gains.md says how to produce the
+current numbers from `StandRig` and `DEFAULT_REFLEX`.
+
+Run files are no longer kept in the repository. A run's recipe, its history, its centre and the
+showcase's activity file are written to `<data>/runs`, and checkpoints to `<data>/policies`, where
+`<data>` is the operating system's data directory (`~/.local/share/bs-humany` on Linux).
+`pnpm train:where` prints both, and `BS_HUMANY_HOME` overrides them.
+`packages/modules-nerves/policies` holds only the checkpoints that ship, which seed a fresh data
+directory once. Handing a checkpoint to the studio is live: `Simulation.handOver` adopts the
+policy between one control step and the next, and nothing restarts. A checkpoint's recipe records
+the cord it was trained over, because that cord is part of the body the policy learnt in; a
+recipe that records none was trained with none.
