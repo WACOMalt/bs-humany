@@ -1,5 +1,5 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
-import { RapierBackend } from '@bs-humany/backend-rapier';
+import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { compileArticulation } from '@bs-humany/compiler';
 import { vec3 } from '@bs-humany/frames';
 import { Kernel } from '@bs-humany/kernel';
@@ -16,7 +16,7 @@ const { articulation } = compileArticulation(document, 'l1_standard', morphology
 describe('GrabModule', () => {
   it('lifts a hand toward the target, publishes the hold, and lets go', async () => {
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
-    const physics = new PhysicsModule(new RapierBackend(), articulation, { ground: { height: 0 } });
+    const physics = new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } });
     const grab = new GrabModule(physics.backend, articulation);
     kernel.register(physics);
     kernel.register(grab);
@@ -44,6 +44,16 @@ describe('GrabModule', () => {
     // so holding it near its starting height is the hold working.
     expect(sum / 100).toBeGreaterThan(y0 - 0.1);
     expect(peak).toBeLessThan(y0 + 2);
+    // Then carried sideways: the hold follows a moved target, which is the backend being told
+    // where the target went (a hold that only ever pulled toward where it began would pass the
+    // lift above).
+    const x0 = pose[3 * hand] ?? 0;
+    const aside = vec3(x0 + 0.4, target.y, target.z);
+    for (let i = 0; i < 300; i++) {
+      grab.moveTo(aside);
+      kernel.step();
+    }
+    expect((pose[3 * hand] ?? 0) - x0).toBeGreaterThan(0.2);
     grab.release();
     kernel.step();
     expect((channel.active as Uint8Array)[0]).toBe(0);
@@ -53,7 +63,7 @@ describe('GrabModule', () => {
 
   it('holds two things at once in two slots, and lets go of them separately', async () => {
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
-    const physics = new PhysicsModule(new RapierBackend(), articulation, { ground: { height: 0 } });
+    const physics = new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } });
     const grab = new GrabModule(physics.backend, articulation);
     kernel.register(physics);
     kernel.register(grab);
@@ -82,7 +92,7 @@ describe('GrabModule', () => {
   });
 
   it('rejects a segment index outside the articulation', async () => {
-    const physics = new PhysicsModule(new RapierBackend(), articulation, {});
+    const physics = new PhysicsModule(new MujocoBackend(), articulation, {});
     const grab = new GrabModule(physics.backend, articulation);
     expect(() => grab.grab(99, vec3(0, 0, 0), vec3(0, 0, 0))).toThrow(RangeError);
   });

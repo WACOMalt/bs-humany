@@ -8,7 +8,12 @@
  * tests can see what is being held without reaching into the backend.
  */
 
-import type { CompiledArticulation, GrabHandle, IPhysicsBackend } from '@bs-humany/compiler';
+import {
+  type CompiledArticulation,
+  GRAB_LEASH,
+  type GrabHandle,
+  type IPhysicsBackend,
+} from '@bs-humany/compiler';
 import type { Quat, Vec3 } from '@bs-humany/frames';
 import type {
   ChannelSpec,
@@ -20,8 +25,6 @@ import type {
 import { BODY_POSE, CHANNEL_VERSION } from './channels.js';
 import { qRotate } from './qmath.js';
 
-/** Metres the target may lead the held point; matches the backend's spring sizing. */
-export const GRAB_LEASH = 0.3;
 /** How many things can be held at once: two hands in a headset, with room to spare. */
 export const MAX_GRABS = 4;
 

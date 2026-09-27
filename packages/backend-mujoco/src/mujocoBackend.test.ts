@@ -194,7 +194,7 @@ describe('the L1 articulation', () => {
       expect(Math.abs(buffers.jointState.q[i] ?? 1), `q[${i}]`).toBeLessThan(1e-6);
     }
     backend.readPose(buffers.pose);
-    // Rapier keeps single-precision state.
+    // The MJCF prints ten significant digits, so the rest pose comes back well inside this.
     articulation.segments.forEach((s, i) => {
       expect(buffers.pose.position[3 * i + 1]).toBeCloseTo(s.restWorld.translation.y, 5);
     });
@@ -232,6 +232,29 @@ describe('the L1 articulation', () => {
       if (buffers.contacts.pair[2 * i + 1] === -1) groundPairs.push(i);
     }
     expect(groundPairs.length).toBeGreaterThan(0);
+    backend.dispose();
+  });
+
+  it('counts an autoreset, which puts the body back at its reference, and nothing else', async () => {
+    const { backend } = await backendFor(articulation, 0);
+    const buffers = allocateBuffers(articulation);
+    for (let i = 0; i < 20; i++) backend.step(1);
+    // Ordinary steps, falling and landing included, are not resets.
+    expect(backend.resets).toBe(0);
+    backend.readJointState(buffers.jointState);
+    // Past MuJoCo's bad-value threshold (1e10): the next step warns and resets the whole state.
+    const qdot = Float64Array.from(buffers.jointState.qdot);
+    qdot[ROOT_NV] = 1e12;
+    backend.writeJointState(Float64Array.from(buffers.jointState.q), qdot);
+    backend.step(1);
+    expect(backend.resets).toBe(1);
+    // Back at the reference: every segment where the model put it, less one step of gravity.
+    backend.readPose(buffers.pose);
+    articulation.segments.forEach((s, i) => {
+      expect(buffers.pose.position[3 * i + 1], s.id).toBeCloseTo(s.restWorld.translation.y, 3);
+    });
+    for (let i = 0; i < 20; i++) backend.step(1);
+    expect(backend.resets).toBe(1);
     backend.dispose();
   });
 

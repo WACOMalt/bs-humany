@@ -1,7 +1,7 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
-import { RapierBackend } from '@bs-humany/backend-rapier';
-import { type IPhysicsBackend, ROOT_NQ, ROOT_NV, compileArticulation } from '@bs-humany/compiler';
+import { ROOT_NQ, ROOT_NV, compileArticulation } from '@bs-humany/compiler';
+import { validateDocument } from '@bs-humany/hsdl';
 import { Kernel, type SimModule } from '@bs-humany/kernel';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
@@ -9,6 +9,7 @@ import {
   ACTUATION_JOINT_TORQUE,
   BODY_JOINT_STATE,
   BODY_POSE,
+  BODY_VELOCITY,
   CHANNEL_VERSION,
   CONTACT_MANIFOLDS,
 } from './channels.js';
@@ -18,8 +19,8 @@ const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
 const { articulation } = compileArticulation(document, 'l1_standard', morphology);
 
-function physics(backend: IPhysicsBackend = new RapierBackend()) {
-  return new PhysicsModule(backend, articulation, {
+function physics() {
+  return new PhysicsModule(new MujocoBackend(), articulation, {
     ground: { height: 0 },
     iterations: 8,
   });
@@ -55,7 +56,7 @@ describe('PhysicsModule', () => {
     const module = physics();
     kernel.register(module);
     await kernel.init();
-    expect(module.report?.backend).toBe('rapier');
+    expect(module.report?.backend).toBe('mujoco');
     const pose = kernel.channels.view(module.manifest.id, BODY_POSE, 'write');
     const position = pose.fields.position as Float64Array;
     articulation.segments.forEach((s, i) => {
@@ -66,10 +67,7 @@ describe('PhysicsModule', () => {
 
   it('lets the body fall under the kernel clock and reports contacts', async () => {
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
-    // On the enabled backend; the vestigial Rapier stands on its hull feet for longer than the
-    // second this test allows. The other tests keep Rapier for what only it supports (kinematic
-    // switching at runtime).
-    const module = physics(new MujocoBackend());
+    const module = physics();
     kernel.register(module);
     await kernel.init();
     kernel.run(500);
@@ -85,19 +83,72 @@ describe('PhysicsModule', () => {
   });
 
   it('applies accumulated joint torque from an actuate-phase module', async () => {
-    const kernel = new Kernel({ rateHz: 500, seed: 1 });
-    const module = physics();
     const knee = articulation.joints.find((j) => j.id === 'knee_r');
     if (!knee) throw new Error('no knee');
-    // Hold the pelvis so the knee response is not lost in the fall.
+    // MuJoCo cannot pin the pelvis (it has no kinematic switch), so the knee's response is read
+    // against the same fall without the push: two kernels, same seed, same everything else.
+    const kneeAfter = async (torque: number) => {
+      const kernel = new Kernel({ rateHz: 500, seed: 1 });
+      const module = physics();
+      kernel.register(module);
+      if (torque !== 0) kernel.register(pusher(ROOT_NV + knee.dofStart, torque));
+      await kernel.init();
+      kernel.run(20);
+      const state = kernel.channels.view(module.manifest.id, BODY_JOINT_STATE, 'write');
+      const q = (state.fields.q as Float64Array)[ROOT_NQ + knee.dofStart] ?? 0;
+      kernel.dispose();
+      return q;
+    };
+    const pushed = await kneeAfter(30);
+    const free = await kneeAfter(0);
+    expect(pushed - free).toBeGreaterThan(0.01);
+  });
+
+  it('advances one tick of simulated time per tick, whatever the substeps', async () => {
+    // Free fall from rest, no ground: after a tick every body is moving at g times the tick,
+    // however finely the tick is divided, because each substep adds g times its own length.
+    // The velocity is compared rather than the displacement, which legitimately differs by a
+    // quarter of g dt^2 between one and two substeps (the integrator's own order).
+    const velocityAfterOneTick = async (substeps: number) => {
+      const kernel = new Kernel({ rateHz: 500, seed: 1 });
+      const module = new PhysicsModule(new MujocoBackend(), articulation, { substeps });
+      kernel.register(module);
+      await kernel.init();
+      kernel.step();
+      const velocity = kernel.channels.view(module.manifest.id, BODY_VELOCITY, 'write');
+      const vy = (velocity.fields.linear as Float64Array)[3 * articulation.root + 1] ?? 0;
+      kernel.dispose();
+      return vy;
+    };
+    const one = await velocityAfterOneTick(1);
+    const two = await velocityAfterOneTick(2);
+    expect(one).toBeCloseTo(articulation.gravity.y / 500, 9);
+    expect(Math.abs(two - one)).toBeLessThan(1e-6);
+  });
+
+  it('runs a document written for Rapier on MuJoCo', async () => {
+    // What a document from before Rapier was deleted looks like on disk: every profile naming it.
+    const old = JSON.parse(JSON.stringify(document)) as {
+      segmentation: { defaultBackend?: string }[];
+    };
+    for (const profile of old.segmentation) profile.defaultBackend = 'rapier';
+    const result = validateDocument(old);
+    expect(result.issues.filter((i) => i.severity === 'error')).toEqual([]);
+    const loaded = result.document;
+    if (!loaded) throw new Error('the document did not load');
+    expect(loaded.segmentation.every((p) => p.defaultBackend === 'mujoco')).toBe(true);
+    const compiled = compileArticulation(loaded, 'l1_standard', morphology).articulation;
+    const kernel = new Kernel({ rateHz: 500, seed: 1 });
+    const module = new PhysicsModule(new MujocoBackend(), compiled, { ground: { height: 0 } });
     kernel.register(module);
-    kernel.register(pusher(ROOT_NV + knee.dofStart, 30));
     await kernel.init();
-    module.backend.setKinematic(articulation.root, true);
+    expect(module.report?.backend).toBe('mujoco');
     kernel.run(100);
-    const state = kernel.channels.view(module.manifest.id, BODY_JOINT_STATE, 'write');
-    const q = state.fields.q as Float64Array;
-    expect(q[ROOT_NQ + knee.dofStart] ?? 0).toBeGreaterThan(0.05);
+    const position = kernel.channels.view(module.manifest.id, BODY_POSE, 'write').fields
+      .position as Float64Array;
+    const head = compiled.segments.findIndex((s) => s.id === 'head');
+    const restY = compiled.segments[head]?.restWorld.translation.y ?? 0;
+    expect(position[3 * head + 1] ?? restY).toBeLessThan(restY);
     kernel.dispose();
   });
 

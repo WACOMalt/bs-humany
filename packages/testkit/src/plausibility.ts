@@ -1,44 +1,36 @@
 /**
  * Physical plausibility assertions -- spec section 13.4.
  *
- * Automated, on every scenario and backend. Each check names its tolerance and why it is what
- * it is; a failure is a finding with the number that failed, so a tolerance is never quietly
- * widened to make a run green.
+ * Automated, on every scenario. Each check names its tolerance and why it is what it is; a
+ * failure is a finding with the number that failed, so a tolerance is never quietly widened to
+ * make a run green.
  */
 
-import { LIMIT_STOP_FREQUENCY_HZ } from '@bs-humany/backend-rapier';
-import { ROOT_NQ, dofAxisInertia, dofPassiveInertia } from '@bs-humany/compiler';
+import { ROOT_NQ, dofPassiveInertia } from '@bs-humany/compiler';
 import { defaultPassiveCurve } from '@bs-humany/modules-mechanics';
 import type { Sample, Trajectory } from './runner.js';
 
 /**
- * Elastic energy stored in the joints at a sample: the passive curves' potential (closed form of
- * the double exponential) and, on Rapier, the emulated range stops' springs. Without this term a
- * limb rebounding off a stop reads as energy appearing from nowhere.
+ * Elastic energy stored in the joints at a sample: the passive curves' potential, in the closed
+ * form of the double exponential. Without this term a limb rebounding off the end of its range
+ * reads as energy appearing from nowhere. MuJoCo's native range limits are soft constraints, not
+ * springs with an energy of their own, so nothing else is stored.
  */
 export function elasticEnergy(
   trajectory: Trajectory,
   sample: Sample,
   options: { readonly passiveJoints: boolean },
 ): number {
+  if (!options.passiveJoints) return 0;
   const model = trajectory.articulation;
   let energy = 0;
-  const stopOmega = 2 * Math.PI * LIMIT_STOP_FREQUENCY_HZ;
   for (const dof of model.dofs) {
     const q = sample.q[ROOT_NQ + dof.index] ?? 0;
     const [lo, hi] = dof.range;
-    const inertia = Math.max(dofAxisInertia(model, dof), 1e-6);
-    if (options.passiveJoints) {
-      const curve = dof.passiveStiffness ?? defaultPassiveCurve(dofPassiveInertia(model, dof));
-      energy += (curve.lowerGain / curve.lowerRate) * Math.exp(-curve.lowerRate * (q - lo));
-      energy += (curve.upperGain / curve.upperRate) * Math.exp(curve.upperRate * (q - hi));
-      if (curve.linear) energy += 0.5 * curve.linear * (q - (curve.linearNeutral ?? 0)) ** 2;
-    }
-    const joint = model.joints[dof.joint];
-    if (trajectory.backend === 'rapier' && joint && joint.dofs.length > 1) {
-      const over = Math.max(lo - q, q - hi, 0);
-      energy += 0.5 * inertia * stopOmega * stopOmega * over * over;
-    }
+    const curve = dof.passiveStiffness ?? defaultPassiveCurve(dofPassiveInertia(model, dof));
+    energy += (curve.lowerGain / curve.lowerRate) * Math.exp(-curve.lowerRate * (q - lo));
+    energy += (curve.upperGain / curve.upperRate) * Math.exp(curve.upperRate * (q - hi));
+    if (curve.linear) energy += 0.5 * curve.linear * (q - (curve.linearNeutral ?? 0)) ** 2;
   }
   return energy;
 }
@@ -59,46 +51,33 @@ export interface PlausibilityTolerances {
 }
 
 /**
- * Defaults and their reasons. These are the Rapier tolerances; MuJoCo's are tighter below.
+ * Defaults and their reasons, for MuJoCo, the only backend. Rapier ran to looser ones (20 J,
+ * 0.5 rad, 4 cm) until it was deleted; `docs/validation/conformance.md` keeps its figures.
  *
- * - energyRisePerSample 20 J on Rapier, 2 J on MuJoCo: kinetic plus gravitational plus the
- *   elastic energy of the passive curves and emulated stops, less the work of emulated
- *   couplings, should never rise in a passive system. What remains is the impulse solver's
- *   contact work at impacts (penetration recovery is not conservative) and the one-tick lag of
- *   the actuate phase. On Rapier a 70 kg body landing at a few metres per second, with 100 to
- *   250 J of kinetic energy in play, shows rises of up to ~18 J over a 20 ms sample; MuJoCo's
- *   contacts stay within 2 J. Both numbers scale with the sample interval.
- * - rangeViolation 0.5 rad: every axis-aligned DoF has a native limit backing its emulated stop
- *   and holds to a few hundredths of a radian. Oblique axes (the subtalar inversion axis) have
- *   only the emulated stop, and joints carrying the whole body's weight against ground friction
- *   (the ankles in a standing collapse, a shoulder hanging from its wrist while the shoulder
- *   rhythm loads its girdle) push it this far. The remedy is native oblique-axis limits,
- *   tracked as OQ-009.
- * - penetration 0.04 m: the ground plane never exceeds three centimetres; a hard landing on a
- *   box edge (the stairs) reaches this much before the impulse solver pushes back.
+ * - energyRisePerSample 2 J: kinetic plus gravitational plus the elastic energy of the passive
+ *   curves, less the work of emulated couplings, should never rise in a passive system. What
+ *   remains is the contacts' work at impacts (a soft contact's impedance is not conservative)
+ *   and the one-tick lag of the actuate phase. A 70 kg body landing at a few metres per second,
+ *   with 100 to 250 J of kinetic energy in play, stays within 2 J over a 20 ms sample; the number
+ *   scales with the sample interval.
+ * - rangeViolation 0.2 rad: native limits at a 10 ms impedance time constant yield about
+ *   0.15 rad under the whole body's weight -- the ankles in a standing collapse, a shoulder
+ *   hanging from its wrist.
+ * - penetration 0.03 m: contacts at the same impedance stay under three centimetres, a hard
+ *   landing on a box edge (the stairs) included.
  * - restKinetic 1 J: a 70 kg body with a joule of kinetic energy is twitching, not moving.
- * - drift 0.05 m: spec section 9.4's known impulse-joint drift; five centimetres is visible.
+ * - drift 0.05 m: in reduced coordinates a joint cannot separate, and none does (0.0 mm in every
+ *   scenario); five centimetres is visible, so a reading near it is a broken pose readout.
  * - ballistic 0.15: the CoM under free flight should fall at g; contacts start before a full
  *   parabola is available, so the fit is short and coarse.
  */
 export const DEFAULT_TOLERANCES: PlausibilityTolerances = {
-  energyRisePerSample: 20,
-  rangeViolation: 0.5,
-  penetration: 0.04,
-  restKinetic: 1,
-  drift: 0.05,
-  ballistic: 0.15,
-};
-
-/**
- * MuJoCo: native limits at a 10 ms impedance time constant yield about 0.15 rad under the whole
- * body's weight; contacts at the same impedance stay under three centimetres.
- */
-export const MUJOCO_TOLERANCES: PlausibilityTolerances = {
-  ...DEFAULT_TOLERANCES,
   energyRisePerSample: 2,
   rangeViolation: 0.2,
   penetration: 0.03,
+  restKinetic: 1,
+  drift: 0.05,
+  ballistic: 0.15,
 };
 
 export interface Finding {

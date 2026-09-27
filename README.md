@@ -44,7 +44,7 @@ core
   packages/compiler/           HSDL to CompiledArticulation; MJCF emitter
   packages/scenarios/          scenario definitions, activation clips, muscle groups, and the
                                joint-sweep and inertia-audit reports (spec 13.5)
-  packages/testkit/            plausibility assertions, conformance harness, trajectory hashing
+  packages/testkit/            scenario runner, plausibility assertions, trajectory hashing
 
 anatomy and mass
   packages/skeleton/           bone taxonomy, landmarks, segmentation profiles
@@ -69,9 +69,8 @@ nerves and sensing
   packages/modules-sensing/    sensory modules; vestibular sensing, and the worked example of
                                the module contract
 
-backends
-  packages/backend-mujoco/     MuJoCo physics backend; the one enabled backend
-  packages/backend-rapier/     disabled; the owner decided on 2026-09-26 to delete it
+backend
+  packages/backend-mujoco/     MuJoCo physics backend; the only backend
 
 rendering, export and bridge
   packages/render-three/       procedural bone geometry and the three.js skeleton mesh

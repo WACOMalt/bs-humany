@@ -1,7 +1,9 @@
 # ADR-003 — Two backends in Phase 1: Rapier as default, MuJoCo as the accuracy backend
 
-**Status:** Accepted; reassessed 2026-09-13 — MuJoCo is the only enabled backend. Deletion of
-Rapier decided 2026-09-26. See [Reassessed 2026-09-13 (M5.8)](#reassessed-2026-09-13-m58).
+**Status:** Accepted; reassessed 2026-09-13 — MuJoCo is the only enabled backend; Rapier
+deleted 2026-09-26, so MuJoCo is the only backend. See
+[Reassessed 2026-09-13 (M5.8)](#reassessed-2026-09-13-m58) and
+[Rapier deleted 2026-09-26](#rapier-deleted-2026-09-26).
 
 ## Decision
 
@@ -66,3 +68,21 @@ interface is a fiction. `IPhysicsBackend` stays, and the next second backend (a 
 MuJoCo, or MJX) is what will test it again. The platform floor (ADR-010, `L0` on mobile) is not
 changed by any of this. What MuJoCo costs on a phone is still unmeasured, and that measurement is
 now a question about the floor, not about Rapier.
+
+## Rapier deleted 2026-09-26
+
+The change the decision above called for. It records what the owner decided and does not
+reopen it.
+
+**What went.** `packages/backend-rapier` and its dependency on `@dimforge/rapier3d-compat`; the
+studio's import of it, which took about 2.7 MB of Rapier wasm out of every studio and desktop
+load; its rows in the mechanics and testkit tests, which now run on MuJoCo; its rows in
+`pnpm bench`; the cross-backend conformance harness, which had nothing left to compare
+(`docs/validation/conformance.md`); and its line in `NOTICE`.
+
+**What stays.** `IPhysicsBackend`, for the next backend. The `CouplingModule`, which stands
+down on MuJoCo and is what a backend that approximates couplings would use. The HSDL
+`defaultBackend` value `'rapier'`, accepted as a deprecated alias and read as `'mujoco'`, and the
+studio's reading of a saved session that names it, so that documents and sessions written before
+today still load and run. Rapier's last benchmark and plausibility figures, kept as dated
+history in `docs/validation/benchmarks.md` and `docs/validation/conformance.md`.

@@ -15,7 +15,6 @@
     "@bs-humany/anthropometry": "workspace:*",
     "@bs-humany/assets-anatomical": "workspace:*",
     "@bs-humany/backend-mujoco": "workspace:*",
-    "@bs-humany/backend-rapier": "workspace:*",
     "@bs-humany/compiler": "workspace:*",
     "@bs-humany/export-gltf": "workspace:*",
     "@bs-humany/frames": "workspace:*",

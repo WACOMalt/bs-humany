@@ -1,19 +1,19 @@
 /**
  * The MuJoCo backend -- milestone M3.15.
  *
- * ADR-003: the accuracy backend. MuJoCo is reduced-coordinate, so joints are satisfied
- * structurally rather than iteratively, limits and equality constraints are native, and the
- * generalized coordinates are the simulation state rather than something recovered from body
- * poses. The compiled articulation becomes MJCF (`emitMjcf`), so what MuJoCo runs is exactly what
- * the emitter round-trip test checks.
+ * The only backend (ADR-003, reassessed 2026-09-13; Rapier deleted 2026-09-26). MuJoCo is
+ * reduced-coordinate, so joints are satisfied structurally rather than iteratively, limits and
+ * equality constraints are native, and the generalized coordinates are the simulation state
+ * rather than something recovered from body poses. The compiled articulation becomes MJCF
+ * (`emitMjcf`), so what MuJoCo runs is exactly what the emitter round-trip test checks.
  *
  * What is emulated here, declared per spec section 9.3:
- *   - **Motors** are PD torques in generalized coordinates, like the Rapier backend's, so a
- *     motor target means the same thing on both.
+ *   - **Motors** are PD torques in generalized coordinates, applied with the commanded forces,
+ *     so a motor target means a torque about its DoF and the realized-force readout sees it.
  *   - **Grabs** are springs applied as body wrenches at the held point.
  *   - **Per-DoF passive terms** are deliberately not emitted: the PassiveJointModule applies them
- *     identically on both backends (spec section 7.3), and doing so natively as well would count
- *     them twice.
+ *     whatever the backend (spec section 7.3), and doing so natively as well would count them
+ *     twice.
  *   - **Kinematic switching and non-root pose setting** are unsupported: MuJoCo has no per-body
  *     dynamic/kinematic toggle without declaring mocap bodies at compile, and a segment's pose is
  *     not free in reduced coordinates. Both throw rather than approximate.
@@ -37,14 +37,11 @@ import type {
   PoseBuffer,
   VelocityBuffer,
 } from '@bs-humany/compiler';
-import { ROOT_NQ, ROOT_NV, emitMjcf } from '@bs-humany/compiler';
+import { GRAB_FORCE_FRACTION, GRAB_LEASH, ROOT_NQ, ROOT_NV, emitMjcf } from '@bs-humany/compiler';
 import type { Quat, Transform, Vec3 } from '@bs-humany/frames';
 import type { MainModule, MjData, MjModel } from '@mujoco/mujoco';
 import loadMujoco from '@mujoco/mujoco';
 
-/** Grab spring sizing, shared with the Rapier backend by value: same leash, same force fraction. */
-export const GRAB_LEASH = 0.3;
-export const GRAB_FORCE_FRACTION = 0.8;
 /**
  * The rotational spring's sizing: the linear stiffness acting at this lever, and a hand's worth
  * of angle it may lead by before the torque stops growing -- a twist beyond that is a twist the
@@ -126,6 +123,13 @@ interface DataViews {
 export class MujocoBackend implements IPhysicsBackend {
   readonly id = 'mujoco' as const;
   readonly capabilities = CAPABILITIES;
+  /**
+   * Autoresets since `compile`: steps in which MuJoCo found a bad acceleration, velocity or
+   * position, warned, and put the whole state back at the model's reference. The run goes on
+   * from there as if nothing happened, which is the one thing a host must not believe, so it is
+   * counted where it happens and read by whoever shows the run.
+   */
+  resets = 0;
 
   private mujoco: MainModule | undefined;
   private config: BackendConfig | undefined;
@@ -186,6 +190,7 @@ export class MujocoBackend implements IPhysicsBackend {
     this.mjData = mjData;
     this.model = model;
     this.substepTimestep = config.dt;
+    this.resets = 0;
 
     // Name resolution, once.
     this.bodyOf = new Int32Array(model.segments.length);
@@ -226,7 +231,7 @@ export class MujocoBackend implements IPhysicsBackend {
     notes.push({
       severity: 'info',
       feature: 'motors',
-      message: 'Joint motors are PD torques in generalized coordinates, as on the Rapier backend.',
+      message: 'Joint motors are PD torques in generalized coordinates.',
     });
     notes.push({
       severity: 'info',
@@ -308,10 +313,18 @@ export class MujocoBackend implements IPhysicsBackend {
       mjModel.opt.timestep = dt;
       this.substepTimestep = dt;
     }
+    // An autoreset (mj_resetData inside mj_step) puts the clock back to zero with the state, so
+    // a step that did not advance time by its own length reset. Read as a plain number: the
+    // warning counters would do it too, but reading them builds a vector every step (rule 9).
+    // The one reset this cannot see is one in the very first substep of a run still at time
+    // zero, which lands the clock exactly where it would have been; a body that diverges on its
+    // first step shows it in its pose long before anyone needs the count.
+    const t0 = mjData.time;
     for (let s = 0; s < n; s++) {
       this.applyForces();
       mujoco.mj_step(mjModel, mjData);
     }
+    if (Math.abs(mjData.time - (t0 + n * dt)) > dt / 2) this.resets += 1;
     // mj_step integrates after computing poses, so xpos and cvel describe the state before the
     // last integration. Bring the derived quantities up to the integrated qpos; contacts and
     // efc_force stay those of the last solve, which is what the step's impulses were.
@@ -571,7 +584,9 @@ export class MujocoBackend implements IPhysicsBackend {
       out.normal[3 * i] = (frame[0] as number) * sign;
       out.normal[3 * i + 1] = (frame[1] as number) * sign;
       out.normal[3 * i + 2] = (frame[2] as number) * sign;
-      // The first constraint row of a contact is its normal force.
+      // The first constraint row of the contact, times the substep: with the default pyramidal
+      // cone that is one edge of the friction pyramid, about a quarter of the normal impulse,
+      // not the normal impulse the field is named for (ContactBuffer.impulse says why it stays).
       const force = c.efc_address >= 0 ? ((efcForce[c.efc_address] as number) ?? 0) : 0;
       out.impulse[i] = force * this.substepTimestep;
       out.depth[i] = -c.dist;

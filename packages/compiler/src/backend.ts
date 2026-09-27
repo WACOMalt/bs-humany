@@ -1,11 +1,14 @@
 /**
  * The physics backend adapter -- spec section 9, ADR-002, ADR-003.
  *
- * Two backends ship in Phase 1 behind this one interface: Rapier for interactive use and MuJoCo
- * for accuracy. The interface is designed to MuJoCo's semantics (HSDL is an MJCF superset), so
- * the Rapier adapter is knowingly a lossy projection and MUST say so through `compile()`'s report.
- * **Silent approximation is forbidden** -- it is the mechanism by which a research-accurate
- * simulator quietly becomes a toy.
+ * MuJoCo is the only backend. Phase 1 shipped a second, Rapier, for interactive use; the ADR-003
+ * reassessment of 2026-09-13 left MuJoCo the only enabled one, and the owner deleted Rapier on
+ * 2026-09-26. The interface stays, because it is what keeps the kernel and the modules from
+ * knowing which engine they run on, and the next backend (a native or remote MuJoCo, or MJX) is
+ * what will test it again. It is designed to MuJoCo's semantics (HSDL is an MJCF superset), so
+ * any adapter that cannot express something is knowingly a lossy projection and MUST say so
+ * through `compile()`'s report. **Silent approximation is forbidden** -- it is the mechanism by
+ * which a research-accurate simulator quietly becomes a toy.
  *
  * Hard rules (spec 9.2), restated because each one is easy to violate quietly:
  *   - No allocation in `step` or any `read*`. Buffers are preallocated by the caller and reused.
@@ -61,7 +64,10 @@ export interface BackendConfig {
   /** Solver iterations or substeps, backend-defined. */
   readonly iterations?: number | undefined;
   readonly gravity?: Vec3 | undefined;
-  /** Rapier's deterministic mode, where offered. */
+  /**
+   * Reserved: requests a backend's optional deterministic mode. The MuJoCo backend is
+   * deterministic by construction and ignores it.
+   */
   readonly deterministic?: boolean | undefined;
   /**
    * A fixed horizontal ground plane at `height` metres, with the named contact class. Absent
@@ -123,7 +129,13 @@ export interface ContactBuffer {
   readonly point: Float64Array;
   /** `3 * capacity`, from A toward B */
   readonly normal: Float64Array;
-  /** `capacity`, normal impulse this step, N*s */
+  /**
+   * `capacity`, N*s. Named for the normal impulse, but currently the first constraint row of the
+   * last substep's contact force times the substep dt: with the default pyramidal friction cone
+   * that is one edge of the pyramid, about a quarter of the normal impulse. It is left as it is
+   * because trained policies sense it through the foot-load observation, and what they sense
+   * changes only with a retrain; read it as a contact's presence and rough scale, not its load.
+   */
   readonly impulse: Float64Array;
   /** `capacity` */
   readonly depth: Float64Array;
@@ -137,6 +149,17 @@ export interface MotorTarget {
   readonly maxForce: number;
 }
 
+/**
+ * Metres a grab's target may lead the point it holds. A backend sizes its grab spring so that
+ * pulled this far it carries `GRAB_FORCE_FRACTION` of the body's weight at strength 1, and
+ * `GrabModule` clamps every target it hands a backend to this leash, so the spring never pulls
+ * harder than that sizing allows. One home for both numbers, because the module's clamp and the
+ * backend's stiffness only mean anything together.
+ */
+export const GRAB_LEASH = 0.3;
+/** Fraction of body weight a strength-1 grab carries at full leash. @see GRAB_LEASH */
+export const GRAB_FORCE_FRACTION = 0.8;
+
 export interface GrabHandle {
   setTarget(world: Vec3): void;
   /**
@@ -148,8 +171,16 @@ export interface GrabHandle {
 }
 
 export interface IPhysicsBackend {
-  readonly id: 'rapier' | 'mujoco';
+  readonly id: 'mujoco';
   readonly capabilities: BackendCapabilities;
+  /**
+   * How many times the solver has reset the state on its own since `compile` -- MuJoCo's autoreset
+   * after a bad acceleration, velocity or position. A plain counter rather than a channel, so a
+   * host can notice that the run it is showing is no longer the run it started, without the
+   * count entering any trajectory. Optional: a backend that never resets may leave it undefined,
+   * which reads as zero.
+   */
+  readonly resets?: number | undefined;
 
   init(config: BackendConfig): Promise<void>;
   /** Build the solver model. Returns every feature dropped, approximated or emulated. */

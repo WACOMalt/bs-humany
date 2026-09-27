@@ -7,8 +7,8 @@
  * that it adds what MuJoCo has no concept of -- anatomical taxonomy, fidelity profiles, morphology
  * parameters and module-binding metadata.
  *
- * Backend representations (MJCF, Rapier builder calls) are **compile targets**: generated from
- * this, never hand-edited, never round-tripped back.
+ * Backend representations (MJCF) are **compile targets**: generated from this, never
+ * hand-edited, never round-tripped back.
  */
 
 import { z } from 'zod';

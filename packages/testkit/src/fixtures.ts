@@ -1,7 +1,7 @@
 /**
  * Small hand-built articulations for backend tests: a single hinge under a very heavy root box
- * resting on the ground, so the root stays put on either backend without a kinematic switch and
- * the arm feels gravity. Init the backend with `ground: { height: PENDULUM_GROUND }`.
+ * resting on the ground, so the root stays put without a kinematic switch, which MuJoCo does not
+ * have, and the arm feels gravity. Init the backend with `ground: { height: PENDULUM_GROUND }`.
  */
 
 import { type CompiledArticulation, ROOT_NQ, ROOT_NV } from '@bs-humany/compiler';

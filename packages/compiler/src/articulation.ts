@@ -7,8 +7,9 @@
  * code never touches a string (spec 9.2).
  *
  * **Segment and DoF ordering is part of the contract.** Spec 9.2: it MUST be identical across
- * backends for the same model and profile, because that is what lets the conformance harness
- * compare two solvers element by element. The order is fixed by the compiler, not by any backend:
+ * backends for the same model and profile, because goldens, snapshots and recompile-and-restore
+ * address state by index, and it is what let the conformance harness compare two solvers element
+ * by element while there were two. The order is fixed by the compiler, not by any backend:
  * segments in the profile's declared order, joints in document order among those whose two bones
  * land in different segments, DoFs in each joint's declared order. Registration order of anything
  * plays no part.

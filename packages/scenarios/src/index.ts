@@ -2,11 +2,12 @@
  * `@bs-humany/scenarios` -- the committed scenario set of spec section 13.5.
  *
  * A scenario is declarative: which profile and morphology, how the body starts, what is in the
- * world, how long to run, and what a scripted hand does at each tick. The same scenario runs on
- * every backend, which is what makes the conformance harness (13.3) and the goldens (13.2) mean
- * something. Scripted actions are functions rather than data because a grab that follows a
- * circle is simplest written as one line of arithmetic; nothing in a script reaches a backend
- * directly, only the API the runner hands it.
+ * world, how long to run, and what a scripted hand does at each tick. Nothing in it names a
+ * backend, which is what makes the goldens (13.2) mean something, and what made the conformance
+ * harness (13.3) possible while there were two backends to compare. Scripted actions are
+ * functions rather than data because a grab that follows a circle is simplest written as one
+ * line of arithmetic; nothing in a script reaches a backend directly, only the API the runner
+ * hands it.
  */
 
 import type { StaticBox } from '@bs-humany/compiler';
@@ -71,7 +72,6 @@ export interface Scenario {
    * reason where it is set; the defaults live with the checks in the testkit.
    */
   readonly plausibility?: Readonly<Partial<Record<PlausibilityKey, number>>> | undefined;
-  readonly conformance?: Readonly<Partial<Record<ConformanceKey, number>>> | undefined;
   /** The nerves in the loop: a trained policy over the drive. */
   readonly nerves?: NervesSetup | undefined;
   /**
@@ -89,7 +89,6 @@ export type PlausibilityKey =
   | 'restKinetic'
   | 'drift'
   | 'ballistic';
-export type ConformanceKey = 'freeFlightCom' | 'restComHeight' | 'restKinetic' | 'dissipation';
 
 const REFERENCE: Morphology = { sex: 0.5, stature: 1.7, mass: 70 };
 const SUPINE = fromAxisAngle(vec3(1, 0, 0), Math.PI / 2);
@@ -570,9 +569,6 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       staticBoxes: stairs(v.steps as number, v.rise as number, v.run as number, 2),
       passiveJoints: true,
       passiveSystem: true,
-      // Which step the body comes to rest on is chaotic, so resting heights can differ by a few
-      // steps between backends; a whole flight is a metre, and that would be a bug.
-      conformance: { restComHeight: 0.6 },
     }),
   }),
   define({

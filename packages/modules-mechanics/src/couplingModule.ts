@@ -1,17 +1,18 @@
 /**
- * `CouplingModule` -- the Rapier side of M5.2, spec section 7.4.
+ * `CouplingModule` -- joint couplings emulated as torques, M5.2, spec section 7.4.
  *
- * MuJoCo enforces joint couplings as equality constraints. Rapier has no such thing, so on that
- * backend each coupling is a soft corrective torque: a spring-damper on the coupling error,
- * applied to the dependent DoF in the `actuate` phase through `actuation.jointTorque`. It is
- * one-way on purpose. Reacting the correction back onto the drivers is what an exact constraint
- * does, but with a steep polynomial (the patella's quartic) and an impulse solver's soft limits
- * the reaction pushed the knee past its stop, the target ran away, and the loop fed itself.
- * Drivers are read clamped to their ranges for the same reason. The Rapier backend reports the
- * couplings as approximated, and this is the approximation.
+ * MuJoCo enforces joint couplings natively, as equality constraints. A backend that cannot solve
+ * them declares `equalityConstraints` as approximated, and there each coupling is a soft
+ * corrective torque: a spring-damper on the coupling error, applied to the dependent DoF in the
+ * `actuate` phase through `actuation.jointTorque`. It is one-way on purpose. Reacting the
+ * correction back onto the drivers is what an exact constraint does, but with a steep polynomial
+ * (the patella's quartic) and an impulse solver's soft limits the reaction pushed the knee past
+ * its stop, the target ran away, and the loop fed itself. Drivers are read clamped to their
+ * ranges for the same reason. A backend that reports the couplings as approximated uses this as
+ * the approximation, which is what ADR-002's rule against silent approximation asks of it.
  *
- * On a backend that solves couplings natively the module does nothing, so a session can register
- * it unconditionally.
+ * On a backend that solves couplings natively -- MuJoCo, the only one there is today -- the module
+ * does nothing, so a session can register it unconditionally.
  */
 
 import type { BackendCapabilities, CompiledArticulation } from '@bs-humany/compiler';
@@ -147,27 +148,14 @@ export class CouplingModule implements SimModule {
     const torque = this.torque;
     if (!q || !qdot || !torque) return;
     for (const c of this.couplings) {
-      // Error and its rate: e = q_dep - f(q_drivers), de = qd_dep - sum f'(q_i) qd_i.
-      let target = c.offset;
-      let targetRate = 0;
-      for (const d of c.drivers) {
-        const raw = q[ROOT_NQ + d.dof] as number;
-        const x = Math.min(d.hi, Math.max(d.lo, raw));
-        const inside = raw === x;
-        const xd = inside ? (qdot[ROOT_NV + d.dof] as number) : 0;
-        target += d.c1 * x + d.c2 * x * x + d.c3 * x * x * x + d.c4 * x * x * x * x;
-        targetRate += (d.c1 + 2 * d.c2 * x + 3 * d.c3 * x * x + 4 * d.c4 * x * x * x) * xd;
-      }
-      // A target past the dependent's own stop would make the spring and the stop fight; the
-      // coupling can only ask for what the joint can give.
-      const clamped = Math.min(c.dependentHi, Math.max(c.dependentLo, target));
-      if (clamped !== target) targetRate = 0;
-      const error = (q[ROOT_NQ + c.dependent] as number) - clamped;
+      // Error: e = q_dep - f(q_drivers), with the drivers read clamped to their ranges and the
+      // target clamped to the dependent's own, because a target past its stop would make the
+      // spring and the stop fight; the coupling can only ask for what the joint can give.
+      const error = (q[ROOT_NQ + c.dependent] as number) - this.target(c, q);
       // Damp the dependent's own motion only: following the target's rate too would spike the
       // torque whenever a driver flails, which is how a light girdle segment between a heavy
       // thorax and a swinging arm was made to explode. The torque is capped at what a full-range
       // error would command, so a correction can never exceed the stop's own scale.
-      void targetRate;
       const raw = -c.stiffness * error - c.damping * (qdot[ROOT_NV + c.dependent] as number);
       const cap = c.stiffness * (c.dependentHi - c.dependentLo);
       const lambda = Math.max(-cap, Math.min(cap, raw));
