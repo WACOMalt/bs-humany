@@ -63,6 +63,12 @@ import { MlpPolicy, type PolicyFile } from './policy.js';
 
 export const NERVES_MODULE_ID = 'bsums.xyz.bs-humany.nerves';
 
+/**
+ * The goal a module without one observes: nothing. One shared empty array rather than a fresh
+ * literal at each evaluation, which was an allocation in `step` a hundred times a second (rule 9).
+ */
+const NO_GOAL: ArrayLike<number> = new Float64Array(0);
+
 /** One output of the policy: a name, and the units it drives with their weights. */
 export interface DriveOutput {
   readonly id: string;
@@ -342,7 +348,7 @@ export class NervesModule implements SimModule {
     if (this.sinceEvaluation >= this.controlDivisor) {
       this.sinceEvaluation = 0;
       this.evaluations += 1;
-      this.observation.fill(this.obs, this.goal ? this.goal() : []);
+      this.observation.fill(this.obs, this.goal ? this.goal() : NO_GOAL);
       // A NaN anywhere in the senses would become a NaN in every muscle within a tick; a sense
       // that has gone wrong reads as nothing instead, and the count says so.
       for (let i = 0; i < this.obs.length; i++) {

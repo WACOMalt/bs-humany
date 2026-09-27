@@ -14,8 +14,9 @@
  * JavaScript cannot make a typed array read-only, so a read view is the same memory as the write
  * view. The registry therefore also offers an **audit**: it hashes every channel a module did not
  * declare a write to before and after that module's step, and throws on a change. The audit is
- * for development and tests; it costs a pass over every buffer per module per tick and is off in
- * production.
+ * for development and tests; it costs a pass over every buffer per module per tick. Every vitest
+ * run turns it on through `BS_HUMANY_KERNEL_AUDIT`, a host opts in with `KernelOptions.audit`, and
+ * it is off otherwise.
  *
  * ## Backing
  *
@@ -137,6 +138,15 @@ export function allocateChannel(spec: ChannelSpec, preferShared: boolean): Chann
 
 interface Registration {
   readonly storage: ChannelStorage;
+  /** The whole channel as bytes, for `hash`. Made once here, so hashing allocates nothing. */
+  readonly bytes: Uint8Array;
+  /**
+   * The whole channel as signed 32-bit words, for the kernel's audit (see `sameWords` there for
+   * why signed). Made once here rather than per call, because the audit reads every channel after
+   * every module's step, and a view per read would be an allocation per channel per module per
+   * tick on the step path.
+   */
+  readonly words: Int32Array;
   readonly giver: string;
   writer: string | null;
   readonly accumulators: Set<string>;
@@ -169,6 +179,10 @@ export class ChannelRegistry {
     const storage = allocateChannel(spec, this.#preferShared);
     this.#channels.set(spec.id, {
       storage,
+      bytes: new Uint8Array(storage.buffer, 0, storage.buffer.byteLength),
+      // `allocateChannel` rounds the header and every field to eight bytes, so the words cover
+      // the buffer exactly and no trailing byte escapes the audit.
+      words: new Int32Array(storage.buffer, 0, storage.buffer.byteLength / 4),
       giver,
       writer: null,
       accumulators: new Set(),
@@ -250,10 +264,25 @@ export class ChannelRegistry {
     return this.#channels.has(id);
   }
 
+  /**
+   * Host-only, unchecked accessor for transport, snapshot and read-only display. Never handed to a
+   * module; a write through it bypasses declared access.
+   */
   storage(id: string): ChannelStorage {
     const reg = this.#channels.get(id);
     if (!reg) throw new Error(`Channel '${id}' does not exist.`);
     return reg.storage;
+  }
+
+  /**
+   * The whole channel as 32-bit words, header included, for the kernel's declared-access audit.
+   * Host-only and unchecked, like `storage`: never handed to a module. Always the same view for a
+   * channel, so the kernel can take it once at init.
+   */
+  words(id: string): Int32Array {
+    const reg = this.#channels.get(id);
+    if (!reg) throw new Error(`Channel '${id}' does not exist.`);
+    return reg.words;
   }
 
   writerOf(id: string): string | null {
@@ -285,13 +314,26 @@ export class ChannelRegistry {
     return out.sort();
   }
 
-  /** Cheap order-sensitive hash of a channel's bytes, for the audit and the determinism harness. */
+  /**
+   * Cheap order-sensitive hash of a channel's bytes, for the determinism harness.
+   *
+   * FNV-1a, a byte at a time. Folding whole 32-bit words would be a quarter of the work, and was
+   * tried, but XOR and a multiply by an odd prime only ever carry a change upward: a flip of a
+   * word's top bit -- a float's sign bit -- flips only the hash's top bit and survives every later
+   * step, so two sign flips cancel. Two runs that differ by a negated quaternion would then hash
+   * alike. A byte at a time, a sign bit enters at bit 7 and the multiply and later bytes' carries
+   * spread it, so paired flips no longer line up (kernel.test.ts pins one such pair). It is still a
+   * 32-bit hash and can collide; the audit, which must not miss a write, compares the words
+   * themselves instead (`words`). The values are the ones this hash gave when it made a byte view
+   * per call; that view is now made once, in `give`, so it allocates nothing.
+   */
   hash(id: string): number {
-    const storage = this.storage(id);
-    const bytes = new Uint8Array(storage.buffer, 0, storage.buffer.byteLength);
+    const reg = this.#channels.get(id);
+    if (!reg) throw new Error(`Channel '${id}' does not exist.`);
+    const bytes = reg.bytes;
     let h = 2166136261;
     for (let i = 0; i < bytes.length; i++) {
-      h ^= bytes[i] ?? 0;
+      h ^= bytes[i] as number;
       h = Math.imul(h, 16777619) >>> 0;
     }
     return h;

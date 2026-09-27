@@ -29,6 +29,16 @@ const TORQUE: ChannelSpec = {
   backing: 'local',
 };
 
+const ORIENTATION: ChannelSpec = {
+  id: 'body.orientation',
+  version: '1.0.0',
+  layout: 'SoA',
+  fields: [{ name: 'orientation', dtype: 'f64', components: 4 }],
+  elementCount: 1,
+  mode: 'single-writer',
+  backing: 'local',
+};
+
 const manifest = (
   id: string,
   phase: Phase,
@@ -258,20 +268,38 @@ describe('stepping', () => {
   });
 });
 
+/** Gives the orientation channel, sets it to `start` at init, and leaves it alone thereafter. */
+function orienter(start: readonly number[]): SimModule {
+  return {
+    manifest: manifest('orienter', 'solve', {
+      gives: [ORIENTATION],
+      writes: [{ id: ORIENTATION.id, version: '^1.0.0' }],
+    }),
+    init(ctx) {
+      (ctx.write(ORIENTATION.id).fields.orientation as Float64Array).set(start);
+    },
+    step() {},
+  };
+}
+
+/** A module that writes the pose through the read view it declared, which the audit must catch. */
+function rogue(): SimModule {
+  return {
+    manifest: manifest('rogue', 'post', { reads: [{ id: POSE.id, version: '^1.0.0' }] }),
+    init(ctx) {
+      // A read view is the same memory as the write view; JS cannot make it read-only.
+      this.view = ctx.read(POSE.id);
+    },
+    step() {
+      (this.view?.fields.position as Float64Array)[2] = 42;
+    },
+    view: undefined as ChannelView | undefined,
+  } as SimModule & { view: ChannelView | undefined };
+}
+
 describe('audit', () => {
   it('catches a module writing a channel it did not declare', async () => {
-    const rogue: SimModule = {
-      manifest: manifest('rogue', 'post', { reads: [{ id: POSE.id, version: '^1.0.0' }] }),
-      init(ctx) {
-        // A read view is the same memory as the write view; JS cannot make it read-only.
-        this.view = ctx.read(POSE.id);
-      },
-      step() {
-        (this.view?.fields.position as Float64Array)[2] = 42;
-      },
-      view: undefined as ChannelView | undefined,
-    } as SimModule & { view: ChannelView | undefined };
-    const k = await kernelWith([physics(), rogue], { audit: true });
+    const k = await kernelWith([physics(), rogue()], { audit: true });
     expect(() => k.step()).toThrow(
       /'rogue' changed channel 'body.pose' during step at tick 0 without declaring a write/,
     );
@@ -280,6 +308,77 @@ describe('audit', () => {
   it('is silent for a well-behaved module set', async () => {
     const k = await kernelWith([physics(), actuator('nerve', 1)], { audit: true });
     expect(() => k.run(5)).not.toThrow();
+  });
+
+  // The audit carries each channel's hash through the tick rather than taking it around each
+  // module, so these two pin what that must still allow: a host writing between ticks (the
+  // studio's drag, a scenario script), and a module reading what an earlier one declared.
+  it('allows the host to write between ticks', async () => {
+    const k = await kernelWith([physics(), actuator('nerve', 1)], { audit: true });
+    const position = k.channels.storage(POSE.id).fields.position as Float64Array;
+    for (let i = 0; i < 4; i++) {
+      position[2] = i;
+      expect(() => k.step()).not.toThrow();
+    }
+  });
+
+  it('holds a later module to what an earlier one wrote, not to the start of the tick', async () => {
+    // Physics moves the pose in solve every tick, under the actuator's torque; a reader in post
+    // leaves it alone. Were the reader held to the pose as the tick began, physics' declared write
+    // would be blamed on it.
+    const log: string[] = [];
+    const reader = logger(log, 'reader', 'post', { reads: [{ id: POSE.id, version: '^1.0.0' }] });
+    const k = await kernelWith([physics(), actuator('nerve', 1), reader], { audit: true });
+    const position = k.channels.storage(POSE.id).fields.position as Float64Array;
+    expect(() => k.run(5)).not.toThrow();
+    expect(position[0]).not.toBe(0);
+  });
+
+  // CONTRIBUTING rule 6 says an undeclared write is caught, and this is what makes that true of
+  // every module test rather than only of the ones that remember to ask: vitest.config.ts sets
+  // BS_HUMANY_KERNEL_AUDIT, and a kernel built with no audit option follows it.
+  it('is on by default under vitest', async () => {
+    const k = await kernelWith([physics(), rogue()]);
+    expect(() => k.step()).toThrow(/'rogue' changed channel 'body.pose'/);
+  });
+
+  // The audit must see any change to any bit, not only the ones a hash happens to catch. A sign
+  // flip is the undeclared write a module is most likely to make by mistake -- a quaternion
+  // hemisphere fix-up, q -> -q, done in place on a view it only declared a read of -- and each
+  // flip changes only the top bit of a word, so a word-wise FNV-1a let an even number of them
+  // cancel. A swap changes where two values are but not what they are, and a one-ulp nudge
+  // changes one bit. A hash can miss any of these; the audit compares the words themselves.
+  it.each([
+    ['negates a whole quaternion', [0.5, 0.5, 0.5, 0.5], [-0.5, -0.5, -0.5, -0.5]],
+    ['negates two components', [0.5, 0.5, 0.5, 0.5], [0.5, -0.5, 0.5, -0.5]],
+    ['swaps two components', [0.5, 0.25, 0.5, 0.5], [0.5, 0.5, 0.25, 0.5]],
+    ['nudges one component by an ulp', [0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5000000000000001]],
+  ])('catches a module that %s through a read view', async (_, start, edited) => {
+    let view: ChannelView | undefined;
+    const editor: SimModule = {
+      manifest: manifest('editor', 'post', { reads: [{ id: ORIENTATION.id, version: '^1.0.0' }] }),
+      init(ctx) {
+        view = ctx.read(ORIENTATION.id);
+      },
+      step() {
+        (view?.fields.orientation as Float64Array).set(edited);
+      },
+    };
+    const k = await kernelWith([orienter(start), editor], { audit: true });
+    expect(() => k.step()).toThrow(/'editor' changed channel 'body.orientation'/);
+  });
+
+  // The determinism harness compares stateHash across runs, so it is held to the same pair: two
+  // states a negated quaternion apart must not hash alike, as they did under the word-wise fold.
+  it('gives a negated quaternion a different stateHash', async () => {
+    const ka = await kernelWith([orienter([0.5, 0.5, 0.5, 0.5])], { audit: false });
+    const kb = await kernelWith([orienter([-0.5, -0.5, -0.5, -0.5])], { audit: false });
+    expect(kb.stateHash()).not.toBe(ka.stateHash());
+  });
+
+  it('stays off when a host says so, whatever the environment', async () => {
+    const k = await kernelWith([physics(), rogue()], { audit: false });
+    expect(() => k.run(3)).not.toThrow();
   });
 });
 

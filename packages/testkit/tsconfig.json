@@ -8,6 +8,7 @@
   "references": [
     { "path": "../compiler" },
     { "path": "../frames" },
+    { "path": "../hsdl" },
     { "path": "../kernel" },
     { "path": "../modules-mechanics" },
     { "path": "../scenarios" },

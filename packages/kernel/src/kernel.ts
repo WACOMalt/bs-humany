@@ -37,8 +37,14 @@ export interface KernelOptions {
   /** Prefer SharedArrayBuffer for `shared` channels when available. */
   readonly preferShared?: boolean;
   /**
-   * Hash every channel a module did not declare before and after its step, and throw on a change.
-   * Development and tests only: it costs a pass over every buffer per module per tick.
+   * Check that a module's step leaves every channel it did not declare bit-for-bit as it found it,
+   * and throw on any change. Development and tests only: it keeps a copy of every channel and costs
+   * a pass over every buffer per module per tick.
+   *
+   * Left unset, it follows the environment: on when `BS_HUMANY_KERNEL_AUDIT` is `1`, which
+   * `vitest.config.ts` sets for every test run, and off everywhere else, including every browser.
+   * A host that wants it regardless passes `true`; one that must not pay for it inside a test run
+   * passes `false`.
    */
   readonly audit?: boolean;
   /** Per-module configuration, keyed by module id. */
@@ -70,11 +76,37 @@ export interface KernelSnapshot {
   readonly modules: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Whether the environment asks for the audit. Read through `globalThis` so the kernel neither
+ * imports Node types nor throws where there is no `process` -- a browser, a Worker in one.
+ */
+function auditFromEnvironment(): boolean {
+  const process = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process;
+  return typeof process === 'object' && process.env?.BS_HUMANY_KERNEL_AUDIT === '1';
+}
+
+/**
+ * Whether two equal-length word views hold the same bits. Signed words, not unsigned: an unsigned
+ * word at or above 2^31 is not a small integer to V8, so every float with its sign or top exponent
+ * bit set would leave the fast path, and the loop ran slower than the hash it replaced.
+ */
+function sameWords(a: Int32Array, b: Int32Array): boolean {
+  const n = a.length;
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 interface Scheduled {
   readonly module: SimModule;
   readonly rateDivisor: number;
-  readonly audited: readonly string[];
+  /** Indices into the kernel's audit id list of the channels this module must not change. */
+  readonly audited: Int32Array;
+  /** Indices of the channels it writes or accumulates into, whose kept copies it moves on. */
+  readonly declared: Int32Array;
 }
+
+const NONE = new Int32Array(0);
 
 class StepContext implements ModuleStepContext {
   tick = 0;
@@ -92,7 +124,18 @@ export class Kernel {
   readonly #stepContext = new StepContext();
   #schedule: Scheduled[] = [];
   #initialised = false;
-  #hashScratch: number[] = [];
+  /** Whether the declared-access audit runs, resolved once at init. */
+  #auditing = false;
+  /** Every channel id, in the order the audit's indices refer to. */
+  #auditIds: readonly string[] = [];
+  /** Each channel's live words, in `#auditIds` order, taken once at init. */
+  #auditLive: readonly Int32Array[] = [];
+  /**
+   * What each channel should hold right now: copied from every channel at the top of the tick, and
+   * moved on after each module's step for the channels that module declared. Allocated at init, so
+   * the audit allocates nothing per tick.
+   */
+  #auditKept: readonly Int32Array[] = [];
 
   constructor(options: KernelOptions) {
     this.#options = options;
@@ -143,10 +186,25 @@ export class Kernel {
     }
 
     // The audit lists are computed after every declaration is in, so they see the final ownership.
-    this.#schedule = this.#schedule.map((s) => ({
-      ...s,
-      audited: this.#options.audit ? this.channels.undeclaredFor(s.module.manifest.id) : [],
-    }));
+    this.#auditing = this.#options.audit ?? auditFromEnvironment();
+    if (this.#auditing) {
+      const ids = this.channels.ids();
+      const index = new Map(ids.map((id, i) => [id, i]));
+      this.#auditIds = ids;
+      this.#auditLive = ids.map((id) => this.channels.words(id));
+      this.#auditKept = this.#auditLive.map((live) => new Int32Array(live.length));
+      this.#schedule = this.#schedule.map((s) => {
+        const undeclared = new Set(this.channels.undeclaredFor(s.module.manifest.id));
+        return {
+          ...s,
+          audited: Int32Array.from(undeclared, (id) => index.get(id) ?? -1),
+          declared: Int32Array.from(
+            ids.filter((id) => !undeclared.has(id)),
+            (id) => index.get(id) ?? -1,
+          ),
+        };
+      });
+    }
     this.#initialised = true;
   }
 
@@ -252,7 +310,12 @@ export class Kernel {
       }
       for (const id of placed) {
         const module = byId.get(id) as SimModule;
-        out.push({ module, rateDivisor: module.manifest.rateDivisor ?? 1, audited: [] });
+        out.push({
+          module,
+          rateDivisor: module.manifest.rateDivisor ?? 1,
+          audited: NONE,
+          declared: NONE,
+        });
       }
     }
     return out;
@@ -288,13 +351,14 @@ export class Kernel {
 
     this.channels.zeroAccumulators();
 
+    const auditing = this.#auditing;
+    if (auditing) this.#auditStart();
     const schedule = this.#schedule;
     for (let i = 0; i < schedule.length; i++) {
       const s = schedule[i] as Scheduled;
       if (s.rateDivisor !== 1 && !this.clock.shouldRun(s.rateDivisor)) continue;
-      if (s.audited.length > 0) this.#auditBefore(s);
       s.module.step(ctx);
-      if (s.audited.length > 0) this.#auditAfter(s);
+      if (auditing) this.#auditAfter(s);
     }
 
     this.clock.advance();
@@ -304,22 +368,46 @@ export class Kernel {
     for (let i = 0; i < ticks; i++) this.step();
   }
 
-  #auditBefore(s: Scheduled): void {
-    const scratch = this.#hashScratch;
-    scratch.length = 0;
-    for (const id of s.audited) scratch.push(this.channels.hash(id));
+  /*
+   * The audit. Each module must leave every channel it did not declare as it found it, so every
+   * channel is copied once at the top of the tick -- after the accumulators are zeroed and whatever
+   * the host wrote between ticks, both of which are allowed -- and the copy is carried through the
+   * tick: after a module's step, the channels it did not declare must still match their copies word
+   * for word, and the ones it did declare are copied again so the next module is held to what this
+   * one left. That is one pass over every channel per module, where checking each module's
+   * undeclared channels before and after its step was two.
+   *
+   * It compares the words rather than a hash of them because a hash can collide, and the audit is
+   * the only thing between a write through a read view and a silently wrong simulation. An earlier
+   * word-wise FNV-1a let two sign flips cancel, so a module negating a quaternion in place got
+   * through. Comparing is exact for any change to any bit, and it is cheaper than hashing: the copy
+   * is a block move, and the check is one compare per word where the hash was a dependent multiply
+   * per word. On a kernel with the trainer's channels it took about two thirds of the word hash's
+   * time per tick. The words are compared as integers, not floats, so a NaN matches itself and -0
+   * does not match 0. The copies cost as much memory again as the channels, and only when auditing.
+   */
+  #auditStart(): void {
+    const live = this.#auditLive;
+    const kept = this.#auditKept;
+    for (let i = 0; i < live.length; i++) (kept[i] as Int32Array).set(live[i] as Int32Array);
   }
 
   #auditAfter(s: Scheduled): void {
+    const live = this.#auditLive;
+    const kept = this.#auditKept;
     for (let i = 0; i < s.audited.length; i++) {
-      const id = s.audited[i] as string;
-      if (this.channels.hash(id) !== this.#hashScratch[i]) {
+      const at = s.audited[i] as number;
+      if (!sameWords(live[at] as Int32Array, kept[at] as Int32Array)) {
         throw new Error(
-          `Module '${s.module.manifest.id}' changed channel '${id}' during step at tick ` +
-            `${this.clock.tick} without declaring a write or accumulation. Declared access is ` +
-            'enforced (ADR-004).',
+          `Module '${s.module.manifest.id}' changed channel '${this.#auditIds[at]}' during step ` +
+            `at tick ${this.clock.tick} without declaring a write or accumulation. Declared ` +
+            'access is enforced (ADR-004).',
         );
       }
+    }
+    for (let i = 0; i < s.declared.length; i++) {
+      const at = s.declared[i] as number;
+      (kept[at] as Int32Array).set(live[at] as Int32Array);
     }
   }
 

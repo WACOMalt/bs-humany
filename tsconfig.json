@@ -61,6 +61,12 @@
     },
     {
       "path": "./packages/pose-bridge"
+    },
+    {
+      "path": "./packages/scenarios"
+    },
+    {
+      "path": "./packages/testkit"
     }
   ]
 }

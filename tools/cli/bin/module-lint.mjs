@@ -14,6 +14,12 @@
  *      flag something harmless; the escape hatch is a `// allocation-ok: <reason>` comment on the
  *      line, which makes the exception visible in review.
  *
+ *      The check is lexical. It sees only the source text inside a function named `step` and does
+ *      not follow the calls made from there, so a helper that `step` calls every tick can allocate
+ *      without being flagged. Following callees is a separate check (sim-core/tick-path-allocations)
+ *      that lands once the allocations it would find are gone; until then those helpers are held
+ *      to rule 9 by review alone.
+ *
  * Undeclared channel access is enforced at runtime by the kernel and its audit mode, not here.
  */
 
@@ -23,15 +29,30 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 
-/** Packages whose code runs on the simulation thread. */
+/**
+ * Packages whose code runs on the simulation thread.
+ *
+ * Every `modules-*` and `backend-*` package is found by name rather than listed, because a hand-kept
+ * list is how the nerves came to run every tick for months without being scanned: nobody adds a
+ * package to a list whose purpose they have not read. The rest are named here -- the libraries the
+ * modules call into every tick, and the scenarios, whose scripts run once per tick in every host
+ * and so share the determinism contract. A backend that still exists is scanned whether or not it
+ * is enabled: it is compiled and tested, and it would be enabled again as it stands.
+ */
+const PACKAGES = join(ROOT, 'packages');
 const SIMULATION_PACKAGES = [
   'packages/kernel',
-  'packages/modules-mechanics',
-  'packages/modules-sensing',
-  'packages/modules-muscle',
-  'packages/backend-rapier',
-  'packages/backend-mujoco',
   'packages/compiler',
+  'packages/muscle-model',
+  'packages/muscle-path',
+  'packages/muscle-volume',
+  'packages/scenarios',
+  ...readdirSync(PACKAGES)
+    .filter(
+      (name) => /^(modules|backend)-/.test(name) && statSync(join(PACKAGES, name)).isDirectory(),
+    )
+    .sort()
+    .map((name) => `packages/${name}`),
 ];
 
 const BANNED = [
