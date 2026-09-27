@@ -9,11 +9,12 @@ sidecar, and the mesh pack it draws.
 
 ## What the page can ask the host for
 
-Nineteen commands, in five families -- every name `generate_handler!` registers in `src/main.rs`,
+Twenty commands, in five families -- every name `generate_handler!` registers in `src/main.rs`,
 whose header says the same. None of them takes a path from the page: each family is bounded so
 that a page doing its worst reaches only what that family is for.
 
-**File dialogs: `save_file`, `save_file_set`, `open_text_file`.** These are not a preference. A
+**Dialogs: `save_file`, `save_file_set`, `open_text_file`, `confirm_discard`.** These are not a
+preference. A
 web view is not a browser: `<a download>` has no download handler behind it and
 `<input type="file">` has no file chooser, so in the binary Save, Load and Export clicked and did
 nothing and said nothing. They go through a native dialog instead, and the shape keeps that at
@@ -21,7 +22,10 @@ what a Save button means. The page hands over file names and the bytes; it does 
 and never learns the one chosen, so the dialog is the only thing that decides where a file lands.
 `save_file_set` asks for a folder once, because a Blender export is three files that are no use
 apart, and it refuses any name that is not a plain file name. `open_text_file` asks for a session
-file and hands back its text.
+file and hands back its text. `confirm_discard` asks one yes-or-no question, a few hundred
+characters at most, before Reset, a restart, a session load, a follow or a checkpoint's set-up
+throws away a recording longer than a few seconds: the same plugin's warning dialog, with buttons
+that say what they do, rather than whatever the web view makes of `window.confirm`.
 
 **The VR bridge: `bridge_claim`, `bridge_release`, `bridge_create`, `bridge_write`,
 `bridge_text`, `bridge_read_pair`, `bridge_commands`, `bridge_close`, `bridge_clear`.** The page

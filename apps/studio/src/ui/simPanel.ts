@@ -24,7 +24,7 @@ import type { StudioRuns } from '../runController.js';
 import { clampToStep, controlKind, isChanged } from '../scenarioControls.js';
 import type { Controls } from '../sessionWiring.js';
 import type { Simulation } from '../simulation.js';
-import { blurAfterMouse, must, setText } from './dom.js';
+import { must, setText } from './dom.js';
 
 const MEBIBYTE = 1024 * 1024;
 /** Four bytes a float: both captures store single precision. */
@@ -662,12 +662,8 @@ export function createSimPanel(host: SimPanelHost): SimPanel {
     control.addEventListener('input', () => panel.showPendingChanges());
     control.addEventListener('change', () => panel.showPendingChanges());
   }
-  // Straight to a new run, not through the Start button: that button carries a paused run on,
-  // and the point here is a run built with the settings as they now stand, paused or not.
-  must<HTMLButtonElement>('#pending-restart').addEventListener('click', (event) => {
-    blurAfterMouse(event);
-    void runs.start();
-  });
+  // The strip's "Restart with current settings" is the transport's (`ui/transport.ts`): it is the
+  // one press that throws a run away to start another, and it asks first as Reset does.
 
   return panel;
 }

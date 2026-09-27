@@ -207,9 +207,13 @@ tab, the same controls sending the same keys:
   it summed over both sides -- then how many units are loaded, wrapping and out of range.
 - **Brain** -- the checkpoints the studio's Brain tab lists: the dashboard's while it runs,
   otherwise the ones this studio trained or shipped with. `pnpm publish:pose` sends no brain, so
-  from it the list is empty. Then the authority, Hand over and Release, the fit line; Start and Stop
-  training, and Follow bridge, which reads Stop following once it is following, with the training
-  line. Stop training stops the showcase that plays the run as well as the trainer, which is what
+  from it the list is empty. Choosing one only shows it, and the desktop's line under the list
+  says how it was trained and what differs; Set up as trained puts that on the desktop's tabs,
+  Authority included, and Undo set-up takes it back once. Neither asks anything on the desktop,
+  where nobody in the headset could answer. Then the authority, Hand over (which sets up first
+  when the tabs differ, restarting a run whose scene or body changes) and Release, the fit line;
+  Start and Stop training, and Follow bridge, which reads Stop following once it is following,
+  with the training line. Stop training stops the showcase that plays the run as well as the trainer, which is what
   the studio follows. The training's generations, population, episode length and workers are as set
   on the desktop; the activity bitmap stays there too.
 - **Export** -- what cannot be done from a headset, disabled, with the line that says why.

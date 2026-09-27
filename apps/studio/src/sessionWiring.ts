@@ -102,6 +102,13 @@ export interface SessionHost {
   brain(): BrainPanel;
   /** Every set of run buttons on the page, refreshed together. */
   setRunControls(running: boolean): void;
+  /**
+   * Whether it is all right to throw the running body's recording away; asks the person when it
+   * is long. Loading a session always does throw it away, and only a person at the desktop loads
+   * one.
+   * @see Transport.confirmDiscard
+   */
+  confirmDiscard(what: string): Promise<boolean>;
 }
 
 export interface SessionWiring {
@@ -451,14 +458,18 @@ export function createSessionWiring(host: SessionHost): SessionWiring {
       if (settings.scenario !== '' && !definitionFor(settings.scenario)) {
         throw new Error(`it names the scenario ${settings.scenario}, which this studio lacks.`);
       }
+      // Asked once the file is known to be one that will load: a file that is refused changes
+      // nothing, and a question about a run the load never touches would be asked for nothing.
+      if (!(await host.confirmDiscard('Loading this session'))) return;
       // A session with a run in it starts that run. Stopped first, so the settings going in do not
       // carry the old run across into a restart of their own that the snapshot then races.
       if (parsed.simulation) runs.stop();
       // What was said before the load is not about it, and whatever this load says is gathered on
       // the line from here. An error stays, as it does when a run starts.
       status.dismissAnnouncement(true);
-      // The checkpoint before the settings. Choosing one in the list sets the scene and the body
-      // from its recipe, and the session's own settings are the ones that must win.
+      // The checkpoint before the settings. Choosing one in the list only shows it now -- its
+      // recipe goes on the tabs only through Set up as trained -- but the session's own settings
+      // are the ones that must win, so they still go on last.
       const missing =
         settings.checkpoint && (await chooseSessionCheckpoint(settings.checkpoint))
           ? settings.checkpoint

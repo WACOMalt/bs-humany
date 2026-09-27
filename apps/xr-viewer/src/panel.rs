@@ -25,7 +25,7 @@
 //! and `render.rs` gives every texture a mip chain, so text read from across the room is averaged
 //! rather than shimmering.
 
-use crate::bridge::{ControlRange, Status};
+use crate::bridge::{Brain, ControlRange, Status};
 
 /// Metres a point.
 pub const POINT_METRES: f32 = 0.001;
@@ -230,7 +230,8 @@ pub enum Command {
     /// A setting by name; the publisher decides whether it rebuilds. `overlay.<name>` is a
     /// viewport overlay, `scenario.<id>` a scenario's own parameter.
     Set(String, serde_json::Value),
-    /// The brain: select, handover, release, authority, trainStart, trainStop, follow.
+    /// The brain: select, setup, undoSetup, handover, release, authority, trainStart, trainStop,
+    /// follow, and the cord's and the memory's sliders.
     Brain {
         action: &'static str,
         id: Option<String>,
@@ -1391,15 +1392,49 @@ fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &
     });
 }
 
+/// A button on the Brain tab: its label, whether the desktop says it would do anything now, and
+/// the action it sends.
+struct BrainButton {
+    label: &'static str,
+    enabled: bool,
+    action: &'static str,
+}
+
+/// The Brain tab's two rows of policy buttons, from the desktop's own flags: setting the tabs up
+/// as the chosen checkpoint was trained and taking that back, then handing over and releasing.
+///
+/// Choosing a checkpoint in the list only shows it, on the desktop and here. The desktop's list
+/// used to set its tabs up from the checkpoint's recipe as it was chosen, restarting a running
+/// body, and the headset's list did the same through it; the change is these buttons' now. Hand
+/// over sets the tabs up first when they differ, so it can restart the run too, and the desktop's
+/// note under the list says what would change.
+fn brain_buttons(b: &Brain) -> [[BrainButton; 2]; 2] {
+    [
+        [
+            BrainButton { label: "Set up as trained", enabled: b.can_set_up, action: "setup" },
+            BrainButton { label: "Undo set-up", enabled: b.can_undo_set_up, action: "undoSetup" },
+        ],
+        [
+            BrainButton { label: "Hand over control", enabled: b.can_hand_over, action: "handover" },
+            BrainButton { label: "Release", enabled: b.can_release, action: "release" },
+        ],
+    ]
+}
+
+/// One row of them, sending what is pressed.
+fn brain_button_row(ui: &mut egui::Ui, row: &[BrainButton; 2], commands: &mut Vec<Command>) {
+    ui.horizontal(|ui| {
+        for button in row {
+            if ui.add_enabled(button.enabled, egui::Button::new(button.label)).clicked() {
+                commands.push(Command::Brain { action: button.action, id: None, value: None });
+            }
+        }
+    });
+}
+
 fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     let b = &s.brain;
     heading(ui, "Policy in the loop");
-    // The desktop's own note, said here as it says it there. This used to be a note of the
-    // headset's own sending everyone to a terminal whenever no dashboard was running, which had
-    // stopped being true: the desktop lists what it trained and shipped without one.
-    if !b.policy_note.is_empty() {
-        note(ui, &b.policy_note);
-    }
     ui.label("Checkpoint");
     ui.horizontal_wrapped(|ui| {
         if ui.selectable_label(b.selected.is_empty(), "None").clicked() && !b.selected.is_empty() {
@@ -1412,20 +1447,23 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
             }
         }
     });
+    // The desktop's own note, said here as it says it there, and under the list as it is there:
+    // with a checkpoint chosen, how it was trained and what Set up as trained would change, which
+    // is what somebody choosing one wants to read before pressing anything. This used to be a note
+    // of the headset's own sending everyone to a terminal whenever no dashboard was running, which
+    // had stopped being true: the desktop lists what it trained and shipped without one.
+    if !b.policy_note.is_empty() {
+        note(ui, &b.policy_note);
+    }
+    // Every button on this tab is enabled exactly when the desktop's is, from the flags it sends:
+    // the rules live in one place on the desktop, and a copy of them kept here drifted from it.
+    let [set_up, hand_over] = brain_buttons(b);
+    brain_button_row(ui, &set_up, commands);
     if let Some(v) = slider(ui, editing, s, "brain.authority", "authority", b.authority, false) {
         commands.push(Command::Brain { action: "authority", id: None, value: Some(v) });
     }
     note(ui, "The most one output may add to or take from a group's excitation.");
-    // Every button on this tab is enabled exactly when the desktop's is, from the flags it sends:
-    // the rules live in one place on the desktop, and a copy of them kept here drifted from it.
-    ui.horizontal(|ui| {
-        if ui.add_enabled(b.can_hand_over, egui::Button::new("Hand over control")).clicked() {
-            commands.push(Command::Brain { action: "handover", id: None, value: None });
-        }
-        if ui.add_enabled(b.can_release, egui::Button::new("Release")).clicked() {
-            commands.push(Command::Brain { action: "release", id: None, value: None });
-        }
-    });
+    brain_button_row(ui, &hand_over, commands);
     if !b.fit.is_empty() {
         note(ui, &b.fit);
     }
@@ -1811,6 +1849,66 @@ mod tests {
         let mut without = fixture();
         without.controls.remove("stature");
         assert_eq!(stature_row(&without, column), None);
+    }
+
+    #[test]
+    fn the_brain_buttons_are_the_desktops_flags_and_send_its_actions() {
+        // The actions are the ones the desktop's `act` takes by name; a typo here is a button
+        // that sends a line the desktop drops.
+        let status = fixture();
+        let [set_up, hand_over] = brain_buttons(&status.brain);
+        let row = |r: &[BrainButton; 2]| r.iter().map(|b| (b.label, b.enabled, b.action)).collect::<Vec<_>>();
+        assert_eq!(
+            row(&set_up),
+            [("Set up as trained", true, "setup"), ("Undo set-up", true, "undoSetup")]
+        );
+        assert_eq!(
+            row(&hand_over),
+            [("Hand over control", true, "handover"), ("Release", false, "release")]
+        );
+        // A desktop that says nothing of them offers neither.
+        let mut before = status.brain.clone();
+        before.can_set_up = false;
+        before.can_undo_set_up = false;
+        let [set_up, _] = brain_buttons(&before);
+        assert!(set_up.iter().all(|b| !b.enabled));
+    }
+
+    /// Every brain action a click anywhere on the top of the Brain tab sends, found as a person
+    /// would find the buttons: by pressing down the tab's column, right of the tab strip -- a press
+    /// on the strip would change tabs -- and letting go where they pressed.
+    fn brain_actions_clicked(status: &Status) -> Vec<&'static str> {
+        let mut panel = Panel::new(Kind::Properties);
+        panel.tab = Tab::Brain;
+        let mut sent = Vec::new();
+        for y in (60..520).step_by(6) {
+            for x in (170..640).step_by(30) {
+                let at = Some(egui::pos2(x as f32, y as f32));
+                step(&mut panel, status, at, false, 0.0);
+                step(&mut panel, status, at, true, 0.0);
+                for command in step(&mut panel, status, at, false, 0.0).commands {
+                    if let Command::Brain { action, .. } = command {
+                        sent.push(action);
+                    }
+                }
+            }
+        }
+        sent
+    }
+
+    #[test]
+    fn set_up_as_trained_and_its_undo_are_pressed_on_the_brain_tab_and_only_when_offered() {
+        let status = fixture();
+        let sent = brain_actions_clicked(&status);
+        assert!(sent.contains(&"setup"), "{sent:?}");
+        assert!(sent.contains(&"undoSetup"), "{sent:?}");
+        // Offered neither, pressing where they are sends neither; the rest of the tab still works.
+        let mut without = fixture();
+        without.brain.can_set_up = false;
+        without.brain.can_undo_set_up = false;
+        let sent = brain_actions_clicked(&without);
+        assert!(!sent.contains(&"setup") && !sent.contains(&"undoSetup"), "{sent:?}");
+        assert!(sent.contains(&"handover"), "{sent:?}");
     }
 
     #[test]

@@ -138,6 +138,8 @@ export const PANEL_STATUS_SAMPLE = {
     canStop: true,
     canHandOver: true,
     canRelease: false,
+    canSetUp: true,
+    canUndoSetUp: true,
     policyNote: 'No dashboard server: checkpoints trained here are kept in this browser.',
     spineNote: 'Stretch and Damping at zero is a body with no reflexes at all.',
   },

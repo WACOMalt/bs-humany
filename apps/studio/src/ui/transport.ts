@@ -1,11 +1,13 @@
 /**
- * The top bar and the status bar: Start, Pause and Reset, the mode beside them, the run readout
- * and the event line under the viewport, and the keyboard that drives them.
+ * The top bar and the status bar: the Start and Pause toggle and Reset, the mode beside them, the
+ * run readout and the event line under the viewport, the keyboard that drives them, and the one
+ * question the studio asks before it throws a recording away.
  *
  * What pressing each button does to the run is the run controller's; this is how the buttons
  * look and what they say, and how a run that stopped itself is told.
  */
 
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { StudioRuns } from '../runController.js';
 import { keyOwnedByTarget } from '../shortcuts.js';
 import type { Simulation } from '../simulation.js';
@@ -112,29 +114,142 @@ export function createStatusLine(): StatusLine {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * What pressing Start does, in words, one face for each thing it can do.
+ * The first button's faces, one for each thing a press of it does.
  *
- * The button is three buttons in one -- start a run, carry a paused one on, or throw a live one
- * away and start again -- and it used to be labelled as though it were always the first. Each face
- * has its own title, because Restart is the one that discards a recording and the title is where
- * somebody hovering to find out would look. Space is named only where Space does the same thing:
- * on a live run it pauses, it never restarts.
+ * It is a toggle: Start with no run, Resume on a paused one, Pause on a live one. It used to be
+ * Start, Resume and Restart, with Pause a button of its own beside it, and the Restart face threw
+ * the run and its recording away -- a press that on every other face keeps everything. Restarting
+ * with the current settings is now the Sim tab's pending-changes strip's, beside the list of what a
+ * restart would change, and a restart there, like Reset, asks before it discards a long recording.
+ * Space does what a press does, so each face names it.
  */
-const START_FACES = {
+export const START_FACES = {
   start: { label: '▶ Start sim', title: 'Start a run with the current settings (Space)' },
   resume: {
     label: '▶ Resume sim',
     title: 'Carry the run on from its newest frame; nothing computed is lost (Space)',
   },
-  restart: {
-    label: '↻ Restart',
-    title: 'Throw this run and its recording away and start a new one with the current settings',
+  pause: {
+    label: '❚❚ Pause sim',
+    title: 'Stop computing; everything computed stays, to scrub and export (Space)',
   },
   compiling: {
     label: 'Compiling…',
     title: 'Building the body and the solver for a new run; the page may stop for a moment',
   },
 } as const;
+
+/** What the first button would do if pressed now, from what the run controller knows. */
+export interface StartState {
+  /** A start is compiling. */
+  readonly busy: boolean;
+  /** The viewport is following the bridge rather than a run of this page's own. */
+  readonly following: boolean;
+  /** The run of this page's own, if there is one. */
+  readonly run: { readonly paused: boolean; readonly ticks: number } | null;
+  /** Whether the playhead is at the live edge. */
+  readonly atLiveEdge: boolean;
+}
+
+/**
+ * What a press of the first button does: start a run, carry a paused or scrubbed one on, pause a
+ * live one, or nothing while a start compiles.
+ *
+ * Following the bridge, a press starts a run of this page's own, which ends the follow: pressing
+ * Start there is a plain request for one, and there is no recording of this page's to lose. Space
+ * is different, because Space is pressed to pause, and ending somebody's follow for it would be
+ * the opposite of what was meant; see `RunController.toggleTransport`.
+ */
+export function startAction(s: StartState): 'start' | 'resume' | 'pause' | 'none' {
+  if (s.busy) return 'none';
+  if (s.following || !s.run) return 'start';
+  if (s.run.paused || !s.atLiveEdge) return 'resume';
+  return 'pause';
+}
+
+/**
+ * The face for that press. A run at its first tick -- Reset back to it -- reads Start, whatever its
+ * paused flag says: there is nothing computed to carry on from, and carrying it on from its first
+ * tick is the same run a start would build.
+ */
+export function startFace(s: StartState): { label: string; title: string } {
+  if (s.busy) return START_FACES.compiling;
+  const action = startAction(s);
+  if (action === 'pause') return START_FACES.pause;
+  if (action === 'resume' && s.run && s.run.ticks > 0) return START_FACES.resume;
+  return START_FACES.start;
+}
+
+/**
+ * How long a recording has to be before throwing it away is asked about first.
+ *
+ * Long enough that a run started a moment ago to look at something is not a question every time
+ * it is reset, and short enough that anything somebody meant to keep -- a take, a moment they had
+ * scrubbed back to watch -- is asked about. The owner chose "about five seconds".
+ */
+export const DISCARD_ASK_SECONDS = 5;
+
+/** The part of a run that says how much a discard would lose. */
+export interface DiscardableRun {
+  readonly dt: number;
+  readonly outputFramerate: number;
+  /** The export capture: a frame a tick. */
+  readonly capture: { readonly frameCount: number };
+  /** The sampled trajectory a recording export writes: a sample an output frame. */
+  readonly recording: { readonly samples: { readonly length: number } };
+}
+
+/**
+ * The simulated seconds a discard would throw away: the longer of the two things a run records,
+ * the capture of every tick and the trajectory sampled at the output rate, because a run whose
+ * capture budget filled long ago still has its whole trajectory to lose.
+ */
+export function recordingSeconds(run: DiscardableRun): number {
+  const captured = run.capture.frameCount * run.dt;
+  const sampled = run.outputFramerate > 0 ? run.recording.samples.length / run.outputFramerate : 0;
+  return Math.max(captured, sampled);
+}
+
+/** Whether throwing this run away is asked about first; see `DISCARD_ASK_SECONDS`. */
+export function asksBeforeDiscarding(run: DiscardableRun | null | undefined): boolean {
+  return run !== null && run !== undefined && recordingSeconds(run) > DISCARD_ASK_SECONDS;
+}
+
+/**
+ * The question, for an act named the way its button names it: `Reset`, `Loading this session`.
+ * It says what goes, how much of it, and how to keep it, because a dialog that asks only "Are you
+ * sure?" is answered by habit.
+ */
+export function discardQuestion(what: string, seconds: number): string {
+  return (
+    `${what} throws away this run's ${seconds.toFixed(1)} s recording. ` +
+    'Export it first to keep it. Throw it away?'
+  );
+}
+
+/**
+ * Ask whether to throw away a long recording, in a native dialog in the desktop shell and the
+ * browser's own in a tab.
+ *
+ * The shell's dialog is the dialog plugin's, the one its Save and Load dialogs come from, behind a
+ * command of the shell's own (`confirm_discard`) because the plugin's own commands are not open to
+ * the page. What a web view does with `window.confirm` is the web view's business rather than the
+ * shell's, so in the shell it is only the fallback for a command that could not be reached.
+ *
+ * Only a person at the desktop is ever asked. Every command from the headset reaches the run
+ * through a path that does not come here, because a dialog on a screen the person in the headset
+ * cannot see would stop the headset's button dead with nothing on it saying why.
+ */
+async function askToDiscard(message: string): Promise<boolean> {
+  if (isTauri()) {
+    try {
+      return await invoke<boolean>('confirm_discard', { message });
+    } catch (error) {
+      console.error('The native dialog could not be shown; asking in the page instead.', error);
+    }
+  }
+  return window.confirm(message);
+}
 
 /** Write a button's label and title, only when they change: this runs every frame. */
 export function setFace(button: HTMLButtonElement, face: { label: string; title: string }): void {
@@ -157,6 +272,8 @@ export interface TransportHost {
   readonly boxes: UnfollowedOverlayBoxes;
   /** Whether the full-detail mesh pack is still on its way. */
   fullDetailPending(): boolean;
+  /** Whether the viewport is following the bridge rather than a run of this page's own. */
+  following(): boolean;
   /** Every set of run buttons on the page, refreshed together; see `setControls`. */
   setRunControls(running: boolean): void;
 }
@@ -165,25 +282,37 @@ export type Mode = 'rest' | 'running' | 'paused' | 'following';
 
 export interface Transport {
   readonly buttons: {
+    /** Start, Resume and Pause: the one toggle. */
     readonly start: HTMLButtonElement;
-    readonly pause: HTMLButtonElement;
     readonly reset: HTMLButtonElement;
+    /** The Sim tab's pending-changes strip's "Restart with current settings". */
+    readonly restart: HTMLButtonElement;
     readonly stopFollowing: HTMLButtonElement;
   };
   /**
+   * Resolve true when it is all right to throw away the run of this page's own: there is none, or
+   * its recording is no longer than `DISCARD_ASK_SECONDS`, or the person said so. `what` names the
+   * act the way its button does -- `Reset`, `Loading this session` -- for the question.
+   *
+   * For a person's own press at the desktop only. Nothing that runs a headset command calls it.
+   */
+  confirmDiscard(what: string): Promise<boolean>;
+  /** Back to the first tick without asking: the headset's Reset. */
+  reset(): void;
+  /**
    * The top bar's mode: at rest, a run of our own, or following the bridge.
    *
-   * Start and Pause, in the top bar beside it, are about whether this page's simulation is
-   * computing; the mode is what the viewport is showing, which while following is nobody's run on
-   * this page. So following gets its own way out beside the mode, where the eye already is: the
+   * The Start and Pause toggle, in the top bar beside it, is about whether this page's simulation
+   * is computing; the mode is what the viewport is showing, which while following is nobody's run
+   * on this page. So following gets its own way out beside the mode, where the eye already is: the
    * Follow button that starts it is on the Brain tab. At rest, the Overlays popover says what
    * fills it, because every overlay in it draws from a run and at rest they are all empty.
    */
   setMode(mode: Mode): void;
   /**
-   * Start, Pause and Reset, and the mode, for a run that is going or not.
+   * The Start and Pause toggle and Reset, and the mode, for a run that is going or not.
    *
-   * Start and Pause are about whether the simulation is computing; the timeline's buttons are
+   * The toggle is about whether the simulation is computing; the timeline's buttons are
    * about where in what it has already computed you are looking. They were one set before -- Run,
    * Pause, Step, Reset and a timeline that re-simulated what you scrubbed over -- and the reason
    * that was confusing is that it was two things wearing one set of labels.
@@ -211,8 +340,8 @@ export function createTransport(host: TransportHost): Transport {
   const { runs, status } = host;
   const buttons = {
     start: must<HTMLButtonElement>('#simStart'),
-    pause: must<HTMLButtonElement>('#simPause'),
     reset: must<HTMLButtonElement>('#reset'),
+    restart: must<HTMLButtonElement>('#pending-restart'),
     stopFollowing: must<HTMLButtonElement>('#stop-following'),
   };
   const overlaysAtRest = must<HTMLElement>('#overlays-at-rest');
@@ -290,7 +419,7 @@ export function createTransport(host: TransportHost): Transport {
     if (sim.failure && only !== 'diverged') {
       return (
         `Stopped at ${(sim.failure.tick * sim.dt).toFixed(3)} s: ${sim.failure.message}. ` +
-        'Reset or Restart to go on.'
+        'Reset to go on.'
       );
     }
     if (sim.divergedAt !== undefined && only !== 'failure') {
@@ -345,28 +474,66 @@ export function createTransport(host: TransportHost): Transport {
   /** The last message `frameFailed` logged, so a frame that throws every frame logs it once. */
   let lastFrameFailure = '';
 
+  const startState = (): StartState => ({
+    busy: runs.busy,
+    following: host.following(),
+    run: runs.simulation,
+    atLiveEdge: runs.atLiveEdge,
+  });
+
+  const confirmDiscard = async (what: string): Promise<boolean> => {
+    const sim = runs.simulation;
+    if (!sim || !asksBeforeDiscarding(sim)) return true;
+    // Paused while the question is open, so the recording being asked about does not grow under
+    // the dialog, and running again after it whatever the answer: kept, the run goes on as it
+    // was; let go, whatever replaces it -- a carry above all, which keeps the run's pause --
+    // starts from the state the person left it in rather than from the dialog's.
+    const wasRunning = !sim.paused && runs.atLiveEdge;
+    if (wasRunning) runs.pause();
+    const go = await askToDiscard(discardQuestion(what, recordingSeconds(sim)));
+    if (wasRunning && runs.simulation === sim) runs.resume();
+    return go;
+  };
+
   buttons.start.addEventListener('click', (event) => {
     blurAfterMouse(event);
-    // Paused mid-run, or scrubbed back into it: carry on from the newest frame rather than
-    // throwing the run away. Anything else starts a fresh one with the settings as they stand.
-    const sim = runs.simulation;
-    if (sim && (sim.paused || !runs.atLiveEdge)) {
-      runs.resume();
-      return;
+    // A toggle, never a restart: nothing a press of this button does throws anything away.
+    switch (startAction(startState())) {
+      case 'start':
+        void runs.start();
+        break;
+      case 'resume':
+        runs.resume();
+        break;
+      case 'pause':
+        runs.pause();
+        break;
+      default:
+        break;
     }
-    void runs.start();
-  });
-  buttons.pause.addEventListener('click', (event) => {
-    blurAfterMouse(event);
-    runs.pause();
   });
   buttons.reset.addEventListener('click', (event) => {
     blurAfterMouse(event);
-    runs.reset();
+    void confirmDiscard('Reset').then((go) => {
+      if (go) runs.reset();
+    });
+  });
+  // Straight to a new run, not through the toggle, which carries a paused run on: the point here
+  // is a run built with the settings as they now stand, paused or not. It is the strip's because
+  // that is where the settings a restart would change are listed.
+  buttons.restart.addEventListener('click', (event) => {
+    blurAfterMouse(event);
+    void confirmDiscard('Restarting with the current settings').then((go) => {
+      if (go) void runs.start();
+    });
   });
 
   return {
     buttons,
+    confirmDiscard,
+    reset() {
+      runs.reset();
+    },
     setMode,
     setControls(running) {
       const sim = runs.simulation;
@@ -377,19 +544,7 @@ export function createTransport(host: TransportHost): Transport {
       buttons.start.disabled = compiling;
       if (compiling) buttons.start.setAttribute('aria-busy', 'true');
       else buttons.start.removeAttribute('aria-busy');
-      // Nothing computed yet -- no run, or one Reset back to its first tick -- is a start,
-      // whatever the paused flag says: there is nothing to carry on from.
-      setFace(
-        buttons.start,
-        compiling
-          ? START_FACES.compiling
-          : !running || !sim || sim.ticks === 0
-            ? START_FACES.start
-            : sim.paused
-              ? START_FACES.resume
-              : START_FACES.restart,
-      );
-      buttons.pause.disabled = !running || sim?.paused === true;
+      setFace(buttons.start, startFace({ ...startState(), run: running ? sim : null }));
       buttons.reset.disabled = !running;
     },
     restStatus() {
@@ -474,12 +629,13 @@ export interface ShortcutHost {
  */
 export function wireShortcuts(host: ShortcutHost): void {
   const { runs, timeline } = host;
-  const { start, pause } = host.transport.buttons;
+  const { start } = host.transport.buttons;
   window.addEventListener('keydown', (event) => {
-    // Space on Start or Pause is the transport, not the button. The button would otherwise take
-    // it as a press, and a press of Start on a live run is Restart: after a mouse click on Start,
-    // focus stayed on it, and the Space meant to pause threw the run away instead.
-    if (event.key === ' ' && (event.target === start || event.target === pause)) {
+    // Space on the focused toggle is the transport's Space, not a press of the button. The two do
+    // the same on a run of this page's own, but not while following, where a press starts a run
+    // of this page's own and Space does nothing; and a Space taken both ways -- the transport's on
+    // the key going down, the button's on it coming up -- would pause the run and resume it again.
+    if (event.key === ' ' && event.target === start) {
       event.preventDefault();
       if (!event.repeat) runs.toggleTransport();
       return;
@@ -524,9 +680,9 @@ export function wireShortcuts(host: ShortcutHost): void {
     }
   });
   // A button activates on Space's release, so the keydown above is not enough on its own to keep
-  // Start from being pressed by the Space that paused the run.
+  // the toggle from being pressed a second time by the Space that already toggled it.
   window.addEventListener('keyup', (event) => {
-    if (event.key === ' ' && (event.target === start || event.target === pause)) {
+    if (event.key === ' ' && event.target === start) {
       event.preventDefault();
     }
   });

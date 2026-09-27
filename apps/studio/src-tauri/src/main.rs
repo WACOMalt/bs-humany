@@ -6,11 +6,12 @@
 // five families. None of them takes a path from the page, and each is bounded so that a page doing
 // its worst reaches only what that family is for:
 //
-// - File dialogs: `save_file`, `save_file_set`, `open_text_file`. A web view has no download
-//   handler and no file chooser, so saving and loading go through a native dialog. The page
-//   supplies the bytes and bare file names, and the dialog picks the path; the page never names
-//   one and never learns the one chosen. `save_file_set` refuses any name that is not a plain file
-//   name, so it cannot write outside the folder that was picked.
+// - Dialogs: `save_file`, `save_file_set`, `open_text_file`, `confirm_discard`. A web view has no
+//   download handler and no file chooser, so saving and loading go through a native dialog. The
+//   page supplies the bytes and bare file names, and the dialog picks the path; the page never
+//   names one and never learns the one chosen. `save_file_set` refuses any name that is not a plain
+//   file name, so it cannot write outside the folder that was picked. `confirm_discard` asks one
+//   yes-or-no question, a few hundred characters at most, before a recording is thrown away.
 // - The VR bridge: `bridge_claim`, `bridge_release`, `bridge_create`, `bridge_write`,
 //   `bridge_text`, `bridge_read_pair`, `bridge_commands`, `bridge_close`, `bridge_clear`. Fixed
 //   files under `/dev/shm/bs-humany-studio` and nothing else: a ring is one of `BRIDGE_NAMES` (the
@@ -180,6 +181,52 @@ async fn open_text_file(app: tauri::AppHandle) -> Result<Option<String>, String>
     std::fs::read_to_string(&path)
         .map(Some)
         .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// The longest question `confirm_discard` shows. The page's own is a sentence or two -- what is
+/// thrown away, how much of it, and how to keep it -- and a page that tried to fill a dialog with
+/// more is refused rather than shown.
+const DISCARD_QUESTION_MAX_CHARS: usize = 400;
+
+/// The page's question for `confirm_discard`, trimmed, or why it will not be asked.
+fn discard_question(message: &str) -> Result<&str, String> {
+    let question = message.trim();
+    if question.is_empty() {
+        return Err("confirm_discard wants the question to ask.".into());
+    }
+    if question.chars().count() > DISCARD_QUESTION_MAX_CHARS {
+        return Err(format!(
+            "confirm_discard's question is longer than {DISCARD_QUESTION_MAX_CHARS} characters."
+        ));
+    }
+    Ok(question)
+}
+
+/// Ask the person, in a native dialog, whether to throw a run's recording away. True for yes.
+///
+/// The studio asks before Reset, a restart with the current settings, a session load, following
+/// the bridge, or setting a checkpoint up as it was trained throws away a recording longer than a
+/// few seconds. In a browser that is `window.confirm`; here it is the same dialog plugin the Save
+/// and Load dialogs come from, whose own commands the page cannot reach (see the header), so the
+/// page gets this one question and nothing else of it. A warning, with buttons that say what they
+/// do, because a dialog whose buttons read OK and Cancel is answered by habit.
+///
+/// Only ever from a press at the desktop: the headset's commands reach the run without asking,
+/// because a dialog on this screen would stop the person in the headset with nothing they can see.
+#[tauri::command]
+async fn confirm_discard(app: tauri::AppHandle, message: String) -> Result<bool, String> {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    let question = discard_question(&message)?;
+    Ok(app
+        .dialog()
+        .message(question)
+        .title("Throw the recording away?")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Throw it away".into(),
+            "Keep the run".into(),
+        ))
+        .blocking_show())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -945,7 +992,7 @@ fn main() {
     prefer_a_window_that_opens();
 
     tauri::Builder::default()
-        // The dialog plugin is here for its Rust side only: the three dialog commands above call
+        // The dialog plugin is here for its Rust side only: the four dialog commands above call
         // it, and the page cannot. None of its own commands is exposed to JavaScript.
         .plugin(tauri_plugin_dialog::init())
         .manage(Bridges::default())
@@ -953,6 +1000,7 @@ fn main() {
             save_file,
             save_file_set,
             open_text_file,
+            confirm_discard,
             bridge_claim,
             bridge_release,
             bridge_create,
@@ -1015,6 +1063,19 @@ mod tests {
             out.extend_from_slice(bytes);
         }
         out
+    }
+
+    #[test]
+    fn the_discard_question_is_a_sentence_or_two_and_nothing_else() {
+        // The page's own question, as `discardQuestion` in ui/transport.ts writes it.
+        let asked = "Reset throws away this run's 12.3 s recording. Export it first to keep it. \
+                     Throw it away?";
+        assert_eq!(discard_question(&format!("  {asked}\n")), Ok(asked));
+        // Nothing to ask is not a question, and a page filling the dialog is refused.
+        assert!(discard_question(" \n").is_err());
+        let long = "x".repeat(DISCARD_QUESTION_MAX_CHARS + 1);
+        assert!(discard_question(&long).is_err());
+        assert!(discard_question(&long[1..]).is_ok());
     }
 
     #[test]

@@ -677,6 +677,7 @@ mod tests {
         assert_eq!((b.reflex.inhibition, b.reflex.delay_seconds), (0.5, 0.03));
         assert_eq!(b.memory, 8);
         assert!(!b.can_start && b.can_stop && b.can_hand_over && !b.can_release);
+        assert!(b.can_set_up && b.can_undo_set_up);
         assert!(b.policy_note.starts_with("No dashboard server"));
         assert!(b.spine_note.contains("no reflexes"));
         let t = status.training.as_ref().expect("the training run");
@@ -695,6 +696,7 @@ mod tests {
         assert_eq!((status.recorded_seconds, status.playing, status.live), (None, None, None));
         let b = &status.brain;
         assert!(!b.can_start && !b.can_stop && !b.can_hand_over && !b.can_release);
+        assert!(!b.can_set_up && !b.can_undo_set_up);
         assert!(b.policy_note.is_empty() && b.spine_note.is_empty());
     }
 
@@ -756,6 +758,9 @@ mod tests {
         let brain: Brain = serde_json::from_str(before).expect("parses");
         assert!(brain.active && brain.selected == "stand");
         assert!(!brain.can_start && !brain.can_stop && !brain.can_hand_over && !brain.can_release);
+        // Nor Set up as trained or its Undo: a desktop from before them applied a checkpoint's
+        // recipe on choosing it, and has no set-up to offer or take back.
+        assert!(!brain.can_set_up && !brain.can_undo_set_up);
         assert!(brain.policy_note.is_empty() && brain.spine_note.is_empty());
     }
 
@@ -1120,7 +1125,16 @@ pub struct Brain {
     pub can_hand_over: bool,
     #[serde(default)]
     pub can_release: bool,
-    /// The line under the desktop's checkpoint list, said the same way here.
+    /// Set up as trained: the desktop's tabs put as the chosen checkpoint was trained, its
+    /// authority included. Choosing a checkpoint only shows it; this is the button that changes
+    /// anything, and on a running body it can restart the run.
+    #[serde(default)]
+    pub can_set_up: bool,
+    /// Undo of the last set-up, which puts the tabs back as they were before it.
+    #[serde(default)]
+    pub can_undo_set_up: bool,
+    /// The line under the desktop's checkpoint list, said the same way here: where the list comes
+    /// from, or how the chosen checkpoint was trained and what setting it up would change.
     #[serde(default)]
     pub policy_note: String,
     /// What the desktop's Spine panel says of the cord as it is set, so a change to the cord's
