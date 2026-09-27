@@ -46,7 +46,7 @@ import {
   inertiaAudit,
   jointSweep,
 } from '@bs-humany/scenarios';
-import { MUSCLE_GROUPS, driveForSlider } from '@bs-humany/scenarios';
+import { type DriveSection, MUSCLE_GROUPS, driveForSlider } from '@bs-humany/scenarios';
 import { buildDocument, computeWorldTransforms, modelLimitations } from '@bs-humany/skeleton';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import {
@@ -101,6 +101,7 @@ import { type SkinnedSkeleton, createSkinnedSkeleton } from './skinning.js';
 import { type TissueTable, tissueTable } from './tissue.js';
 import { createMemory } from './ui/memory.js';
 import { createResizer } from './ui/resizer.js';
+import { drawSpine } from './ui/spineActivity.js';
 import { createTabs } from './ui/tabs.js';
 import { type VrCommand, VrLink, type VrStatus } from './vrLink.js';
 
@@ -372,12 +373,22 @@ const driveInputs = new Map<string, HTMLInputElement>();
       sections.set(group.section, details);
       section = details;
     }
+    // The shared control layout, compact because there are thirty-five of them: the label and
+    // its level on one line and the slider under it, as Body > Stature has them, with what the
+    // group is pulling with beside the level so a slider says what it is doing as well as what
+    // it is asking for.
+    const control = window.document.createElement('div');
+    control.className = 'control compact';
     const label = window.document.createElement('label');
     label.htmlFor = group.id;
     const readout = window.document.createElement('output');
     readout.id = `${group.id}-value`;
     readout.textContent = '0%';
-    label.append(`${group.title} `, readout);
+    const force = window.document.createElement('span');
+    force.id = `${group.id}-force`;
+    force.className = 'force';
+    force.title = 'What this group is pulling with at the newest frame, both sides summed';
+    label.append(`${group.title} `, force, readout);
     const input = window.document.createElement('input');
     input.type = 'range';
     input.id = group.id;
@@ -385,12 +396,11 @@ const driveInputs = new Map<string, HTMLInputElement>();
     input.max = '100';
     input.step = '1';
     input.value = '0';
-    section.append(label, input);
+    control.append(label, input);
+    section.append(control);
     driveInputs.set(group.id, input);
   }
 }
-/** The group a readout row is about, by id, since the table's order is not the readout's. */
-const groupIndex = (id: string) => MUSCLE_GROUPS.findIndex((g) => g.id === id);
 
 function currentMorphology(): Morphology {
   return {
@@ -881,6 +891,21 @@ function dismissAnnouncement(noticesOnly = false): void {
 }
 must<HTMLElement>('#sim-event').addEventListener('click', () => dismissAnnouncement());
 
+// Whatever else throws on the page -- a handler, a promise nobody awaited -- says so on the event
+// line too, rather than only in a console nobody has open. Not prevented: the console still gets
+// it, with its stack. The one error that is not an error is the resize observer's notice that it
+// deferred a notification, which browsers raise as one and which a layout that resizes itself in
+// a resize callback (the viewport's does) meets routinely.
+window.addEventListener('error', (event) => {
+  if (event.error === null && /ResizeObserver/.test(event.message)) return;
+  announce(`Something on the page failed: ${event.message || messageOf(event.error)}`, {
+    error: true,
+  });
+});
+window.addEventListener('unhandledrejection', (event) => {
+  announce(`Something on the page failed: ${messageOf(event.reason)}`, { error: true });
+});
+
 /** What the readout says with no run: at rest, and whether the full mesh is still on its way. */
 function restStatus(): string {
   return fullDetailPending ? 'Loading full detail…' : 'At rest.';
@@ -943,6 +968,9 @@ function forgetRun(): void {
   followFurnitureKey = '';
   must<HTMLElement>('#diagnostics').hidden = true;
   must<HTMLElement>('#timeline-control').hidden = true;
+  // The readouts were of the run that has gone, and the headset is sent them too.
+  clearMuscleReadout();
+  showReadoutsLive(null, true);
   skinned?.rest();
   setRunControls(false);
   setSimulationStatus(restStatus());
@@ -1044,6 +1072,14 @@ function setPlaybackControls(running: boolean): void {
   ui.playToggle.textContent = playback.playing ? 'Pause' : 'Play';
   ui.frameBack.disabled = frames <= 0 || (following ? frames <= 1 : playback.frame < 1);
   ui.frameForward.disabled = !running;
+  // What ▶ does at the end of the recording depends on whether the recording is still being
+  // taken, and its title is where somebody hovering to find out would look.
+  const title =
+    simulation && !captureAtLiveEdge(simulation)
+      ? 'One output frame on; the recording has stopped, so at its end this goes back to live ' +
+        'without computing (Right)'
+      : 'One output frame on; at the end of the recording, computes one (Right)';
+  if (ui.frameForward.title !== title) ui.frameForward.title = title;
   ui.goLive.disabled = !running || following;
 }
 
@@ -1397,11 +1433,44 @@ function capturedFrames(): number {
   return Playback.frames(simulation.capture.frameCount, simulation.ticksPerOutputFrame);
 }
 
+/**
+ * The frame on screen, which every control that moves relative to it starts from: the newest
+ * while following, the playhead otherwise. See `Playback.at` for why `playback.frame` alone is
+ * not it.
+ */
+function playheadFrame(): number {
+  return playback.at(capturedFrames(), following);
+}
+
+/**
+ * Whether the capture's newest frame is the run's newest tick: false once the capture budget has
+ * stopped it and the run has gone on past it. Then the newest frame is not live, and nothing
+ * computed from here on is recorded, so the timeline stops calling itself live and ▶ stops
+ * offering to compute a frame onto the end of it.
+ */
+function captureAtLiveEdge(sim: Simulation): boolean {
+  const capture = sim.capture;
+  return capture.frameCount > 0 && capture.firstTick + capture.frameCount - 1 === sim.ticks;
+}
+
+/**
+ * Let go of whatever the mouse is holding. The headset's hands hold other slots and keep theirs.
+ *
+ * For anything that stops the run being live under the pointer -- Pause, a scrub, Play -- because
+ * a grab held across it pulls on a body that is not the one on screen, and resumes pulling on
+ * the live one wherever the pointer happened to be left.
+ */
+function releaseMouseGrab(sim: Simulation): void {
+  sim.grab.release(0);
+  grabState = null;
+}
+
 /** Leave live, pause the simulation, and put the playhead where it is being asked for. */
 function scrubTo(frame: number): void {
   if (!simulation) return;
   const frames = capturedFrames();
   if (frames <= 0) return;
+  releaseMouseGrab(simulation);
   following = false;
   playback.playing = false;
   simulation.paused = true;
@@ -1418,16 +1487,77 @@ function scrubTo(frame: number): void {
  * times a second, each throwing into the console while the readout went on saying "Running" over
  * a body that had not moved. Paused, what was computed up to the failure is still there to scrub
  * and export, and the event line says what went wrong and when.
+ *
+ * `Simulation.advance` catches its own ticks' failures and records them on the run; this is for
+ * the ticks run outside it -- a frame stepped by hand -- which are recorded the same way, so the
+ * status line and the event line say the one thing whichever path the failure came by.
  */
 function stalled(sim: Simulation, error: unknown): void {
   sim.paused = true;
+  sim.failure ??= { message: messageOf(error), tick: sim.ticks };
   console.error('A simulation tick failed; the run is paused.', error);
-  announce(
-    `The simulation failed at ${(sim.ticks * sim.dt).toFixed(3)} s and is paused: ` +
-      `${messageOf(error)}. Reset or Restart to go on.`,
-    { error: true },
-  );
+  reportStop(sim);
+}
+
+/**
+ * What a run that stopped itself says, in the status line and the event line: a failed tick when
+ * there was one, since that stops the run for good, and otherwise the solver's reset.
+ */
+function stopText(sim: Simulation, only?: 'failure' | 'diverged'): string | undefined {
+  if (sim.failure && only !== 'diverged') {
+    return (
+      `Stopped at ${(sim.failure.tick * sim.dt).toFixed(3)} s: ${sim.failure.message}. ` +
+      'Reset or Restart to go on.'
+    );
+  }
+  if (sim.divergedAt !== undefined && only !== 'failure') {
+    return (
+      `Diverged at ${(sim.divergedAt * sim.dt).toFixed(3)} s: MuJoCo reset the body ` +
+      '(bad acceleration). Paused.'
+    );
+  }
+  return undefined;
+}
+
+/**
+ * The stop last said, so it is said once: the frame loop asks every frame, and the event line is
+ * for saying a thing when it happens, not sixty times a second.
+ */
+let reportedStop:
+  | { sim: Simulation; failure: Simulation['failure']; diverged: number | undefined }
+  | undefined;
+
+/**
+ * Say, once, that the run stopped itself -- a tick threw, or the solver reset the body -- and put
+ * the buttons in the state a paused run has. The run records why it stopped (`failure`,
+ * `divergedAt`); this is only the telling, and it tells each new reason once.
+ */
+function reportStop(sim: Simulation): void {
+  const last = reportedStop;
+  if (last?.sim === sim && last.failure === sim.failure && last.diverged === sim.divergedAt) {
+    return;
+  }
+  // Only the solver's reset is new when the failure is the one already told.
+  const text =
+    last?.sim === sim && last.failure === sim.failure ? stopText(sim, 'diverged') : stopText(sim);
+  reportedStop = { sim, failure: sim.failure, diverged: sim.divergedAt };
+  if (!text) return;
+  announce(text, { error: true });
   setRunControls(true);
+}
+
+/**
+ * The stop's text while the run is still standing where it stopped, for the status line; once
+ * it has been reset or carried on past that tick, the run is an ordinary one again and the
+ * event line alone remembers what happened.
+ */
+function stoppedHere(sim: Simulation): string | undefined {
+  if (!sim.paused) return undefined;
+  if (sim.failure && sim.ticks === sim.failure.tick) return stopText(sim, 'failure');
+  if (sim.divergedAt !== undefined && sim.ticks === sim.divergedAt) {
+    return stopText(sim, 'diverged');
+  }
+  return undefined;
 }
 
 /** Back to the newest frame, and following it again. */
@@ -1437,26 +1567,47 @@ function goLive(): void {
   playback.playing = false;
   playback.frame = Math.max(0, capturedFrames() - 1);
   applyOverlayVisibility();
+  showReadoutsLive(simulation, true);
   setRunControls(true);
   updateTimeline(simulation);
 }
 
+/**
+ * The timeline's playhead and its label.
+ *
+ * The time is the run's -- the tick the frame shows, times the tick length -- and not the frame
+ * divided by the output rate, which counted from the start of the capture: after a carry or a
+ * session load the capture starts where the body arrived, and the label then disagreed with the
+ * status line's "Paused at" by however far in that was.
+ *
+ * "Live" only when the frame on screen is the run's newest tick. With the capture budget spent
+ * the run can carry on unrecorded, and the timeline used to go on saying "live" over a frame that
+ * was seconds behind the body; it now says the recording stopped and where the run is.
+ */
 function updateTimeline(sim: Simulation): void {
   const frames = capturedFrames();
-  const frame = following ? Math.max(0, frames - 1) : playback.clampedFrame(frames);
+  const frame = playheadFrame();
   ui.timeline.max = String(Math.max(0, frames - 1));
   if (!scrubbing) ui.timeline.value = String(frame);
   const fps = Math.max(1, sim.outputFramerate);
-  must<HTMLOutputElement>('#timeline-value').textContent =
-    frames === 0
-      ? '—'
-      : `frame ${frame} of ${frames - 1} · ${(frame / fps).toFixed(2)} s` +
-        (following ? ' · live' : '');
-  must<HTMLElement>('#playback-note').textContent =
+  const seconds =
+    Playback.runTickOf(frame, sim.capture.firstTick, sim.ticksPerOutputFrame) * sim.dt;
+  const edge = !following
+    ? ''
+    : captureAtLiveEdge(sim)
+      ? ' · live'
+      : ` · recording stopped; run at ${(sim.ticks * sim.dt).toFixed(2)} s`;
+  setText(
+    must<HTMLOutputElement>('#timeline-value'),
+    frames === 0 ? '—' : `frame ${frame} of ${frames - 1} · ${seconds.toFixed(2)} s${edge}`,
+  );
+  setText(
+    must<HTMLElement>('#playback-note'),
     frames === 0
       ? ''
       : `${frames} frames recorded at ${fps} fps, ${(frames / fps).toFixed(2)} s` +
-        (following ? '.' : ' — the simulation is paused while the playhead is behind it.');
+          (following ? '.' : ' — the simulation is paused while the playhead is behind it.'),
+  );
   setPlaybackControls(true);
 }
 
@@ -1477,10 +1628,14 @@ ui.playToggle.addEventListener('click', (event) => {
   if (playback.playing) {
     playback.playing = false;
   } else {
+    // From the frame on screen: live, that is the newest, and replaying from the end plays
+    // nothing, so a Play pressed there starts over. It used to start from wherever the playhead
+    // was last left, which after going live and running on was nowhere in particular.
+    const from = playheadFrame();
+    releaseMouseGrab(simulation);
     following = false;
     simulation.paused = true;
-    // Replaying from the end plays nothing, so a Play pressed there starts over.
-    if (playback.clampedFrame(capturedFrames()) >= capturedFrames() - 1) playback.frame = 0;
+    playback.frame = from >= capturedFrames() - 1 ? 0 : from;
     playback.playing = true;
   }
   applyOverlayVisibility();
@@ -1488,33 +1643,41 @@ ui.playToggle.addEventListener('click', (event) => {
 });
 ui.frameBack.addEventListener('click', (event) => {
   blurAfterMouse(event);
-  scrubTo(playback.clampedFrame(capturedFrames()) - 1);
+  // One back from the frame on screen. From live this used to step back from the stale playhead,
+  // which after a few seconds of running was the start of the capture.
+  scrubTo(playheadFrame() - 1);
 });
 ui.frameForward.addEventListener('click', (event) => {
   blurAfterMouse(event);
   if (!simulation) return;
   const frames = capturedFrames();
-  const at = following ? frames - 1 : playback.clampedFrame(frames);
-  // At the newest frame there is nothing ahead to step to, so one is computed. That is what the
-  // old Step button did, and it is the same gesture: go one frame further on.
-  if (at >= frames - 1) {
-    simulation.paused = true;
-    const ticks = Math.max(1, Math.round(simulation.ticksPerOutputFrame));
-    try {
-      for (let i = 0; i < ticks; i++) simulation.tick();
-    } catch (error) {
-      stalled(simulation, error);
-      return;
-    }
-    simulation.pose.step();
-    simulation.metrics.step();
-    // The belly sweep runs on a divisor while the simulation is running; a hand-stepped frame
-    // asks for it directly so what is drawn is this tick's shape rather than up to eight back.
-    simulation.sweepRenderMesh();
+  const at = playheadFrame();
+  if (at < frames - 1) {
+    scrubTo(at + 1);
+    return;
+  }
+  // At the newest recorded frame with the capture stopped behind the run, a computed frame would
+  // not be recorded and the playhead could not show it; all that is ahead is live.
+  if (!captureAtLiveEdge(simulation)) {
     goLive();
     return;
   }
-  scrubTo(at + 1);
+  // At the newest frame there is nothing ahead to step to, so one is computed. That is what the
+  // old Step button did, and it is the same gesture: go one frame further on.
+  simulation.paused = true;
+  const ticks = Math.max(1, Math.round(simulation.ticksPerOutputFrame));
+  try {
+    for (let i = 0; i < ticks; i++) simulation.tick();
+  } catch (error) {
+    stalled(simulation, error);
+    return;
+  }
+  simulation.pose.step();
+  simulation.metrics.step();
+  // The belly sweep runs on a divisor while the simulation is running; a hand-stepped frame
+  // asks for it directly so what is drawn is this tick's shape rather than up to eight back.
+  simulation.sweepRenderMesh();
+  goLive();
 });
 ui.goLive.addEventListener('click', (event) => {
   blurAfterMouse(event);
@@ -1785,58 +1948,254 @@ function applyMuscleDrive(sim: Simulation | null | undefined): void {
 }
 
 /**
- * What the muscles are pulling with, grouped the way a person thinks about an elbow.
+ * The body sections the drive groups fall into, in the order the table first names them: the
+ * readout's section rows, and the `section.*` keys the headset is sent.
+ */
+const DRIVE_SECTIONS: readonly DriveSection[] = [...new Set(MUSCLE_GROUPS.map((g) => g.section))];
+/** Each group's section, as an index into `DRIVE_SECTIONS`, resolved once. */
+const SECTION_OF_GROUP = Int8Array.from(MUSCLE_GROUPS, (g) => DRIVE_SECTIONS.indexOf(g.section));
+/**
+ * The four groups the headset's two old rows are about -- elbow and knee, flexors against
+ * extensors -- resolved once rather than looked up by id every frame. Those rows stay on the wire
+ * until the headset's panel reads the section rows instead; see `muscleReadoutText`.
+ */
+const PAIR_GROUPS = (
+  ['flexorDrive', 'extensorDrive', 'kneeFlexorDrive', 'kneeExtensorDrive'] as const
+).map((id) => MUSCLE_GROUPS.findIndex((g) => g.id === id));
+
+/**
+ * What the muscles are pulling with, as numbers: every drive group, every body section, and the
+ * three counts under them.
+ *
+ * Data first, so that the desktop's readout and the headset's are the same reading rather than
+ * the headset scraping text back off the desktop's page -- which it used to, and which went on
+ * sending the last run's numbers after the run had gone, because nothing cleared the text.
  *
  * "Loaded" counts the units whose tendon is carrying anything at all. It earned its place when
  * three of the seven were not: their straight-line paths were shorter than their own resting
  * length, so the tendon never took up. Via points fixed that and the count now reads full at rest,
- * which is exactly why it is worth keeping on screen. Both arms are counted together.
+ * which is exactly why it is worth keeping on screen. Both sides are counted together, as the
+ * sliders drive them.
  */
-function updateMuscles(sim: Simulation): void {
+interface MuscleReadout {
+  /** Units in the run. */
+  units: number;
+  /** Tendon force summed over each drive group's units, newtons, in `MUSCLE_GROUPS` order. */
+  readonly groupForce: Float64Array;
+  /** The same summed over each section's groups, in `DRIVE_SECTIONS` order. */
+  readonly sectionForce: Float64Array;
+  loaded: number;
+  /** Tendons in contact with a bone: bent over a surface rather than cutting through it. */
+  contacts: number;
+  /** Units whose equilibrium did not solve cleanly, so the force read for them is a fallback. */
+  strained: number;
+}
+
+/** The readout the frame loop last took, or null with no run or no muscles in it. */
+let muscleReadout: MuscleReadout | null = null;
+/** The one readout every frame fills, so taking it allocates nothing. */
+const readoutScratch: MuscleReadout = {
+  units: 0,
+  groupForce: new Float64Array(MUSCLE_GROUPS.length),
+  sectionForce: new Float64Array(DRIVE_SECTIONS.length),
+  loaded: 0,
+  contacts: 0,
+  strained: 0,
+};
+/**
+ * Each unit's drive group, as an index into `MUSCLE_GROUPS` or -1 for a unit in none, built once
+ * a run and kept by the identity of that run's unit list. The table lists groups by unit id; the
+ * readout used to ask every group whether it held every unit, every frame -- thirty-five
+ * `includes` over a handful of ids for each of 272 units, sixty times a second.
+ */
+let unitGroups: { units: readonly { readonly id: string }[]; group: Int16Array } | undefined;
+function groupOfUnits(units: readonly { readonly id: string }[]): Int16Array {
+  if (unitGroups?.units !== units) {
+    const byId = new Map<string, number>();
+    MUSCLE_GROUPS.forEach((group, at) => {
+      for (const id of group.units) byId.set(id, at);
+    });
+    unitGroups = { units, group: Int16Array.from(units, (u) => byId.get(u.id) ?? -1) };
+  }
+  return unitGroups.group;
+}
+
+/**
+ * Take the readout off the run's newest tick, in one pass over the units, into the scratch
+ * readout. Null when the run has no muscles or they have not published yet.
+ *
+ * Summed per driven group, and nothing outside one is counted. Before the shoulder set arrived
+ * "not a flexor" meant "an extensor"; now it would mean the deltoid too, and the readout would
+ * say a hanging arm's extensors were pulling ten kilonewtons.
+ */
+function muscleReadoutOf(sim: Simulation): MuscleReadout | null {
   const state = sim.muscleState();
   const units = sim.muscles?.units;
-  if (!state || !units) return;
-  const pulled: number[] = MUSCLE_GROUPS.map(() => 0);
+  if (!state || !units) return null;
+  const group = groupOfUnits(units);
+  const out = readoutScratch;
+  out.groupForce.fill(0);
+  out.sectionForce.fill(0);
   let loaded = 0;
   let strained = 0;
   for (let i = 0; i < units.length; i++) {
     const force = state.tendonForce[i] ?? 0;
     if (force > 0) loaded++;
     if ((state.diagnostic[i] ?? 0) !== 0) strained++;
-    // Summed per driven group, and nothing outside one is counted. Before the shoulder set
-    // arrived "not a flexor" meant "an extensor"; now it would mean the deltoid too, and the
-    // readout would say a hanging arm's extensors were pulling ten kilonewtons.
-    const id = units[i]?.id ?? '';
-    MUSCLE_GROUPS.forEach((group, at) => {
-      if (group.units.includes(id)) pulled[at] = (pulled[at] ?? 0) + force;
-    });
+    const at = group[i] as number;
+    if (at >= 0) out.groupForce[at] = (out.groupForce[at] as number) + force;
   }
-  const pair = (flex: number, extend: number) =>
-    `${(flex ?? 0).toFixed(0)} / ${(extend ?? 0).toFixed(0)} N`;
-  must<HTMLElement>('#muscle-flexion').textContent = pair(
-    pulled[groupIndex('flexorDrive')] as number,
-    pulled[groupIndex('extensorDrive')] as number,
-  );
-  must<HTMLElement>('#muscle-extension').textContent = pair(
-    pulled[groupIndex('kneeFlexorDrive')] as number,
-    pulled[groupIndex('kneeExtensorDrive')] as number,
-  );
-  must<HTMLElement>('#muscle-loaded').textContent = `${loaded} of ${units.length} units`;
+  for (let at = 0; at < MUSCLE_GROUPS.length; at++) {
+    const section = SECTION_OF_GROUP[at] as number;
+    if (section >= 0) {
+      out.sectionForce[section] =
+        (out.sectionForce[section] as number) + (out.groupForce[at] as number);
+    }
+  }
+  out.units = units.length;
+  out.loaded = loaded;
+  out.strained = strained;
+  out.contacts = sim.musclePath?.contactCount ?? 0;
+  return out;
+}
+
+const newtons = (force: number) => `${force.toFixed(0)} N`;
+const loadedText = (r: MuscleReadout) => `${r.loaded} of ${r.units} units`;
+const wrappingText = (r: MuscleReadout) => `${r.contacts} contact${r.contacts === 1 ? '' : 's'}`;
+const strainedText = (r: MuscleReadout) =>
+  r.strained === 0 ? 'none' : `${r.strained} of ${r.units} units`;
+
+/**
+ * The readout as the headset's panel is sent it: text by key, the keys a `HashMap` on the Rust
+ * side, so adding one changes no protocol type.
+ *
+ * The section rows and the three counts are what the desktop shows. `flexion` and `extension`
+ * are the elbow and knee rows the desktop used to show and the headset still draws, so they are
+ * kept on the wire, from the same numbers, until the headset reads the section rows instead.
+ * With no readout the map is empty and the headset shows its dashes.
+ */
+function muscleReadoutText(r: MuscleReadout | null): Record<string, string> {
+  if (!r) return {};
+  const force = (at: number | undefined) =>
+    at !== undefined && at >= 0 ? (r.groupForce[at] as number) : 0;
+  const pair = (flex: number | undefined, extend: number | undefined) =>
+    `${force(flex).toFixed(0)} / ${force(extend).toFixed(0)} N`;
+  const text: Record<string, string> = {};
+  DRIVE_SECTIONS.forEach((section, at) => {
+    text[`section.${section.toLowerCase()}`] = newtons(r.sectionForce[at] as number);
+  });
+  text.loaded = loadedText(r);
+  text.wrapping = wrappingText(r);
+  text.strained = strainedText(r);
+  text.flexion = pair(PAIR_GROUPS[0], PAIR_GROUPS[1]);
+  text.extension = pair(PAIR_GROUPS[2], PAIR_GROUPS[3]);
+  return text;
+}
+
+// The section rows, made from the same table as the sliders and put above the three counts.
+const sectionReadouts: HTMLElement[] = [];
+{
+  const list = must<HTMLElement>('#muscle-readout');
+  const first = list.firstElementChild;
+  for (const section of DRIVE_SECTIONS) {
+    const term = window.document.createElement('dt');
+    term.textContent = section;
+    term.title =
+      `Tendon force summed over every drive group in the ${section.toLowerCase()} section, ` +
+      'both sides';
+    const value = window.document.createElement('dd');
+    value.id = `muscle-section-${section.toLowerCase()}`;
+    value.textContent = '—';
+    list.insertBefore(term, first);
+    list.insertBefore(value, first);
+    sectionReadouts.push(value);
+  }
+}
+/** Each slider's force readout, in `MUSCLE_GROUPS` order, found once. */
+const groupReadouts = MUSCLE_GROUPS.map((g) => must<HTMLElement>(`#${g.id}-force`));
+/**
+ * The whole newtons each row last showed, so a row's text is made and written only when the
+ * number on it changes: forty rows of formatting sixty times a second was most of what the
+ * readout cost, and most frames change few of them. NaN is "shows a dash", which no reading is.
+ */
+const shownGroupForce = new Float64Array(MUSCLE_GROUPS.length).fill(Number.NaN);
+const shownSectionForce = new Float64Array(DRIVE_SECTIONS.length).fill(Number.NaN);
+/** Loaded, contacts, strained and units, as last shown. */
+const shownCounts = new Float64Array(4).fill(Number.NaN);
+
+/** Write one row's newtons, when the whole number on it has changed. */
+function showForce(element: HTMLElement, force: number, shown: Float64Array, at: number): void {
+  const rounded = Math.round(force);
+  if (shown[at] === rounded) return;
+  shown[at] = rounded;
+  element.textContent = newtons(rounded);
+}
+
+/** What the muscles are pulling with, on the Muscles tab and beside each slider. */
+function updateMuscles(sim: Simulation): void {
+  const r = muscleReadoutOf(sim);
+  if (!r) {
+    clearMuscleReadout();
+    return;
+  }
+  muscleReadout = r;
+  for (let at = 0; at < groupReadouts.length; at++) {
+    showForce(groupReadouts[at] as HTMLElement, r.groupForce[at] as number, shownGroupForce, at);
+  }
+  for (let at = 0; at < sectionReadouts.length; at++) {
+    const element = sectionReadouts[at] as HTMLElement;
+    showForce(element, r.sectionForce[at] as number, shownSectionForce, at);
+  }
+  if (shownCounts[0] !== r.loaded || shownCounts[3] !== r.units) {
+    must<HTMLElement>('#muscle-loaded').textContent = loadedText(r);
+  }
   // How many tendons are in contact with a bone right now. A muscle that is wrapping has its
   // path bent over a surface rather than cutting through it, so this is also the quickest way to
   // tell whether the overlay's curves are curves.
-  const contacts = sim.musclePath?.contactCount ?? 0;
-  must<HTMLElement>('#muscle-wrapping').textContent =
-    `${contacts} contact${contacts === 1 ? '' : 's'}`;
+  if (shownCounts[1] !== r.contacts) {
+    must<HTMLElement>('#muscle-wrapping').textContent = wrappingText(r);
+  }
   // Units whose equilibrium did not solve cleanly. It is on screen rather than in a log because
   // it is the one number that says "the force you are reading is a fallback": a muscle whose path
   // is longer than its parameters expect sits at the top of its tendon curve, where the model
   // holds it rather than extrapolating, and the force it reports is the cap.
-  must<HTMLElement>('#muscle-strained').textContent =
-    strained === 0 ? 'none' : `${strained} of ${units.length} units`;
+  if (shownCounts[2] !== r.strained || shownCounts[3] !== r.units) {
+    must<HTMLElement>('#muscle-strained').textContent = strainedText(r);
+  }
+  shownCounts[0] = r.loaded;
+  shownCounts[1] = r.contacts;
+  shownCounts[2] = r.strained;
+  shownCounts[3] = r.units;
 }
 
-function updateDiagnostics(sim: Simulation): void {
+/**
+ * No readout: dashes on every row and nothing beside the sliders. For no run, a run without
+ * muscles, and a followed bridge, none of which this page can read muscles off -- where the
+ * readout used to go on showing the last run's numbers, to the page and to the headset.
+ */
+function clearMuscleReadout(): void {
+  if (muscleReadout === null && Number.isNaN(shownCounts[3] as number)) return;
+  muscleReadout = null;
+  shownGroupForce.fill(Number.NaN);
+  shownSectionForce.fill(Number.NaN);
+  shownCounts.fill(Number.NaN);
+  for (const element of groupReadouts) element.textContent = '';
+  for (const element of sectionReadouts) element.textContent = '—';
+  for (const id of ['#muscle-loaded', '#muscle-wrapping', '#muscle-strained']) {
+    must<HTMLElement>(id).textContent = '—';
+  }
+}
+
+/**
+ * The Run tab's diagnostics and the Muscles tab's readout, from the run's newest tick.
+ *
+ * `live` is whether the picture is that tick. Off the live edge the picture is a recorded frame
+ * and these are not -- nothing records energies, stops, contacts or tendon forces -- so the
+ * readouts stay, because they are still true of the run, but dim and say which frame they are
+ * of. Before, they went on reading as though they were measurements of the replayed pose.
+ */
+function updateDiagnostics(sim: Simulation, live: boolean): void {
+  showReadoutsLive(sim, live);
   const energy = sim.channel('diagnostics.energy').fields;
   const limits = sim.channel('diagnostics.limits').fields;
   const contacts = sim.channel('contact.manifolds');
@@ -1865,11 +2224,42 @@ function updateDiagnostics(sim: Simulation): void {
   // anything was skipped, because nothing is: every step is taken and every step is captured.
   const declared = sim.declaredRateHz;
   const achieved = sim.achievedRateHz;
-  must<HTMLElement>('#diag-rate').textContent =
-    achieved > 0
+  // Paused, nothing is being produced, and the last half-second's rate would read as though it
+  // still were.
+  must<HTMLElement>('#diag-rate').textContent = sim.paused
+    ? `${declared.toFixed(0)} Hz steps · paused`
+    : achieved > 0
       ? `${achieved.toFixed(0)} Hz of ${declared.toFixed(0)} steps · ${(achieved / declared).toFixed(2)}x life`
       : `${declared.toFixed(0)} Hz steps`;
+  // The solver's own resets: MuJoCo puts the body back at its reference after a bad acceleration,
+  // and the run pauses at the first so it cannot carry on as if it had just begun.
+  const resets = sim.physics.backendResets;
+  setText(
+    must<HTMLElement>('#diag-resets'),
+    resets === 0
+      ? 'none'
+      : `${resets}${sim.divergedAt === undefined ? '' : `, first at ${(sim.divergedAt * sim.dt).toFixed(3)} s`}`,
+  );
   updateMuscles(sim);
+}
+
+/**
+ * Dim the newest-tick readouts and say so while the playhead is off the live edge; undo both at
+ * it. Cheap to call every frame: nothing is written unless it changes.
+ */
+function showReadoutsLive(sim: Simulation | null, live: boolean): void {
+  const stale = sim !== null && !live;
+  must<HTMLElement>('#diagnostics').classList.toggle('stale', stale);
+  must<HTMLElement>('#muscle-readout').classList.toggle('stale', stale);
+  must<HTMLElement>('#muscle-drives').classList.toggle('forces-stale', stale);
+  const caption = stale
+    ? `Readings are at the newest frame (t = ${((sim?.ticks ?? 0) * (sim?.dt ?? 0)).toFixed(2)} s), not the replayed one.`
+    : '';
+  for (const id of ['#readout-note', '#muscle-readout-note']) {
+    const note = must<HTMLElement>(id);
+    setText(note, caption);
+    if (note.hidden !== !stale) note.hidden = !stale;
+  }
 }
 
 ui.muscles.addEventListener('change', () => {
@@ -2020,14 +2410,20 @@ function blurAfterMouse(event: MouseEvent): void {
 /** Stop computing, keeping everything computed. */
 function pause(): void {
   if (!simulation) return;
+  releaseMouseGrab(simulation);
   simulation.paused = true;
   setRunControls(true);
 }
 
-/** Carry the run on from its newest frame, which is live again. */
+/**
+ * Carry the run on from its newest frame, which is live again; nothing to do for a run that is
+ * already live and running. The tick rate starts a fresh reading, so the first one after a pause
+ * is of the run going again rather than half of it from before the pause.
+ */
 function resume(): void {
-  if (!simulation) return;
+  if (!simulation || (!simulation.paused && following)) return;
   simulation.paused = false;
+  simulation.resetRateWindow();
   goLive();
 }
 
@@ -2089,9 +2485,17 @@ ui.grabStrength.addEventListener('input', () => {
 renderer.domElement.addEventListener('contextmenu', (event) => {
   if (event.ctrlKey) event.preventDefault();
 });
+/**
+ * Whether a Ctrl-press on the body would take hold of it: only a run of this page's own, computing
+ * and at the live edge. Paused, the pull would be applied to nothing until the run carried on, and
+ * then all at once; scrubbed back, it would pull the live body from a pose that is not on screen.
+ */
+function canReach(): boolean {
+  return simulation !== null && !simulation.paused && following && !bridgeFollower.active;
+}
 // The cursor says whether a press will reach into the scene or move around it.
 const setReachCursor = (reaching: boolean) => {
-  renderer.domElement.style.cursor = reaching ? 'grab' : '';
+  renderer.domElement.style.cursor = reaching && canReach() ? 'grab' : '';
 };
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Control') setReachCursor(true);
@@ -2454,6 +2858,17 @@ function pickBone(clientX: number, clientY: number): { boneId: string; point: Ve
  */
 function beginGrab(event: PointerEvent): boolean {
   if (!event.ctrlKey || !simulation) return false;
+  // Claimed, so the camera does not take the drag either, and said why: a Ctrl-drag that did
+  // nothing at all read as grabbing being broken. Not resumed on the person's behalf -- they
+  // paused or scrubbed for a reason, and a pull is not a request to throw that away.
+  if (simulation.paused || !following) {
+    announce(
+      following
+        ? 'Paused: resume (Space) to pull the body.'
+        : 'Scrubbed back: go live and resume to pull the body.',
+    );
+    return true;
+  }
   const picked = pickBone(event.clientX, event.clientY);
   if (!picked) return false;
   const segment = simulation.segmentOfBone(picked.boneId);
@@ -2534,136 +2949,180 @@ function animate(): void {
   }
   // The brain panel's picture: this page's policy, or the training showcase's.
   drawNerves(simulation ?? undefined);
+  // The cord under it, for a run of this page's own at the live edge only: its drive is a tick
+  // wide and nothing records it.
+  drawSpine(simulation ?? undefined, following && !bridgeFollower.active);
   // Scenery that moves -- a platform tilting under the body -- drawn where the solver has it.
   if (simulation) followFurniture(simulation);
   if (bridgeFollower.active && skinned) followFrame(skinned);
   if (simulation && skinned) {
-    const frameSeconds = Math.min(elapsed, 250) / 1000;
-    if (following) {
-      // The elapsed time is measurement only: what the frame advances is one output frame's worth
-      // of simulated time, whatever the clock says.
-      try {
-        simulation.advance(frameSeconds);
-      } catch (error) {
-        stalled(simulation, error);
-      }
-    } else {
-      // Playback is the other way round -- paced by the clock, because what is being watched is
-      // finished and watching it should take the time it took.
-      playback.advance(frameSeconds, simulation.outputFramerate, capturedFrames());
-      if (!playback.playing) setRunControls(true);
+    // Everything the run puts on screen, in one guard: whatever in it throws, the run pauses and
+    // says so, and the render below still happens. Before, one throw here took the frame loop's
+    // render with it every frame after, and the viewport froze on its last picture with nothing
+    // on the page saying why.
+    try {
+      runFrame(simulation, skinned, elapsed);
+    } catch (error) {
+      frameFailed(simulation, error);
     }
-    const replay = following ? undefined : replayFrame(simulation);
-    const transforms = replay ?? simulation.boneTransforms();
-    // Off the live edge, the segment poses the overlays draw from are the replayed bones': a
-    // segment's frame is its anchor bone's, so the discs, the cartilage and the proxies follow
-    // the playhead the way the bones and bellies do.
-    const replayedPose = replay ? segmentPosesFrom(simulation, replay) : undefined;
-    // Held at rest for the Align tab, the bones are put at rest once and left there. Checked
-    // every frame rather than only when the hold is asked for, because a run is paused by many
-    // things -- Pause, a scrub, a failed tick -- and resumed by as many, and each of them moves
-    // the answer.
-    const atRest = heldAtRest();
-    if (atRest !== drawnHeld) {
-      drawnHeld = atRest;
-      if (atRest) skinned.rest();
-      applyOverlayVisibility();
-    }
-    if (!atRest) {
-      skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
-    }
-    if (vrLink) {
-      // The headset is sent the frame on screen, not the newest one: off the live edge that is
-      // the recorded frame under the playhead, bellies included, published under its own tick so
-      // the headset's body and timeline move as the desktop's do when replaying or scrubbing.
-      const shownIndex = replay
-        ? Playback.tickOf(playback.clampedFrame(capturedFrames()), simulation.ticksPerOutputFrame)
-        : -1;
-      vrLink.frame(
-        transforms.position,
-        transforms.orientation,
-        replay ? simulation.capture.firstTick + shownIndex : simulation.ticks,
-        replay
-          ? (playback.ringsAt(
-              simulation.muscleCapture,
-              simulation.muscleCapture.indexForTick(simulation.capture.firstTick + shownIndex),
-            ) ?? null)
-          : undefined,
-      );
-    }
-    if (overlays) {
-      const pose = simulation.channel('body.pose').fields;
-      const limits = simulation.channel('diagnostics.limits').fields;
-      const contacts = simulation.channel('contact.manifolds');
-      overlays.update({
-        // Off the live edge the pose overlays have no history to draw, so they are hidden rather
-        // than fed the newest tick's -- see `applyOverlayVisibility`. What is passed here is what
-        // they would draw if they were visible.
-        position: replayedPose?.position ?? (pose.position as Float64Array),
-        orientation: replayedPose?.orientation ?? (pose.orientation as Float64Array),
-        proximity: limits.proximity as Float64Array,
-        contactCount: replay ? 0 : contacts.count,
-        contactPoint: contacts.fields.point as Float64Array,
-        contactNormal: contacts.fields.normal as Float64Array,
-        contactCapacity: (contacts.fields.point as Float64Array).length / 3,
-        muscles: replay ? replayedMuscles(simulation) : muscleOverlay(simulation),
-      });
-    }
-    updateDiagnostics(simulation);
-    updateTimeline(simulation);
-    must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
-    const capture = simulation.capture;
-    // Both captures, because the muscle one is what usually stops first and it used to stop
-    // invisibly: with the whole muscle set running, a frame of rings is dozens of times a frame
-    // of bones. It is taken once a sweep rather than once a tick -- one tick in eight at
-    // 1000 Hz, one in four at 500 Hz -- so it grows several times faster than the bone capture
-    // rather than dozens, and on the same budget it still runs out first while this line went on
-    // counting bone frames.
-    const rings = simulation.muscleCapture;
-    // Each capture against its own budget, not the two summed against twice it: the muscle
-    // capture reaches the limit on its own, which summed reads as though the run stopped at a
-    // fraction of what it was allowed.
-    const mb = (bytes: number) => `${(bytes / MEBIBYTE).toFixed(0)} MB`;
-    const held = simulation.muscleVolume
-      ? `muscles ${mb(rings.bytes)}, bones ${mb(capture.bytes)}, of ${mb(simulation.captureBudgetBytes)} each`
-      : `${mb(capture.bytes)} of ${mb(simulation.captureBudgetBytes)}`;
-    // Which capture stopped, if one has. A bones-only run has nothing to level the two captures
-    // against, so nothing records which one stopped; a full bone capture is then the one.
-    const stoppedBy = simulation.capturesStoppedBy ?? (capture.full ? 'bones' : undefined);
-    // What raising the budget does after a stop is keep what is held, never carry on: the run has
-    // gone past the last captured tick, and a capture with a gap in it is not one the export can
-    // write. So the text says what a longer capture takes, which is a new run -- and a new run of
-    // the same settings is the same run, unless somebody reached into this one.
-    const stoppedAt = (capture.firstTick + capture.frameCount - 1) * simulation.dt;
-    setText(
-      must<HTMLElement>('#capture-status'),
-      `Captured ${capture.frameCount} frames for export (${held})` +
-        (stoppedBy === undefined
-          ? '.'
-          : ` — the ${stoppedBy === 'muscles' ? 'muscle' : 'bone'} budget reached at ` +
-            `${stoppedAt.toFixed(2)} s; the ${capture.frameCount} frames held are kept and still ` +
-            'export. For a longer capture raise the budget, then Reset and Start: the run is ' +
-            'deterministic and replays the same unless you grabbed, dragged or changed ' +
-            'drive/gravity during it.') +
-        recordingStatus(simulation),
-    );
-    const seconds = (simulation.ticks * simulation.dt).toFixed(2);
-    // How fast, never whether anything was lost: nothing is. Below life speed the machine is
-    // simply taking longer over the same ticks, and the run it produces is the same run.
-    const speed = simulation.achievedRateHz / simulation.declaredRateHz;
-    setSimulationStatus(
-      simulation.paused
-        ? `Paused at ${seconds} s.`
-        : speed > 0.01 && Math.abs(speed - 1) >= 0.05
-          ? `Running, ${seconds} s simulated, at ${speed.toFixed(2)}x life speed.`
-          : `Running, ${seconds} s simulated.`,
-    );
   }
 
   renderer.render(scene, camera);
 
   must<HTMLElement>('#stat-frame').textContent = `${frameMs.toFixed(1)} ms`;
   must<HTMLElement>('#stat-draws').textContent = String(renderer.info.render.calls);
+}
+
+/** The last message `frameFailed` logged, so a frame that throws every frame logs it once. */
+let lastFrameFailure = '';
+
+/**
+ * Something in the run's part of the frame threw. Pause the run where it is -- a paused run draws
+ * the same frame every frame, which is the likeliest way out of whatever threw -- and say so on
+ * the event line, which does not rewrite itself for the same message.
+ */
+function frameFailed(sim: Simulation, error: unknown): void {
+  const message = messageOf(error);
+  if (message !== lastFrameFailure) {
+    lastFrameFailure = message;
+    console.error('Drawing the run failed; the run is paused.', error);
+  }
+  sim.paused = true;
+  announce(
+    `Drawing the run failed at ${(sim.ticks * sim.dt).toFixed(3)} s and it is paused: ${message}.`,
+    { error: true },
+  );
+  setRunControls(true);
+}
+
+/** One frame of a run: advance or replay it, draw it, and update everything that reads it. */
+function runFrame(simulation: Simulation, skinned: SkinnedSkeleton, elapsed: number): void {
+  const frameSeconds = Math.min(elapsed, 250) / 1000;
+  if (following) {
+    // The elapsed time is measurement only: what the frame advances is one output frame's worth
+    // of simulated time, whatever the clock says.
+    try {
+      simulation.advance(frameSeconds);
+    } catch (error) {
+      stalled(simulation, error);
+    }
+    // A tick that threw, or a solver reset, pauses the run inside `advance`; this says so, once.
+    reportStop(simulation);
+  } else {
+    // Playback is the other way round -- paced by the clock, because what is being watched is
+    // finished and watching it should take the time it took.
+    playback.advance(frameSeconds, simulation.outputFramerate, capturedFrames());
+    if (!playback.playing) setRunControls(true);
+  }
+  const replay = following ? undefined : replayFrame(simulation);
+  const transforms = replay ?? simulation.boneTransforms();
+  // Off the live edge, the segment poses the overlays draw from are the replayed bones': a
+  // segment's frame is its anchor bone's, so the discs, the cartilage and the proxies follow
+  // the playhead the way the bones and bellies do.
+  const replayedPose = replay ? segmentPosesFrom(simulation, replay) : undefined;
+  // Held at rest for the Align tab, the bones are put at rest once and left there. Checked
+  // every frame rather than only when the hold is asked for, because a run is paused by many
+  // things -- Pause, a scrub, a failed tick -- and resumed by as many, and each of them moves
+  // the answer.
+  const atRest = heldAtRest();
+  if (atRest !== drawnHeld) {
+    drawnHeld = atRest;
+    if (atRest) skinned.rest();
+    applyOverlayVisibility();
+  }
+  if (!atRest) {
+    skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
+  }
+  if (vrLink) {
+    // The headset is sent the frame on screen, not the newest one: off the live edge that is
+    // the recorded frame under the playhead, bellies included, published under its own tick so
+    // the headset's body and timeline move as the desktop's do when replaying or scrubbing.
+    const shownIndex = replay
+      ? Playback.tickOf(playback.clampedFrame(capturedFrames()), simulation.ticksPerOutputFrame)
+      : -1;
+    vrLink.frame(
+      transforms.position,
+      transforms.orientation,
+      replay ? simulation.capture.firstTick + shownIndex : simulation.ticks,
+      replay
+        ? (playback.ringsAt(
+            simulation.muscleCapture,
+            simulation.muscleCapture.indexForTick(simulation.capture.firstTick + shownIndex),
+          ) ?? null)
+        : undefined,
+    );
+  }
+  if (overlays) {
+    const pose = simulation.channel('body.pose').fields;
+    const limits = simulation.channel('diagnostics.limits').fields;
+    const contacts = simulation.channel('contact.manifolds');
+    overlays.update({
+      // Off the live edge the pose overlays have no history to draw, so they are hidden rather
+      // than fed the newest tick's -- see `applyOverlayVisibility`. What is passed here is what
+      // they would draw if they were visible.
+      position: replayedPose?.position ?? (pose.position as Float64Array),
+      orientation: replayedPose?.orientation ?? (pose.orientation as Float64Array),
+      proximity: limits.proximity as Float64Array,
+      contactCount: replay ? 0 : contacts.count,
+      contactPoint: contacts.fields.point as Float64Array,
+      contactNormal: contacts.fields.normal as Float64Array,
+      contactCapacity: (contacts.fields.point as Float64Array).length / 3,
+      muscles: replay ? replayedMuscles(simulation) : muscleOverlay(simulation),
+    });
+  }
+  updateDiagnostics(simulation, following);
+  updateTimeline(simulation);
+  must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
+  const capture = simulation.capture;
+  // Both captures, because the muscle one is what usually stops first and it used to stop
+  // invisibly: with the whole muscle set running, a frame of rings is dozens of times a frame
+  // of bones. It is taken once a sweep rather than once a tick -- one tick in eight at
+  // 1000 Hz, one in four at 500 Hz -- so it grows several times faster than the bone capture
+  // rather than dozens, and on the same budget it still runs out first while this line went on
+  // counting bone frames.
+  const rings = simulation.muscleCapture;
+  // Each capture against its own budget, not the two summed against twice it: the muscle
+  // capture reaches the limit on its own, which summed reads as though the run stopped at a
+  // fraction of what it was allowed.
+  const mb = (bytes: number) => `${(bytes / MEBIBYTE).toFixed(0)} MB`;
+  const held = simulation.muscleVolume
+    ? `muscles ${mb(rings.bytes)}, bones ${mb(capture.bytes)}, of ${mb(simulation.captureBudgetBytes)} each`
+    : `${mb(capture.bytes)} of ${mb(simulation.captureBudgetBytes)}`;
+  // Which capture stopped, if one has. A bones-only run has nothing to level the two captures
+  // against, so nothing records which one stopped; a full bone capture is then the one.
+  const stoppedBy = simulation.capturesStoppedBy ?? (capture.full ? 'bones' : undefined);
+  // What raising the budget does after a stop is keep what is held, never carry on: the run has
+  // gone past the last captured tick, and a capture with a gap in it is not one the export can
+  // write. So the text says what a longer capture takes, which is a new run -- and a new run of
+  // the same settings is the same run, unless somebody reached into this one.
+  const stoppedAt = (capture.firstTick + capture.frameCount - 1) * simulation.dt;
+  setText(
+    must<HTMLElement>('#capture-status'),
+    `Captured ${capture.frameCount} frames for export (${held})` +
+      (stoppedBy === undefined
+        ? '.'
+        : ` — the ${stoppedBy === 'muscles' ? 'muscle' : 'bone'} budget reached at ` +
+          `${stoppedAt.toFixed(2)} s; the ${capture.frameCount} frames held are kept and still ` +
+          'export. For a longer capture raise the budget, then Reset and Start: the run is ' +
+          'deterministic and replays the same unless you grabbed, dragged or changed ' +
+          'drive/gravity during it.') +
+      recordingStatus(simulation),
+  );
+  const seconds = (simulation.ticks * simulation.dt).toFixed(2);
+  // How fast, never whether anything was lost: nothing is. Below life speed the machine is
+  // simply taking longer over the same ticks, and the run it produces is the same run.
+  const speed = simulation.achievedRateHz / simulation.declaredRateHz;
+  // A run that stopped itself says why for as long as it stands where it stopped, in red.
+  const stopped = stoppedHere(simulation);
+  setSimulationStatus(
+    stopped ??
+      (simulation.paused
+        ? `Paused at ${seconds} s.`
+        : speed > 0.01 && Math.abs(speed - 1) >= 0.05
+          ? `Running, ${seconds} s simulated, at ${speed.toFixed(2)}x life speed.`
+          : `Running, ${seconds} s simulated.`),
+    stopped !== undefined,
+  );
 }
 
 // The canvas is the viewport region's, not the window's: the editors around it take their share.
@@ -3041,12 +3500,9 @@ const vrHost = {
           unit: p.unit,
         }));
       })(),
-      muscleReadout: Object.fromEntries(
-        (['flexion', 'extension', 'loaded', 'wrapping', 'strained'] as const).map((key) => [
-          key,
-          must<HTMLElement>(`#muscle-${key}`).textContent ?? '',
-        ]),
-      ),
+      // The numbers the desktop's readout is drawn from, not its text read back off the page:
+      // with no run, or a run without muscles, there are none and the headset shows dashes.
+      muscleReadout: sim ? muscleReadoutText(muscleReadout) : {},
       // Relaxed off the live edge, as the desktop draws a replayed belly: tension is not recorded,
       // and the newest tick's would tint a frame it does not belong to.
       tension: sim && following ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],

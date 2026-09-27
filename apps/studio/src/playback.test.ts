@@ -139,6 +139,41 @@ describe('playing a capture back', () => {
     expect(Playback.frameOfTick(900, 500, 0)).toBe(0);
   });
 
+  it('is at the newest frame while live, whatever the playhead was left at', () => {
+    // The playhead was put on frame 3 by a scrub, then the run went live and carried on to a
+    // hundred frames. Live, the frame on screen is the newest; a frame back from there is 98,
+    // not 2 -- which is what stepping back from the stale playhead used to give.
+    const playback = new Playback();
+    playback.frame = 3;
+    expect(playback.at(100, true)).toBe(99);
+    expect(playback.at(100, false)).toBe(3);
+    // Off the live edge it is the playhead, clamped into the capture as `clampedFrame` has it.
+    playback.frame = 250;
+    expect(playback.at(100, false)).toBe(99);
+    expect(playback.at(100, false)).toBe(playback.clampedFrame(100));
+    // Nothing captured is frame 0 either way, never -1.
+    expect(playback.at(0, true)).toBe(0);
+    expect(playback.at(0, false)).toBe(0);
+  });
+
+  it('turns a frame into the run tick it shows and back, from a capture that started late', () => {
+    // The timeline's clock is the run's: a capture that began at tick 500 after a carry shows
+    // frame 0 at 0.5 s of the run, not at 0 s.
+    for (const [firstTick, perFrame] of [
+      [0, 1000 / 60],
+      [500, 1000 / 60],
+      [37, 500 / 24],
+      [1, 2],
+    ] as const) {
+      expect(Playback.runTickOf(0, firstTick, perFrame)).toBe(firstTick);
+      for (const frame of [0, 1, 17, 59, 600]) {
+        const tick = Playback.runTickOf(frame, firstTick, perFrame);
+        expect(tick - firstTick).toBe(Playback.tickOf(frame, perFrame));
+        expect(Playback.frameOfTick(tick, firstTick, perFrame)).toBe(frame);
+      }
+    }
+  });
+
   it('hands out a frame’s rings in arrays it keeps, and nothing for a frame it lacks', () => {
     const frames = 3;
     const ringCount = 4;

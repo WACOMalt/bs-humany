@@ -375,6 +375,27 @@ label.inline {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * A tighter control, for a long run of them: the drive sliders are thirty-five label-and-slider
+ * pairs, and at the full control spacing they were a page and a half of scrolling.
+ */
+.control.compact {
+  margin-bottom: 8px;
+}
+
+.control.compact label {
+  margin-bottom: 2px;
+}
+
+/* What a drive group is pulling with, beside the level it is driven at. */
+.control .force {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 .control.grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -536,6 +557,15 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * A readout of the newest tick while the playhead is somewhere else: still shown, because it is
+ * still true of the run, but dimmed so it does not read as a measurement of the replayed frame.
+ */
+.stale,
+#muscle-drives.forces-stale .force {
+  opacity: 0.45;
+}
+
 .inspector {
   min-height: 40px;
   font-size: 11.5px;
@@ -587,6 +617,7 @@ select {
 }
 
 #nerves-activity,
+#spine-activity,
 #train-chart {
   width: 100%;
   image-rendering: pixelated;
