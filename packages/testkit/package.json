@@ -27,6 +27,7 @@
     "@bs-humany/modules-nerves": "workspace:*"
   },
   "devDependencies": {
-    "@bs-humany/backend-mujoco": "workspace:*"
+    "@bs-humany/backend-mujoco": "workspace:*",
+    "@bs-humany/modules-sensing": "workspace:*"
   }
 }
