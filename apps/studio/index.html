@@ -361,7 +361,7 @@
               <div class="control">
                 <label for="train-name">Checkpoint name</label>
                 <input type="text" id="train-name" value="stand" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" autocomplete="off" />
-                <p class="note">A new name starts a new checkpoint, trained in the scenario on the Scene tab with the body on the Body tab and the joints as the World tab has them. A name that exists is refused unless Resume is ticked, which continues that checkpoint in the scenario it was saved with.</p>
+                <p class="note">A new name starts a new checkpoint, trained in the scenario on the Scene tab with the body on the Body tab and the joints as the World tab has them. A name is lower-case letters, digits, dashes and underscores, up to forty, and the panel offers one nothing is called yet. A name that exists is refused unless Resume is ticked. Resume continues the checkpoint's search in whatever the tabs say now, not as it was trained, and the line below lists anything that differs from how it was trained; it continues only the task the checkpoint was trained on. With no dashboard server running, a name the studio ships with is refused, Resume or not: those checkpoints are part of the studio, not this window's to continue, so choose another name.</p>
               </div>
               <div class="control">
                 <label for="train-task">Scored on</label>

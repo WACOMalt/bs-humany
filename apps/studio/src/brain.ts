@@ -17,11 +17,37 @@
 
 import { DEFAULT_SPINAL_GAINS, type PolicyFile } from '@bs-humany/modules-nerves';
 import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
+// The trainer's recipe module and nothing else of the trainer's, for the defaults and the rules:
+// it imports nothing that runs, so it adds no body to the main thread.
+import {
+  DEFAULT_AUTHORITY,
+  DEFAULT_NOISE,
+  DEFAULT_REFLEX,
+  SEARCH_DEFAULTS,
+  UI_RUN_DEFAULTS,
+  isTask,
+} from '@bs-humany/train/recipe';
 import { brainButtons, policyNote, spineNote, stretchLabel } from './training/buttons.js';
 import { checkpointKey, checkpointStem, reselect } from './training/checkpointKey.js';
 import { type LocalRun, startLocalTraining, suggestedWorkers } from './training/localTraining.js';
-import { shippedCheckpoint, shippedCheckpoints } from './training/shipped.js';
-import { holdsFilesOnDisk, listLocalCheckpoints, readLocalCheckpoint } from './training/store.js';
+import {
+  type Adjusted,
+  type NameVerdictResult,
+  adjustedPhrase,
+  buildRecipe,
+  checkpointNameOf,
+  feedforwardPhrase,
+  freeCheckpointName,
+  nameAllowsStart,
+  nameVerdict,
+} from './training/recipe.js';
+import { shippedCheckpoint, shippedCheckpoints, trainedBefore } from './training/shipped.js';
+import {
+  createCheckpointStore,
+  holdsFilesOnDisk,
+  listLocalCheckpoints,
+  readLocalCheckpoint,
+} from './training/store.js';
 
 export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
 
@@ -59,6 +85,18 @@ export interface CheckpointRow {
     readonly at: string;
   } | null;
   readonly recipe?: TrainingRecipe | null;
+  /**
+   * Where the studio's own list found it: in the set the studio ships with, or in what this studio
+   * trained itself. A server's rows say neither, except a shipped file the server was seeded with,
+   * which is marked as shipped so the list says what it is either way.
+   */
+  readonly source?: 'shipped' | 'local';
+  /**
+   * For a shipped checkpoint, what it was trained before -- `the current cord and the hand
+   * muscles` -- when the body has changed under it since; its fitness was scored in that body.
+   * @see trainedBefore
+   */
+  readonly trainedBefore?: string;
 }
 
 export interface TrainingStatus {
@@ -344,10 +382,39 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * server's own state changes, which are the three things that could make it untrue.
    */
   let refusal = '';
+  /**
+   * What the server said it did with the last Start that it took: the values it held to its
+   * limits, and how a resumed checkpoint's recipe differs from the one it is now trained under.
+   * Kept beside the run's status until the next Start or Stop, for the same reason as a refusal:
+   * the poll after a Start would otherwise paint over it before it could be read.
+   */
+  let startNote = '';
+  /** The checkpoint `startNote` is about, so it is only shown beside that run's status. */
+  let startNoteFor: string | undefined;
+  /**
+   * Whether the name box holds a name somebody chose -- typed, or taken from a checkpoint picked
+   * in the list -- rather than the one the panel offered. Until it does, the panel keeps offering
+   * a name nothing is called yet, for the task that is chosen.
+   */
+  let nameTouched = false;
+  /** Whether the list has been read once: until then no name can be judged against it. */
+  let rowsLoaded = false;
+  /** The row whose policy is in the loop, for what the fit note says about where it came from. */
+  let handedRow: CheckpointRow | undefined;
   /** When the activity last actually changed: a file nobody is writing any more goes stale. */
   let activityChangedAt = 0;
   /** The last payload seen, whether or not it was shown: what "changed" is measured against. */
   let activitySeen = '';
+
+  // The form opens on the trainer's own defaults, by name, rather than on numbers typed into the
+  // page a second time: the dashboard falls back on the same ones for anything a request leaves
+  // out, so a Start with the form untouched is a run the terminal would also call the default.
+  ui.generations.value = String(UI_RUN_DEFAULTS.generations);
+  ui.population.value = String(UI_RUN_DEFAULTS.population);
+  ui.seconds.value = String(SEARCH_DEFAULTS.seconds);
+  ui.noiseMotor.value = String(DEFAULT_NOISE.motor);
+  ui.noiseSense.value = String(DEFAULT_NOISE.sense);
+  ui.authority.value = String(DEFAULT_AUTHORITY);
 
   const readouts: [HTMLInputElement, string][] = [
     [ui.generations, '#train-generations-value'],
@@ -394,15 +461,16 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
 
   /**
    * What the cord's sliders say, in the shape the recipe and the module both take. The two gains
-   * with no slider are the module's own, so a panel and a trainer never disagree about them.
+   * with no slider are the measured cord's, from the recipe module the trainer and the dashboard
+   * read them from too, so a panel and a trainer never disagree about them.
    */
   const reflexFromUi = () => ({
     stretch: Number(ui.spineStretch.value),
     velocity: Number(ui.spineVelocity.value),
     setPoint: Number(ui.spineSetPoint.value),
     inhibition: Number(ui.spineInhibition.value),
-    forceCeiling: DEFAULT_SPINAL_GAINS.forceCeiling,
-    forceInhibition: DEFAULT_SPINAL_GAINS.forceInhibition,
+    forceCeiling: DEFAULT_REFLEX.forceCeiling,
+    forceInhibition: DEFAULT_REFLEX.forceInhibition,
     delaySeconds: Number(ui.spineDelay.value),
   });
 
@@ -455,42 +523,112 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const t = row.trained;
     const where = row.profile ? row.profile.replace(/_.*/, '').toUpperCase() : 'body unknown';
     const scene = row.recipe ? `, ${scenarioTitle(row.recipe.scenario)}` : '';
+    // A shipped checkpoint says so, and says when the body has changed under it since: its
+    // fitness was scored in that body, and a list that showed it beside a checkpoint trained
+    // yesterday read as if the two numbers meant the same thing.
+    const shipped =
+      row.source !== 'shipped'
+        ? ''
+        : row.trainedBefore
+          ? ` (shipped; trained before ${row.trainedBefore})`
+          : ' (shipped)';
     return t
-      ? `${row.name} — ${row.task}, ${where}${scene}, gen ${t.generations}, fitness ${t.fitness.toFixed(2)}`
-      : `${row.name} — ${row.task}, ${where}${scene}`;
+      ? `${row.name} — ${row.task}, ${where}${scene}, gen ${t.generations}, fitness ${t.fitness.toFixed(2)}${shipped}`
+      : `${row.name} — ${row.task}, ${where}${scene}${shipped}`;
   };
 
-  /** What Start would train, from the tabs as they are, so it is said before it is done. */
-  const NAME = /^[a-z0-9][a-z0-9_-]{0,40}$/;
-  const showRecipe = () => {
-    const input = host.recipe();
-    const name = ui.name.value.trim();
-    const exists = rows.some((r) => r.recipe?.name === name || r.name === `${name}.json`);
-    const under =
-      ui.feedforward.value === 'script'
-        ? "with the scenario's script under it"
-        : ui.feedforward.value === 'clip'
-          ? 'over the quiet-standing clip'
-          : 'alone';
-    const where = input.profile.replace(/_.*/, '').toUpperCase();
-    const body = `${input.morphology.stature.toFixed(2)} m, ${input.morphology.mass.toFixed(0)} kg`;
-    const scored = ui.task.value === 'balance' ? 'a still, level head' : 'standing';
-    ui.recipeNote.textContent = !NAME.test(name)
-      ? 'A name is lower-case letters, digits, dashes and underscores.'
-      : `${exists ? (ui.resume.checked ? 'Continues' : 'Refused: exists. Tick Resume to continue') : 'Starts'} ${name}: the brain ${under}, in ${scenarioTitle(input.scenario)} on ${where} (${body}), scored on ${scored}.`;
+  /** What Start would train: the tabs as they are and the form as it is, in the recipe's shape. */
+  const formRecipe = (): TrainingRecipe =>
+    buildRecipe(host.recipe(), {
+      name: ui.name.value,
+      task: ui.task.value,
+      feedforward: ui.feedforward.value,
+      authority: Number(ui.authority.value),
+      noise: { motor: Number(ui.noiseMotor.value), sense: Number(ui.noiseSense.value) },
+      reflex: reflexFromUi(),
+      memory: Number(ui.memory.value),
+    });
+  /** What Start would do with that recipe's name, from the list as it was last drawn. */
+  const verdictOf = (recipe: TrainingRecipe): NameVerdictResult =>
+    nameVerdict({
+      name: recipe.name,
+      task: recipe.task,
+      rows,
+      resume: ui.resume.checked,
+      serverUp,
+      recipe,
+    });
+  /**
+   * The recipe Start sends, or why it will not send one. One resolver for every way a run is
+   * started -- the button, the headset's `trainStart`, with a server or without -- and asked before
+   * either path is chosen, so a name the note refuses is refused by Start too. It used to be
+   * checked by the server and not by the window, whose run trained whatever the box said, or the
+   * task's name when the box was empty.
+   */
+  const recipeFromUi = (): { readonly recipe: TrainingRecipe } | { readonly error: string } => {
+    const recipe = formRecipe();
+    const verdict = verdictOf(recipe);
+    return nameAllowsStart(verdict.verdict)
+      ? { recipe }
+      : { error: verdict.problem ?? verdict.text };
   };
-  /** Changing what Start would do makes any refusal of the last attempt stale. */
+  /** What Start would train, from the tabs as they are, so it is said before it is done. */
+  const showRecipe = () => {
+    const recipe = formRecipe();
+    const verdict = verdictOf(recipe);
+    if (!nameAllowsStart(verdict.verdict)) {
+      ui.recipeNote.textContent = verdict.text;
+      return;
+    }
+    const where = recipe.profile.replace(/_.*/, '').toUpperCase();
+    const body = `${recipe.morphology.stature.toFixed(2)} m, ${recipe.morphology.mass.toFixed(0)} kg`;
+    const scored = recipe.task === 'balance' ? 'a still, level head' : 'standing';
+    // A resume trains the checkpoint in whatever the tabs say now, which is how a policy is
+    // carried to another body; said, field by field, so it is never done without being seen.
+    const changed = verdict.changes ? `, not as it was trained: ${verdict.changes}` : '';
+    ui.recipeNote.textContent = `${verdict.text}: the brain ${feedforwardPhrase(ui.feedforward.value)}, in ${scenarioTitle(recipe.scenario)} on ${where} (${body}), scored on ${scored}${changed}.`;
+  };
+  /**
+   * Changing what Start would do makes any refusal of the last attempt stale, and may make Start
+   * possible or impossible, so the buttons are worked out again from what the panel already knows
+   * rather than at the next poll.
+   */
   const reconsider = (): void => {
     if (refusal) {
       refusal = '';
       ui.status.textContent = '';
     }
     showRecipe();
+    setButtons();
   };
-  ui.name.addEventListener('input', reconsider);
+  ui.name.addEventListener('input', () => {
+    nameTouched = true;
+    reconsider();
+  });
   ui.feedforward.addEventListener('change', reconsider);
-  ui.task.addEventListener('change', reconsider);
+  ui.task.addEventListener('change', () => {
+    // Until a name has been chosen, the offered one follows the task: `balance` for a balance
+    // run, rather than a balance run under the name the panel offered for a stand.
+    if (!nameTouched && rowsLoaded) ui.name.value = freeCheckpointName(rows, ui.task.value);
+    reconsider();
+  });
   ui.resume.addEventListener('change', reconsider);
+  // Memory is part of the recipe a resume is compared against, and the headset moves it too.
+  ui.memory.addEventListener('input', reconsider);
+  // So are the authority, the noise and the cord: a resume lists how each differs from how the
+  // checkpoint was trained, and the list should follow the slider rather than the next poll.
+  for (const input of [
+    ui.authority,
+    ui.noiseMotor,
+    ui.noiseSense,
+    ui.spineStretch,
+    ui.spineVelocity,
+    ui.spineSetPoint,
+    ui.spineInhibition,
+    ui.spineDelay,
+  ]) {
+    input.addEventListener('input', showRecipe);
+  }
 
   /**
    * Every button on the tab, from the one set of rules the headset is sent as well.
@@ -507,6 +645,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       selected: ui.policy.value,
       handingOver,
       policySet: setup !== undefined,
+      // Not until the list has been read: a name cannot be judged against a list not yet seen.
+      nameOk: rowsLoaded && nameAllowsStart(verdictOf(formRecipe()).verdict),
     });
   const setButtons = (): void => {
     const b = buttons();
@@ -562,27 +702,37 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const row = rows.find((r) => r.id === ui.policy.value);
     if (row?.recipe) {
       const done = host.applyRecipe(row.recipe);
-      ui.name.value = row.recipe.name;
+      // The name the checkpoint is saved under, which is what Resume looks for; a name somebody
+      // chose, so the panel stops offering its own over it.
+      ui.name.value = checkpointNameOf(row) ?? row.recipe.name;
+      nameTouched = true;
       ui.feedforward.value = row.recipe.feedforward.kind;
-      ui.task.value = row.recipe.task === 'balance' ? 'balance' : 'stand';
+      // A task this panel can score is set; one it cannot is left alone rather than turned into
+      // a stand, which made Resume continue a checkpoint on a score it never learnt.
+      const task = row.recipe.task;
+      const scorable = isTask(task) && [...ui.task.options].some((o) => o.value === task);
+      if (scorable) ui.task.value = task;
       // The noise it was brought up in, so continuing a checkpoint continues the conditions
       // rather than quietly training the next generations in a different body's world. A
       // checkpoint saved before there was any noise says nothing, and gets the default.
       const noise = row.recipe.noise;
-      ui.noiseMotor.value = String(noise?.motor ?? 0.05);
-      ui.noiseSense.value = String(noise?.sense ?? 0.01);
+      ui.noiseMotor.value = String(noise?.motor ?? DEFAULT_NOISE.motor);
+      ui.noiseSense.value = String(noise?.sense ?? DEFAULT_NOISE.sense);
       for (const input of [ui.noiseMotor, ui.noiseSense]) {
         input.dispatchEvent(new Event('input', { bubbles: true }));
       }
       // What really happened to the run, which the host knows and the panel does not: a scene
       // or body change restarts one that is going, and only waits when none is.
       const set = `Scene, body and joints set from ${row.recipe.name}`;
+      const unscored = scorable
+        ? ''
+        : ` This panel cannot score '${task}', so Resume would be refused; a new name trains it on the task chosen here.`;
       ui.policyNote.textContent =
-        done === 'restarted'
+        (done === 'restarted'
           ? `${set}. The run was restarted in its scene and body.`
           : done === 'nextRun'
             ? `${set}. Set up for the next run.`
-            : `${set}.`;
+            : `${set}.`) + unscored;
     } else {
       ui.policyNote.textContent = policyNote({
         serverUp,
@@ -591,7 +741,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         lost: false,
       });
     }
-    showRecipe();
+    reconsider();
   });
 
   const showFit = () => {
@@ -611,9 +761,16 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       return;
     }
     ui.idleNote.hidden = true;
+    // A shipped checkpoint trained in an older body carries only the part of itself that still
+    // fits, and says so: the senses and drives it has no weights for are the ones the body
+    // gained since, and the fitness in the list was scored without them.
+    const shipped =
+      handedRow?.source === 'shipped' && handedRow.trainedBefore
+        ? ` It shipped with the studio, trained before ${handedRow.trainedBefore}; its fitness was scored in that body.`
+        : '';
     ui.fitNote.textContent =
       `In the loop: ${fit.carried.inputs} of ${fit.inputs} senses and ` +
-      `${fit.carried.outputs} of ${fit.outputs} drives carried from the checkpoint.`;
+      `${fit.carried.outputs} of ${fit.outputs} drives carried from the checkpoint.${shipped}`;
   };
 
   /**
@@ -686,6 +843,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         ui.fitNote.textContent = `Could not put the policy in: ${why}`;
       } else {
         setup = next;
+        handedRow = rows.find((r) => r.id === id);
         showFit();
       }
     } catch (error) {
@@ -699,6 +857,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   /** Take the policy out of the loop; the run carries on. A function for the same reason. */
   function releasePolicy(): void {
     setup = undefined;
+    handedRow = undefined;
     // Taking a policy out of a run that has none leaves it out, so there is nothing to report.
     handOverRefused(undefined);
     ui.fitNote.textContent = '';
@@ -793,7 +952,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const record = latest?.best
       ? `record ${latest.best.fitness.toFixed(2)} (${latest.best.alive.toFixed(2)} s up) at generation ${latest.best.generation}`
       : 'no record yet';
-    ui.status.textContent = status.elsewhere
+    const line = status.elsewhere
       ? 'A trainer started from a terminal is running; stop it there.'
       : status.running
         ? `Training ${status.task}: generation ${latest?.generations ?? 0}, ${record}.`
@@ -802,6 +961,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           : latest
             ? `Not training. Last run: generation ${latest.generations}, ${record}.`
             : 'Not training.';
+    const about = startNote !== '' && trainingName !== undefined && trainingName === startNoteFor;
+    ui.status.textContent = about ? `${line} ${startNote}` : line;
     drawChart(status);
   };
 
@@ -810,52 +971,69 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * button disabled by a status the desktop has not polled since would swallow the click.
    */
   async function startTraining(): Promise<void> {
+    // The name first, before either path: a name the note refuses is refused here, whichever
+    // way Start was pressed, and nothing is fetched, spawned or written for it.
+    const resolved = recipeFromUi();
+    if ('error' in resolved) {
+      refusal = `Could not start: ${resolved.error}`;
+      ui.status.textContent = refusal;
+      setButtons();
+      return;
+    }
+    const { recipe } = resolved;
     ui.start.disabled = true;
+    startNote = '';
+    startNoteFor = undefined;
     // No server: the search runs here, in web workers, saving to this window's own store. The
     // dashboard is still better from a terminal -- every core, and real files -- so it wins
     // when it is there.
     if (!serverUp) {
-      await startTrainingHere();
+      await startTrainingHere(recipe);
       return;
     }
     try {
-      const feedforward: TrainingRecipe['feedforward'] =
-        ui.feedforward.value === 'script'
-          ? { kind: 'script' }
-          : ui.feedforward.value === 'clip'
-            ? { kind: 'clip', clip: 'quiet-standing' }
-            : { kind: 'none' };
       const response = await fetch(`${dashboard}/train/start`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
+        // The dashboard's `recipeFrom` reads the authority, the task and the name from the top
+        // of the request rather than from inside the recipe -- that is where the studio has
+        // always sent them -- so they go there, from the one recipe, and cannot disagree with it.
         body: JSON.stringify({
-          task: ui.task.value,
-          name: ui.name.value.trim(),
-          recipe: {
-            ...host.recipe(),
-            feedforward,
-            noise: {
-              motor: Number(ui.noiseMotor.value),
-              sense: Number(ui.noiseSense.value),
-              tau: 0.25,
-            },
-            reflex: reflexFromUi(),
-            memory: Number(ui.memory.value),
-          },
+          task: recipe.task,
+          name: recipe.name,
+          authority: recipe.authority,
+          recipe,
           generations: Number(ui.generations.value),
           population: Number(ui.population.value),
           seconds: Number(ui.seconds.value),
           workers: Number(ui.workers.value),
-          seeds: 2,
-          authority: Number(ui.authority.value),
+          seeds: SEARCH_DEFAULTS.seeds,
           resume: ui.resume.checked,
         }),
       });
-      const result = (await response.json()) as { error?: string };
+      const result = (await response.json()) as {
+        error?: string;
+        name?: string;
+        clamped?: readonly Adjusted[];
+        recipeChanges?: string;
+      };
       if (result.error) {
         refusal = `Could not start: ${result.error}`;
       } else {
         refusal = '';
+        // What the server did with what it was sent, which a person cannot see otherwise: a
+        // value it held to its limits trains a body the sliders do not show, and a resumed
+        // checkpoint trains under the recipe sent, not the one it was saved with.
+        const name = result.name ?? recipe.name;
+        const adjusted = adjustedPhrase(result.clamped);
+        startNote = [
+          adjusted ? `Started; ${adjusted}.` : '',
+          result.recipeChanges ? `Resuming ${name} with changes: ${result.recipeChanges}.` : '',
+        ]
+          .filter((part) => part !== '')
+          .join(' ');
+        startNoteFor = name;
+        if (startNote !== '') ui.status.textContent = startNote;
         if (!host.following()) host.startFollowing();
       }
     } catch (error) {
@@ -864,42 +1042,49 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     await poll();
   }
 
-  /** Train in this window: no fetch, no server, nothing spawned. */
-  async function startTrainingHere(): Promise<void> {
+  /** Refuse a Start in this window, and say why until something is done about it. */
+  const refuseHere = (why: string): void => {
+    refusal = `Could not start: ${why}`;
+    ui.status.textContent = refusal;
+    setButtons();
+  };
+
+  /**
+   * Train in this window: no fetch, no server, nothing spawned. `recipe` is the one the resolver
+   * gave, whose name has passed the rule; what is checked here is what only the store can say.
+   */
+  async function startTrainingHere(recipe: TrainingRecipe): Promise<void> {
     if (localRun) return;
-    const wanted = ui.name.value.trim() || ui.task.value;
-    // The same rule the server keeps, kept here too: a name that exists is refused unless Resume
-    // is ticked. Without this a second run under an old name would overwrite the checkpoint it
-    // took an afternoon to train, and say nothing about it.
-    if (!ui.resume.checked && (await readLocalCheckpoint(wanted))) {
-      refusal =
-        `Could not start: a checkpoint named ${wanted} exists; ` +
-        'tick Resume to continue it, or choose another name.';
-      ui.status.textContent = refusal;
-      setButtons();
+    const wanted = recipe.name;
+    // The same rules the server keeps, asked of the store itself rather than of the list, which
+    // may be a poll behind it. A name that exists is refused unless Resume is ticked: without
+    // this a second run under an old name would overwrite the checkpoint it took an afternoon to
+    // train, and say nothing about it.
+    const saved = (await readLocalCheckpoint(wanted)) as PolicyFile | undefined;
+    if (!ui.resume.checked && saved) {
+      refuseHere(
+        `a checkpoint named ${wanted} exists; tick Resume to continue it, or choose another name`,
+      );
       return;
+    }
+    if (ui.resume.checked) {
+      // And a Resume with nothing to continue is refused rather than started afresh under a word
+      // that said otherwise, which is what the trainer does when it finds nothing saved.
+      const held =
+        saved ?? ((await createCheckpointStore(wanted).read('centre')) as PolicyFile | undefined);
+      if (!held) {
+        refuseHere(`nothing saved under ${wanted} to continue. Untick Resume to start it`);
+        return;
+      }
+      if (typeof held.task === 'string' && held.task !== recipe.task) {
+        refuseHere(
+          `${wanted} was trained on ${held.task}; Resume continues only the same task. Choose another name`,
+        );
+        return;
+      }
     }
     refusal = '';
     localSeries = [];
-    const recipe: TrainingRecipe = {
-      ...host.recipe(),
-      name: wanted,
-      task: ui.task.value,
-      feedforward:
-        ui.feedforward.value === 'script'
-          ? { kind: 'script' }
-          : ui.feedforward.value === 'clip'
-            ? { kind: 'clip', clip: 'quiet-standing' }
-            : { kind: 'none' },
-      authority: Number(ui.authority.value),
-      noise: {
-        motor: Number(ui.noiseMotor.value),
-        sense: Number(ui.noiseSense.value),
-        tau: 0.25,
-      },
-      reflex: reflexFromUi(),
-      memory: Number(ui.memory.value),
-    };
     const workers = Math.min(Number(ui.workers.value), suggestedWorkers());
     localStatus = `Building ${workers} bodies in this window...`;
     ui.status.textContent = localStatus;
@@ -909,7 +1094,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       population: Number(ui.population.value),
       seconds: Number(ui.seconds.value),
       workers,
-      seeds: 2,
+      seeds: SEARCH_DEFAULTS.seeds,
       resume: ui.resume.checked,
       onNote: (text) => {
         localStatus = text.trim();
@@ -956,6 +1141,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   }
 
   async function stopTraining(): Promise<void> {
+    startNote = '';
+    startNoteFor = undefined;
     if (localRun) {
       localRun.stop();
       localStopping = true;
@@ -1028,8 +1215,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const held = await listLocalCheckpoints();
     const mine = new Set(held.map((row) => row.name));
     const shipped = (await shippedCheckpoints()).filter((row) => !mine.has(row.name));
-    return [...held, ...shipped].map(({ name, file }) => {
+    const row = (name: string, file: unknown, source: 'shipped' | 'local'): CheckpointRow => {
       const policy = file as PolicyFile;
+      const before = source === 'shipped' ? trainedBefore(policy) : undefined;
       return {
         id: name,
         name,
@@ -1038,9 +1226,50 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         sizes: policy.sizes ?? [],
         trained: policy.trained ?? null,
         recipe: (policy.recipe as TrainingRecipe | undefined) ?? null,
+        source,
+        ...(before ? { trainedBefore: before } : {}),
       };
+    };
+    return [
+      ...held.map(({ name, file }) => row(name, file, 'local')),
+      ...shipped.map(({ name, file }) => row(name, file, 'shipped')),
+    ];
+  }
+
+  /**
+   * A server's list with the shipped checkpoints it was seeded with marked as shipped. The server
+   * copies the repository's policies into its data folder once and lists them as files like any
+   * other, so a file is taken to be the shipped one when it has a shipped name and was trained at
+   * the same moment; one retrained since under the same name is somebody's own.
+   */
+  async function markShipped(served: readonly CheckpointRow[]): Promise<CheckpointRow[]> {
+    const shipped = await shippedCheckpoints();
+    return served.map((row) => {
+      const name = checkpointNameOf(row);
+      const twin = shipped.find(
+        (s) =>
+          s.name === name &&
+          s.file.trained?.at !== undefined &&
+          s.file.trained.at === row.trained?.at,
+      );
+      if (!twin) return row;
+      const before = trainedBefore(twin.file);
+      return { ...row, source: 'shipped', ...(before ? { trainedBefore: before } : {}) };
     });
   }
+
+  /**
+   * The list, as read, and the name the form offers once there is a list to offer it against:
+   * the task, or the task with the first free number after it, so the first Start is never
+   * refused for a name the studio ships with and never continues one nobody chose.
+   */
+  const takeRows = (next: CheckpointRow[]): void => {
+    rows = next;
+    if (!rowsLoaded) {
+      rowsLoaded = true;
+      if (!nameTouched) ui.name.value = freeCheckpointName(rows, ui.task.value);
+    }
+  };
 
   // Until the first poll answers, the list is not known either way; the page's own note used to
   // say there was no server before anything had been asked.
@@ -1099,7 +1328,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     if (served) {
       const [policies, status] = served;
       serverUp = true;
-      rows = policies.policies;
+      takeRows(await markShipped(policies.policies));
       showRows();
       showStatus(status);
       // Who is on the bridge, when this server is not the one training: the showcase names the
@@ -1123,7 +1352,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       // those are checkpoints like any other, so they go in the list rather than the list going
       // empty.
       serverUp = false;
-      rows = await localRows();
+      takeRows(await localRows());
       showRows();
       showStatus(undefined);
     }

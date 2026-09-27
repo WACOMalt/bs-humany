@@ -10,7 +10,15 @@
  * there. This is what happens when it is not, which until now was nothing.
  */
 
-import { type RigOptions, type TrainingRecipe, rigOptionsFor } from '@bs-humany/train/rig';
+// From the recipe module rather than the rig, which re-exports the same things: the rig is the
+// body, MuJoCo and all, and only the workers need one, while the recipe module imports nothing
+// that runs, so asking it for a type or a default brings no body with it.
+import {
+  type RigOptions,
+  SEARCH_DEFAULTS,
+  type TrainingRecipe,
+  rigOptionsFor,
+} from '@bs-humany/train/recipe';
 import { type GenerationReport, describeResult, train } from '@bs-humany/train/trainer';
 import { createWorkerPool } from './pool.js';
 import { createCheckpointStore } from './store.js';
@@ -51,7 +59,7 @@ export function suggestedWorkers(): number {
 
 export function startLocalTraining(options: LocalTrainingOptions): LocalRun {
   let stopping = false;
-  const hidden = options.hidden ?? [32, 32];
+  const hidden = options.hidden ?? SEARCH_DEFAULTS.hidden;
   const rigOptions: RigOptions = rigOptionsFor(options.recipe, {
     hidden,
     seconds: options.seconds,
@@ -73,8 +81,9 @@ export function startLocalTraining(options: LocalTrainingOptions): LocalRun {
         seedsPerCandidate: options.seeds,
         seconds: options.seconds,
         workers: options.workers,
-        sigma: 0.03,
-        learningRate: 0.005,
+        // The search's own settings, as the terminal trainer takes them when no flag is given.
+        sigma: SEARCH_DEFAULTS.sigma,
+        learningRate: SEARCH_DEFAULTS.learningRate,
         hidden,
         resume: options.resume,
         now: () => performance.now(),

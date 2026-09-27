@@ -27,6 +27,7 @@ const idle: BrainButtonInputs = {
   selected: '',
   handingOver: false,
   policySet: false,
+  nameOk: true,
 };
 
 describe('the Brain tab buttons', () => {
@@ -50,6 +51,17 @@ describe('the Brain tab buttons', () => {
     expect(brainButtons({ ...idle, serverUp: true }).canStart).toBe(true);
     expect(brainButtons({ ...idle, serverUp: true, trainingRunning: true }).canStart).toBe(false);
     expect(brainButtons({ ...idle, serverUp: true, elsewhere: true }).canStart).toBe(false);
+  });
+
+  it('refuses Start for a name Start would refuse, on both paths, and nothing else', () => {
+    // The window's own run and the server's alike: a name that is not one, or one taken, trained
+    // a checkpoint nobody asked for on the path that did not check it.
+    expect(brainButtons({ ...idle, nameOk: false }).canStart).toBe(false);
+    expect(brainButtons({ ...idle, serverUp: true, nameOk: false }).canStart).toBe(false);
+    // The name has nothing to do with stopping a run or handing a policy over.
+    const running = brainButtons({ ...idle, localRun: true, selected: 'stand', nameOk: false });
+    expect(running.canStop).toBe(true);
+    expect(running.canHandOver).toBe(true);
   });
 
   it('offers Stop with a server while only the showcase is still up', () => {
