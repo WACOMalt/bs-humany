@@ -25,6 +25,8 @@ use anyhow::{Context, Result, bail};
 use ash::vk::{self, Handle};
 use std::ffi::{CStr, CString};
 
+use crate::panel::{Hit, Placement};
+
 /// Said when the runtime has neither Vulkan binding: nothing here can draw through it at all.
 const NO_VULKAN: &str = "the OpenXR runtime offers no Vulkan binding, so nothing here can render to it";
 
@@ -491,10 +493,17 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     };
     let mut holding: [Option<Hold>; crate::bridge::HANDS] = [None, None];
     let mut hand_seen = [false; crate::bridge::HANDS];
-    // A trigger that was already down when its ray reached the panel presses nothing until it
-    // is let go: squeezing to grab a bone tends to pull the trigger too, and the ray sweeping
+    // Where each hand's press began, from the trigger going down until it is let go. It decides
+    // everything the press does: begun on a panel's face, that panel keeps the hand as its
+    // pointer wherever the ray goes, so a slider dragged off the end still lands and the drag
+    // never slides onto a strip and picks the panel up; begun on a strip, it carries the panel;
+    // begun anywhere else, it presses nothing at all. The last is what the trigger was once
+    // "armed" for: squeezing to grab a bone tends to pull the trigger too, and the ray sweeping
     // the panel then was clicking whatever it crossed.
-    let mut trigger_armed = [true; crate::bridge::HANDS];
+    let mut press_on: [Option<PressOn>; crate::bridge::HANDS] = [None, None];
+    // Which panel's face each hand's ray was on last frame. That hand's stick scrolls the panel
+    // instead of moving the viewer; last frame's, because the sticks are read before the rays.
+    let mut on_face: [Option<usize>; crate::bridge::HANDS] = [None, None];
     // Pressed past six tenths, released under a quarter: a trigger held anywhere between stays
     // what it was, so a hand resting on the trigger does not click.
     let mut trigger_down = [false; crate::bridge::HANDS];
@@ -522,8 +531,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     // height, and the transport strip under it, both turned to face where the viewer stands.
     // Whichever hand is pointing at a panel is its pointer; a hand that pressed on it keeps being
     // the pointer until it lets go, so a drag does not change hands mid-way. A hand on a grab
-    // strip carries the panel instead.
-    use crate::panel::{Held, Hit, Kind, Panel, Placement};
+    // strip carries the panel instead. Where they overlap, the nearer is the one pointed at.
+    use crate::panel::{Held, Kind, Panel};
     let mut placements = [
         Placement::facing(Kind::Properties.size(), [0.95, 1.3, -1.0], [0.0, 1.3, 0.0]),
         Placement::facing(Kind::Transport.size(), [0.55, 0.76, -1.05], [0.0, 0.76, 0.0]),
@@ -730,13 +739,25 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
 
         hands.sync(&session)?;
 
-        // Walking: the left stick, in the frame of where the head is looking, flattened.
+        // The sticks, each either moving the viewer or, while its hand's ray is on a panel's
+        // face, scrolling that panel: the one stick cannot do both, and a person aiming at a
+        // long tab and pushing the stick wants the tab to move, not the room.
         let now = std::time::Instant::now();
         let dt = (now - last_frame).as_secs_f32().min(0.1);
         last_frame = now;
         let head = views[0].pose.position;
         let head = [head.x, head.y, head.z];
-        let stick = hands.thumbstick(&session, 0)?;
+        let mut scroll = [0.0f32; 2];
+        let mut sticks = [[0.0f32; 2]; crate::bridge::HANDS];
+        for (hand, stick) in sticks.iter_mut().enumerate() {
+            let (moving, scrolling) = stick_on_panel(hands.thumbstick(&session, hand)?, on_face[hand].is_some(), DEAD_ZONE);
+            *stick = moving;
+            if let Some(which) = on_face[hand] {
+                scroll[which] = (scroll[which] + scrolling).clamp(-1.0, 1.0);
+            }
+        }
+        // Walking: the left stick, in the frame of where the head is looking, flattened.
+        let stick = sticks[0];
         let deflection = (stick[0] * stick[0] + stick[1] * stick[1]).sqrt();
         if deflection > DEAD_ZONE {
             let q = views[0].pose.orientation;
@@ -761,7 +782,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         // head is, so it is a turn on the spot rather than a swing around the middle of the
         // stage; forward and back lift and lower. Each axis has its own dead zone, so a stick
         // pushed to turn does not also drift upwards.
-        let look = hands.thumbstick(&session, 1)?;
+        let look = sticks[1];
         let turn = past_dead_zone(look[0], DEAD_ZONE);
         if turn != 0.0 {
             view_point.turn(turn * TURN_SPEED * dt, head);
@@ -817,9 +838,6 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             let pull = hands.trigger(&session, hand)?;
             trigger_down[hand] = if trigger_down[hand] { pull > 0.25 } else { pull > 0.6 };
             let pressed = trigger_down[hand];
-            if !pressed {
-                trigger_armed[hand] = true;
-            }
             let aimed = hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?;
             // The panels are of the world; the ray is of the stage. Carry the ray over, turn
             // and all: a viewer who has turned no longer points where the stage says.
@@ -833,6 +851,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             });
             // A hand carrying a panel keeps carrying it while the trigger is down, wherever it
             // points; let go, the panel stays.
+            on_face[hand] = None;
             if let Some((which, held)) = carrying[hand] {
                 match ray {
                     Some((from, q, _)) if pressed => {
@@ -840,50 +859,44 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     }
                     Some(_) => {
                         carrying[hand] = None;
+                        press_on[hand] = None;
                         panels[which].grabbed = false;
                         println!("hand {}: put the panel down", ["left", "right"][hand]);
                     }
                     None => {}
                 }
             } else {
-                let hit = ray.and_then(|(from, _, forward)| {
-                    placements
-                        .iter()
-                        .enumerate()
-                        .find_map(|(which, p)| p.hit(from, forward).map(|h| (which, h)))
-                });
-                match hit {
-                    // A hand that is holding a bone is busy; its ray is not a pointer.
-                    Some((which, Hit::Face(at))) if holding[hand].is_none() => {
-                        let world = placements[which].to_world(at);
-                        let in_stage = view_point.to_stage(world);
-                        drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
-                        let pressing = pressed && trigger_armed[hand];
+                // A hand that is holding a bone is busy; its ray is not a pointer.
+                let busy = holding[hand].is_some();
+                let pointing = ray.map(|(from, _, forward)| (from, forward));
+                let mark = |which: usize, at: egui::Pos2| {
+                    let in_stage = view_point.to_stage(placements[which].to_world(at));
+                    crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0])
+                };
+                match aim(&placements, pointing, pressed, busy, &mut press_on[hand]) {
+                    Aim::Face { which, at, pressing } => {
+                        drawn[marker] = mark(which, at);
+                        on_face[hand] = Some(which);
+                        // The hand that pressed keeps the panel; otherwise the first hand on it,
+                        // unless a later one is pressing and the first only pointing.
                         let keep = pointer_hand[which] == Some(hand);
-                        if keep || pointer_candidate[which].is_none() {
+                        let outranks = pointer_candidate[which].map_or(true, |(_, _, other)| pressing && !other);
+                        if keep || outranks {
                             pointer_candidate[which] = Some((hand, at, pressing));
                         }
                     }
-                    Some((which, Hit::Grab(at))) if holding[hand].is_none() => {
-                        let world = placements[which].to_world(at);
-                        let in_stage = view_point.to_stage(world);
-                        drawn[marker] = crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0]);
+                    Aim::Strip { which, at, take } => {
+                        drawn[marker] = mark(which, at);
                         let already_carried = carrying.iter().flatten().any(|(w, _)| *w == which);
-                        if pressed && trigger_armed[hand] && !already_carried {
+                        if take && !already_carried {
                             if let Some((from, q, _)) = ray {
                                 carrying[hand] = Some((which, placements[which].held_by(from, q)));
                                 panels[which].grabbed = true;
-                                // This press is the grab; it clicks nothing when it ends.
-                                trigger_armed[hand] = false;
                                 println!("hand {}: took the panel", ["left", "right"][hand]);
                             }
                         }
                     }
-                    _ => {
-                        if pressed {
-                            trigger_armed[hand] = false;
-                        }
-                    }
+                    Aim::Nothing => {}
                 }
             }
             let Some(f) = feeds.as_mut() else { continue };
@@ -982,6 +995,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     pointers[which] = crate::panel::Pointer {
                         at: Some(at),
                         pressed,
+                        scroll: scroll[which],
                     };
                 }
                 None => pointer_hand[which] = None,
@@ -1023,6 +1037,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             let frame = panel.run(
                 publisher.status.as_ref(),
                 pointers[which],
+                dt,
                 &feeds_line,
                 alive.as_ref(),
                 publisher.error.as_deref(),
@@ -1042,12 +1057,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
             panel_meshes.push(frame.meshes);
         }
-        let panel_draws: Vec<crate::render::PanelDraw> = placements
-            .iter()
-            .zip(panel_meshes.iter())
-            .map(|(placement, meshes)| crate::render::PanelDraw {
-                model: crate::render::multiply(&shift, &placement.model()),
-                meshes,
+        // Farther first: the panels are blended over what is behind them and do not write depth,
+        // so the nearer must be drawn last to be seen on top where they overlap -- as a panel
+        // carried in front of the other is pointed at, now, by being the nearer.
+        let panel_draws: Vec<crate::render::PanelDraw> = back_to_front(&placements, view_point.to_world(head))
+            .into_iter()
+            .map(|which| crate::render::PanelDraw {
+                model: crate::render::multiply(&shift, &placements[which].model()),
+                meshes: &panel_meshes[which],
             })
             .collect();
 
@@ -1454,6 +1471,109 @@ fn past_dead_zone(v: f32, dead: f32) -> f32 {
     } else {
         v.signum() * (v.abs() - dead) / (1.0 - dead)
     }
+}
+
+/// A stick, and whether its hand's ray is on a panel's face: what is left of it to move the
+/// viewer, and how far it scrolls. On a panel the stick is the panel's alone, both axes, so a
+/// push to scroll that wanders sideways does not turn the room; its forward part, past the dead
+/// zone, is the scroll.
+fn stick_on_panel(stick: [f32; 2], on_panel: bool, dead: f32) -> ([f32; 2], f32) {
+    if on_panel {
+        ([0.0, 0.0], past_dead_zone(stick[1], dead))
+    } else {
+        (stick, 0.0)
+    }
+}
+
+/// Where a press began, which decides what it does until the trigger is let go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PressOn {
+    /// On panel `which`'s face: that panel keeps the hand as its pointer until release.
+    Face(usize),
+    /// On panel `which`'s grab strip: the only press that carries a panel.
+    Strip(usize),
+    /// Anywhere else -- empty air, a bone, a hand holding a bone. It presses nothing.
+    Air,
+}
+
+/// What a hand's ray does to the panels this frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Aim {
+    /// Nothing: the ray meets no panel, or the hand is busy.
+    Nothing,
+    /// On panel `which`'s face at `at`, in points; `pressing` while a press begun there is held.
+    Face { which: usize, at: egui::Pos2, pressing: bool },
+    /// On panel `which`'s grab strip; `take` when a press begun on this strip is held.
+    Strip { which: usize, at: egui::Pos2, take: bool },
+}
+
+/// The panel a ray meets first, and where: of panels that overlap on the ray, the nearer, which
+/// is the one in front whatever order the panels are kept in.
+fn nearest_hit(placements: &[Placement], from: [f32; 3], direction: [f32; 3]) -> Option<(usize, Hit)> {
+    placements
+        .iter()
+        .enumerate()
+        .filter_map(|(which, p)| p.hit(from, direction).map(|(t, hit)| (which, t, hit)))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(which, _, hit)| (which, hit))
+}
+
+/// What a hand's ray does to the panels, given where its press began, which this keeps: set when
+/// the trigger goes down, from what the ray was on then, and cleared when it is let go.
+///
+/// A press begun on a face keeps that panel whatever the ray meets next, at the ray's point held
+/// to the face's edges, so a drag past the edge still ends where it was aimed and never slides
+/// onto a strip. If the panel is lost to the ray altogether -- no ray, or the panel behind it --
+/// the press is over, and becomes one begun in the air, so that the ray coming back with the
+/// trigger still held does not press again on whatever it comes back to. A busy hand, one
+/// holding a bone, aims at nothing and its press, begun or held, presses nothing.
+fn aim(
+    placements: &[Placement],
+    ray: Option<([f32; 3], [f32; 3])>,
+    pressed: bool,
+    busy: bool,
+    press: &mut Option<PressOn>,
+) -> Aim {
+    let hit = if busy { None } else { ray.and_then(|(from, direction)| nearest_hit(placements, from, direction)) };
+    if !pressed {
+        *press = None;
+    } else if press.is_none() || busy {
+        *press = Some(match hit {
+            _ if busy => PressOn::Air,
+            Some((which, Hit::Face(_))) => PressOn::Face(which),
+            Some((which, Hit::Grab(_))) => PressOn::Strip(which),
+            None => PressOn::Air,
+        });
+    }
+    if busy {
+        return Aim::Nothing;
+    }
+    if let Some(PressOn::Face(which)) = *press {
+        return match ray.and_then(|(from, direction)| placements[which].project(from, direction)) {
+            Some(at) => Aim::Face { which, at, pressing: true },
+            None => {
+                *press = Some(PressOn::Air);
+                Aim::Nothing
+            }
+        };
+    }
+    match hit {
+        Some((which, Hit::Face(at))) => Aim::Face { which, at, pressing: false },
+        Some((which, Hit::Grab(at))) => Aim::Strip { which, at, take: *press == Some(PressOn::Strip(which)) },
+        None => Aim::Nothing,
+    }
+}
+
+/// The panels in the order to draw them: the farthest from the eye first. A fixed-size sort, so
+/// nothing is allocated for it.
+fn back_to_front<const N: usize>(placements: &[Placement; N], eye: [f32; 3]) -> [usize; N] {
+    let distance = |which: &usize| {
+        let c = placements[*which].centre();
+        (c[0] - eye[0]).powi(2) + (c[1] - eye[1]).powi(2) + (c[2] - eye[2]).powi(2)
+    };
+    let mut order: [usize; N] = std::array::from_fn(|which| which);
+    order.sort_by(|a, b| distance(b).total_cmp(&distance(a)));
+    order
 }
 
 /// What a hand is holding: which pose bone, where in the simulation's frame it took hold, and
@@ -1885,5 +2005,122 @@ mod tests {
         assert!((past_dead_zone(0.15 + 1e-6, 0.15)).abs() < 1e-5);
         assert!((past_dead_zone(1.0, 0.15) - 1.0).abs() < 1e-6);
         assert!((past_dead_zone(-1.0, 0.15) + 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_stick_aimed_at_a_panel_scrolls_it_and_moves_nobody() {
+        // Off a panel the stick is the viewer's, whole, and scrolls nothing.
+        assert_eq!(stick_on_panel([0.4, -0.9], false, 0.15), ([0.4, -0.9], 0.0));
+        // On one, it is the panel's: both axes out of the walk, the turn and the lift, and its
+        // forward part past the dead zone is the scroll, forward positive.
+        let (moving, scroll) = stick_on_panel([0.4, 1.0], true, 0.15);
+        assert_eq!(moving, [0.0, 0.0]);
+        assert!((scroll - 1.0).abs() < 1e-6);
+        assert_eq!(stick_on_panel([0.9, 0.1], true, 0.15), ([0.0, 0.0], 0.0));
+    }
+
+    use crate::panel::{GRAB_WIDTH, Kind};
+
+    /// The properties panel a metre ahead of the origin, facing it, at eye height.
+    fn ahead(distance: f32) -> Placement {
+        Placement::facing(Kind::Properties.size(), [0.0, 1.5, -distance], [0.0, 1.5, 0.0])
+    }
+
+    /// A ray from the origin at eye height to this point of `panel`.
+    fn at(panel: &Placement, p: egui::Pos2) -> Option<([f32; 3], [f32; 3])> {
+        let from = [0.0, 1.5, 0.0];
+        let w = panel.to_world(p);
+        Some((from, [w[0] - from[0], w[1] - from[1], w[2] - from[2]]))
+    }
+
+    #[test]
+    fn of_two_panels_on_one_ray_the_nearer_is_hit_whatever_their_order() {
+        let near = ahead(0.6);
+        let far = ahead(1.2);
+        let (from, direction) = at(&near, egui::pos2(320.0, 390.0)).unwrap();
+        assert!(far.hit(from, direction).is_some() && near.hit(from, direction).is_some());
+        assert_eq!(nearest_hit(&[far, near], from, direction).map(|(which, _)| which), Some(1));
+        assert_eq!(nearest_hit(&[near, far], from, direction).map(|(which, _)| which), Some(0));
+        // And a press is taken by the nearer one.
+        let mut press = None;
+        let aimed = aim(&[far, near], Some((from, direction)), true, false, &mut press);
+        assert!(matches!(aimed, Aim::Face { which: 1, pressing: true, .. }), "{aimed:?}");
+        assert_eq!(press, Some(PressOn::Face(1)));
+    }
+
+    #[test]
+    fn a_press_begun_on_the_face_keeps_the_panel_and_never_carries_it() {
+        let panel = [ahead(1.0)];
+        let mut press = None;
+        let begun = aim(&panel, at(&panel[0], egui::pos2(200.0, 300.0)), true, false, &mut press);
+        assert!(matches!(begun, Aim::Face { which: 0, pressing: true, .. }), "{begun:?}");
+        // Slid onto the strip with the trigger held: still the face, at the strip's inner side,
+        // and nothing taken.
+        let onto_strip = aim(&panel, at(&panel[0], egui::pos2(10.0, 300.0)), true, false, &mut press);
+        match onto_strip {
+            Aim::Face { which: 0, at, pressing: true } => assert!((at.x - GRAB_WIDTH).abs() < 1e-2, "{at:?}"),
+            other => panic!("{other:?}"),
+        }
+        // Past the panel's right edge: still the face, at the edge.
+        let past = aim(&panel, at(&panel[0], egui::pos2(900.0, 300.0)), true, false, &mut press);
+        match past {
+            Aim::Face { which: 0, at, pressing: true } => assert!((at.x - 640.0).abs() < 1e-2, "{at:?}"),
+            other => panic!("{other:?}"),
+        }
+        // Let go on the strip: the press is over, and nothing was carried.
+        let released = aim(&panel, at(&panel[0], egui::pos2(10.0, 300.0)), false, false, &mut press);
+        assert!(matches!(released, Aim::Strip { take: false, .. }), "{released:?}");
+        assert_eq!(press, None);
+    }
+
+    #[test]
+    fn only_a_press_begun_on_the_strip_carries_the_panel() {
+        let panel = [ahead(1.0)];
+        let mut press = None;
+        let taken = aim(&panel, at(&panel[0], egui::pos2(10.0, 300.0)), true, false, &mut press);
+        assert!(matches!(taken, Aim::Strip { which: 0, take: true, .. }), "{taken:?}");
+        assert_eq!(press, Some(PressOn::Strip(0)));
+    }
+
+    #[test]
+    fn a_press_begun_in_the_air_presses_nothing_it_sweeps_across() {
+        let panel = [ahead(1.0)];
+        let mut press = None;
+        // Down while pointing away from the panel.
+        assert_eq!(aim(&panel, Some(([0.0, 1.5, 0.0], [0.0, 0.0, 1.0])), true, false, &mut press), Aim::Nothing);
+        assert_eq!(press, Some(PressOn::Air));
+        // Swept across the face and onto the strip, still held: a pointer, never a press or a
+        // carry.
+        let face = aim(&panel, at(&panel[0], egui::pos2(300.0, 300.0)), true, false, &mut press);
+        assert!(matches!(face, Aim::Face { pressing: false, .. }), "{face:?}");
+        let strip = aim(&panel, at(&panel[0], egui::pos2(10.0, 300.0)), true, false, &mut press);
+        assert!(matches!(strip, Aim::Strip { take: false, .. }), "{strip:?}");
+        // A hand holding a bone aims at nothing, pressed or not.
+        let mut busy = None;
+        assert_eq!(aim(&panel, at(&panel[0], egui::pos2(300.0, 300.0)), true, true, &mut busy), Aim::Nothing);
+        assert_eq!(busy, Some(PressOn::Air));
+    }
+
+    #[test]
+    fn a_press_that_loses_its_panel_does_not_press_again_when_the_ray_comes_back() {
+        let panel = [ahead(1.0)];
+        let mut press = None;
+        aim(&panel, at(&panel[0], egui::pos2(300.0, 300.0)), true, false, &mut press);
+        // The ray is lost with the trigger held: the panel lets go.
+        assert_eq!(aim(&panel, None, true, false, &mut press), Aim::Nothing);
+        // Back on a button with the trigger still held: a pointer, not a second press.
+        let back = aim(&panel, at(&panel[0], egui::pos2(300.0, 300.0)), true, false, &mut press);
+        assert!(matches!(back, Aim::Face { pressing: false, .. }), "{back:?}");
+    }
+
+    #[test]
+    fn panels_are_drawn_farthest_first() {
+        let near = ahead(0.6);
+        let far = ahead(1.2);
+        let eye = [0.0, 1.6, 0.0];
+        assert_eq!(back_to_front(&[near, far], eye), [1, 0]);
+        assert_eq!(back_to_front(&[far, near], eye), [0, 1]);
+        // From behind the far one, the near one is the farther.
+        assert_eq!(back_to_front(&[near, far], [0.0, 1.6, -3.0]), [0, 1]);
     }
 }

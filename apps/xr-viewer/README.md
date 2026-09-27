@@ -141,6 +141,10 @@ about where your head is, a little over a right angle a second, and forward and 
 lower you at a little over a metre a second -- which is how you get above the body to look down
 at it, or under the floor.
 
+A stick whose controller is aimed at a panel's face scrolls that panel instead, and moves you not
+at all: forward brings the top of a long tab into view, back its bottom. Aim away and the stick
+walks, turns and lifts again.
+
 What actually happens is the other way round: the world -- body, muscles, grid, scenery and
 panel -- is moved and turned under a stage that never moves, and the hands, which belong to the
 stage, are not. A grab or a press carries the move and the turn back over, so nothing else knows
@@ -169,10 +173,11 @@ orientation goes across too, so twisting the hand twists the bone: the MuJoCo ba
 grabbed segment with a rotational spring beside the point spring, sized as the same spring at a
 hand's lever and leashed to a radian. Squeezing empty air grabs nothing and sends nothing.
 
-A trigger that was already down when its ray reached the panel presses nothing until it is let
-go, and a hand holding a bone is not a pointer at all. Both because squeezing to grab tends to
-pull the trigger, and a ray sweeping the panel with the trigger held was clicking whatever it
-crossed -- including the buttons that rebuild the run.
+A press does only what it began on. One begun in the air, on a bone, or with the hand holding a
+bone presses nothing until the trigger is let go, however many buttons its ray then crosses, and
+a hand holding a bone is not a pointer at all. Both because squeezing to grab tends to pull the
+trigger, and a ray sweeping the panel with the trigger held was clicking whatever it crossed --
+including the buttons that rebuild the run.
 
 The scenery comes with the status: the ground's height, which lifts the body so it stands on
 the grid whatever the scenario's floor is at, and every static box -- the stairs, the seat --
@@ -199,8 +204,22 @@ shows where the aim ray lands; the trigger presses.
 Down the left edge of each is a **grab strip**, a darker band with a row of dots. Point at it,
 pull the trigger, and the panel comes with the hand -- turned as the hand turns -- until the
 trigger is let go, when it stays where it was put. The strip lights while the panel is carried,
-and a press on it is a grab and never a click. Put the transport where your hand rests and the
-properties wherever you can read them.
+and a press on it is a grab and never a click. Only a press that begins on the strip carries the
+panel. Put the transport where your hand rests and the properties wherever you can read them.
+
+A press on a panel's face keeps that panel until the trigger is let go, wherever the ray goes: off
+an edge, the mark and the press stay on the face at the edge nearest the ray. So a slider dragged
+past its end lands at its end, and a drag that slides onto the strip goes on dragging rather than
+picking the panel up. If the ray is lost altogether the press ends there, and a slider sends the
+value it had reached; the ray coming back with the trigger still down presses nothing.
+
+Where the two panels overlap, the ray takes the nearer, and the nearer is drawn over the farther:
+carry the transport in front of the properties panel and you are pointing at the transport.
+
+The properties panel's tabs scroll when they are longer than the panel -- the Brain tab is, and
+the Muscles tab once its regions are opened -- with the stick of the hand aimed at them, or by the bar down the column's right edge,
+which a ray can drag. Rows scrolled out of the column are cut at its edges, and each tab keeps its
+own place.
 
 The properties panel's tabs run down its left edge like the desktop's, and each is the desktop's
 tab, the same controls sending the same keys:
