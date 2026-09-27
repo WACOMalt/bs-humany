@@ -30,6 +30,7 @@ import {
   Vector3,
 } from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
+import { segmentComs, wholeBodyCom } from './bodyCom.js';
 import { BEAD_RADIUS, DISC_HEIGHT, DISC_RADIUS, tissueOf } from './tissue.js';
 
 export interface OverlayChannels {
@@ -181,6 +182,11 @@ export function createOverlays(
     new MeshBasicMaterial({ color: 0xffffff, wireframe: true }),
   );
   com.add(bodyCom);
+  // The segments' own centres and masses, once, and a buffer for where the centres are each
+  // frame: the same arithmetic the camera's Frame uses, in `bodyCom.ts`, fed without allocating.
+  const localComs = model.segments.map((s) => s.com);
+  const segmentMasses = Float64Array.from(model.segments, (s) => s.mass);
+  const worldComs = new Float64Array(model.segments.length * 3);
 
   // --- Contacts -------------------------------------------------------------------------------
   const contactCapacity = 256;
@@ -300,35 +306,29 @@ export function createOverlays(
     muscleVolumes,
     tissue,
     update(ch) {
-      const total = model.totalMass;
-      let cx = 0;
-      let cy = 0;
-      let cz = 0;
-      model.segments.forEach((s, i) => {
-        _position.set(
-          ch.position[3 * i] ?? 0,
-          ch.position[3 * i + 1] ?? 0,
-          ch.position[3 * i + 2] ?? 0,
-        );
-        _rotation.set(
-          ch.orientation[4 * i] ?? 0,
-          ch.orientation[4 * i + 1] ?? 0,
-          ch.orientation[4 * i + 2] ?? 0,
-          ch.orientation[4 * i + 3] ?? 1,
-        );
-        if (proxies.visible) {
-          const node = segmentNodes[i];
-          if (node) node.matrix.compose(_position, _rotation, ONE);
+      if (com.visible) {
+        segmentComs(localComs, ch.position, ch.orientation, worldComs);
+        for (let i = 0; i < comMarkers.length; i++) {
+          comMarkers[i]?.position.fromArray(worldComs, 3 * i);
         }
-        if (com.visible) {
-          axisVector.set(s.com.x, s.com.y, s.com.z).applyQuaternion(_rotation).add(_position);
-          comMarkers[i]?.position.copy(axisVector);
-          cx += (axisVector.x * s.mass) / total;
-          cy += (axisVector.y * s.mass) / total;
-          cz += (axisVector.z * s.mass) / total;
+        wholeBodyCom(segmentMasses, worldComs, bodyCom.position);
+      }
+      if (proxies.visible) {
+        for (let i = 0; i < segmentNodes.length; i++) {
+          _position.set(
+            ch.position[3 * i] ?? 0,
+            ch.position[3 * i + 1] ?? 0,
+            ch.position[3 * i + 2] ?? 0,
+          );
+          _rotation.set(
+            ch.orientation[4 * i] ?? 0,
+            ch.orientation[4 * i + 1] ?? 0,
+            ch.orientation[4 * i + 2] ?? 0,
+            ch.orientation[4 * i + 3] ?? 1,
+          );
+          segmentNodes[i]?.matrix.compose(_position, _rotation, ONE);
         }
-      });
-      if (com.visible) bodyCom.position.set(cx, cy, cz);
+      }
 
       if (axes.visible || tissue.visible) {
         model.joints.forEach((joint, k) => {

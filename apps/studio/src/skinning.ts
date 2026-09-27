@@ -40,16 +40,22 @@ export interface SkinnedSkeleton {
   /** Put every bone back at rest. */
   rest(): void;
   /**
-   * Tint a set of bones, or clear the tint with undefined.
+   * Paint the tint layers onto the bones, replacing whatever was painted before; an empty list
+   * clears every tint.
    *
    * Done on the mesh that is already drawn rather than by building a second one, because a
-   * rebuilt highlight is wrong twice over: it comes out as procedural geometry unless the asset
-   * pack is handed to it again, and it sits at the document's rest pose while the body on screen
-   * is wherever the simulation has put it. Tinting what is there cannot drift from it.
+   * rebuilt highlight is wrong twice over. The inspector's used to be: it came out as procedural
+   * geometry, because the asset pack was never handed to it, so a clicked femur lit up as a
+   * capsule forty centimetres away at the pelvis; and it sat at the document's rest pose, so it
+   * was switched off whenever the body moved. Tinting what is there cannot drift from it, and
+   * follows the body through a run, a playback and a followed bridge.
    *
-   * One bone per vertex, weight one, so a vertex colour is a bone colour.
+   * Layers, because more than one thing is lit at once -- the Align tab's segment and the
+   * inspector's bone -- and each used to clear the other's. Later layers win where they overlap.
+   * One pass over the vertices per call and nothing per frame, so it is cheap enough to call on
+   * every change of either.
    */
-  tint(bones: ReadonlySet<string> | undefined, colour: Color): void;
+  setTints(layers: readonly TintLayer[]): void;
   /**
    * The nearest bone a ray meets, or null.
    *
@@ -62,6 +68,53 @@ export interface SkinnedSkeleton {
    */
   pick(origin: Vector3, direction: Vector3): BonePick | null;
   dispose(): void;
+}
+
+/** A set of bones and the colour they are painted, one of the layers `setTints` stacks. */
+export interface TintLayer {
+  readonly bones: Iterable<string>;
+  readonly colour: Color;
+}
+
+/**
+ * Paint tint layers into a vertex colour array: white everywhere, then each layer in order.
+ *
+ * White is no tint at all, because the vertex colour multiplies the material's. One bone per
+ * vertex, weight one, so a vertex colour is a bone colour and a bone is painted by painting every
+ * vertex that names it. Pure, over plain arrays, so the layering can be tested without a scene.
+ *
+ * `vertexBone` is each vertex's bone index, `indexOf` finds a bone's index by id, and `colours`
+ * holds three floats a vertex. An id that is not one of the mesh's bones paints nothing.
+ */
+export function paintTints(
+  vertexBone: ArrayLike<number>,
+  indexOf: ReadonlyMap<string, number>,
+  layers: readonly TintLayer[],
+  colours: Float32Array,
+): void {
+  colours.fill(1);
+  if (layers.length === 0) return;
+  // The winning layer per bone first, so the vertices are walked once however many layers there
+  // are. Later layers overwrite earlier ones, which is what "later layers win" means.
+  const boneLayer = new Int32Array(indexOf.size).fill(-1);
+  let any = false;
+  layers.forEach((layer, at) => {
+    for (const id of layer.bones) {
+      const bone = indexOf.get(id);
+      if (bone === undefined) continue;
+      boneLayer[bone] = at;
+      any = true;
+    }
+  });
+  if (!any) return;
+  for (let v = 0; v < vertexBone.length; v++) {
+    const at = boneLayer[vertexBone[v] ?? 0] ?? -1;
+    if (at < 0) continue;
+    const colour = (layers[at] as TintLayer).colour;
+    colours[3 * v] = colour.r;
+    colours[3 * v + 1] = colour.g;
+    colours[3 * v + 2] = colour.b;
+  }
 }
 
 const ONE = new Vector3(1, 1, 1);
@@ -203,20 +256,11 @@ export function createSkinnedSkeleton(
   }
 
   return {
-    tint(want: ReadonlySet<string> | undefined, colour: Color): void {
+    setTints(layers) {
+      // The attribute's own array: `Float32BufferAttribute` copies what it is built from, so
+      // painting the array this function made would change nothing on screen.
       const attribute = geometry.getAttribute('color');
-      const wanted = new Set<number>();
-      if (want) {
-        for (const id of want) {
-          const at = indexOf.get(id);
-          if (at !== undefined) wanted.add(at);
-        }
-      }
-      for (let i = 0; i < vertexCount; i++) {
-        const lit = wanted.has(skeleton.boneIndex[i] ?? 0);
-        if (lit) attribute.setXYZ(i, colour.r, colour.g, colour.b);
-        else attribute.setXYZ(i, 1, 1, 1);
-      }
+      paintTints(skeleton.boneIndex, indexOf, layers, attribute.array as Float32Array);
       attribute.needsUpdate = true;
     },
     mesh,

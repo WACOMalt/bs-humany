@@ -62,8 +62,7 @@ Every control the studio has today, grouped by the concept it serves. The ids ar
 ### The view -- how it is drawn
 | Concept | Controls today | Notes |
 |---|---|---|
-| Camera | View buttons (front, left, back, three-quarter), orbit, pan, zoom, `spin` | Camera only. |
-| Mesh detail | `quality` (tessellation) | Rebuilds the mesh. |
+| Camera | View buttons (front, left, back, three-quarter), `frame-view` (F), orbit, pan, zoom, `spin` | Camera only. The views and Frame aim at the body where it is, at a distance scaled by stature. |
 | What else is drawn | `showGrid`; overlays `showProxies`, `showAxes`, `showCom`, `showContacts`, `showTissue`, `showMuscles`, `showMuscleVolumes` | Live. |
 | How much the page explains | `showNotes` | CSS only. |
 
@@ -105,7 +104,7 @@ Every control the studio has today, grouped by the concept it serves. The ids ar
 +---------------------------------------------------------------------------------------+
 | bs-humany  |  L3 Anatomical v  |  MuJoCo  |  > Start  || Pause  |<> Reset  |  Live    |  VR  |
 +-----------------------------------------------------------------+---------------------+
-| viewport header: Front Left Back 3/4 | Tessellation v | Overlays v | Grid | Turntable |  B  |
+| viewport header: Front Left Back 3/4 Frame | Overlays v | Grid | Turntable      |  B  |
 |                                                                 |  o  | Body          |
 |                                                                 |  d  |               |
 |                        3D viewport                              |  y  |  Properties   |
@@ -128,8 +127,10 @@ Four regions on a CSS grid, the viewport taking whatever is left:
 - **Top bar.** Identity, the scene's fidelity profile and backend, the transport
   (Start / Pause / Reset), the live-or-following indicator, VR connect on the desktop, and
   session save/load under a file menu.
-- **Viewport** with its own header: view presets, tessellation, an Overlays popover holding
-  every overlay checkbox, grid and turntable. The canvas is the whole region; the hint moves to
+- **Viewport** with its own header: view presets and Frame, an Overlays popover holding
+  every overlay checkbox, grid and turntable. There is no mesh-detail control: the Tessellation
+  select only ever re-meshed the six procedural ossicles, so it went (2026-09-27); a touch device
+  stays on the reduced mesh pack by itself. The canvas is the whole region; the hint moves to
   the status bar.
 - **Properties editor** on the right: a vertical strip of icon tabs and one tab's panel, each
   panel a stack of collapsible sections. The tabs are the concepts of section 1:

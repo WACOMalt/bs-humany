@@ -258,8 +258,10 @@ export function modelLimitations(): string[] {
       'source range. Per-level lumbar joints exist for L2; two of the six levels are provisional ' +
       '(OQ-007). No cervical lateral bending is defined yet.',
     'Bone placement comes from the Z-Anatomy dataset (one male subject, 1.70 m) scaled uniformly ' +
-      'by stature. Pelvic and shoulder breadth, and the sex blend, do not yet move the measured ' +
-      'bones; that needs the landmark-derived joint frames of M1.2/M1.3.',
+      'by stature. Pelvic and shoulder breadth, the sex blend, and the limb-length proportions ' +
+      '(the crural and brachial indices and the relative leg length) do not yet move the measured ' +
+      'bones; that needs the landmark-derived joint frames of M1.2/M1.3. The studio shows the ' +
+      'three proportion sliders disabled for that reason.',
     'Joint centres are the dataset markers for the feature each joint turns about. A marker ' +
       'marks a surface feature, so for the two ball joints -- the hip and the shoulder -- the ' +
       'centre is instead fitted as a sphere through the articular surface. Every other centre ' +

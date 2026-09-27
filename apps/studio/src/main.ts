@@ -9,7 +9,11 @@
  * the dynamic layer arrives with M3.
  */
 
-import { resolveMorphology, validateResolvedBody } from '@bs-humany/anthropometry';
+import {
+  resolveMorphology,
+  staturePercentile,
+  validateResolvedBody,
+} from '@bs-humany/anthropometry';
 import {
   type SkeletonAssets,
   attributionText,
@@ -20,21 +24,17 @@ import manifestLod1Url from '@bs-humany/assets-anatomical/data/manifest-lod1.jso
 import manifestUrl from '@bs-humany/assets-anatomical/data/manifest.json?url';
 import skeletonLod1BinUrl from '@bs-humany/assets-anatomical/data/skeleton-lod1.bin?url';
 import skeletonBinUrl from '@bs-humany/assets-anatomical/data/skeleton.bin?url';
-import { compileArticulation } from '@bs-humany/compiler';
+import { compileArticulation, morphologyKey } from '@bs-humany/compiler';
 import {
   MIN_CAPTURE_BUDGET_BYTES,
   captureCeilingBytes,
   defaultCaptureBudgetBytes,
 } from '@bs-humany/export-gltf';
-import { transformPoint } from '@bs-humany/frames';
-import { type Morphology, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
+import { type Morphology, SEX_PARAMETER_LABEL, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import {
   QUALITY_HIGH,
-  QUALITY_LOW,
-  QUALITY_MEDIUM,
   type SkeletonMesh,
-  type TessellationQuality,
   buildSkeletonMesh,
   skeletonBounds,
   toSkeletonGeometry,
@@ -67,8 +67,15 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three';
-import { type AlignPanel, createAlignPanel, loadSourceSites } from './align/alignPanel.js';
+import {
+  type AlignHost,
+  type AlignPanel,
+  createAlignPanel,
+  loadSourceSites,
+} from './align/alignPanel.js';
+import { attachmentSites, jointsOnSegment } from './align/ourBody.js';
 import { buildBlenderExport } from './blenderExport.js';
+import { boundsMidpoint, segmentComs, wholeBodyCom } from './bodyCom.js';
 import { IDLE_BRAIN_STATE, createBrainPanel } from './brain.js';
 import { BridgeFollower } from './follow.js';
 import { FollowTissue } from './followTissue.js';
@@ -123,11 +130,13 @@ async function loadAssets(level: 'lod1' | 'full'): Promise<SkeletonAssets> {
 
 const STAY_ON_SMALL_PACK = window.matchMedia('(pointer: coarse)').matches;
 
-const QUALITIES: Record<string, TessellationQuality> = {
-  low: QUALITY_LOW,
-  medium: QUALITY_MEDIUM,
-  high: QUALITY_HIGH,
-};
+/**
+ * How finely the procedural fallback bones are meshed. Only the six ossicles are procedural --
+ * every other bone is the measured mesh -- so this is not a user option: the Tessellation select
+ * that offered it re-meshed nothing anybody could see, and went. High, because six tiny bones at
+ * the finest level cost nothing.
+ */
+const FALLBACK_QUALITY = QUALITY_HIGH;
 
 // ---------------------------------------------------------------------------------------------
 // Scene
@@ -216,13 +225,6 @@ const boneMaterial = new MeshStandardMaterial({
   flatShading: false,
 });
 
-const selectedMaterial = new MeshStandardMaterial({
-  color: 0x6aa9ff,
-  roughness: 0.5,
-  metalness: 0.05,
-  emissive: 0x14304f,
-});
-
 /**
  * The Align tab's own highlight, for the segment picked in its pairing list.
  *
@@ -232,10 +234,27 @@ const selectedMaterial = new MeshStandardMaterial({
  */
 const ALIGNED_TINT = new Color(0x3fd6c4);
 
+/**
+ * The inspector's highlight, as a tint on the drawn bone.
+ *
+ * A vertex colour multiplies the material's, so the tint is the highlight's blue divided by the
+ * bone colour, channel by channel: the selected bone is drawn in the same 0x6aa9ff the separate
+ * highlight mesh was, rather than a darker blue that only looks like it.
+ */
+const SELECTION_TINT = (() => {
+  const want = new Color(0x6aa9ff);
+  const base = boneMaterial.color;
+  return new Color(want.r / base.r, want.g / base.g, want.b / base.b);
+})();
+
 let skeletonMesh: SkeletonMesh | null = null;
 let skinned: SkinnedSkeleton | null = null;
-let selectedObject: Mesh | null = null;
+/** The inspector's bone, tinted on the drawn mesh; see `applyTints`. */
 let selectedBoneId: string | null = null;
+/** The bones of the segment the Align tab is pairing, tinted under the inspector's. */
+let alignedSegmentBones: readonly string[] = [];
+/** The rest skeleton's box, measured once a build, for aiming the camera at a body at rest. */
+let restBounds: { min: [number, number, number]; max: [number, number, number] } | null = null;
 let simulation: Simulation | null = null;
 // Declared up here with the run state, because the render loop reads it from its first frame
 // on, and that frame runs before the page script reaches the VR section at the bottom.
@@ -256,6 +275,24 @@ type Carry = { state: ReturnType<Simulation['jointState']>; ticks: number; pause
  * again rather than let a run built from the old body land. Null when nothing is starting.
  */
 let pendingStart: { restoreFrom?: SessionFile['simulation']; carry?: Carry } | null = null;
+/**
+ * True while the Align tab asks for the body at rest, because the points it shows are defined
+ * and recorded at rest and are judged against the bone they sit on. Up here with the run state
+ * because the frame loop reads it from its first frame on. See `holdRest` in the Align host.
+ */
+let alignHoldsRest = false;
+
+/**
+ * Whether the body is drawn at rest for the Align tab now.
+ *
+ * Only while the run stays paused: holding pauses it, and a person who resumes it anyway has
+ * chosen to watch it move, so it is drawn moving and the hold waits for the next pause.
+ */
+function heldAtRest(): boolean {
+  return alignHoldsRest && (!simulation || simulation.paused);
+}
+/** What the frame loop last drew for the hold, so it acts only when that changes. */
+let drawnHeld = false;
 
 // ---------------------------------------------------------------------------------------------
 // Controls
@@ -269,7 +306,6 @@ const ui = {
   crural: must<HTMLInputElement>('#crural'),
   brachial: must<HTMLInputElement>('#brachial'),
   legLength: must<HTMLInputElement>('#legLength'),
-  quality: must<HTMLSelectElement>('#quality'),
   showGrid: must<HTMLInputElement>('#showGrid'),
   spin: must<HTMLInputElement>('#spin'),
   profile: must<HTMLSelectElement>('#profile'),
@@ -376,28 +412,93 @@ function currentMorphology(): Morphology {
 let buildMs = 0;
 
 /**
- * Rebuild the mesh and, when a run is going, restart it with its pose carried across.
+ * What the drawn skeleton was last built from, so asking again for the same body builds nothing:
+ * a slider's release after a drag whose last frame was already previewed is the common case.
+ */
+let meshBuiltFor: { key: string; assets: SkeletonAssets } | null = null;
+
+/**
+ * Rebuild the drawn skeleton for the body the sliders show, and nothing else.
+ *
+ * Never the run: a render-only change -- the full-detail pack arriving, a slider being dragged --
+ * used to stop the simulation and carry it into a recompiled body, which threw its recording
+ * away for a picture that had nothing to do with the physics. A run draws through `skinned`,
+ * which the frame loop reads afresh every frame, so swapping it here is all a running body needs.
+ * The ground stays where the run has it while one exists; the run's floor is the run's.
+ *
+ * A measured bone's normals are cached by the builder and a build is a few milliseconds, which
+ * is what lets this run once a frame while a slider is dragged.
+ */
+function rebuildMesh(): void {
+  if (!assets) return;
+  const morphology = currentMorphology();
+  const key = JSON.stringify(morphology);
+  if (meshBuiltFor?.key === key && meshBuiltFor.assets === assets) return;
+  const started = performance.now();
+  const resolved = resolveMorphology(morphology);
+  skeletonMesh = buildSkeletonMesh(document_, resolved.context, {
+    quality: FALLBACK_QUALITY,
+    assets,
+  });
+  meshBuiltFor = { key, assets };
+  if (skinned) {
+    world.remove(skinned.mesh);
+    skinned.dispose();
+  }
+  skinned = createSkinnedSkeleton(skeletonMesh, toSkeletonGeometry(skeletonMesh), boneMaterial);
+  world.add(skinned.mesh);
+  // A followed body is posed when its publisher's next tick arrives. Forgetting the last one
+  // poses the new mesh on the very next frame, rather than leaving it standing at rest until the
+  // publisher moves.
+  followLastTick = -1;
+
+  // The ground sits under the soles: the dataset places them at y = 0 and stature scales about
+  // the origin, so this is close to zero, but it is measured rather than assumed.
+  restBounds = skeletonBounds(skeletonMesh);
+  if (!simulation) {
+    groundY = restBounds.min[1];
+    grid.position.y = groundY;
+  }
+
+  buildMs = performance.now() - started;
+  refreshSelection();
+  updateReadouts(resolved.input.stature, resolved.input.mass);
+}
+
+/** The preview rebuild waiting for the next frame, or 0; see `previewMesh`. */
+let previewFrame = 0;
+
+/**
+ * Rebuild the mesh at the next frame, however many times this is asked before it.
+ *
+ * A slider fires `input` for every pixel it moves, far more often than the page draws. Each of
+ * those used to rebuild a quarter of a million vertices, recompute every bone's normals and
+ * restart the run; now they coalesce into at most one mesh build a frame.
+ */
+function previewMesh(): void {
+  if (previewFrame !== 0) return;
+  previewFrame = requestAnimationFrame(() => {
+    previewFrame = 0;
+    rebuildMesh();
+  });
+}
+
+/**
+ * Recompile the body after a morphology change, once, when the change is finished.
+ *
+ * Validity, the Health tables, and a running body carried into the new one. A run whose body is
+ * already what the sliders say -- a release that ends where it began -- is left alone, unless
+ * `always` asks for the restart anyway, as a whole set of settings arriving does. A start
+ * still compiling was built from the body as it was; it is asked for again with what it was asked
+ * for, so the run that lands is the body the sliders now show. Both restarts go through the run
+ * gate (`runController.ts`), so however many of these arrive, one run lands.
  *
  * `cause` names what changed, for the message a carry restart owes: it keeps the pose, but the
  * recording starts again, and a person who has been capturing for a minute should hear that from
  * the page rather than find it out at Export.
  */
-function rebuild(cause = 'Body changed'): void {
-  if (!assets) return;
-  const started = performance.now();
-  // A running simulation survives a morphology change: its joint state is carried into the
-  // recompiled body (M5.6) once the mesh is rebuilt.
-  const carry = simulation
-    ? { state: simulation.jointState(), ticks: simulation.ticks, paused: simulation.paused }
-    : null;
-  const discarded = simulation?.capture.frameCount ?? 0;
-  // No run yet, but one compiling: it was built from the body as it was, and this rebuild is
-  // about to invalidate it. Ask again with what it was asked for, so the run that lands is the
-  // body the sliders now show rather than none at all.
-  const reissue = !carry && runGate.busy ? pendingStart : null;
-
-  const morphology = currentMorphology();
-  const resolved = resolveMorphology(morphology);
+function rebuildBody(cause = 'Body changed', options: { always?: boolean } = {}): void {
+  const resolved = resolveMorphology(currentMorphology());
 
   // Spec section 6.4 step 5. A body that fails these checks would still render; it would simply be
   // wrong, so the failure is surfaced rather than swallowed: listed in Health, said in the event
@@ -408,38 +509,63 @@ function rebuild(cause = 'Body changed'): void {
     console.error('Resolved body failed physical validity checks:', validation.problems);
     announce('The resolved body failed its validity checks; see Health.', { error: true });
   }
-
-  const quality = QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM;
-  skeletonMesh = buildSkeletonMesh(document_, resolved.context, { quality, assets });
-
-  stopSimulation();
-  if (skinned) {
-    world.remove(skinned.mesh);
-    skinned.dispose();
-  }
-  skinned = createSkinnedSkeleton(skeletonMesh, toSkeletonGeometry(skeletonMesh), boneMaterial);
-  world.add(skinned.mesh);
-
-  // The ground sits under the soles: the dataset places them at y = 0 and stature scales about
-  // the origin, so this is close to zero, but it is measured rather than assumed.
-  const { min } = skeletonBounds(skeletonMesh);
-  groundY = min[1];
-  grid.position.y = groundY;
-
-  buildMs = performance.now() - started;
-  refreshSelection();
-  updateReadouts(resolved.input.stature, resolved.input.mass);
   showValidation();
-  if (reissue) void startSimulation(reissue.restoreFrom, reissue.carry);
-  if (!carry) return;
+
+  if (!simulation) {
+    const reissue = runGate.busy ? pendingStart : null;
+    if (reissue) void startSimulation(reissue.restoreFrom, reissue.carry);
+    return;
+  }
+  if (!options.always && morphologyKey(simulation.resolved) === morphologyKey(resolved)) return;
+  // A running simulation survives a morphology change: its joint state is carried into the
+  // recompiled body (M5.6).
+  const carry = {
+    state: simulation.jointState(),
+    ticks: simulation.ticks,
+    paused: simulation.paused,
+  };
+  // Both of what a run keeps: the captured frames Export writes, and the sampled trajectory a
+  // recording export writes. A run too short to have captured a frame may still have sampled.
+  const frames = simulation.capture.frameCount;
+  const samples = simulation.recording.samples.length;
   void startSimulation(undefined, carry);
   // After the start is under way, because a start clears the last run's notices as it begins.
-  if (discarded > 0) {
+  if (frames > 0 || samples > 0) {
+    const what = frames > 0 ? `${frames} captured frames were` : 'its recording was';
     announce(
-      `${cause}: the run carried on from its pose; ${discarded} captured frames were ` +
-        'discarded — export first to keep them.',
+      `${cause}: the run carried on from its pose; ${what} discarded — export first to keep them.`,
     );
   }
+}
+
+/** Cancel a preview still waiting for its frame: whatever asked for it is about to build now. */
+function cancelPreview(): void {
+  if (previewFrame === 0) return;
+  cancelAnimationFrame(previewFrame);
+  previewFrame = 0;
+}
+
+/**
+ * A morphology slider is moving.
+ *
+ * With no run, the mesh follows it, a frame at a time. With a run, only the numbers do: the body
+ * on screen is the running one, and a rest mesh of another size bound to its pose would draw
+ * every bone scaled about its own centre, which is a picture of nothing. It changes, once, on
+ * release.
+ */
+function morphologyInput(): void {
+  if (simulation) {
+    updateReadouts(Number(ui.stature.value), Number(ui.mass.value));
+    return;
+  }
+  previewMesh();
+}
+
+/** A morphology slider was let go: the mesh, then the body behind it. */
+function morphologyChanged(): void {
+  cancelPreview();
+  rebuildMesh();
+  rebuildBody();
 }
 
 /**
@@ -459,6 +585,12 @@ function showBodyValidity(problems: readonly string[]): void {
   must<HTMLElement>('#body-validity-panel').hidden = problems.length === 0;
 }
 
+/**
+ * True while the percentile slider is the one moving, so the read-back below does not write a
+ * value into the slider under somebody's thumb.
+ */
+let percentileDriving = false;
+
 function updateReadouts(stature: number, mass: number): void {
   must<HTMLOutputElement>('#sex-value').textContent = Number(ui.sex.value).toFixed(2);
   must<HTMLOutputElement>('#stature-value').textContent = `${stature.toFixed(2)} m`;
@@ -467,6 +599,13 @@ function updateReadouts(stature: number, mass: number): void {
   must<HTMLOutputElement>('#brachial-value').textContent = Number(ui.brachial.value).toFixed(3);
   must<HTMLOutputElement>('#legLength-value').textContent = Number(ui.legLength.value).toFixed(3);
 
+  // The percentile reads back where the current stature sits in the distribution for the current
+  // blend. It used to keep whatever it was last set to, so after a stature drag or a session load
+  // it named a body that was no longer on screen. Written without an event, so nothing rebuilds.
+  if (!percentileDriving) {
+    const p = Math.min(Math.max(staturePercentile(Number(ui.sex.value), stature), 0.01), 0.99);
+    ui.percentile.value = p.toFixed(2);
+  }
   const percentile = Number(ui.percentile.value);
   must<HTMLOutputElement>('#percentile-value').textContent = `${Math.round(percentile * 100)}th`;
 
@@ -475,10 +614,20 @@ function updateReadouts(stature: number, mass: number): void {
   must<HTMLElement>('#stat-build').textContent = `${buildMs.toFixed(1)} ms`;
 }
 
-for (const input of [ui.sex, ui.stature, ui.mass, ui.crural, ui.brachial, ui.legLength]) {
-  input.addEventListener('input', () => rebuild());
+// The sliders that move the body. The three limb proportions are not among them: nothing measured
+// follows them yet (see `modelLimitations`), so they are disabled in the panel. A value that
+// arrives from a session or a checkpoint is still kept, and goes into the next compile with the
+// rest of the settings, so those files round-trip unchanged.
+for (const input of [ui.sex, ui.stature, ui.mass]) {
+  input.addEventListener('input', () => {
+    // Another slider moving means the percentile is not, whatever it last said: a percentile drag
+    // that ends where it began fires no `change` to say it is over.
+    percentileDriving = false;
+    morphologyInput();
+  });
+  input.addEventListener('change', morphologyChanged);
 }
-ui.quality.addEventListener('change', () => rebuild('Tessellation changed'));
+
 /**
  * View presets.
  *
@@ -492,30 +641,116 @@ const VIEWS: Record<string, { theta: number; phi: number }> = {
   'three-quarter': { theta: Math.PI * 0.78, phi: Math.PI * 0.42 },
 };
 
+/**
+ * The camera distance that frames a body of the reference stature head to feet: at the 38 degree
+ * field of view, 3.1 m shows about 2.1 m of height, a margin around 1.70 m. It was the fixed
+ * distance of every preset; now it scales with the body, so a 2.05 m body is not cut off and a
+ * 1.40 m one does not stand small in the middle.
+ */
+const FRAME_DISTANCE = 3.1;
+const FRAME_STATURE = 1.7;
+
+/**
+ * Where the body on screen is, written into `out`, and its stature.
+ *
+ * The centre of mass of whatever frame is drawn -- the live run, the frame under the playhead --
+ * because that is where a body is, wherever it has fallen or been dragged: the presets used to
+ * aim at a fixed point above the origin, and a body at the bottom of the stairs was out of frame
+ * in every one of them. A followed body's masses are not known here, so it is the middle of its
+ * bones instead. At rest, the middle of the rest skeleton.
+ */
+function aimAtBody(out: Vector3): number {
+  if (bridgeFollower.active) {
+    const pose = bridgeFollower.pose;
+    const settings = (bridgeFollower.status as { settings?: { stature?: unknown } } | null)
+      ?.settings;
+    const stature =
+      typeof settings?.stature === 'number' ? settings.stature : Number(ui.stature.value);
+    if (pose && boundsMidpoint(pose.position, out)) {
+      world.localToWorld(out);
+      return stature;
+    }
+  }
+  const sim = simulation;
+  if (sim && !heldAtRest()) {
+    const replay = following ? undefined : replayFrame(sim);
+    const live = sim.channel('body.pose').fields;
+    const pose = replay
+      ? segmentPosesFrom(sim, replay)
+      : { position: live.position as Float64Array, orientation: live.orientation as Float64Array };
+    const segments = sim.articulation.segments;
+    const coms = new Float64Array(segments.length * 3);
+    segmentComs(
+      segments.map((s) => s.com),
+      pose.position,
+      pose.orientation,
+      coms,
+    );
+    if (
+      wholeBodyCom(
+        Float64Array.from(segments, (s) => s.mass),
+        coms,
+        out,
+      )
+    ) {
+      world.localToWorld(out);
+      return sim.resolved.input.stature;
+    }
+  }
+  const stature = Number(ui.stature.value);
+  if (restBounds) {
+    const { min, max } = restBounds;
+    out.set((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2);
+  } else {
+    // Nothing built yet: about where a standing body's middle would be.
+    out.set(0, (0.88 * stature) / FRAME_STATURE, 0);
+  }
+  world.localToWorld(out);
+  return stature;
+}
+
+/**
+ * Aim the camera at the body and stand off far enough to see all of it: from a preset's angle
+ * when one is given, and from wherever the camera already looks from when not, which is F.
+ */
+function frameBody(view?: { theta: number; phi: number }): void {
+  const stature = aimAtBody(controls.target);
+  const radius = (FRAME_DISTANCE * stature) / FRAME_STATURE;
+  if (view) controls.setView(view.theta, view.phi, radius);
+  else controls.setDistance(radius);
+}
+
 for (const button of window.document.querySelectorAll<HTMLButtonElement>('[data-view]')) {
   button.addEventListener('click', (event) => {
     blurAfterMouse(event);
     const view = VIEWS[button.dataset.view ?? ''];
-    if (!view) return;
-    controls.target.set(0, 0.88, 0);
-    controls.setView(view.theta, view.phi, 3.1);
+    if (view) frameBody(view);
   });
 }
+must<HTMLButtonElement>('#frame-view').addEventListener('click', (event) => {
+  blurAfterMouse(event);
+  frameBody();
+});
 
 ui.showGrid.addEventListener('change', () => {
   grid.visible = ui.showGrid.checked;
 });
 
 // The percentile control drives stature and mass together, then hands back to them -- it is a
-// convenience input, not a separate axis.
+// convenience input, not a separate axis. While it moves, the read-back leaves it alone.
 ui.percentile.addEventListener('input', () => {
+  percentileDriving = true;
   const resolved = resolveMorphology({
     sex: Number(ui.sex.value),
     percentile: Number(ui.percentile.value),
   } as Morphology);
   ui.stature.value = resolved.input.stature.toFixed(3);
   ui.mass.value = resolved.input.mass.toFixed(1);
-  rebuild();
+  morphologyInput();
+});
+ui.percentile.addEventListener('change', () => {
+  percentileDriving = false;
+  morphologyChanged();
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -537,13 +772,23 @@ renderer.domElement.addEventListener('click', (event) => {
   refreshSelection();
 });
 
-function refreshSelection(): void {
-  if (selectedObject) {
-    selectedObject.geometry.dispose();
-    world.remove(selectedObject);
-    selectedObject = null;
-  }
+/**
+ * Every tint on the drawn skeleton, in one place: the Align tab's segment, and over it the
+ * inspector's bone.
+ *
+ * One function, because both paint the same vertex colours and each used to clear the other's:
+ * the Align highlight went every time the inspector changed, and was lost on every rebuild too.
+ * Called whenever either changes and after every new mesh, which starts white.
+ */
+function applyTints(): void {
+  skinned?.setTints([
+    { bones: alignedSegmentBones, colour: ALIGNED_TINT },
+    { bones: selectedBoneId ? [selectedBoneId] : [], colour: SELECTION_TINT },
+  ]);
+}
 
+function refreshSelection(): void {
+  applyTints();
   const inspector = must<HTMLDivElement>('#inspector');
   if (!selectedBoneId || !skeletonMesh) {
     inspector.innerHTML = '<p class="note">Click a bone.</p>';
@@ -555,17 +800,6 @@ function refreshSelection(): void {
   if (!bone || !definition) {
     inspector.innerHTML = '<p class="note">Click a bone.</p>';
     return;
-  }
-
-  // Highlight by rebuilding just this bone's slice of the merged buffer. The highlight is a rest
-  // pose object, so it is not shown while the body is moving.
-  if (!simulation) {
-    const highlight = buildSkeletonMesh(document_, resolveMorphology(currentMorphology()).context, {
-      quality: QUALITIES[ui.quality.value] ?? QUALITY_MEDIUM,
-      include: new Set([bone.id]),
-    });
-    selectedObject = new Mesh(toSkeletonGeometry(highlight), selectedMaterial);
-    world.add(selectedObject);
   }
 
   const parent = definition.parent
@@ -580,7 +814,7 @@ function refreshSelection(): void {
       <dt>ID</dt><dd>${escapeHtml(bone.id)}</dd>
       <dt>Region</dt><dd>${escapeHtml(bone.region)}</dd>
       <dt>Parent</dt><dd>${escapeHtml(parent)}</dd>
-      <dt>Position</dt><dd>${position.x.toFixed(3)}, ${position.y.toFixed(3)}, ${position.z.toFixed(3)}</dd>
+      <dt>Rest position</dt><dd>${position.x.toFixed(3)}, ${position.y.toFixed(3)}, ${position.z.toFixed(3)}</dd>
       <dt>Vertices</dt><dd>${bone.vertexCount.toLocaleString()}</dd>
       <dt>Geometry</dt><dd>${bone.geometrySource}</dd>
       <dt>Landmarks</dt><dd>${Object.keys(assets?.landmarks[bone.id] ?? {}).length}</dd>
@@ -864,7 +1098,11 @@ function applySettings(settings: SessionSettings): void {
     scenarioValues.set(settings.scenario, { ...settings.scenarioParameters });
   }
   ui.scenario.dispatchEvent(new Event('change'));
-  rebuild();
+  cancelPreview();
+  rebuildMesh();
+  // Always a restart when a run is going, whether or not the body changed: the settings carry the
+  // profile, the scenario and the joints as well, and none of those reach a run already built.
+  rebuildBody('Settings applied', { always: true });
 }
 
 /**
@@ -1296,14 +1534,17 @@ ui.goLive.addEventListener('click', (event) => {
  */
 function applyOverlayVisibility(): void {
   if (!overlays) return;
-  const live = following;
-  overlays.proxies.visible = ui.showProxies.checked;
+  // Held at rest for the Align tab, the bones are drawn at rest and every overlay drawn from the
+  // run's pose would stand somewhere else, so all of those go too.
+  const held = heldAtRest();
+  const live = following && !held;
+  overlays.proxies.visible = ui.showProxies.checked && !held;
   overlays.axes.visible = ui.showAxes.checked && live;
   overlays.com.visible = ui.showCom.checked && live;
   overlays.contacts.visible = ui.showContacts.checked && live;
-  overlays.tissue.visible = ui.showTissue.checked;
+  overlays.tissue.visible = ui.showTissue.checked && !held;
   overlays.muscles.visible = ui.showMuscles.checked && live;
-  overlays.muscleVolumes.visible = ui.showMuscleVolumes.checked;
+  overlays.muscleVolumes.visible = ui.showMuscleVolumes.checked && !held;
 }
 for (const input of [
   ui.showProxies,
@@ -1691,8 +1932,9 @@ for (const panel of window.document.querySelectorAll<HTMLDetailsElement>('detail
 }
 
 // Keyboard, as the reference has it: Space for the transport, arrows for a frame, Home for live,
-// and the numbers for the views. A focused control keeps the keys it acts on -- Space on a
-// checkbox toggles it, the arrows move a slider -- and gives the rest to these.
+// the numbers for the views, and F to frame the body from where the camera already is. A focused
+// control keeps the keys it acts on -- Space on a checkbox toggles it, the arrows move a slider --
+// and gives the rest to these.
 window.addEventListener('keydown', (event) => {
   // Space on Start or Pause is the transport, not the button. The button would otherwise take it
   // as a press, and a press of Start on a live run is Restart: after a mouse click on Start,
@@ -1732,6 +1974,10 @@ window.addEventListener('keydown', (event) => {
       break;
     case '9':
       window.document.querySelector<HTMLButtonElement>('[data-view="back"]')?.click();
+      break;
+    case 'f':
+    case 'F':
+      frameBody();
       break;
     default:
       return;
@@ -1950,15 +2196,23 @@ scenarioChanged();
  * cancelled and a native write can hit a full disk or a read-only directory. Both of those used
  * to be silent -- the button did nothing and the panel said nothing, which is indistinguishable
  * from the button being broken.
+ *
+ * Resolves true when the file was written, and false when it was cancelled or failed, so a
+ * caller that keeps track of unsaved work -- the Align tab -- knows whether it still has some.
  */
-async function saving(what: string, write: Promise<boolean>): Promise<void> {
+async function saving(what: string, write: Promise<boolean>): Promise<boolean> {
   try {
-    if (await write) announce(`Wrote ${what}.`);
+    if (await write) {
+      announce(`Wrote ${what}.`);
+      return true;
+    }
+    return false;
   } catch (error) {
     console.error(`Writing ${what} failed.`, error);
     announce(`Writing ${what} failed: ${messageOf(error)}`, {
       error: true,
     });
+    return false;
   }
 }
 
@@ -2248,7 +2502,19 @@ function animate(): void {
     // segment's frame is its anchor bone's, so the discs, the cartilage and the proxies follow
     // the playhead the way the bones and bellies do.
     const replayedPose = replay ? segmentPosesFrom(simulation, replay) : undefined;
-    skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
+    // Held at rest for the Align tab, the bones are put at rest once and left there. Checked
+    // every frame rather than only when the hold is asked for, because a run is paused by many
+    // things -- Pause, a scrub, a failed tick -- and resumed by as many, and each of them moves
+    // the answer.
+    const atRest = heldAtRest();
+    if (atRest !== drawnHeld) {
+      drawnHeld = atRest;
+      if (atRest) skinned.rest();
+      applyOverlayVisibility();
+    }
+    if (!atRest) {
+      skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
+    }
     if (vrLink) {
       // The headset is sent the frame on screen, not the newest one: off the live edge that is
       // the recorded frame under the playhead, bellies included, published under its own tick so
@@ -2350,6 +2616,9 @@ if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitViewport).obser
 // Start
 // ---------------------------------------------------------------------------------------------
 
+// The spec's own words for the sex parameter (section 6.3), from the one place they are kept, so
+// the panel and the HSDL documentation cannot drift apart.
+must<HTMLElement>('#sex-label').textContent = SEX_PARAMETER_LABEL;
 must<HTMLElement>('#sex-note').textContent = SEX_PARAMETER_NOTE;
 
 const limitations = must<HTMLUListElement>('#limitations');
@@ -2507,7 +2776,8 @@ loadAssets('lod1').then(
     must<HTMLElement>('#attribution').textContent = attributionText(loaded.manifest);
     must<HTMLElement>('#attribution').hidden = false;
     try {
-      rebuild();
+      rebuildMesh();
+      rebuildBody();
     } catch (error) {
       loadFailed('The measured skeleton loaded but failed to build.', error);
       return;
@@ -2526,14 +2796,16 @@ loadAssets('lod1').then(
       .then((full) => {
         const reduced = assets;
         assets = full;
+        // The mesh only: the bones on screen get finer and nothing about the body changes, so a
+        // run going when they arrive goes on, with its recording, drawn in the finer bones.
         try {
-          rebuild('Full-detail bones arrived');
+          rebuildMesh();
           showMeshDetail('full');
         } catch (error) {
           // Back to the pack that built, so the viewport has a skeleton in it.
           assets = reduced;
           try {
-            rebuild();
+            rebuildMesh();
           } catch {
             // Already said below; a second failure adds nothing a person can act on.
           }
@@ -2775,12 +3047,16 @@ const vrHost = {
           case 'sex':
           case 'stature':
           case 'mass':
-          case 'crural':
-          case 'brachial':
-          case 'legLength':
             // The slider's own events rebuild the body and carry a running one across; a restart
             // on top of that was a second run racing the first.
             setFromPanel(ui[key], value);
+            break;
+          case 'crural':
+          case 'brachial':
+          case 'legLength':
+            // Accepted and ignored. Nothing measured follows the limb proportions yet, so the
+            // desktop's sliders are disabled; an older viewer still offers them, and a value from
+            // it would otherwise rebuild the body and restart the run for no change at all.
             break;
           case 'dropHeight':
           case 'passive':
@@ -3015,105 +3291,126 @@ followButton.addEventListener('click', () => {
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * What the studio offers the Align tab beyond what its `AlignHost` declares today: hooks the
+ * panel's next change reads, provided here because they reach into the run, the frame loop and
+ * the file helpers, which live in this file and nowhere the panel can get at.
+ */
+interface AlignHostHooks {
+  /** Our compiled muscle set, for the panel to read attachment and via sites from itself. */
+  muscles(): Simulation['muscles'];
+  /**
+   * Hold the body at rest while the Align points are shown, or let it go.
+   *
+   * Points are defined and recorded at rest, so a point is only judged fairly against the bone it
+   * sits on when that bone is at rest too. Holding pauses a live run -- never discarding it -- and
+   * draws the skeleton at rest with the pose overlays hidden. Letting go draws the run's paused
+   * pose again and does not resume it: nobody asked for it to move.
+   */
+  holdRest(on: boolean): void;
+  /** Write a file through the studio's saving helper; true once it is written. */
+  save(name: string, text: string): Promise<boolean>;
+  /** The body a saved alignment was made against: the running one's profile and morphology. */
+  body(): { profile: string; morphology: Simulation['recording']['morphology'] } | undefined;
+  /** Ask for a JSON file to load, however this studio asks; its text, or undefined if none. */
+  open(): Promise<string | undefined>;
+}
+
+/**
+ * The browser picker still waiting for its answer, if any: a way to settle it with nothing.
+ * See `openAlignFile`.
+ */
+let abandonAlignPick: (() => void) | null = null;
+
+/**
+ * Ask for a JSON file for the Align tab: the desktop shell's dialog, or the page's hidden input.
+ *
+ * Resolves undefined when the dialog is dismissed. Not every browser reports a dismissed picker,
+ * so an ask that is never answered is settled with undefined by the next one instead, rather than
+ * left listening on the input and handed the next file as well.
+ */
+function openAlignFile(): Promise<string | undefined> {
+  if (usesNativeFilePickers()) return openTextFile();
+  const input = must<HTMLInputElement>('#align-load-file');
+  abandonAlignPick?.();
+  return new Promise((resolve, reject) => {
+    const settle = () => {
+      input.removeEventListener('change', picked);
+      input.removeEventListener('cancel', dismissed);
+      abandonAlignPick = null;
+    };
+    const dismissed = () => {
+      settle();
+      resolve(undefined);
+    };
+    const picked = () => {
+      settle();
+      const file = input.files?.[0];
+      input.value = '';
+      if (file) file.text().then(resolve, reject);
+      else resolve(undefined);
+    };
+    abandonAlignPick = dismissed;
+    input.addEventListener('change', picked);
+    input.addEventListener('cancel', dismissed);
+    input.click();
+  });
+}
+
+/**
  * The Align tab: the reference models beside ours, and the points of ours that need moving.
  *
  * Built once and given the scene, because it draws into the same world the body is in. Its
  * reference data is fetched rather than bundled, so a studio nobody aligns anything in never
  * pays for it.
  */
-align = createAlignPanel(
-  {
-    articulation: () => simulation?.articulation,
-    units: () => simulation?.muscles?.units.map((u) => u.id) ?? [],
-    /**
-     * Where our joints that touch a segment sit in the world at rest.
-     *
-     * Each carries the segment on the other side of it, which is how a joint of theirs is
-     * matched to one of ours: both models agree a hip is a hip, so the joint between two paired
-     * bones is the same joint in both, and matched joints are what a rotation is fitted from. A
-     * joint is counted whether the segment is its parent or its child, because a femur is
-     * bounded by the hip above it and the knee below.
-     */
-    jointsOn: (segment) => {
-      const sim = simulation;
-      if (!sim) return [];
-      const index = sim.articulation.segments.findIndex((s) => s.id === segment);
-      if (index < 0) return [];
-      const out: { at: Vector3; other: string; axes: Vector3[] }[] = [];
-      for (const joint of sim.articulation.joints) {
-        const onParent = joint.parentSegment === index;
-        const onChild = joint.childSegment === index;
-        if (!onParent && !onChild) continue;
-        const seg = sim.articulation.segments[onParent ? joint.parentSegment : joint.childSegment];
-        const other =
-          sim.articulation.segments[onParent ? joint.childSegment : joint.parentSegment];
-        const frame = onParent ? joint.frameInParent : joint.frameInChild;
-        if (!seg || !other) continue;
-        const p = transformPoint(seg.restWorld, frame.translation);
-        // The hinge axes in the world: stated in the joint frame, carried out through the
-        // joint's frame in the segment and the segment's own rest pose.
-        const spin = new Quaternion(
-          seg.restWorld.rotation.x,
-          seg.restWorld.rotation.y,
-          seg.restWorld.rotation.z,
-          seg.restWorld.rotation.w,
-        ).multiply(
-          new Quaternion(frame.rotation.x, frame.rotation.y, frame.rotation.z, frame.rotation.w),
-        );
-        const axes: Vector3[] = [];
-        for (const dof of joint.dofs) {
-          if (dof.kind !== 'hinge') continue;
-          const v = new Vector3(dof.vector.x, dof.vector.y, dof.vector.z)
-            .applyQuaternion(spin)
-            .normalize();
-          if (v.lengthSq() > 1e-9 && !axes.some((a) => Math.abs(a.dot(v)) > 0.999)) axes.push(v);
-        }
-        out.push({ at: new Vector3(p.x, p.y, p.z), other: other.id, axes });
-      }
-      return out;
-    },
-    sites: () => {
-      const sim = simulation;
-      if (!sim?.muscles) return [];
-      const at = new Map(sim.articulation.segments.map((seg) => [seg.id, seg]));
-      const out: { id: string; bone: string; world: { x: number; y: number; z: number } }[] = [];
-      for (const path of sim.muscles.paths) {
-        for (const [end, where] of [
-          ['origin', path.origin],
-          ['insertion', path.insertion],
-        ] as const) {
-          const seg = at.get(where.bone);
-          if (!seg) continue;
-          out.push({
-            id: `${path.id}:${end}`,
-            bone: where.bone,
-            world: transformPoint(seg.restWorld, where.point),
-          });
-        }
-      }
-      return out;
-    },
-    /**
-     * Light up one of our segments, or clear it with undefined.
-     *
-     * Built from the bones the segment owns -- a segment is several bones, and `thigh_r` has to
-     * light up as a femur rather than as a dot at an origin. It is a rest-pose object, like the
-     * inspector's highlight, which suits: the retargeted paths are drawn at rest too, and
-     * pairing is something done to a body standing still.
-     */
-    highlightSegment: (id) => {
-      if (!skinned) return;
-      const segment = id ? simulation?.articulation.segments.find((s) => s.id === id) : undefined;
-      skinned.tint(segment ? new Set(segment.bones) : undefined, ALIGNED_TINT);
-    },
-    save: (name, text) => void download(name, text, 'application/json'),
-    setGizmoDragging: (dragging) => {
-      gizmoDragging = dragging;
-    },
+const alignHost: AlignHost & AlignHostHooks = {
+  articulation: () => simulation?.articulation,
+  units: () => simulation?.muscles?.units.map((u) => u.id) ?? [],
+  muscles: () => simulation?.muscles,
+  // Our joints and attachments at rest are pure functions of the compiled body, in
+  // `align/ourBody.ts` where they are tested. The joints used to be worked out here, and the
+  // sites too -- looked up as though every bone were a segment, which dropped the 288 of 544
+  // sites whose bone is not one, the femur's and the humerus's among them.
+  jointsOn: (segment) => {
+    const sim = simulation;
+    if (!sim) return [];
+    // The hinge axes the panel's shape still carries are read by nothing any more (settling a
+    // bone's roll by them measured worse than inheriting it; see `fit.ts`), so none are given.
+    return jointsOnSegment(sim.articulation, segment).map((joint) => ({ ...joint, axes: [] }));
   },
-  camera,
-  renderer,
-);
+  sites: () => (simulation ? attachmentSites(simulation.articulation, simulation.muscles) : []),
+  /**
+   * Light up one of our segments, or clear it with undefined.
+   *
+   * All the bones the segment owns -- a segment is several bones, and `thigh_r` has to light up
+   * as a femur rather than as a dot at an origin -- tinted on the drawn mesh, under the
+   * inspector's own tint, by `applyTints`.
+   */
+  highlightSegment: (id) => {
+    const segment = id ? simulation?.articulation.segments.find((s) => s.id === id) : undefined;
+    alignedSegmentBones = segment ? segment.bones : [];
+    applyTints();
+  },
+  save: (name, text) => saving(name, download(name, text, 'application/json')),
+  setGizmoDragging: (dragging) => {
+    gizmoDragging = dragging;
+  },
+  holdRest: (on) => {
+    if (on === alignHoldsRest) return;
+    alignHoldsRest = on;
+    if (on && simulation && !simulation.paused) {
+      pause();
+      announce('Paused: the Align points are drawn at rest.');
+    }
+    // The frame loop draws the change, and hides or shows the overlays with it.
+  },
+  body: () =>
+    simulation
+      ? { profile: simulation.recording.profile, morphology: simulation.recording.morphology }
+      : undefined,
+  open: openAlignFile,
+};
+align = createAlignPanel(alignHost, camera, renderer);
 align.attach(world);
 void loadSourceSites().then((data) => {
   if (data) align?.adopt(data);

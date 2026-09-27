@@ -1,7 +1,7 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
-import { QUALITY_LOW, QUALITY_MEDIUM } from './mesh/types.js';
+import { QUALITY_HIGH, QUALITY_LOW, QUALITY_MEDIUM } from './mesh/types.js';
 import { buildSkeletonMesh, computeWorldTransforms, skeletonBounds } from './skeletonMesh.js';
 
 const document = buildDocument();
@@ -252,5 +252,56 @@ describe('dataset meshes', async () => {
         Math.hypot(mesh.normals[i] ?? 0, mesh.normals[i + 1] ?? 0, mesh.normals[i + 2] ?? 0),
       ).toBeCloseTo(1, 4);
     }
+  });
+});
+
+describe('the merged buffers, byte for byte', async () => {
+  const { loadSkeletonAssetsFromDisk } = await import('@bs-humany/assets-anatomical');
+  const { fileURLToPath } = await import('node:url');
+  const { dirname, join } = await import('node:path');
+  const { createHash } = await import('node:crypto');
+  const assets = await loadSkeletonAssetsFromDisk(
+    join(dirname(fileURLToPath(import.meta.url)), '../../assets-anatomical/data'),
+  );
+  const sha = (array: Float32Array | Uint32Array) =>
+    createHash('sha256')
+      .update(new Uint8Array(array.buffer, array.byteOffset, array.byteLength))
+      .digest('hex');
+
+  // Recorded from the builder as it stood before the two-pass rewrite and the cached normals, so
+  // the faster build is held to producing the very same bytes rather than merely similar ones.
+  // A change here is a change to what every studio draws, and has to be one somebody meant.
+  it.each([
+    [
+      1.7,
+      0.5,
+      {
+        positions: 'ab4004bf968dbbcc30f5243df07decc6b57e2d39b5c0c857119de017047296db',
+        normals: 'b3c6989d2eb0408fc6f2fe354dfe72b3ec9bff80ecacffb5d540e51030e35ac0',
+        indices: '79864e81f5cbb97438c8ce2e02bb005e124fbb454541ecfb5c1404d67f3586ee',
+        boneIndex: '25a11776b229341958b5e6f59f8b43116a86d2e6a908b9f7ac1a4cd7c53ccd11',
+      },
+    ],
+    [
+      1.95,
+      0.2,
+      {
+        positions: '87259f1332e12a94097fac9365e361bec7b1e8fb413be74a6b5105c96197cac9',
+        normals: 'b3c6989d2eb0408fc6f2fe354dfe72b3ec9bff80ecacffb5d540e51030e35ac0',
+        indices: '79864e81f5cbb97438c8ce2e02bb005e124fbb454541ecfb5c1404d67f3586ee',
+        boneIndex: '25a11776b229341958b5e6f59f8b43116a86d2e6a908b9f7ac1a4cd7c53ccd11',
+      },
+    ],
+  ])('at %f m and sex %f', (stature, sex, expected) => {
+    const mesh = buildSkeletonMesh(document, context(stature, sex), {
+      quality: QUALITY_HIGH,
+      assets,
+    });
+    expect({
+      positions: sha(mesh.positions),
+      normals: sha(mesh.normals),
+      indices: sha(mesh.indices),
+      boneIndex: sha(mesh.boneIndex),
+    }).toEqual(expected);
   });
 });

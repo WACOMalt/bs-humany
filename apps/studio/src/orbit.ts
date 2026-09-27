@@ -6,8 +6,9 @@
  * stock controls do not expose: `wasDragging`, so a click that ends an orbit does not also select a
  * bone underneath the cursor. That interaction bug is small and extremely irritating.
  *
- * Spherical coordinates about a target. Spec section 11 asks for orbit, pan and zoom; a
- * centre-of-mass follow mode arrives with the physics in M3.
+ * Spherical coordinates about a target. Spec section 11 asks for orbit, pan and zoom. The spec's
+ * centre-of-mass follow mode (spec section 11) is not built yet; the view buttons and F aim at the
+ * body when pressed, which is the nearest thing to it.
  */
 
 import type { PerspectiveCamera } from 'three';
@@ -19,6 +20,13 @@ export interface OrbitControls {
   orbit(delta: number): void;
   /** Jump to a view: azimuth and polar angle in radians, distance in metres. */
   setView(theta: number, phi: number, radius: number): void;
+  /**
+   * Stand off at this distance from the target, keeping the angle the camera looks from.
+   *
+   * What F does: the body is put back in the middle of the picture without turning the view
+   * somebody chose.
+   */
+  setDistance(radius: number): void;
   /**
    * True when the pointer moved far enough during the last press to count as a drag, or the press
    * was taken by something else.
@@ -44,6 +52,52 @@ const MIN_POLAR = 0.08;
 const MAX_POLAR = Math.PI - 0.08;
 const MIN_DISTANCE = 0.35;
 const MAX_DISTANCE = 12;
+
+/**
+ * Pixels one line of a line-mode wheel event stands for. Firefox reports a notch as three lines;
+ * 33 px a line puts its notch at the 100 px Chrome reports for one, so the two zoom alike.
+ */
+export const LINE_PIXELS = 33;
+/**
+ * Zoom per pixel of wheel travel, as a fraction of the distance: 0.001 makes a 100 px notch about
+ * 10%, which is the step the old fixed 9% per event was tuned to feel like.
+ */
+export const WHEEL_ZOOM_PER_PIXEL = 0.001;
+/**
+ * Zoom per pixel of a trackpad pinch, which browsers report as a wheel event with Ctrl held and
+ * deltas of a few pixels at a time: ten times the wheel's, so a pinch covers a useful range in
+ * one gesture.
+ */
+export const PINCH_ZOOM_PER_PIXEL = 0.01;
+/**
+ * The most one event may zoom, as a logarithm: exp(0.25) is about 28%. A page-mode event, or a
+ * driver that reports a whole fling in one delta, would otherwise throw the camera to a limit.
+ */
+export const MAX_WHEEL_STEP = 0.25;
+
+/**
+ * How much one wheel event scales the camera's distance.
+ *
+ * Proportional to the travel the event reports. The old handler took only its sign and zoomed 9%
+ * whatever the size, which is right for a notched wheel's one event a notch and wrong for a
+ * trackpad, which sends dozens of events of a few pixels each: a gentle swipe flew the camera from
+ * one end of its range to the other. An exponential of the travel, so an out and an in of the same
+ * size cancel exactly, and so the zoom is the same however the travel is split into events.
+ *
+ * `deltaMode` is the event's unit: 0 pixels, 1 lines, 2 pages (`pageHeight` pixels each). Ctrl
+ * held marks a pinch.
+ */
+export function wheelZoomFactor(
+  deltaY: number,
+  deltaMode: number,
+  ctrlKey: boolean,
+  pageHeight: number,
+): number {
+  const pixels =
+    deltaMode === 1 ? deltaY * LINE_PIXELS : deltaMode === 2 ? deltaY * pageHeight : deltaY;
+  const step = pixels * (ctrlKey ? PINCH_ZOOM_PER_PIXEL : WHEEL_ZOOM_PER_PIXEL);
+  return Math.exp(clamp(step, -MAX_WHEEL_STEP, MAX_WHEEL_STEP));
+}
 
 export interface OrbitOptions {
   /**
@@ -160,8 +214,15 @@ export function createOrbitControls(
     'wheel',
     (event) => {
       event.preventDefault();
-      spherical.radius *= 1 + Math.sign(event.deltaY) * 0.09;
-      spherical.radius = clamp(spherical.radius, MIN_DISTANCE, MAX_DISTANCE);
+      // A page is the canvas's height; before it is laid out, any plausible height does, because
+      // MAX_WHEEL_STEP caps a page-mode event long before the height matters.
+      const factor = wheelZoomFactor(
+        event.deltaY,
+        event.deltaMode,
+        event.ctrlKey,
+        element.clientHeight || 800,
+      );
+      spherical.radius = clamp(spherical.radius * factor, MIN_DISTANCE, MAX_DISTANCE);
     },
     { passive: false },
   );
@@ -179,6 +240,10 @@ export function createOrbitControls(
       spherical.radius = clamp(radius, MIN_DISTANCE, MAX_DISTANCE);
       azimuthVelocity = 0;
       polarVelocity = 0;
+    },
+
+    setDistance(radius: number) {
+      spherical.radius = clamp(radius, MIN_DISTANCE, MAX_DISTANCE);
     },
 
     wasDragging() {
