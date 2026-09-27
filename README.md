@@ -3,13 +3,17 @@
 A modular simulation framework for the human body, running in the browser, built bottom-up from
 mechanical structure.
 
-**Phase 1 (current):** a parametric, anatomically-named, articulated human skeleton with realistic
-joint types, ranges of motion, passive joint properties and mass distribution — simulated as a
-rigid-body system and rendered with three.js. Flagship demo: drop the skeleton, watch it collapse
-in an anatomically plausible way, drag it around, reset it.
+**What it is now:** a skeleton measured from the Z-Anatomy meshes, articulated with realistic
+joint types, ranges of motion, passive joint properties and mass distribution; a set of Hill-type
+muscles whose paths wrap the bones; a spinal cord of stretch and velocity reflexes under a
+trained policy that drives those muscles (ADR-014 over ADR-013); the studio that runs all of it,
+in a browser tab or as a desktop application; and a native OpenXR viewer that puts the body in a
+headset. MuJoCo is the physics backend.
 
-**Not in Phase 1:** skinned meshes, muscles, nerves, organs, control policy beyond direct
-manipulation.
+**Phase 1** was the mechanical substrate: a parametric, anatomically-named, articulated skeleton
+simulated as a rigid-body system and rendered with three.js, whose flagship demo was dropping it
+and watching it collapse plausibly. The muscle, nerve (policy) and VR-viewer work has landed since;
+the specification in `docs/spec/` holds the status of each phase.
 
 ## The central idea
 
@@ -28,43 +32,123 @@ body or part of a lumped arm segment.
 
 ## Layout
 
+Every package, app and tool, in the words of its own `package.json` (or, where it has none, its
+README).
+
 ```
-packages/
-  hsdl/              schema, types, validation, JSON Schema generation
-  frames/            coordinate conventions & conversions — small, pure, exhaustively tested
-  anthropometry/     de Leva tables, ANSUR II tables, morphology solver, inertia math
-  kernel/            scheduler, channels, delay lines, clock, state buffers
-  skeleton/          bone taxonomy (~206), landmarks, segmentation profiles
-  compiler/          HSDL -> CompiledArticulation; MJCF emitter
-  backend-rapier/    interactive default
-  backend-mujoco/    accuracy backend
-  modules-mechanics/ physics, passive joints, skeleton posing, grab, metrics
-  render-three/      three.js rendering + debug overlays
-  scenarios/         scenario definitions + golden trajectory fixtures
-  testkit/           plausibility assertions, conformance harness, trajectory hashing
-apps/studio/         the demo/dev application
-tools/cli/           headless scenario runner, citation lint
-docs/                spec, ADRs, validation reports, bibliography
+core
+  packages/hsdl/               HSDL schema, types, validation, JSON Schema generation
+  packages/frames/             coordinate conventions and conversions; small, pure,
+                               exhaustively tested
+  packages/kernel/             scheduler, channels, delay lines, clock, state buffers
+  packages/compiler/           HSDL to CompiledArticulation; MJCF emitter
+  packages/scenarios/          scenario definitions, activation clips, muscle groups, and the
+                               joint-sweep and inertia-audit reports (spec 13.5)
+  packages/testkit/            plausibility assertions, conformance harness, trajectory hashing
+
+anatomy and mass
+  packages/skeleton/           bone taxonomy, landmarks, segmentation profiles
+  packages/assets-anatomical/  anatomical bone meshes and landmarks derived from Z-Anatomy /
+                               BodyParts3D; CC BY-SA 4.0 data
+  packages/anthropometry/      de Leva and ANSUR II tables, morphology solver, inertia math
+  packages/modules-mechanics/  physics, passive joints, skeleton posing, grab, metrics
+
+muscle
+  packages/muscle-data/        the muscle.* HSDL extension schema, and the cited muscle
+                               definitions that populate it
+  packages/muscle-model/       musculotendon dynamics: characteristic curves, activation, damped
+                               equilibrium fibre model; pure numbers
+  packages/muscle-path/        muscle path geometry: attachment sites, wrap surfaces, path
+                               solvers, analytic path velocity and moment arms
+  packages/muscle-volume/      tier V: procedural muscle volumes swept along the solved path
+  packages/modules-muscle/     kernel modules for muscle: path solving and musculotendon dynamics
+
+nerves and sensing
+  packages/modules-nerves/     the nerves: a policy network that reads the body's afferents and
+                               drives its muscles, trained on the simulation itself
+  packages/modules-sensing/    sensory modules; vestibular sensing, and the worked example of
+                               the module contract
+
+backends
+  packages/backend-mujoco/     MuJoCo physics backend; the one enabled backend
+  packages/backend-rapier/     disabled; the owner decided on 2026-09-26 to delete it
+
+rendering, export and bridge
+  packages/render-three/       procedural bone geometry and the three.js skeleton mesh
+  packages/export-gltf/        animated glTF (.glb) export of the bone hierarchy for Blender,
+                               sampled at a stride, with the muscle bellies as a PC2 point cache
+  packages/pose-bridge/        how a simulation hands its body pose to a renderer it does not
+                               own: a latest-wins ring on tmpfs, per ADR-012
+
+apps
+  apps/studio/                 the bs-humany demo and development application (web and desktop)
+  apps/xr-viewer/              a native OpenXR viewer (Rust)
+
+tools
+  tools/cli/                   repository lints and checks, the muscle-data generators and
+                               measurements, the validation reports, bench, the desktop sidecar
+                               and release tarball, and publish-pose: a headless scenario runner
+                               that feeds the pose bridge
+  tools/train/                 training the nerves: evolution strategies over a policy,
+                               evaluated on the simulation across worker threads
+  tools/ingest/                offline ingestion of anatomical mesh datasets into the skeleton
+                               data package (M1.11)
+  tools/blender/               checking an export in a real Blender
+  tools/validate-external/     external reference models, for comparison only (spec 13.6)
+
+docs/                          spec, ADRs, guides, validation reports, bibliography
 ```
+
+## Prerequisites
+
+- **Node 22 or newer.**
+- **pnpm**, through `corepack enable`: corepack reads the `packageManager` field of the root
+  `package.json` and runs the pnpm version pinned there (9.15.2), so every checkout builds with
+  the same one.
+- **Rust and the GTK and WebKit development packages**, but only for the desktop builds
+  (`pnpm desktop:*`) and the VR viewer. The browser studio, the tests and the container need
+  neither. `apps/studio/src-tauri/README.md` lists the packages for each distribution.
 
 ## Getting started
 
 ```bash
+corepack enable
 pnpm install
 pnpm test
-pnpm dev
+pnpm dev          # the studio, at http://localhost:5173/
 ```
+
+Before you push, run `pnpm verify`: it runs what CI runs. `CONTRIBUTING.md` lists every check
+and the command that regenerates the generated files, and says why each exists.
 
 ## Running the studio
 
 Three ways, and none of them needs the others. The studio is laid out as a studio: a top bar
 with the body's fidelity profile and the transport, a viewport with its own view and overlay
-controls, a properties editor on the right with a tab a concern -- Body, World, Simulation,
-Scenario, Muscles, Brain, Export, Health -- a timeline under the viewport, and a status bar.
-Space starts and pauses, the arrows step a frame, Home goes live, 1, 3 and 7 pick a view. The
-Brain tab lists the saved checkpoints, hands one control of the running body, and starts or
-stops a training run on this machine; both need `pnpm train:dashboard` serving.
-`docs/plans/studio-ui-redesign.md` is the plan it follows.
+controls, a properties editor on the right with a tab a concern, a timeline under the viewport,
+and a status bar. The tabs, in order:
+
+- **Body**: who is being simulated, and how finely.
+- **World**: what the body is in.
+- **Sim**: how it is computed and recorded.
+- **Scene**: what happens.
+- **Muscles**: drive the body by hand.
+- **Brain**: a trained policy in charge, and training (below).
+- **Align**: the reference models beside ours, and the points on ours that need moving.
+- **Export**: recordings, sessions, and a run for Blender (`docs/guides/blender-export.md`).
+- **Health**: whether the numbers are right.
+
+Drag to orbit, right- or Shift-drag to pan, scroll to zoom. Space starts, pauses and resumes a
+run; the arrows step a frame, Home goes live, and 1, 3, 7 and 9 pick the front, left,
+three-quarter and back views.
+
+The Brain tab hands a checkpoint control of the running body and trains new ones. With no
+dashboard running it trains in the window itself: the desktop build reads and writes the same
+data directory as the command-line trainer (see Training the nerves), and a browser tab keeps
+what it trains in that browser's own storage. In a browser, then, listing the checkpoints on
+disk needs `pnpm train:dashboard` running, and training and handing over do not. When the
+dashboard is running the tab prefers it: it lists the checkpoints on disk and trains through
+it, on every core. The redesign's plan, now a record: `docs/plans/studio-ui-redesign.md`.
 
 **A desktop application.** The releases page carries two builds per version:
 
@@ -74,9 +158,10 @@ stops a training run on this machine; both need `pnpm train:dashboard` serving.
 | `bs-humany-studio-<version>-linux-x86_64.tar.gz` | the bare binaries, wanting a current `libwebkit2gtk-4.1` |
 
 `chmod +x` the AppImage and run it. The tarball holds the studio, the VR viewer, the mesh pack
-the viewer needs and the attribution; unpack it anywhere and run `./bs-humany-studio`. Build
-either yourself with `pnpm desktop:appimage` or `pnpm desktop:build` — see
-`apps/studio/src-tauri/README.md` for what they need.
+the viewer needs and the attribution; unpack it anywhere and run `./bs-humany-studio`. Build the
+AppImage yourself with `pnpm desktop:appimage` and the tarball with `pnpm desktop:tarball`
+(`pnpm desktop:build` is the bare binary alone); `apps/studio/src-tauri/README.md` says what they
+need.
 
 **In a headset.** Both desktop builds carry a native OpenXR viewer. With SteamVR (or another
 OpenXR runtime) running, start a run in the studio and click **Connect VR viewer**: the body on
@@ -92,31 +177,50 @@ docker build -t bs-humany-studio .
 docker run -d --name bs-humany -p 8080:80 --restart unless-stopped bs-humany-studio
 ```
 
-Then open `http://localhost:8080/`. `podman` works in place of `docker`, and
-`docker compose up -d --build` does both steps at once. `docs/guides/deploy.md` covers updating
-it, what is in the image, and the two headers it has to serve.
+Then open `http://localhost:8080/`. With Podman, build with `podman build --format docker -t
+bs-humany-studio .`: Podman writes OCI images by default, and the OCI format has no place for
+the image's `HEALTHCHECK`, so without the flag it is silently dropped. `docker compose up -d
+--build` does both steps at once. `docs/guides/deploy.md` covers updating it, what is in the
+image, and the two headers it has to serve.
 
 **The dev server**, which is `pnpm dev`.
 
-**Training the nerves.** `pnpm train:nerves` trains a policy by evolution strategies across
-every core, saving the best to `packages/modules-nerves/policies/<name>.json` as it goes (a
-policy fits any profile by the names of its senses, so `--resume` carries a search from a
-coarser body onto a finer one). What it trains in is a **recipe**: the scenario and its
-parameter values, the body, whether the joints resist, what plays under the brain -- nothing,
-the scenario's own muscle script, or the quiet-standing clip -- and what is scored, standing
-still or keeping the head still and level. The recipe is saved into the checkpoint. Without one,
-the flags describe the reference body on the ground with the clip under it, saved as
-`stand.json`. `pnpm train:dashboard` serves a page at `http://localhost:5280/` with the fitness
-curves, the live body and the network's activity; `pnpm train:showcase` keeps the current best
-running in a body published to the pose bridge, so the headset viewer shows the learner -- and
-so does the studio: its **Follow bridge** button, on the Brain tab, shows whatever is publishing,
-live, muscles and all, through the dashboard's server. The Brain tab is also where a checkpoint
-is made: name it, choose what is scored and what plays under the brain, set the scene on the
-Scene tab (the **Tilting floor** is the one for a brain that has to react: the floor pitches and
-rolls in random pulses, and a posture held still goes over at the first) and the body on the
-Body tab, and **Start training** starts the trainer and the showcase through the dashboard's
-server and follows them. Choosing a checkpoint sets those tabs up the way it was trained.
-ADR-013 is why it is shaped this way.
+## Training the nerves
+
+A policy is trained by evolution strategies across every core; ADR-013 is why it is shaped this
+way, and ADR-014 is the cord under it.
+
+1. **Where the checkpoints live.** In the per-user data directory, not the repository:
+   `~/.local/share/bs-humany/policies` on Linux (under `$XDG_DATA_HOME` when that is set),
+   `~/Library/Application Support/bs-humany/policies` on macOS, and
+   `%APPDATA%\bs-humany\policies` on Windows. Each run's history goes beside it, in `runs/`.
+   `pnpm train:where` prints the paths and what is in them, and `BS_HUMANY_HOME` moves the whole
+   directory. The first time the trainer or the dashboard starts, it copies in the checkpoints
+   that ship in `packages/modules-nerves/policies`, once; that directory is only the seed.
+2. **What a run is.** A run trains in a **recipe** and is named by it: the scenario and its
+   parameter values, the body, whether the joints resist, what plays under the brain (nothing,
+   the scenario's own muscle script, or an activation clip), the cord, and what is scored. The
+   recipe is saved into the checkpoint. `pnpm train:nerves --recipe <file>` trains one;
+   `pnpm train:nerves --print-recipe > mine.json` writes one to start from (change its `name`).
+   The Brain tab writes its recipes to `<data>/runs/<name>-recipe.json` through the dashboard.
+3. **A plain run.** With no recipe, the flags describe the reference stand -- the reference body
+   on the ground with the quiet-standing clip under it -- saved as `stand.json`. A run never
+   silently replaces a checkpoint: because `stand.json` is among the seeded ones, a plain
+   `pnpm train:nerves` is refused. `--resume` continues the checkpoint, under the recipe it was
+   saved with unless you give another; `--force` starts it afresh. `pnpm train:nerves --help`
+   lists every flag and its default.
+4. **Watching it.** `pnpm train:dashboard` serves `http://localhost:5280/` with the fitness
+   curves, the live body and the network's activity. `pnpm train:showcase` keeps the current
+   best running in a body published to the pose bridge, so the headset viewer shows the learner,
+   and so does the studio: **Follow bridge** on the Brain tab shows whatever is publishing, live,
+   muscles and all, through the dashboard's server.
+5. **From the studio.** On the Brain tab, name the checkpoint and choose what is scored and what
+   plays under the brain; set the scene on the Scene tab and the body on the Body tab. The
+   **Tilting floor** scene is the one for a brain that has to react: the floor pitches and rolls
+   in random pulses, and a posture held still goes over at the first. **Start training** goes
+   through the dashboard when one is running, starting the trainer and the showcase and
+   following them, and trains in the window when none is. Choosing a checkpoint sets those tabs
+   up the way it was trained.
 
 ## Naming
 
@@ -137,6 +241,13 @@ Project: `bs-humany`. Workspace scope: `@bs-humany/*`. Where a globally-unique i
 
 ## Licensing
 
-Core packages: Apache-2.0, depending only on permissively-licensed software and unrestricted data
-sources. See ADR-009 for the three-tier provenance structure and why the boundary is drawn by
-technical role rather than license anxiety.
+Two tiers, set out in ADR-009 (`docs/adr/adr-009-licensing.md`):
+
+- **Code** is Apache-2.0 (`LICENSE`) and depends only on permissively-licensed software. It is not
+  a derivative of the data it loads.
+- **Anatomical data** -- everything derived from the Z-Anatomy and BodyParts3D geometry: bone
+  meshes, landmarks, frames, joint centres, hulls -- is CC BY-SA 4.0, with the attribution in
+  `NOTICE` and in the packages that carry it.
+
+MyoSkeleton, being non-commercial, is incompatible with Share-Alike data and is never a source of
+values; `CONTRIBUTING.md` §11 says why.
