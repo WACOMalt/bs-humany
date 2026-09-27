@@ -21,8 +21,7 @@
  * - `measure:muscle-ranges`, then `measure:source-travel`. The ranges sweep reads the region data
  *   and writes muscle-data/src/ranges.ts; the source-travel sweep reads those ranges
  *   (`muscleLengthRange`) to set our travel beside the source's in docs/validation/fiber-lengths.md,
- *   so it has to see the new ones. The hand generator reads sourceTravel.ts too, but only to refuse
- *   to run once a hand unit is measured there, so that back edge never changes what is written.
+ *   so it has to see the new ones.
  * - The validation reports (`validate:*`), which read everything above and write docs/validation.
  * - The section 14.5 audit (`audit:*`) last, because it reads those reports.
  */

@@ -84,7 +84,7 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Gluteus maximus, inferior part, right',
         origin: 'gluteus_maximus_origin_r_ischial_tuberosity',
         insertion: 'gluteus_maximus_insertion_r_gluteal_tuberosity',
-        path: [],
+        path: [{ kind: 'site', site: 'gluteus_maximus_inferior_r__via_1' }],
         parameters: {
           maxIsometricForce: 928.184,
           optimalFiberLength: 0.408049,
@@ -511,7 +511,7 @@ export const HIP_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Gluteus maximus, inferior part, left',
         origin: 'gluteus_maximus_origin_l_ischial_tuberosity',
         insertion: 'gluteus_maximus_insertion_l_gluteal_tuberosity',
-        path: [],
+        path: [{ kind: 'site', site: 'gluteus_maximus_inferior_l__via_1' }],
         parameters: {
           maxIsometricForce: 928.184,
           optimalFiberLength: 0.408049,

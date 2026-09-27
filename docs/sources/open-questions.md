@@ -482,6 +482,17 @@ that neither needs its fibre trimmed to fit.
 **Status:** addressed. Both lengths are derived from measurements on this skeleton rather than
 transcribed, with the cited values kept beside them, and the capped list is down from fourteen
 units to four.
+**2026-09-27:** the guard covers the hand, and is complete by construction. The measurement had
+quietly left out every unit no tendon table named -- coracobrachialis, the inferior gluteus
+maximus and all nineteen hand extrinsics a side -- so their fibres were never translated and the
+report had no row to say so. `measure-source-travel` now reads the units from the muscle data,
+every one whose parameters cite a MyoSuite model, and refuses any it neither measures nor names in
+`MEASUREMENT_EXCLUSIONS` (`tools/validate-external/src/referenceArm.mjs`) with a reason: the six
+trunk units on the arm's model need the torso chain, and the torso's four need a chain not
+assembled here. Of the 40 new rows, one fibre moved: flexor pollicis longus, which travels 1.32
+times as far here as on the source, from 85 to 112 mm. Coracobrachialis and the inferior gluteus
+maximus stay at the four-fifths cap they were already held at, and the other hand units travel
+less here than there, which the translation leaves alone.
 
 ### OQ-021 — The foot has no frame of its own, and no marked phalanx
 **Needed for:** `packages/muscle-data/src/ankle.ts`, `tools/cli/bin/generate-muscle-via-points.mjs`
@@ -639,6 +650,10 @@ CC BY-SA data* is found and vendored, and the stand-in is replaced by it.
 **Status:** stand-in, measured rather than assumed. The vendoring route stays closed until a
 permissively licensed model turns up. The hand's extrinsics are built on the same stand-in; its
 intrinsics are not built, for a different reason (`UNMODELLED_MUSCLES` in `@bs-humany/skeleton`).
+**2026-09-27:** the hand's stand-ins are translated like the forearm's now. The source-travel
+sweep measures their tendons on the source's model (OQ-020), compile lengthens a fibre where the
+muscle travels further here, and the hand's citation says so where it used to say the opposite.
+Flexor pollicis longus is the one that moved, from 85 to 112 mm.
 
 ### OQ-023 — The guard that refuses an actuator was written for a value no longer used
 **Needed for:** `tools/cli/lib/myoSuite.mjs`, the torso set, and five units in four other sets
@@ -693,6 +708,13 @@ were never touched by the cap at all.
 The risk that remains is the one this entry named: the width is not always well conditioned
 either. The detailed lumbar model still refuses 146 of 210 fascicles on the width alone, which is
 the check doing its job.
+**2026-09-27:** four of the six came back without their via points: the via-point generator's
+table was never told about coracobrachialis, the inferior gluteus maximus, the lumbar latissimus
+or the clavicular pectoralis, so each ran as a straight chord -- gluteus maximus's third part 63 mm
+from the ischial tuberosity to the femur. They are in the table now and carry their points (one
+for coracobrachialis and gluteus maximus, two for the other two; the clavicular head's point on
+the clavicle is drawn in to the bone, which the upper arm's frame left 57 mm off it). Erector
+spinae and rectus abdominis are the torso's and route through points of their own.
 **Status:** closed.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form
@@ -930,6 +952,12 @@ Where Zheng gives one share for a muscle carried in parts -- splenius, the scale
 is stated in the generator and is a guess. Neck models built from Vasavada's numbers have needed
 their forces raised by 1.4 to 2.7 to meet measured neck strengths (`mortensen2018`); nothing is
 raised here.
+**2026-09-27:** the distances are measured between the sites the muscles attach to, through the
+skeleton's `locateFeature`, and no longer between the export's markers, which name a feature and
+sat up to 18 mm off the bone. Five of the eleven units moved, by 0.8 to 3.8%: sternocleidomastoid
+216.1 -> 224.3 mm, splenius capitis 210.2 -> 213.4, longissimus capitis 160.0 -> 165.6, longus
+colli 124.8 -> 122.4 and longus capitis 93.2 -> 92.4; their forces moved by up to 4% the other way.
+The fraction is still the assumption this entry is about.
 **Closes when:** Kamibayashi & Richmond (1998) is read and each muscle's fascicle length and
 pennation replace the fraction, or the neck's strength is validated against the head-on-neck
 moments Roos et al. (2019) Table 1 collects and the forces scaled to them.
@@ -1033,4 +1061,12 @@ then joins `derive` and `check`, and the 20 derived entries it drops from `landm
 land as their own commit with their golden rebake. The owner decided on 2026-09-26 that the
 anatomy data fixes that move goldens all land, each as its own commit with its rebake, and this
 is one of them.
-**Status:** open; decided, waiting on that change.
+**2026-09-27:** landed. `surfaceLandmarks.ts` reads `landmarks-derived.json` and skips every point
+it records a rule for, so the table holds the 805 markers and nothing else; re-run, those 805 came
+out byte for byte as they were, and the 20 derived entries left: the ten metatarsal heads, both
+malleoli on each side, the posterior calcaneal tuberosity points, the jugular notch and xiphoid
+tip, and the C7 and T8 spinous tips. The stage is a fixed point now and runs in `derive` and
+`check`; `ridge-attachments.json` and `wrap-radii.json` changed only in the hash of what they
+read. The malleoli are the ones that mattered: the shank's frame correspondence is built on them,
+so every via point carried onto the tibia, the fibula and the foot moved a little with them.
+**Status:** closed.

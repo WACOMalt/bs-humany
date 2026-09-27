@@ -44,6 +44,15 @@
  * carries its followers. Without that, the reference's phantom girdle joints were being swept as
  * though they were free, and 180 degrees of elevation was being asked of the glenohumeral joint
  * alone on both skeletons.
+ *
+ * ## Every unit that cites the source
+ *
+ * What is measured is whatever the tendon tables in `referenceArm.mjs` name, and a unit missing
+ * from them used to be missing from here without a word: its fiber stayed untranslated, and the
+ * report simply had no row for it. Coracobrachialis, the inferior gluteus maximus and the whole
+ * hand went that way. So the units are read from the muscle data -- every one whose parameters
+ * cite a MyoSuite model -- and each must be measured or named in `MEASUREMENT_EXCLUSIONS` with the
+ * reason it cannot be; anything else stops the run and is named.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -53,7 +62,9 @@ import { createJiti } from 'jiti';
 import {
   ELBOW_TENDONS,
   FOREARM_TENDONS,
+  HAND_TENDONS,
   LEG_TENDONS,
+  MEASUREMENT_EXCLUSIONS,
   MODELS,
   SHOULDER_TENDONS,
   loadReference,
@@ -149,19 +160,18 @@ function travelOn(tendons, model) {
   return found;
 }
 
+const ARM_TENDONS = { ...ELBOW_TENDONS, ...SHOULDER_TENDONS, ...FOREARM_TENDONS, ...HAND_TENDONS };
 const measured = new Map([
-  ...travelOn({ ...ELBOW_TENDONS, ...SHOULDER_TENDONS, ...FOREARM_TENDONS }, MODELS.arm),
+  ...travelOn(ARM_TENDONS, MODELS.arm),
   ...travelOn(LEG_TENDONS, MODELS.legs),
 ]);
 
 /** The actuator each tendon belongs to: the reference names them `<actuator>_tendon`. */
 const actuatorOf = new Map(
-  [
-    ...Object.entries(ELBOW_TENDONS),
-    ...Object.entries(FOREARM_TENDONS),
-    ...Object.entries(SHOULDER_TENDONS),
-    ...Object.entries(LEG_TENDONS),
-  ].map(([tendon, unit]) => [unit, tendon.replace(/_tendon$/, '')]),
+  [...Object.entries(ARM_TENDONS), ...Object.entries(LEG_TENDONS)].map(([tendon, unit]) => [
+    unit,
+    tendon.replace(/_tendon$/, ''),
+  ]),
 );
 const parameters = new Map([...readActuators(ARM), ...readActuators(LEGS)]);
 
@@ -264,6 +274,38 @@ const { buildDocument, REFERENCE_MORPHOLOGY, REFERENCE_PROFILE } = await jiti.im
 );
 const muscleData = await jiti.import(join(ROOT, 'packages/muscle-data/src/index.ts'));
 const modules = await jiti.import(join(ROOT, 'packages/modules-muscle/src/index.ts'));
+
+/**
+ * Every unit whose parameters cite a MyoSuite model is measured here, or excluded by name with a
+ * reason (`MEASUREMENT_EXCLUSIONS`). A unit that is neither has its fiber length left
+ * untranslated with nothing to say so: coracobrachialis, the inferior gluteus maximus and the
+ * whole hand went that way, each because a tendon table somewhere was not told about it. So the
+ * list of units is read from the muscle data itself rather than trusted, and a gap is refused.
+ */
+const unaccounted = [
+  ...new Set(
+    muscleData.ALL_MUSCLES.flatMap((group) => group.units)
+      .filter((unit) => unit.parameters.source?.key === 'caggiano2022')
+      .map((unit) => unit.id.replace(/_l$/, '_r')),
+  ),
+].filter((unit) => !measured.has(unit) && !(unit in MEASUREMENT_EXCLUSIONS));
+if (unaccounted.length > 0) {
+  throw new Error(
+    `measure-source-travel: ${unaccounted.length} unit(s) cite a MyoSuite model and are neither ` +
+      `measured nor excluded: ${unaccounted.join(', ')}. Add each one's tendon to its table in ` +
+      'tools/validate-external/src/referenceArm.mjs, or to MEASUREMENT_EXCLUSIONS there with the ' +
+      'reason it cannot be measured.',
+  );
+}
+const excludedButMeasured = Object.keys(MEASUREMENT_EXCLUSIONS).filter((unit) =>
+  measured.has(unit),
+);
+if (excludedButMeasured.length > 0) {
+  throw new Error(
+    `measure-source-travel: MEASUREMENT_EXCLUSIONS names ${excludedButMeasured.join(', ')}, which ` +
+      'is measured. Take it off the list.',
+  );
+}
 
 const document = buildDocument();
 const morphology = resolveMorphology(REFERENCE_MORPHOLOGY);

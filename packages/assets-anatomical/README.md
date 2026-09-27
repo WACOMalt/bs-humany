@@ -40,7 +40,9 @@ together, and `ingest` prints the next command when it finishes.
    `skeleton.bin`, `landmarks.json` and `landmarks-derived.json`; rewrites `landmarks.json` and
    `landmarks-derived.json` and writes `rib-arcs.json`.
 3. **`surface-landmarks`** puts each marker back on the bone it names. Reads `manifest.json`,
-   `skeleton.bin` and `landmarks.json`; writes `landmarks-surface.json`. See the exception below.
+   `skeleton.bin`, `landmarks.json` and `landmarks-derived.json`; writes `landmarks-surface.json`.
+   Markers only: a point `landmarks-derived.json` records a rule for is on the bone already, and
+   is skipped (OQ-032).
 4. **`ridge-attachments`** measures where along a ridge a muscle starts. Reads `manifest.json`,
    `skeleton.bin`, `landmarks.json` and `landmarks-surface.json`; writes `ridge-attachments.json`.
 5. **`centres`** fits the articular and contact joint centres. Reads `manifest.json`,
@@ -52,7 +54,7 @@ together, and `ingest` prints the next command when it finishes.
    `skeleton.bin` -- `hulls` the skeleton's segmentation profiles too -- and write `hulls.json`
    and `skeleton-lod1.bin` + `manifest-lod1.json`.
 
-`derive` runs stages 2, 4, 5 and 6 in that order. Where a stage looks a landmark up, it answers
+`derive` runs stages 2 to 6 in that order. Where a stage looks a landmark up, it answers
 the way the skeleton's landmark lookup does: a ridge point over a surface point over the raw
 marker (`loadLocatedLandmarks` in `tools/ingest/src/packData.ts`, `LOCATED` in
 `packages/skeleton/src/landmarks.ts`).
@@ -63,22 +65,11 @@ A measured table records `inputsSha256`, a hash of the files it was measured fro
 the day it was written: the same inputs give the same file byte for byte, so re-running `derive`
 on unchanged data changes nothing, and a table whose inputs have since moved says so.
 
-`pnpm --filter @bs-humany/ingest check` runs stages 2, 4, 5 and 6 with `--check`: each measures
+`pnpm --filter @bs-humany/ingest check` runs stages 2 to 6 with `--check`: each measures
 in memory, compares with the committed file and writes nothing. `pnpm check:generated` runs it
 first, so CI fails when a committed table is not what its stage measures. `pnpm regenerate` does
 not re-measure the anatomy -- that is phase 2, taken on purpose -- but its closing check pass
 holds these files like every other.
-
-### The exception: `surface-landmarks`
-
-`surface-landmarks` is neither in `derive` nor in `check`. It projects every entry of
-`landmarks.json`, and it last ran before 842 of the 862 points `derived.ts` now measures were in
-that table. Re-running it would add all 842, each moved by up to a patch radius from a point that
-was on the bone already, and because a surface point outranks the raw one in every lookup, the
-muscles attached to them would move too. So re-running it is a change that moves goldens, not a
-refresh. OQ-032 in `docs/sources/open-questions.md` records the decision -- skip the derived
-points -- and until it lands the committed `landmarks-surface.json` stands as the input to stages
-4 and 6, still stamped with its date.
 
 ## Collision hulls
 

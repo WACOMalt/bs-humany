@@ -84,12 +84,15 @@ describe('PassiveJointModule', () => {
   });
 
   it('calms the collapsing ragdoll: it settles sooner than without it', async () => {
-    // Joint speed averaged over the third second, once the body is down. A single instant was
-    // enough on Rapier, but on MuJoCo the first second of a collapse is when the end-range
-    // curves are loaded hardest, and at any one tick of it the passive body can be moving faster
-    // than the limp one (54 against 45 rad/s summed at 1 s). What the passive terms are for is
-    // what happens after: over the third second the limp body is still moving at about four
-    // times the speed.
+    // Joint speed averaged over the fourth to the sixth second, once the body is down. A single
+    // instant was enough on Rapier, but on MuJoCo the first second of a collapse is when the
+    // end-range curves are loaded hardest, and at any one tick of it the passive body can be
+    // moving faster than the limp one (54 against 40 rad/s summed over the first second). What
+    // the passive terms are for is what happens after. This read the third second until the
+    // forearm got its own axis and its whole range, and the malleoli went back to where their
+    // rules put them, on 2026-09-27: the collapse has ended later since, still going in the third
+    // second (3.6 against 3.0 rad/s), and over the three seconds after it the limp body moves at
+    // about three times the speed of the passive one.
     const settlingSpeed = async (passive: boolean) => {
       const kernel = new Kernel({ rateHz: 500, seed: 1 });
       const physics = new PhysicsModule(new MujocoBackend(), articulation, {
@@ -98,16 +101,16 @@ describe('PassiveJointModule', () => {
       kernel.register(physics);
       if (passive) kernel.register(new PassiveJointModule(articulation));
       await kernel.init();
-      kernel.run(1000);
+      kernel.run(1500);
       const state = kernel.channels.view(physics.manifest.id, BODY_JOINT_STATE, 'write');
       const qdot = state.fields.qdot as Float64Array;
       let sum = 0;
-      for (let t = 0; t < 500; t++) {
+      for (let t = 0; t < 1500; t++) {
         kernel.step();
         for (let i = ROOT_NV; i < qdot.length; i++) sum += Math.abs(qdot[i] ?? 0);
       }
       kernel.dispose();
-      return sum / 500;
+      return sum / 1500;
     };
     const withPassive = await settlingSpeed(true);
     const without = await settlingSpeed(false);

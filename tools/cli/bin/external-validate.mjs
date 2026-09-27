@@ -93,6 +93,12 @@ const RECORDED = [
       "source's, which is tilted about 12 degrees from it",
   },
   {
+    match: /^radioulnar_[rl]\/pronation$/,
+    where:
+      "the radioulnar joint's range in joints.ts: our zero is the skeleton's palm-forward pose, " +
+      "the source's -90 degrees, so its interval is moved a quarter turn to [0, 180] degrees",
+  },
+  {
     match: /^mcp_\d_[rl]: flexion to abduction$/,
     where:
       "the header of jointsL3.ts: the hand joints are stated in the source's own hand frame, " +

@@ -47,17 +47,19 @@
  *
  * Reads the packed meshes rather than the source export, so it re-runs without the 500 MB FBX.
  *
- * ## Not part of `derive`
+ * ## Markers only
  *
- * This is the one pack-only stage that `pnpm --filter @bs-humany/ingest derive` leaves out and
- * `check` does not hold. It projects every entry in `landmarks.json`, and since it last ran that
- * table has gained 842 of the points `derived.ts` measures -- which are on the bone by construction,
- * so projecting them only moves them, by up to a patch radius, and the surface table outranks the
- * raw one in every landmark lookup, so the muscles attached to them would move too. Re-running it
- * as it stands is therefore a golden-moving change, not a refresh. OQ-032 in
- * docs/sources/open-questions.md records the decision (skip the derived points) and where it lands;
- * until then the committed `landmarks-surface.json` is the input `ridge-attachments` and
- * `wrap-radii` read, and still carries the date stamp from before tables recorded their inputs.
+ * The points `derived.ts` measures are published in `landmarks.json` beside the export's markers,
+ * and `landmarks-derived.json` records the rule behind each. Those are skipped. A derived point is
+ * on the bone by construction -- its rule put it at the extreme vertex, the endplate's centre, the
+ * rib's border -- so projecting it only moves it, by up to a patch radius, off the point its rule
+ * chose and onto the middle of the patch around it; and because a surface point outranks the raw
+ * one in every landmark lookup, the muscles attached to it would move too. The twenty derived
+ * points an earlier run did project moved 0.8 to 9.7 mm for nothing. A derived point is answered
+ * by its rule, and this table holds only markers (OQ-032).
+ *
+ * That also makes the stage a fixed point of its own pipeline, which it was not while the derived
+ * table kept growing under it, so it runs in `derive` and `check` with the other pack-only stages.
  */
 
 import { nearestVertex, vertexAt } from './geometry.js';
@@ -188,6 +190,8 @@ if (stray !== undefined) {
 const { dataDir, check } = stageArgs();
 const data = new DataDir(dataDir);
 const { manifest, meshOf, landmarks } = loadPack(data);
+/** The points `derived.ts` measured, by bone and feature, which are not markers and are skipped. */
+const derived = data.json<Record<string, Record<string, string>>>('landmarks-derived.json');
 
 const round = (x: number) => Math.round(x * 1e6) / 1e6;
 const RULE =
@@ -202,6 +206,7 @@ for (const [bone, table] of Object.entries(landmarks)) {
   const mesh = meshOf(bone);
   if (!mesh) continue;
   for (const [feature, marker] of Object.entries(table)) {
+    if (derived[bone]?.[feature] !== undefined) continue;
     const { surface, offset, vertices, radius } = projectToSurface(
       mesh.positions,
       0,

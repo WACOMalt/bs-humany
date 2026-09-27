@@ -595,6 +595,12 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       staticBoxes: stairs(v.steps as number, v.rise as number, v.run as number, 2),
       passiveJoints: true,
       passiveSystem: true,
+      // The same landing drop-standing-collapse makes, from lower and onto a step: the body lands
+      // on its feet at about 0.2 s and the contact returns a little of the impact as it pushes the
+      // body back out. It was 1.0 J over a sample until the malleoli, and with them the ankle's
+      // centre, went back to where their own rules put them on 2026-09-27 (OQ-032); it is 2.2 J
+      // since, once, with the body settling afterwards and 454 J in play at the flight's peak.
+      plausibility: { energyRisePerSample: 3 },
     }),
   }),
   define({

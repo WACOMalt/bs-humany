@@ -95,28 +95,66 @@ export const SHOULDER_TENDONS = Object.freeze({
   SUBSC_tendon: 'subscapularis_r',
   TMIN_tendon: 'teres_minor_r',
   TMAJ_tendon: 'teres_major_r',
+  CORB_tendon: 'coracobrachialis_r',
 });
 
 /**
- * Why latissimus dorsi and pectoralis major are not here.
- *
- * Their paths end on the trunk, and the trunk is in `myotorso_chain.xml`, which this file does not
- * build from -- the reference model assembled here is the arm, rooted at the clavicle. Loading
- * them fails outright: `site 'PECM2_PECM2-P3_r' not found in wrap 4`.
- *
- * Combining the two chains is a piece of work rather than a line: the arm nests inside the torso
- * at a place the fragments state and this file would have to honour, and getting it subtly wrong
- * would put every trunk moment arm somewhere plausible and false. Until it is done those two
- * muscles have no source travel measured, which `deriveOptimalFiberLength` already handles the
- * right way -- a unit nothing has measured keeps the fiber length the source states, rather than
- * being scaled by a ratio taken from nowhere.
+ * The hand's: the long tendons that move a digit from the forearm, and extensor carpi ulnaris,
+ * which ends on the fifth metacarpal. Ids as `generate-hand-muscles.mjs` names the units.
  */
-export const TRUNK_TENDONS_NEED_THE_TORSO_CHAIN = Object.freeze([
-  'LAT1_tendon',
-  'LAT3_tendon',
-  'PECM2_tendon',
-  'PECM3_tendon',
-]);
+export const HAND_TENDONS = Object.freeze({
+  ...Object.fromEntries(
+    [2, 3, 4, 5].flatMap((d) => [
+      [`FDS${d}_tendon`, `flexor_digitorum_superficialis_${d}_r`],
+      [`FDP${d}_tendon`, `flexor_digitorum_profundus_${d}_r`],
+      [`EDC${d}_tendon`, `extensor_digitorum_${d}_r`],
+    ]),
+  ),
+  EIP_tendon: 'extensor_indicis_r',
+  EDM_tendon: 'extensor_digiti_minimi_r',
+  ECU_tendon: 'extensor_carpi_ulnaris_r',
+  FPL_tendon: 'flexor_pollicis_longus_r',
+  EPL_tendon: 'extensor_pollicis_longus_r',
+  EPB_tendon: 'extensor_pollicis_brevis_r',
+  APL_tendon: 'abductor_pollicis_longus_r',
+});
+
+/**
+ * The units whose parameters cite a MyoSuite model and whose travel on it is not measured, each
+ * with the reason, keyed by the right side's id.
+ *
+ * `measure-source-travel` refuses a unit that cites the source and is neither measured nor here,
+ * so a unit cannot go without its row by being forgotten: coracobrachialis, the inferior gluteus
+ * maximus and all nineteen hand units did, silently, until the list was checked.
+ *
+ * Latissimus dorsi and pectoralis major are here because their paths end on the trunk, and the
+ * trunk is in `myotorso_chain.xml`, which the arm model this file assembles does not include --
+ * the reference arm is rooted at the clavicle. Loading them fails outright: `site
+ * 'PECM2_PECM2-P3_r' not found in wrap 4`. Combining the two chains is a piece of work rather than
+ * a line: the arm nests inside the torso at a place the fragments state and this file would have
+ * to honour, and getting it subtly wrong would put every trunk moment arm somewhere plausible and
+ * false. The torso's own four are here for the same reason from the other side: their chain is
+ * not assembled into a model here at all. Until it is, a unit with no measured travel keeps the
+ * fiber length its source states, which `deriveOptimalFiberLength` already does the right way
+ * rather than scaling by a ratio taken from nowhere.
+ */
+export const MEASUREMENT_EXCLUSIONS = Object.freeze({
+  ...Object.fromEntries(
+    [
+      'latissimus_dorsi_thoracic_r',
+      'latissimus_dorsi_lumbar_r',
+      'latissimus_dorsi_iliac_r',
+      'pectoralis_major_clavicular_r',
+      'pectoralis_major_sternal_r',
+      'pectoralis_major_abdominal_r',
+    ].map((unit) => [unit, 'needs the torso chain']),
+  ),
+  ...Object.fromEntries(
+    ['erector_spinae_r', 'rectus_abdominis_r', 'external_oblique_r', 'internal_oblique_r'].map(
+      (unit) => [unit, 'myotorso chain not assembled'],
+    ),
+  ),
+});
 
 /** The knee's, which come from the leg model instead. */
 export const LEG_TENDONS = Object.freeze({
@@ -132,6 +170,7 @@ export const LEG_TENDONS = Object.freeze({
   gasmed_r_tendon: 'gastrocnemius_medial_r',
   glmax1_r_tendon: 'gluteus_maximus_superior_r',
   glmax2_r_tendon: 'gluteus_maximus_middle_r',
+  glmax3_r_tendon: 'gluteus_maximus_inferior_r',
   glmed1_r_tendon: 'gluteus_medius_anterior_r',
   glmed2_r_tendon: 'gluteus_medius_middle_r',
   glmed3_r_tendon: 'gluteus_medius_posterior_r',

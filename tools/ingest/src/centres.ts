@@ -60,6 +60,20 @@ const TARGETS: readonly Target[] = [
     seedRadius: 0.04,
     description: 'Centre of the humeral head: the glenohumeral rotation centre (Wu 2005, 2.4)',
   },
+  // The radial head is a short disc rather than a ball, but its rim and its dish lie close to one
+  // sphere, and the sphere's centre is the middle of the head -- which is what the forearm turns
+  // about at the elbow (Wu 2005, 3.3: the pronation axis runs from the radial head to the ulna's
+  // distal end). The export's Head_of_radius marker is a label anchor 10 mm outside the bone and
+  // about 21 mm from this point; a hinge on it swung the radial head around a 21 mm circle. The
+  // fit is the same for any seed radius from 17 to 30 mm, on 107 of the radius's 394 vertices.
+  {
+    bone: 'radius',
+    feature: 'Head_of_radius__articular_centre',
+    seedFeature: 'Articular_facet_of_head_of_radius',
+    seedRadius: 0.02,
+    description:
+      'Centre of the radial head: where the pronation axis passes at the elbow (Wu 2005, 3.3)',
+  },
 ];
 
 /**
@@ -90,6 +104,24 @@ const CONTACTS: readonly ContactTarget[] = [
     b: 'navicular',
     feature: 'Head_of_talus__contact_centre',
     description: 'Where the talar head meets the navicular: the talonavicular joint centre',
+  },
+  // The thumb's saddle and the second ray's tarsometatarsal were placed where the two bones'
+  // bounding boxes meet along one axis, at the distal bone's centroid on the other two. For a bone
+  // that points along two axes at once that is not the joint: the thumb's centre came out 20 mm
+  // from the base of its own metacarpal, 17.5 mm of it lateral, and the tarsometatarsal's 10.6 mm
+  // off. Both are joints between two surfaces, which is what a contact centre measures.
+  {
+    a: 'trapezium',
+    b: 'metacarpal_1',
+    feature: 'Metacarpal_facet__contact_centre',
+    description: 'Where the trapezium meets the first metacarpal: the thumb carpometacarpal centre',
+  },
+  {
+    a: 'cuneiform_intermediate',
+    b: 'metatarsal_2',
+    feature: 'Metatarsal_facet__contact_centre',
+    description:
+      'Where the intermediate cuneiform meets the second metatarsal: the tarsometatarsal centre',
   },
 ];
 

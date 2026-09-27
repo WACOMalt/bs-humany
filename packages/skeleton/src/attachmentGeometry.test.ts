@@ -83,19 +83,29 @@ const ENDPOINT_CEILING_MM = 10;
  */
 const VIA_CEILING_MM: Readonly<Record<string, number>> = {
   scapula: 56.7,
-  radius: 12.5,
+  // Rose from 12.5 when the supinator's side site was put on the radial head's wrap cylinder: it
+  // stands off that surface, 1.6 mm outside a 10.9 mm radius about the pronation axis, not off
+  // the bone, and the radial neck below the head is narrower than the head.
+  radius: 13,
   femur: 29,
   humerus: 23.6,
-  fibula: 23.5,
-  tibia: 22.4,
-  calcaneus: 20.3,
+  // The leg's rose on 2026-09-27, when the malleoli stopped being projected onto the bone and
+  // were answered by their own rules again (OQ-032). The shank's frame correspondence is built on
+  // them, and turned by the move, it carries the foot's points a few millimetres further off
+  // their bones: the first metatarsal's from 4.8 to 11.9, the navicular's from 4.5 to 7.9.
+  fibula: 24.6,
+  tibia: 22.8,
+  calcaneus: 22,
   ulna: 17.8,
-  cuneiform_medial: 17.2,
-  metatarsal_4: 8.7,
-  cuboid: 6.9,
-  metatarsal_1: 4.8,
-  navicular: 4.5,
+  cuneiform_medial: 20.5,
+  metatarsal_4: 11.4,
+  cuboid: 11.3,
+  metatarsal_1: 12,
+  navicular: 8,
   patella: 0.1,
+  // The clavicular head of pectoralis major's one point on the clavicle, drawn in to 5 mm: carried,
+  // it arrived 57 mm off the bone on the upper arm's frame.
+  clavicle: 5.1,
 };
 
 const sideless = (bone: string) => bone.replace(/_[rl]$/, '');

@@ -137,6 +137,20 @@ const UNITS = [
     name: 'Supinator',
     origin: 'supinator_origin_$_supinator_crest',
     insertion: 'supinator_insertion_$_lateral_surface_of_radius',
+    // Over the radial head's cylinder, on the pronation axis, round the back of the bone: the
+    // reference wraps this muscle round a cylinder on its radius the same way, and without one
+    // the straight line from the ulna to the radius passes within a millimetre of the axis and
+    // supinates or pronates by where it happens to fall. The reference's side site for that
+    // cylinder is carried as the first point after it (`wrapSides` in generate-muscle-via-points),
+    // which holds the path behind the bone.
+    //
+    // The side is posterior and toward the ulna, in the radius's own frame, where +Z is posterior
+    // and the ulna is medial: -X on the right, +X on the left. It turns with the radius, and the
+    // arc the muscle lies on turns about half as fast, so a side straight behind the bone parted
+    // from it at about 125 degrees of pronation and the path jumped to the front of the cylinder,
+    // turning the muscle into a pronator; toward the ulna it holds the whole turn, 0 to 180.
+    wrap: 'radial_head_$',
+    sides: { r: { x: -1, y: 0, z: 1 }, l: { x: 1, y: 0, z: 1 } },
   },
   {
     actuator: 'ANC',
@@ -209,6 +223,7 @@ function render() {
       // reader looking at one unit should not have to know which element kind its actuator was.
       ...(parameters.architecture === 'not stated' ? { cite: 'myoArmStandIn' } : {}),
       ...(unit.side === undefined ? {} : { preferredSide: unit.side }),
+      ...(unit.sides === undefined ? {} : { preferredSide: unit.sides[unit.side_] }),
     };
   });
   const body = renderGroups(units, viaPointsFor, VIA_PATH_DIRECTION, ARM);

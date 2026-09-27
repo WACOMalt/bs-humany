@@ -320,8 +320,12 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       parentBone: `trapezium_${s}`,
       childBone: `metacarpal_1_${s}`,
       type: 'saddle',
-      centre: { boundary: [`trapezium_${s}`, `metacarpal_1_${s}`, 1] },
-      centreSource: dataset(`bounds boundary of trapezium_${s} and metacarpal_1_${s}`),
+      // Where the two bones touch. It was where their bounding boxes met along the vertical, at
+      // the metacarpal's centroid across: 20 mm from the base of the metacarpal and 17.5 mm of it
+      // lateral, for a bone that points down and forward at once. The four long thumb muscles
+      // cross this saddle, so its centre is where their moment arms are measured from.
+      centre: { measured: [`trapezium_${s}`, 'Metacarpal_facet__contact_centre'] },
+      centreSource: dataset(`measured contact between trapezium_${s} and metacarpal_1_${s}`),
       dofs: [
         {
           axis: 'flexion',
@@ -621,8 +625,17 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       parentBone: `talus_${s}`,
       childBone: `calcaneus_${s}`,
       type: 'revolute',
+      // The one joint centre left on a raw marker, and on purpose. A marker is a label anchor
+      // and is not trusted to position anything, but this one lies where the centre belongs: in
+      // the sinus tarsi, the gap between the talus and the calcaneus through which the subtalar
+      // axis passes, 4.1 mm from the talus and 6.5 mm from the calcaneus. Projecting it onto the
+      // calcaneus, as a measured point would, puts it on the calcaneal floor 7.7 mm from the
+      // talus, which is not closer to the axis.
       centre: { marker: [`calcaneus_${s}`, 'Tarsal_sinus'] },
-      centreSource: dataset(`marker Tarsal_sinus on calcaneus_${s}`),
+      centreSource: dataset(
+        `marker Tarsal_sinus on calcaneus_${s}, which lies in the sinus tarsi between the talus ` +
+          'and the calcaneus, on the subtalar axis, by design',
+      ),
       dofs: [
         {
           axis: 'inversion',
@@ -649,8 +662,12 @@ function girdleAndLimbs(s: Side): JointSpec[] {
       parentBone: `cuneiform_intermediate_${s}`,
       childBone: `metatarsal_2_${s}`,
       type: 'fixed',
-      centre: { boundary: [`cuneiform_intermediate_${s}`, `metatarsal_2_${s}`, 2] },
-      centreSource: dataset(`bounds boundary of cuneiform_intermediate_${s} and metatarsal_2_${s}`),
+      // Where the two bones touch, as the midtarsal's is. The bounds boundary it replaced was
+      // 10.6 mm off; the joint is rigid, so only the frame it puts the metatarsal in moved.
+      centre: { measured: [`cuneiform_intermediate_${s}`, 'Metatarsal_facet__contact_centre'] },
+      centreSource: dataset(
+        `measured contact between cuneiform_intermediate_${s} and metatarsal_2_${s}`,
+      ),
       dofs: [],
       limitations: ['Rigid: no cited tarsometatarsal range yet (OQ-011).'],
     },

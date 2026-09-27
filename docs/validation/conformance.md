@@ -19,7 +19,8 @@ falling at g during free flight. A scenario whose drive or shake never stops say
 `settles: false` and the reason beside it, rather than by raising the rest threshold: today that
 is skull-wiggle, arm-flail, clip-walk-normal and clip-flail-arms. The peak bound still holds them.
 A per-scenario override applies over the MuJoCo defaults, with its own reason where it is set;
-the one left is drop-standing-collapse's energy rise.
+the two left are drop-standing-collapse's energy rise and stairs-tumble's, which is the same
+landing from lower.
 
 **Goldens**: an FNV-1a hash of every sampled position, orientation and joint coordinate, per
 scenario, profile and backend, committed in `packages/testkit/goldens/trajectories.json`, for the
@@ -66,7 +67,7 @@ one; before it, a scenario without a golden was not checked at all.
 | drop-standing-collapse | yes | 0.077 | 10.1 | 0.0 | 4.37 (own limit 8) | 0.00 | 212 at 0.40 s | 0.6 s |
 | drop-supine | yes | 0.047 | 8.5 | 0.0 | 0.00 | 0.00 | 244 at 0.28 s | 0.6 s |
 | drop-prone | yes | 0.100 | 12.1 | 0.0 | 0.10 | 0.00 | 275 at 0.30 s | 0.6 s |
-| stairs-tumble | yes | 0.142 | 10.4 | 0.0 | 1.00 | 0.00 | 454 at 1.00 s | 0.8 s |
+| stairs-tumble | yes | 0.142 | 10.4 | 0.0 | 2.21 (own limit 3; 1.00 before OQ-032) | 0.00 | 454 at 1.00 s | 0.8 s |
 | hang-from-wrist | yes | 0.095 | 3.2 | 0.0 | (driven) | 0.00 | 130 at 0.24 s | 0.8 s |
 | skull-wiggle | yes | 0.048 | 2.1 | 0.0 | (driven) | 0.51 (does not settle) | 20 at 0.20 s | 6.6 s |
 | seated-on-box | yes | 0.045 | 8.7 | 0.0 | 0.00 | 0.00 | 190 at 0.40 s | 0.6 s |

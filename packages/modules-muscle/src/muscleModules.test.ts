@@ -664,6 +664,22 @@ interface MomentPose {
   readonly turn?: number;
 }
 
+/**
+ * Each unit's elbow pair, by unit id.
+ *
+ * Only the elbow's: the biceps crosses the forearm's turn too, and its pair for that comes after
+ * its elbow pair, so a map of every pair by unit alone kept the forearm's arm under the biceps's
+ * name. The flexor-sign and biceps-peak tests below read that one for as long as they have
+ * existed, and passed only while a misplaced pronation axis gave the biceps a positive arm there.
+ */
+function elbowPairs(moment: MuscleMomentModule): Map<string, number> {
+  return new Map(
+    moment.pairs.flatMap((p, i) =>
+      p.jointId.startsWith('elbow_') ? [[p.unitId, i] as const] : [],
+    ),
+  );
+}
+
 describe('MuscleMomentModule', () => {
   /** A session with the diagnostics module registered alongside the rest. */
   /**
@@ -766,7 +782,7 @@ describe('MuscleMomentModule', () => {
     // zero -- how close it is to a published curve is the moment-arm gate's business, and it says
     // this one is still 6 mm out (OQ-015).
     const s = await withMoments();
-    const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
+    const index = elbowPairs(s.moment);
     for (const id of [
       'triceps_brachii_long_r',
       'triceps_brachii_lateral_r',
@@ -783,7 +799,7 @@ describe('MuscleMomentModule', () => {
 
   it('gives the flexors the opposite sign to the extensors', async () => {
     const s = await withMoments();
-    const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
+    const index = elbowPairs(s.moment);
     const arm = (id: string) => s.arm[index.get(id) as number] as number;
     expect(arm('brachialis_r')).toBeGreaterThan(0);
     expect(arm('biceps_brachii_long_r')).toBeGreaterThan(0);
@@ -826,7 +842,7 @@ describe('MuscleMomentModule', () => {
     // deep flexion; carrying the reference model's two points on the radius across brings the
     // peak to 39 mm and removes the reversal.
     const s = await withMoments();
-    const index = new Map(s.moment.pairs.map((p, i) => [p.unitId, i]));
+    const index = elbowPairs(s.moment);
     for (const id of ['biceps_brachii_long_r', 'biceps_brachii_short_r']) {
       const arm = s.arm[index.get(id) as number] as number;
       expect(arm, id).toBeGreaterThan(0);

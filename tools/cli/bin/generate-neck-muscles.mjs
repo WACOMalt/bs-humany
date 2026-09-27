@@ -25,7 +25,6 @@
  * Seth 2019's table, which states their forces directly; they are in `girdle.ts`.
  */
 
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
@@ -35,19 +34,18 @@ import { bothSides, distance, renderMuscleGroups } from '../lib/renderMuscles.mj
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/neck.ts');
-const DATA = join(ROOT, 'packages/assets-anatomical/data');
 const { check } = cliFlags('generate-neck-muscles');
 
-// The export's marker table, which CONTRIBUTING rule 5 says names a feature and never positions
-// it. The lengths below are still measured between those markers; measuring them through the
-// skeleton's `measuredWorld` changes this set's numbers, so it waits for its own commit with the
-// other anatomy-data fixes that move the goldens.
-const landmarks = JSON.parse(readFileSync(join(DATA, 'landmarks.json'), 'utf8'));
-// The site-id scheme `attachments.ts` builds the sites with, so an id named here is the one the
-// body carries.
+// The attachment points come from the skeleton's own lookup, the one the attachment sites are
+// built from: `locateFeature` answers where a feature is, a ridge point over a surface point over
+// the raw marker. The export's markers only name a feature (CONTRIBUTING rule 5), and measuring
+// between them sized this set from points up to 18 mm off the bone -- the mastoid's marker is
+// 14.6 mm from where the sternocleidomastoid's insertion actually sits -- so a muscle's rest
+// length disagreed with the path it was simulated on. The site-id scheme comes from the same
+// package, so an id named here is the one the body carries.
 const jiti = createJiti(import.meta.url);
-const { attachmentSiteId } = await jiti.import(
-  join(ROOT, 'packages/skeleton/src/attachmentSiteId.ts'),
+const { attachmentSiteId, locateFeature } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/index.ts'),
 );
 
 /** Zheng 2013: total neck muscle volume, cm³, men and women; the reference body takes the mean. */
@@ -205,8 +203,8 @@ function render() {
     const muscle = unit.id.slice(0, -2);
     const [originBone, originFeature] = unit.origin;
     const [insertionBone, insertionFeature] = unit.insertion;
-    const from = landmarks[originBone]?.[originFeature];
-    const to = landmarks[insertionBone]?.[insertionFeature];
+    const from = locateFeature(originBone, originFeature)?.world;
+    const to = locateFeature(insertionBone, insertionFeature)?.world;
     if (!from || !to) {
       throw new Error(
         `${unit.id}: no landmark for ${originBone}/${originFeature} or ${insertionBone}/${insertionFeature}`,

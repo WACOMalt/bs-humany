@@ -52,24 +52,25 @@ export const dataset = (locator: string) => cite('kervyn2021', locator);
  * that as a limitation, "a little posterior to the disc", which understated it by an order of
  * magnitude and let it stand for as long as it did. Every one of those joints takes `between` now,
  * across the two endplates, and the kind is gone so it cannot be reached for again.
+ *
+ * `boundary` went the same way. It put a joint where two bones' bounding boxes met along one axis,
+ * at the distal bone's centroid on the other two, which is only near the joint for a bone that
+ * runs along the chosen axis. A finger points down and forward at once: its third
+ * metacarpophalangeal came out 13 mm palmar of the metacarpal's head, on the palmar side of its
+ * own flexor tendons, which made them extensors. The fingers moved to `between`; the thumb's
+ * saddle, 20 mm off, and the tarsometatarsal, 10.6 mm off, moved to a measured contact centre.
+ *
+ * `marker` stays for the one joint whose raw marker is shown to lie where the centre belongs: the
+ * subtalar's, in the sinus tarsi on its axis. The radioulnar took one too, the Head_of_radius
+ * marker, 21 mm from the middle of the radial head it was meant to be; it takes the fitted centre
+ * of the head now. A marker is a label anchor and positions nothing else (CONTRIBUTING rule 5), so
+ * a joint that takes one says why.
  */
 export type Centre =
   | { readonly isb: readonly [bone: string, abbreviation: string] }
   | { readonly virtual: string }
   | { readonly marker: readonly [bone: string, feature: string] }
   | { readonly measured: readonly [bone: string, feature: string] }
-  /**
-   * Where two bones' bounds meet along an axis: the proximal bone's far extreme and the distal
-   * bone's near extreme averaged, at the distal bone's centroid on the other axes.
-   *
-   * Only as good as that last clause, which is the whole trouble with it: on the two axes it does
-   * not choose, the joint lands at the middle of the *distal bone*. For a bone that runs along the
-   * chosen axis that is nearly right. For a finger, which points down and forward at once, it is
-   * not: the third metacarpophalangeal came out 13 mm palmar and 4 mm lateral of the metacarpal's
-   * head, which put the joint on the palmar side of its own flexor tendons and made them
-   * extensors. Prefer `between`, which needs no axis and no centroid.
-   */
-  | { readonly boundary: readonly [proximal: string, distal: string, axis: 0 | 1 | 2] }
   /**
    * Midway between two measured landmarks: a joint whose two bones each say where they meet.
    *
@@ -99,18 +100,6 @@ export function centreWorld(c: Centre): P3 {
     return virtualLandmarkWorld(v);
   }
   if ('centroid' in c) return packed(c.centroid).centroid;
-  if ('boundary' in c) {
-    const [proximalId, distalId, axis] = c.boundary;
-    const proximal = packed(proximalId);
-    const distal = packed(distalId);
-    // The distal bone lies on the side of the proximal bone that its centroid is on.
-    const sign = Math.sign(distal.centroid[axis] - proximal.centroid[axis]) || 1;
-    const proximalFar = sign > 0 ? proximal.max[axis] : proximal.min[axis];
-    const distalNear = sign > 0 ? distal.min[axis] : distal.max[axis];
-    const out: [number, number, number] = [...distal.centroid];
-    out[axis] = (proximalFar + distalNear) / 2;
-    return out;
-  }
   if ('between' in c) {
     const [a, b] = c.between.map(([bone, feature]) => measuredWorld(bone, feature)) as [P3, P3];
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
@@ -134,8 +123,6 @@ export function centreLocator(c: Centre): string {
   if ('measured' in c) return `landmark ${landmarkId(c.measured[0], c.measured[1])}`;
   if ('virtual' in c) return `landmark ${c.virtual}`;
   if ('centroid' in c) return `centroid of ${c.centroid}`;
-  if ('boundary' in c)
-    return `bounds boundary of ${c.boundary[0]} and ${c.boundary[1]} along ${'xyz'[c.boundary[2]]}`;
   if ('between' in c)
     return (
       `midway between landmarks ${landmarkId(...c.between[0])} and ` +
@@ -210,6 +197,16 @@ export interface JointSpec {
    * turning points where a spine's are.
    */
   readonly upAxis?: readonly [below: string, above: string];
+  /**
+   * Two points on the bones the frame's up-axis should run through, from the lower to the upper.
+   *
+   * The same turn as `upAxis`, for a joint whose axis the anatomy defines by two landmarks rather
+   * than by its neighbours in a chain. The forearm is the case: it turns about the line from the
+   * centre of the radial head to the ulnar styloid (Wu 2005, 3.3), which is about five degrees
+   * off the ulna's own long axis. A hinge along the ulna's axis can pass through one end of that
+   * line and not the other, and whichever end it misses swings round the other bone by 20 mm.
+   */
+  readonly upThrough?: readonly [from: Centre, to: Centre];
   /** Which side's sign policy applies; midline joints have none. */
   readonly side?: Side;
 }

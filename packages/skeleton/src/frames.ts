@@ -50,7 +50,13 @@ import {
   writeExtension,
 } from '@bs-humany/hsdl';
 import { DATASET_MANIFEST } from './dataset.js';
-import { ISB_LANDMARKS, isbLandmarkWorld, landmarkId, markerWorld } from './landmarks.js';
+import {
+  ISB_LANDMARKS,
+  isbLandmarkWorld,
+  landmarkId,
+  markerWorld,
+  measuredWorld,
+} from './landmarks.js';
 import { computeWorldTransforms } from './pose.js';
 
 type Direction = 'right' | 'anterior' | 'superior';
@@ -218,16 +224,20 @@ export function buildVirtualLandmarks(): LandmarkDef[] {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * A landmark reference: an ISB abbreviation on a bone, a virtual landmark id, or a plain marker.
+ * A landmark reference: an ISB abbreviation on a bone, a virtual landmark id, a plain marker, or a
+ * measured point.
  *
  * The marker form exists for features the ISB tables have no abbreviation for but the dataset
  * marks anyway -- the surgical neck of the humerus, say, which is where the shaft begins and the
- * head leaves off.
+ * head leaves off. The measured form is for a point the ingest measured rather than one the
+ * export labelled -- a fitted articular centre, such as the middle of the radial head, which no
+ * marker stands on -- and resolves the way `measuredWorld` does.
  */
 export type Ref =
   | readonly [bone: string, abbreviation: string]
   | { readonly virtual: string }
-  | { readonly marker: readonly [bone: string, feature: string] };
+  | { readonly marker: readonly [bone: string, feature: string] }
+  | { readonly measured: readonly [bone: string, feature: string] };
 
 interface AxisSpec {
   readonly axis: 'x' | 'y' | 'z';
@@ -473,6 +483,7 @@ export const FRAME_SPECS: readonly FrameSpec[] = [
 function refId(ref: Ref): string {
   if ('virtual' in ref) return ref.virtual;
   if ('marker' in ref) return landmarkId(ref.marker[0], ref.marker[1]);
+  if ('measured' in ref) return landmarkId(ref.measured[0], ref.measured[1]);
   const isb = ISB_LANDMARKS.find((l) => l.bone === ref[0] && l.abbreviation === ref[1]);
   if (!isb) throw new Error(`No ISB landmark '${ref[1]}' on '${ref[0]}'.`);
   return landmarkId(isb.bone, isb.feature);
@@ -497,6 +508,7 @@ export function refWorld(ref: Ref): P3 {
     if (!p) throw new Error(`No marker '${feature}' on '${bone}'.`);
     return p;
   }
+  if ('measured' in ref) return measuredWorld(ref.measured[0], ref.measured[1]);
   return isbLandmarkWorld(ref[0], ref[1]);
 }
 

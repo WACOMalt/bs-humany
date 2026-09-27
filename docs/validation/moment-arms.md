@@ -5,19 +5,13 @@ with the change that moved it.
 
 7 coordinates swept, each against the vendored MyoSuite model at commit `eb327acbae` loaded into MuJoCo and measured the same way, in the pose each section names. Both sides are computed here: nothing is transcribed, and no value from the reference reaches the model (ADR-009). The shoulder is not swept until the glenohumeral coordinates are mapped, and the trunk's tendons not until the arm and torso chains are joined.
 
-Generated 2026-09-27. 70 muscle sweeps, 0 hard failure(s), 13 sign change(s) awaiting the owner, 0 to investigate, 44 recorded.
+Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 7 sign change(s) accepted by the owner, 0 to investigate, 48 recorded.
 
-The sign changes awaiting the owner were found when their rows were first swept. Each is a hard failure by muscle spec 13.2 and none is excused by a bound; they are listed in `AWAITING_THE_OWNER` so the gate could go in for every other muscle in their rows, and a sign change not on that list fails `--check`:
+The sign changes accepted by the owner were found when their rows were first swept. Each is a hard failure by muscle spec 13.2 and none is excused by a bound; on 2026-09-27 the owner accepted them as recorded differences, each with the reason in its note, and they are listed in `OWNER_ACCEPTED`. A sign change not on that list fails `--check`:
 
-- Forearm pronation / pronator_quadratus_r
-- Forearm pronation / flexor_carpi_ulnaris_r
 - Wrist flexion / flexor_carpi_radialis_r
 - Wrist flexion / flexor_carpi_ulnaris_r
 - Wrist flexion / extensor_carpi_radialis_longus_r
-- Wrist ulnar deviation / flexor_carpi_radialis_r
-- Wrist ulnar deviation / flexor_carpi_ulnaris_r
-- Wrist ulnar deviation / extensor_carpi_radialis_longus_r
-- Wrist ulnar deviation / extensor_carpi_radialis_brevis_r
 - Hip flexion / gluteus_medius_posterior_r
 - Hip flexion / piriformis_r
 - Hip flexion / tensor_fasciae_latae_r
@@ -57,7 +51,7 @@ Swept from 0 to 130 degrees in 10-degree steps, forearm supinated. Ours: `elbow_
 | 10° | 26.9 | 26.1 | 12.4 | 8.3 | -14.6 | -14.6 | -14.6 |
 | 20° | 31.3 | 30.2 | 12.4 | 16.1 | -14.8 | -14.8 | -14.8 |
 | 30° | 35.3 | 33.7 | 14.8 | 23.8 | -14.5 | -14.5 | -14.5 |
-| 40° | 38.8 | 36.7 | 19.3 | 31.2 | -13.9 | -13.9 | -13.9 |
+| 40° | 38.7 | 36.7 | 19.3 | 31.2 | -13.9 | -13.9 | -13.9 |
 | 50° | 41.5 | 39.0 | 23.5 | 38.2 | -13.0 | -13.0 | -13.0 |
 | 60° | 43.4 | 40.5 | 27.5 | 44.8 | -12.4 | -12.4 | -12.4 |
 | 70° | 44.3 | 40.9 | 31.1 | 50.8 | -12.4 | -12.4 | -12.4 |
@@ -93,21 +87,21 @@ Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| pronator_teres_r | 7.6 at 40° | 12.0 at 80° | 3.0 | 6.5 at 90° | ok |
-| pronator_quadratus_r | -1.6 at 10° | 7.0 at 90° | 4.8 | 7.2 at 90° | sign change, awaiting the owner |
-| supinator_r | -4.8 at 50° | -7.9 at 80° | 3.2 | 4.1 at 90° | ok |
-| flexor_carpi_radialis_r | 3.4 at 70° | 5.0 at 30° | 1.8 | 3.2 at 0° | ok |
-| flexor_carpi_ulnaris_r | -2.3 at 20° | 4.5 at 20° | 5.3 | 6.9 at 20° | sign change, awaiting the owner |
-| extensor_carpi_radialis_longus_r | -4.8 at 70° | -3.6 at 90° | 1.2 | 1.5 at 50° | ok |
-| extensor_carpi_radialis_brevis_r | -8.4 at 90° | 1.9 at 0° | 4.1 | 6.9 at 90° | ok |
+| pronator_teres_r | 14.2 at 90° | 12.0 at 80° | 1.7 | 3.2 at 0° | ok |
+| pronator_quadratus_r | 3.0 at 90° | 7.0 at 90° | 2.6 | 4.0 at 90° | ok |
+| supinator_r | -10.5 at 90° | -7.9 at 80° | 2.8 | 3.1 at 20° | ok |
+| flexor_carpi_radialis_r | 5.8 at 70° | 5.0 at 30° | 1.6 | 3.0 at 90° | ok |
+| flexor_carpi_ulnaris_r | 4.8 at 90° | 4.5 at 20° | 2.4 | 4.5 at 0° | ok |
+| extensor_carpi_radialis_longus_r | -1.5 at 20° | -3.6 at 90° | 1.5 | 3.0 at 90° | ok |
+| extensor_carpi_radialis_brevis_r | -2.2 at 90° | 1.9 at 0° | 1.4 | 1.7 at 20° | ok |
 
 ### Notes
 
 - **pronator_teres_r** — within tolerance of the reference
-- **pronator_quadratus_r** — pulls the other way from the reference (muscle spec 13.2). Ours supinates, by 0.2 to 1.6 mm, through the whole turn where the reference’s pronates by up to 7 -- and pronator quadratus is the forearm’s prime pronator.
+- **pronator_quadratus_r** — within tolerance of the reference
 - **supinator_r** — within tolerance of the reference
 - **flexor_carpi_radialis_r** — within tolerance of the reference
-- **flexor_carpi_ulnaris_r** — pulls the other way from the reference (muscle spec 13.2). Ours supinates by about 2 mm where the reference’s pronates by 1 to 4.5. The via-point generator moves this unit’s forearm points from the radius to the ulna (its `rebind`), which the reference does not.
+- **flexor_carpi_ulnaris_r** — within tolerance of the reference
 - **extensor_carpi_radialis_longus_r** — within tolerance of the reference
 - **extensor_carpi_radialis_brevis_r** — within tolerance of the reference
 
@@ -115,16 +109,16 @@ Swept from 0 to 90 degrees in 10-degree steps, elbow straight. Ours: `radioulnar
 
 | Pronation | pronator_teres | pronator_quadratus | supinator | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|---|---|---|
-| 0° | 5.7 | -1.6 | -2.9 | 1.0 | -2.2 | -1.8 | 2.5 |
-| 10° | 6.4 | -1.6 | -3.6 | 1.5 | -2.3 | -2.6 | 0.9 |
-| 20° | 7.0 | -1.5 | -4.1 | 2.0 | -2.3 | -3.2 | -0.7 |
-| 30° | 7.4 | -1.5 | -4.5 | 2.5 | -2.3 | -3.8 | -2.2 |
-| 40° | 7.6 | -1.3 | -4.7 | 2.8 | -2.2 | -4.3 | -3.7 |
-| 50° | 7.6 | -1.2 | -4.8 | 3.1 | -2.0 | -4.6 | -5.1 |
-| 60° | 7.4 | -1.0 | -4.8 | 3.3 | -1.8 | -4.8 | -6.3 |
-| 70° | 6.9 | -0.7 | -4.5 | 3.4 | -1.5 | -4.8 | -7.2 |
-| 80° | 6.1 | -0.5 | -4.2 | 3.4 | -1.2 | -4.7 | -7.9 |
-| 90° | 5.1 | -0.2 | -3.8 | 3.2 | -0.8 | -4.4 | -8.4 |
+| 0° | 1.2 | -1.2 | -9.7 | 1.7 | -0.1 | -1.4 | 0.3 |
+| 10° | 3.1 | -0.7 | -9.9 | 2.6 | 0.7 | -1.5 | -0.1 |
+| 20° | 5.0 | -0.1 | -10.0 | 3.4 | 1.5 | -1.5 | -0.5 |
+| 30° | 6.8 | 0.5 | -10.1 | 4.2 | 2.2 | -1.5 | -0.8 |
+| 40° | 8.6 | 1.0 | -10.2 | 4.8 | 2.9 | -1.5 | -1.2 |
+| 50° | 10.1 | 1.5 | -10.3 | 5.3 | 3.5 | -1.4 | -1.5 |
+| 60° | 11.5 | 2.0 | -10.4 | 5.6 | 4.0 | -1.2 | -1.7 |
+| 70° | 12.7 | 2.4 | -10.4 | 5.8 | 4.4 | -1.1 | -1.9 |
+| 80° | 13.6 | 2.7 | -10.5 | 5.8 | 4.7 | -0.8 | -2.1 |
+| 90° | 14.2 | 3.0 | -10.5 | 5.6 | 4.8 | -0.6 | -2.2 |
 
 ### The reference, millimetres
 
@@ -147,16 +141,16 @@ Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinat
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| flexor_carpi_radialis_r | 25.4 at 40° | 18.6 at 10° | 10.6 | 22.3 at -40° | sign change, awaiting the owner |
-| flexor_carpi_ulnaris_r | 10.9 at 40° | 20.2 at 30° | 14.5 | 17.8 at -40° | sign change, awaiting the owner |
-| extensor_carpi_radialis_longus_r | -5.7 at 40° | -12.3 at -20° | 7.5 | 11.5 at -40° | sign change, awaiting the owner |
+| flexor_carpi_radialis_r | 25.4 at 40° | 18.6 at 10° | 10.6 | 22.3 at -40° | sign change, accepted by the owner |
+| flexor_carpi_ulnaris_r | 10.9 at 40° | 20.2 at 30° | 14.5 | 17.8 at -40° | sign change, accepted by the owner |
+| extensor_carpi_radialis_longus_r | -5.7 at 40° | -12.3 at -20° | 7.5 | 11.5 at -40° | sign change, accepted by the owner |
 | extensor_carpi_radialis_brevis_r | -7.2 at 30° | -17.9 at -40° | 9.7 | 17.0 at -40° | recorded (OQ-015) |
 
 ### Notes
 
-- **flexor_carpi_radialis_r** — changes sign where the reference does not (muscle spec 13.2). A flexor in both from -20 degrees up, but ours turns extensor past about -25 (-7 mm at -40) where the reference’s keeps 15.
-- **flexor_carpi_ulnaris_r** — changes sign where the reference does not (muscle spec 13.2). As flexor carpi radialis: ours turns extensor past about -15 degrees (-5 mm at -40) where the reference’s keeps 13.
-- **extensor_carpi_radialis_longus_r** — changes sign where the reference does not (muscle spec 13.2). An extensor in both, but ours touches +0.3 mm at -40 degrees, so it changes sign by the letter of spec 13.2; under half the reference’s arm throughout.
+- **flexor_carpi_radialis_r** — changes sign where the reference does not (muscle spec 13.2). A flexor in both from -20 degrees up; ours turns extensor only in the last 15 degrees of extension (-7 mm at -40), where the reference’s keeps 15. Accepted by the owner, 2026-09-27: a difference of where the tendon crosses the axis at full extension.
+- **flexor_carpi_ulnaris_r** — changes sign where the reference does not (muscle spec 13.2). As flexor carpi radialis: ours turns extensor past about -17 degrees (-5 mm at -40) where the reference’s keeps 13. Accepted by the owner, 2026-09-27, with it.
+- **extensor_carpi_radialis_longus_r** — changes sign where the reference does not (muscle spec 13.2). An extensor in both; ours touches +0.3 mm at -40 degrees, a sign change by the letter of spec 13.2 only. Accepted by the owner, 2026-09-27.
 - **extensor_carpi_radialis_brevis_r** — An extensor in both, at under half the reference’s arm, and falling to 1 mm at full extension where the reference’s is largest (18 mm).
 
 ### Ours, millimetres
@@ -189,47 +183,47 @@ Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinat
 
 ## Wrist ulnar deviation
 
-Swept from -10 to 25 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at ours + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
+Swept from -25 to 10 degrees in 5-degree steps, elbow straight, forearm supinated. Ours: `wrist_r` ulnar_deviation, `radioulnar_r` pronation 0°. Reference (`myoarm_r_chain.xml`): `deviation_r` at minus ours, its moment arms turned to our sign, + 0°, `pro_sup_r` -90°; every other coordinate at its neutral, and each that follows another where the model's couplings put it.
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| flexor_carpi_radialis_r | -36.5 at -10° | 5.6 at 25° | 33.2 | 39.6 at -10° | sign change, awaiting the owner |
-| flexor_carpi_ulnaris_r | 17.9 at 25° | -11.5 at -10° | 24.8 | 25.7 at 25° | sign change, awaiting the owner |
-| extensor_carpi_radialis_longus_r | -13.0 at 10° | 24.3 at 15° | 36.4 | 37.3 at 15° | sign change, awaiting the owner |
-| extensor_carpi_radialis_brevis_r | -9.9 at -10° | 16.3 at 25° | 24.2 | 24.8 at 20° | sign change, awaiting the owner |
+| flexor_carpi_radialis_r | -41.4 at -25° | -5.6 at -25° | 30.7 | 35.8 at -25° | recorded (OQ-015) |
+| flexor_carpi_ulnaris_r | 15.6 at 10° | 11.5 at 10° | 2.6 | 4.1 at 10° | ok |
+| extensor_carpi_radialis_longus_r | -13.0 at 10° | -24.3 at -15° | 11.7 | 13.4 at -25° | recorded (OQ-015) |
+| extensor_carpi_radialis_brevis_r | -9.9 at -10° | -16.3 at -25° | 5.2 | 6.9 at -25° | recorded (OQ-015) |
 
 ### Notes
 
-- **flexor_carpi_radialis_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
-- **flexor_carpi_ulnaris_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
-- **extensor_carpi_radialis_longus_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
-- **extensor_carpi_radialis_brevis_r** — pulls the other way from the reference (muscle spec 13.2). Opposite to the reference at every angle, as are all four wrist muscles in this row, so the two models most likely count deviation opposite ways. If so, `wrist_r` ulnar_deviation’s range [-10, 25] degrees, taken from `deviation_r` as stated, has its sign reversed too. The convention needs deciding before this row means anything.
+- **flexor_carpi_radialis_r** — A radial deviator in both once the two models’ signs agree, but ours levers 28 to 41 mm where the reference’s levers 3 to 6. First compared on 2026-09-27, when the deviation convention was settled.
+- **flexor_carpi_ulnaris_r** — within tolerance of the reference
+- **extensor_carpi_radialis_longus_r** — A radial deviator in both, at about half the reference’s arm: 10 to 13 mm against 23 to 24.
+- **extensor_carpi_radialis_brevis_r** — A radial deviator in both, and flatter than the reference’s: 9.4 to 9.9 mm against 13 to 16.
 
 ### Ours, millimetres
 
 | Ulnar deviation | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|
+| -25° | -41.4 | 8.9 | -10.1 | -9.5 |
+| -20° | -40.0 | 9.9 | -10.9 | -9.7 |
+| -15° | -38.3 | 10.9 | -11.6 | -9.8 |
 | -10° | -36.5 | 11.9 | -12.2 | -9.9 |
 | -5° | -34.6 | 12.9 | -12.6 | -9.8 |
 | 0° | -32.5 | 13.8 | -12.8 | -9.8 |
 | 5° | -30.2 | 14.7 | -13.0 | -9.6 |
 | 10° | -27.8 | 15.6 | -13.0 | -9.4 |
-| 15° | -25.3 | 16.4 | -12.9 | -9.1 |
-| 20° | -22.7 | 17.2 | -12.8 | -8.8 |
-| 25° | -20.1 | 17.9 | -12.5 | -8.4 |
 
 ### The reference, millimetres
 
 | Ulnar deviation | flexor_carpi_radialis | flexor_carpi_ulnaris | extensor_carpi_radialis_longus | extensor_carpi_radialis_brevis |
 |---|---|---|---|---|
-| -10° | 3.1 | -11.5 | 22.6 | 13.0 |
-| -5° | 3.6 | -11.0 | 23.2 | 13.6 |
-| 0° | 4.0 | -10.6 | 23.6 | 14.2 |
-| 5° | 4.3 | -10.0 | 24.0 | 14.7 |
-| 10° | 4.7 | -9.5 | 24.3 | 15.2 |
-| 15° | 5.0 | -9.0 | 24.3 | 15.7 |
-| 20° | 5.3 | -8.4 | 24.1 | 16.0 |
-| 25° | 5.6 | -7.8 | 23.5 | 16.3 |
+| -25° | -5.6 | 7.8 | -23.5 | -16.3 |
+| -20° | -5.3 | 8.4 | -24.1 | -16.0 |
+| -15° | -5.0 | 9.0 | -24.3 | -15.7 |
+| -10° | -4.7 | 9.5 | -24.3 | -15.2 |
+| -5° | -4.3 | 10.0 | -24.0 | -14.7 |
+| 0° | -4.0 | 10.6 | -23.6 | -14.2 |
+| 5° | -3.6 | 11.0 | -23.2 | -13.6 |
+| 10° | -3.1 | 11.5 | -22.6 | -13.0 |
 
 ## Hip flexion
 
@@ -237,28 +231,29 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| gluteus_maximus_superior_r | -47.2 at -30° | -50.9 at -20° | 15.6 | 20.8 at 90° | recorded (OQ-015) |
+| gluteus_maximus_superior_r | -47.2 at -30° | -50.9 at -20° | 15.6 | 20.9 at 90° | recorded (OQ-015) |
 | gluteus_maximus_middle_r | -44.8 at -30° | -66.4 at -20° | 24.8 | 27.0 at 70° | recorded (OQ-015) |
+| gluteus_maximus_inferior_r | -61.7 at 30° | -76.7 at 10° | 14.4 | 33.2 at -30° | recorded (OQ-015) |
 | gluteus_medius_anterior_r | 27.2 at 110° | -23.3 at -30° | 12.8 | 16.2 at 40° | recorded (OQ-015) |
-| gluteus_medius_middle_r | 28.0 at 110° | -23.1 at -10° | 21.5 | 28.5 at 70° | recorded (OQ-015) |
-| gluteus_medius_posterior_r | 21.8 at 120° | -23.7 at 20° | 17.5 | 26.0 at 80° | sign change, awaiting the owner |
-| gluteus_minimus_anterior_r | 27.2 at 110° | 11.4 at 120° | 9.1 | 16.0 at 110° | recorded (OQ-015) |
-| gluteus_minimus_middle_r | 25.5 at 110° | -11.4 at -30° | 10.8 | 16.2 at 90° | recorded (OQ-015) |
-| gluteus_minimus_posterior_r | 21.1 at 110° | -12.4 at -20° | 15.4 | 19.9 at 70° | recorded (OQ-015) |
+| gluteus_medius_middle_r | 28.1 at 110° | -23.1 at -10° | 21.5 | 28.6 at 70° | recorded (OQ-015) |
+| gluteus_medius_posterior_r | 21.8 at 120° | -23.7 at 20° | 17.6 | 26.0 at 80° | sign change, accepted by the owner |
+| gluteus_minimus_anterior_r | 27.2 at 110° | 11.4 at 120° | 9.1 | 16.1 at 110° | recorded (OQ-015) |
+| gluteus_minimus_middle_r | 25.6 at 110° | -11.4 at -30° | 10.9 | 16.3 at 90° | recorded (OQ-015) |
+| gluteus_minimus_posterior_r | 21.1 at 110° | -12.4 at -20° | 15.5 | 19.9 at 70° | recorded (OQ-015) |
 | iliacus_r | 30.4 at 70° | 44.2 at 80° | 14.7 | 28.5 at -30° | recorded (OQ-015) |
-| psoas_major_r | 31.3 at 90° | 34.3 at 80° | 6.1 | 14.8 at 120° | recorded (OQ-015) |
-| adductor_longus_r | 55.1 at 10° | 47.5 at 0° | 7.3 | 13.9 at 60° | recorded (OQ-015) |
+| psoas_major_r | 31.3 at 90° | 34.3 at 80° | 6.1 | 14.7 at 120° | recorded (OQ-015) |
+| adductor_longus_r | 55.1 at 10° | 47.5 at 0° | 7.3 | 14.0 at 60° | recorded (OQ-015) |
 | adductor_brevis_r | 32.1 at -20° | 32.2 at -10° | 5.2 | 9.7 at 70° | recorded (OQ-015) |
-| adductor_magnus_proximal_r | 30.5 at -20° | 25.0 at -20° | 4.6 | 8.0 at 10° | ok |
-| adductor_magnus_middle_r | -44.7 at 60° | -38.1 at 80° | 12.5 | 23.0 at 0° | recorded (OQ-015) |
+| adductor_magnus_proximal_r | 30.5 at -20° | 25.0 at -20° | 4.6 | 7.9 at 10° | ok |
+| adductor_magnus_middle_r | -44.8 at 60° | -38.1 at 80° | 12.5 | 23.0 at 0° | recorded (OQ-015) |
 | adductor_magnus_distal_r | -63.3 at 40° | -51.0 at 60° | 15.8 | 30.8 at -20° | recorded (OQ-015) |
 | adductor_magnus_ischiocondylar_r | -63.4 at 40° | -61.1 at 50° | 7.2 | 14.8 at -30° | recorded (OQ-015) |
-| piriformis_r | -12.4 at -30° | -11.2 at 20° | 8.1 | 12.9 at 90° | sign change, awaiting the owner |
-| tensor_fasciae_latae_r | 98.2 at 120° | 97.1 at 120° | 2.4 | 7.9 at 10° | sign change, awaiting the owner |
-| gracilis_r | 29.4 at -10° | -51.5 at 100° | 32.3 | 50.8 at 60° | recorded (OQ-015) |
+| piriformis_r | -12.4 at -30° | -11.2 at 20° | 8.1 | 12.9 at 90° | sign change, accepted by the owner |
+| tensor_fasciae_latae_r | 98.2 at 120° | 97.1 at 120° | 2.4 | 7.7 at 10° | sign change, accepted by the owner |
+| gracilis_r | 29.4 at -10° | -51.5 at 100° | 32.2 | 50.8 at 60° | recorded (OQ-015) |
 | sartorius_r | 98.9 at 70° | 71.4 at 70° | 18.5 | 28.2 at 80° | recorded (OQ-015) |
-| rectus_femoris_r | 49.6 at 60° | 51.1 at 50° | 2.6 | 5.4 at 10° | ok |
-| biceps_femoris_long_r | -63.7 at 40° | -62.3 at 40° | 3.4 | 5.2 at -30° | ok |
+| rectus_femoris_r | 49.6 at 60° | 51.1 at 50° | 2.5 | 5.5 at 10° | ok |
+| biceps_femoris_long_r | -63.7 at 40° | -62.3 at 40° | 3.5 | 5.4 at -30° | ok |
 | semitendinosus_r | -63.7 at 40° | -66.7 at 40° | 2.6 | 3.7 at 10° | ok |
 | semimembranosus_r | -63.5 at 40° | -55.2 at 40° | 5.9 | 8.4 at 30° | recorded (OQ-015) |
 
@@ -266,9 +261,10 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 
 - **gluteus_maximus_superior_r** — An extensor that turns flexor in both, ours at about 70 degrees and the reference’s at about 105.
 - **gluteus_maximus_middle_r** — As the superior part: ours turns flexor at about 75 degrees and the reference’s at about 115, and ours is two thirds of the reference in extension.
+- **gluteus_maximus_inferior_r** — An extensor in both, but ours is smaller throughout and falls to 3 mm at 30 degrees of extension where the reference’s is 37. First swept when its tendon joined LEG_TENDONS for the source-travel measurement, on its one carried point: the reference holds it on a pelvis point and a wrap as well, which the leg’s frames do not carry.
 - **gluteus_medius_anterior_r** — Turns from extensor to flexor in both, ours at about 5 degrees and the reference’s at about 55.
 - **gluteus_medius_middle_r** — Turns from extensor to flexor in both, ours at about 8 degrees and the reference’s at about 95.
-- **gluteus_medius_posterior_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 45 degrees; the reference’s stays an extensor to 120 (-0.3 mm there).
+- **gluteus_medius_posterior_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 45 degrees; the reference’s stays an extensor to 120 (-0.3 mm there), so it too is near its turn by then. Accepted by the owner, 2026-09-27: a difference of where, not of which side.
 - **gluteus_minimus_anterior_r** — Turns flexor in both, ours at about 5 degrees and the reference’s at about 25, and ours reaches more than twice the reference’s flexor arm.
 - **gluteus_minimus_middle_r** — Turns flexor in both, ours at about 5 degrees and the reference’s at about 50.
 - **gluteus_minimus_posterior_r** — Turns flexor in both, ours at about -15 degrees and the reference’s at about 80.
@@ -280,8 +276,8 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 - **adductor_magnus_middle_r** — Flexor turning extensor in both, ours at about -20 degrees and the reference’s at about 5.
 - **adductor_magnus_distal_r** — An extensor throughout in ours; the reference’s is a flexor at full extension and turns at about -20 degrees, and ours is the larger extensor below 60.
 - **adductor_magnus_ischiocondylar_r** — An extensor in both, close from 30 degrees up; ours is up to 15 mm smaller toward full extension.
-- **piriformis_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 50 degrees, to +12 mm at 120; the reference’s stays an extensor and reaches zero only at 120.
-- **tensor_fasciae_latae_r** — changes sign where the reference does not (muscle spec 13.2). Within 5 mm of the reference everywhere, but ours is -4.3 mm at -30 degrees where the reference’s is +0.5, so it changes sign by the letter of spec 13.2.
+- **piriformis_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 50 degrees, to +12 mm at 120; the reference’s reaches zero only at 120. Accepted by the owner, 2026-09-27: piriformis really does change its action with hip flexion.
+- **tensor_fasciae_latae_r** — changes sign where the reference does not (muscle spec 13.2). Within 5 mm of the reference everywhere; ours is -4.3 mm at -30 degrees where the reference’s is +0.5. Accepted by the owner, 2026-09-27: about 4 mm either side of zero at the end of the range.
 - **gracilis_r** — Flexor turning extensor in both, but ours turns at about 78 degrees and the reference’s at about 15, so between the two ours is a flexor of up to 30 mm where the reference’s is an extensor of up to 50: the largest disagreement in the hip, recorded rather than failed only because both curves turn the same way.
 - **sartorius_r** — A flexor in both, with the same shape; ours is a third larger throughout, 99 mm against 71 at the peak.
 - **rectus_femoris_r** — within tolerance of the reference
@@ -291,45 +287,45 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 
 ### Ours, millimetres
 
-| Flexion | gluteus_maximus_superior | gluteus_maximus_middle | gluteus_medius_anterior | gluteus_medius_middle | gluteus_medius_posterior | gluteus_minimus_anterior | gluteus_minimus_middle | gluteus_minimus_posterior | iliacus | psoas_major | adductor_longus | adductor_brevis | adductor_magnus_proximal | adductor_magnus_middle | adductor_magnus_distal | adductor_magnus_ischiocondylar | piriformis | tensor_fasciae_latae | gracilis | sartorius | rectus_femoris | biceps_femoris_long | semitendinosus | semimembranosus |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| -30° | -47.2 | -44.8 | -14.7 | -16.2 | -21.1 | -14.7 | -11.7 | -6.5 | 7.1 | 2.1 | 45.4 | 31.7 | 30.0 | 10.3 | -19.8 | -19.8 | -12.4 | -4.3 | 27.5 | 1.2 | 10.0 | -13.7 | -16.1 | -19.8 |
-| -20° | -44.7 | -43.8 | -11.3 | -12.7 | -19.2 | -11.3 | -8.5 | -3.8 | 10.6 | 5.5 | 49.7 | 32.1 | 30.5 | 0.5 | -31.7 | -31.6 | -11.7 | 5.4 | 28.8 | 14.8 | 17.4 | -25.9 | -28.1 | -31.4 |
-| -10° | -41.4 | -41.8 | -7.7 | -8.9 | -16.8 | -7.7 | -5.2 | -1.0 | 14.0 | 8.9 | 52.8 | 31.6 | 30.1 | -9.3 | -42.1 | -42.0 | -10.6 | 15.0 | 29.4 | 28.1 | 24.4 | -36.9 | -38.8 | -41.7 |
-| 0° | -37.5 | -38.8 | -4.0 | -4.9 | -14.1 | -4.0 | -1.8 | 1.8 | 17.2 | 12.2 | 54.6 | 30.0 | 28.7 | -18.6 | -50.6 | -50.5 | -9.3 | 24.4 | 29.0 | 41.1 | 30.9 | -46.3 | -47.8 | -50.2 |
-| 10° | -36.5 | -37.8 | -5.1 | -6.1 | -15.3 | -5.1 | -2.7 | 1.1 | 18.8 | 14.1 | 55.1 | 29.0 | 28.0 | -23.4 | -54.6 | -54.9 | -10.0 | 27.9 | 28.3 | 49.1 | 34.5 | -51.1 | -52.6 | -54.6 |
-| 20° | -28.2 | -30.4 | 3.6 | 3.2 | -7.9 | 3.6 | 5.1 | 7.3 | 23.0 | 18.4 | 53.6 | 23.0 | 22.4 | -33.6 | -61.2 | -61.2 | -5.9 | 42.8 | 25.6 | 64.8 | 41.7 | -59.2 | -59.9 | -61.0 |
-| 30° | -22.9 | -25.4 | 7.3 | 7.2 | -4.5 | 7.3 | 8.4 | 9.9 | 25.4 | 21.3 | 50.2 | 17.6 | 17.5 | -38.7 | -63.3 | -63.3 | -4.0 | 51.5 | 22.6 | 75.0 | 45.6 | -62.5 | -62.8 | -63.3 |
-| 40° | -17.4 | -19.9 | 11.0 | 11.1 | -1.0 | 11.0 | 11.6 | 12.4 | 27.5 | 23.9 | 44.6 | 11.1 | 11.6 | -42.3 | -63.3 | -63.4 | -2.0 | 59.7 | 18.8 | 83.9 | 48.2 | -63.7 | -63.7 | -63.5 |
-| 50° | -11.7 | -14.2 | 14.4 | 14.7 | 2.5 | 14.4 | 14.6 | 14.6 | 29.1 | 26.2 | 37.0 | 3.9 | 5.0 | -44.2 | -61.5 | -61.6 | 0.1 | 67.4 | 14.3 | 91.0 | 49.6 | -63.0 | -62.7 | -61.9 |
-| 60° | -7.1 | -9.5 | 16.8 | 17.4 | 4.9 | 16.8 | 16.8 | 16.3 | 30.1 | 28.0 | 29.3 | -2.1 | -0.5 | -44.7 | -58.9 | -58.9 | 1.4 | 73.1 | 10.2 | 95.2 | 49.6 | -61.1 | -60.4 | -59.3 |
-| 70° | 0.0 | -2.1 | 20.4 | 21.2 | 9.3 | 20.4 | 19.9 | 18.3 | 30.4 | 29.9 | 15.6 | -10.9 | -8.8 | -43.7 | -53.2 | -53.3 | 4.2 | 81.1 | 4.0 | 98.9 | 47.8 | -56.3 | -55.5 | -53.8 |
-| 80° | 5.9 | 4.1 | 22.8 | 23.7 | 12.5 | 22.8 | 22.0 | 19.7 | 29.7 | 30.9 | 3.0 | -17.4 | -15.0 | -41.7 | -47.1 | -47.2 | 6.1 | 86.9 | -1.4 | 98.8 | 44.5 | -50.8 | -49.7 | -47.7 |
-| 90° | 11.8 | 10.1 | 24.8 | 25.7 | 15.4 | 24.8 | 23.6 | 20.6 | 27.7 | 31.3 | -9.8 | -22.8 | -20.4 | -38.6 | -40.0 | -40.1 | 7.8 | 91.8 | -6.8 | 95.5 | 39.7 | -44.1 | -42.8 | -40.4 |
-| 100° | 17.4 | 16.0 | 26.2 | 27.1 | 17.9 | 26.2 | 24.8 | 21.0 | 24.0 | 30.8 | -21.8 | -27.0 | -24.6 | -34.8 | -32.1 | -32.1 | 9.4 | 95.6 | -11.9 | 88.6 | 33.3 | -36.5 | -34.9 | -32.4 |
-| 110° | 22.8 | 21.6 | 27.2 | 28.0 | 20.1 | 27.2 | 25.5 | 21.1 | 18.6 | 29.0 | -32.2 | -29.9 | -27.7 | -30.4 | -23.8 | -23.8 | 10.7 | 98.1 | -16.5 | 78.1 | 25.9 | -28.3 | -26.6 | -23.8 |
-| 120° | 28.3 | 27.1 | 26.9 | 27.6 | 21.8 | 26.9 | 25.0 | 19.9 | 10.1 | 24.4 | -41.4 | -31.6 | -29.6 | -24.9 | -14.2 | -14.2 | 11.8 | 98.2 | -20.8 | 62.5 | 16.7 | -18.8 | -17.0 | -14.1 |
+| Flexion | gluteus_maximus_superior | gluteus_maximus_middle | gluteus_maximus_inferior | gluteus_medius_anterior | gluteus_medius_middle | gluteus_medius_posterior | gluteus_minimus_anterior | gluteus_minimus_middle | gluteus_minimus_posterior | iliacus | psoas_major | adductor_longus | adductor_brevis | adductor_magnus_proximal | adductor_magnus_middle | adductor_magnus_distal | adductor_magnus_ischiocondylar | piriformis | tensor_fasciae_latae | gracilis | sartorius | rectus_femoris | biceps_femoris_long | semitendinosus | semimembranosus |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| -30° | -47.2 | -44.8 | -3.3 | -14.7 | -16.2 | -21.1 | -14.7 | -11.7 | -6.5 | 7.1 | 2.1 | 45.4 | 31.7 | 30.0 | 10.3 | -19.8 | -19.8 | -12.4 | -4.3 | 27.5 | 1.2 | 10.0 | -13.6 | -16.3 | -19.8 |
+| -20° | -44.7 | -43.8 | -24.1 | -11.3 | -12.7 | -19.2 | -11.3 | -8.5 | -3.8 | 10.6 | 5.5 | 49.7 | 32.1 | 30.5 | 0.5 | -31.7 | -31.6 | -11.7 | 5.4 | 28.9 | 14.8 | 17.4 | -25.8 | -28.2 | -31.4 |
+| -10° | -41.4 | -41.8 | -40.5 | -7.7 | -8.9 | -16.8 | -7.7 | -5.2 | -1.0 | 14.0 | 8.9 | 52.8 | 31.6 | 30.1 | -9.3 | -42.1 | -42.0 | -10.6 | 15.0 | 29.4 | 28.1 | 24.4 | -36.8 | -38.9 | -41.7 |
+| 0° | -37.5 | -38.8 | -51.6 | -4.0 | -4.9 | -14.1 | -4.0 | -1.8 | 1.8 | 17.2 | 12.2 | 54.6 | 30.0 | 28.7 | -18.6 | -50.6 | -50.5 | -9.3 | 24.4 | 29.0 | 41.1 | 30.9 | -46.2 | -47.9 | -50.2 |
+| 10° | -36.4 | -37.7 | -56.2 | -4.7 | -5.7 | -15.0 | -4.7 | -2.4 | 1.4 | 18.8 | 14.1 | 55.1 | 29.0 | 27.9 | -23.4 | -54.5 | -54.8 | -9.8 | 28.1 | 28.3 | 48.9 | 34.4 | -50.9 | -52.6 | -54.5 |
+| 20° | -28.2 | -30.4 | -61.1 | 3.6 | 3.2 | -7.9 | 3.6 | 5.1 | 7.3 | 23.0 | 18.4 | 53.6 | 23.0 | 22.4 | -33.6 | -61.2 | -61.2 | -5.9 | 42.8 | 25.5 | 64.8 | 41.7 | -59.1 | -60.0 | -61.0 |
+| 30° | -22.9 | -25.4 | -61.7 | 7.3 | 7.2 | -4.5 | 7.3 | 8.4 | 9.9 | 25.4 | 21.3 | 50.2 | 17.6 | 17.5 | -38.7 | -63.3 | -63.3 | -4.0 | 51.5 | 22.5 | 75.0 | 45.6 | -62.4 | -62.9 | -63.3 |
+| 40° | -17.4 | -19.9 | -60.5 | 11.0 | 11.1 | -1.0 | 11.0 | 11.6 | 12.4 | 27.5 | 23.9 | 44.6 | 11.1 | 11.6 | -42.3 | -63.3 | -63.4 | -2.0 | 59.7 | 18.7 | 83.9 | 48.2 | -63.7 | -63.7 | -63.5 |
+| 50° | -11.7 | -14.2 | -58.0 | 14.4 | 14.8 | 2.5 | 14.4 | 14.6 | 14.6 | 29.1 | 26.2 | 37.0 | 3.9 | 5.0 | -44.2 | -61.5 | -61.6 | 0.1 | 67.4 | 14.3 | 91.0 | 49.6 | -63.0 | -62.6 | -61.9 |
+| 60° | -7.0 | -9.5 | -55.3 | 17.0 | 17.6 | 5.1 | 17.0 | 16.9 | 16.4 | 30.1 | 28.0 | 29.5 | -2.1 | -0.5 | -44.8 | -59.0 | -59.0 | 1.6 | 73.2 | 10.3 | 95.1 | 49.6 | -61.2 | -60.4 | -59.3 |
+| 70° | 0.1 | -2.0 | -50.0 | 20.4 | 21.2 | 9.4 | 20.4 | 19.9 | 18.3 | 30.4 | 29.9 | 15.6 | -10.9 | -8.8 | -43.7 | -53.2 | -53.3 | 4.2 | 81.2 | 4.0 | 98.9 | 47.8 | -56.4 | -55.4 | -53.8 |
+| 80° | 6.0 | 4.1 | -45.0 | 22.9 | 23.7 | 12.5 | 22.9 | 22.0 | 19.7 | 29.7 | 30.9 | 2.9 | -17.4 | -15.0 | -41.7 | -47.1 | -47.2 | 6.1 | 86.9 | -1.5 | 98.8 | 44.5 | -50.9 | -49.6 | -47.6 |
+| 90° | 11.8 | 10.2 | -39.4 | 24.8 | 25.7 | 15.4 | 24.8 | 23.6 | 20.6 | 27.6 | 31.3 | -9.9 | -22.9 | -20.4 | -38.6 | -39.9 | -40.0 | 7.9 | 91.8 | -6.9 | 95.5 | 39.6 | -44.2 | -42.7 | -40.4 |
+| 100° | 17.5 | 16.1 | -33.3 | 26.2 | 27.1 | 18.0 | 26.2 | 24.8 | 21.0 | 24.0 | 30.7 | -22.0 | -27.0 | -24.6 | -34.7 | -32.0 | -32.0 | 9.4 | 95.6 | -12.0 | 88.5 | 33.3 | -36.5 | -34.8 | -32.3 |
+| 110° | 22.8 | 21.6 | -27.3 | 27.2 | 28.1 | 20.2 | 27.2 | 25.6 | 21.1 | 18.6 | 29.0 | -32.2 | -29.9 | -27.7 | -30.4 | -23.8 | -23.8 | 10.7 | 98.2 | -16.5 | 78.1 | 25.9 | -28.4 | -26.5 | -23.9 |
+| 120° | 28.3 | 27.2 | -20.1 | 26.8 | 27.6 | 21.8 | 26.8 | 25.0 | 19.8 | 10.0 | 24.3 | -41.5 | -31.6 | -29.6 | -24.8 | -14.1 | -14.1 | 11.8 | 98.2 | -20.9 | 62.4 | 16.6 | -18.8 | -16.8 | -14.0 |
 
 ### The reference, millimetres
 
-| Flexion | gluteus_maximus_superior | gluteus_maximus_middle | gluteus_medius_anterior | gluteus_medius_middle | gluteus_medius_posterior | gluteus_minimus_anterior | gluteus_minimus_middle | gluteus_minimus_posterior | iliacus | psoas_major | adductor_longus | adductor_brevis | adductor_magnus_proximal | adductor_magnus_middle | adductor_magnus_distal | adductor_magnus_ischiocondylar | piriformis | tensor_fasciae_latae | gracilis | sartorius | rectus_femoris | biceps_femoris_long | semitendinosus | semimembranosus |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| -30° | -49.3 | -66.1 | -23.3 | -21.3 | -13.8 | -8.7 | -11.4 | -12.2 | 35.5 | 8.8 | 42.8 | 30.0 | 24.9 | 27.3 | 10.5 | -5.0 | -6.3 | 0.5 | 38.8 | -0.2 | 13.5 | -18.9 | -13.7 | -16.8 |
-| -20° | -50.9 | -66.4 | -21.8 | -22.6 | -17.4 | -7.4 | -10.6 | -12.4 | 34.4 | 12.3 | 45.6 | 31.5 | 25.0 | 20.7 | -0.9 | -17.4 | -7.9 | 9.5 | 31.6 | 10.2 | 20.9 | -30.4 | -26.7 | -26.9 |
-| -10° | -50.6 | -65.1 | -19.9 | -23.1 | -20.3 | -5.9 | -9.4 | -12.2 | 33.8 | 15.7 | 47.2 | 32.2 | 24.3 | 12.9 | -12.2 | -29.0 | -9.3 | 18.5 | 23.1 | 20.4 | 27.9 | -40.5 | -38.4 | -35.7 |
-| 0° | -49.1 | -62.6 | -17.5 | -22.8 | -22.2 | -4.4 | -8.1 | -11.7 | 33.9 | 19.0 | 47.5 | 31.9 | 22.6 | 4.4 | -22.7 | -39.1 | -10.3 | 27.2 | 13.7 | 30.3 | 34.3 | -48.8 | -48.4 | -43.1 |
-| 10° | -46.7 | -59.3 | -14.8 | -22.0 | -23.4 | -2.7 | -6.6 | -10.8 | 34.4 | 22.1 | 46.3 | 30.5 | 20.0 | -4.4 | -31.8 | -47.6 | -10.9 | 35.8 | 3.6 | 39.5 | 39.9 | -55.3 | -56.3 | -48.9 |
-| 20° | -43.5 | -55.4 | -11.8 | -20.5 | -23.7 | -1.0 | -4.9 | -9.7 | 35.3 | 24.9 | 43.4 | 27.9 | 16.4 | -12.8 | -39.3 | -54.0 | -11.2 | 44.1 | -6.6 | 48.0 | 44.5 | -59.6 | -62.0 | -52.8 |
-| 30° | -39.6 | -50.9 | -8.6 | -18.6 | -23.4 | 0.7 | -3.2 | -8.4 | 36.5 | 27.6 | 38.8 | 24.0 | 12.0 | -20.3 | -45.0 | -58.4 | -11.1 | 52.0 | -16.5 | 55.5 | 48.0 | -61.9 | -65.4 | -54.9 |
-| 40° | -35.3 | -46.0 | -5.2 | -16.3 | -22.4 | 2.4 | -1.4 | -6.9 | 38.7 | 29.9 | 32.5 | 18.9 | 6.9 | -26.7 | -48.7 | -60.7 | -10.7 | 59.6 | -25.7 | 61.9 | 50.3 | -62.3 | -66.7 | -55.2 |
-| 50° | -30.6 | -40.7 | -1.8 | -13.6 | -20.8 | 4.1 | 0.5 | -5.2 | 41.1 | 31.9 | 24.6 | 12.8 | 1.5 | -31.6 | -50.7 | -61.1 | -10.0 | 66.6 | -33.8 | 66.8 | 51.1 | -60.7 | -65.9 | -54.0 |
-| 60° | -25.6 | -35.0 | 1.6 | -10.6 | -18.7 | 5.7 | 2.3 | -3.4 | 42.9 | 33.4 | 15.5 | 5.9 | -3.9 | -35.1 | -51.0 | -59.6 | -9.1 | 73.2 | -40.5 | 70.0 | 50.4 | -57.5 | -63.3 | -51.2 |
-| 70° | -20.2 | -29.0 | 5.1 | -7.4 | -16.3 | 7.1 | 4.1 | -1.5 | 44.1 | 34.3 | 5.5 | -1.2 | -9.0 | -37.2 | -49.8 | -56.6 | -7.9 | 79.2 | -45.7 | 71.4 | 48.0 | -52.8 | -58.9 | -47.0 |
-| 80° | -14.7 | -22.8 | 8.4 | -4.1 | -13.5 | 8.4 | 5.8 | 0.3 | 44.2 | 34.3 | -4.8 | -8.2 | -13.5 | -38.1 | -47.3 | -52.1 | -6.6 | 84.5 | -49.3 | 70.6 | 44.0 | -46.9 | -53.2 | -41.7 |
-| 90° | -9.1 | -16.4 | 11.6 | -0.7 | -10.4 | 9.6 | 7.4 | 2.2 | 42.6 | 33.0 | -14.8 | -14.7 | -17.3 | -37.7 | -43.6 | -46.3 | -5.1 | 89.1 | -51.2 | 67.5 | 38.3 | -39.8 | -46.2 | -35.4 |
-| 100° | -3.3 | -9.9 | 14.6 | 2.7 | -7.2 | 10.5 | 8.8 | 4.1 | 37.4 | 29.6 | -23.9 | -20.4 | -20.2 | -36.3 | -39.0 | -39.5 | -3.4 | 92.9 | -51.5 | 61.8 | 31.0 | -31.8 | -38.1 | -28.3 |
-| 110° | 2.5 | -3.3 | 17.4 | 6.1 | -3.8 | 11.1 | 10.0 | 5.8 | 24.8 | 22.3 | -31.8 | -25.0 | -22.4 | -34.0 | -33.6 | -31.8 | -1.7 | 95.7 | -50.2 | 53.6 | 22.4 | -23.1 | -29.3 | -20.5 |
-| 120° | 8.3 | 3.4 | 19.8 | 9.4 | -0.3 | 11.4 | 11.0 | 7.4 | 1.0 | 9.6 | -38.2 | -28.5 | -23.6 | -30.9 | -27.5 | -23.5 | -0.0 | 97.1 | -47.5 | 42.9 | 12.9 | -14.0 | -19.9 | -12.4 |
+| Flexion | gluteus_maximus_superior | gluteus_maximus_middle | gluteus_maximus_inferior | gluteus_medius_anterior | gluteus_medius_middle | gluteus_medius_posterior | gluteus_minimus_anterior | gluteus_minimus_middle | gluteus_minimus_posterior | iliacus | psoas_major | adductor_longus | adductor_brevis | adductor_magnus_proximal | adductor_magnus_middle | adductor_magnus_distal | adductor_magnus_ischiocondylar | piriformis | tensor_fasciae_latae | gracilis | sartorius | rectus_femoris | biceps_femoris_long | semitendinosus | semimembranosus |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| -30° | -49.3 | -66.1 | -36.5 | -23.3 | -21.3 | -13.8 | -8.7 | -11.4 | -12.2 | 35.5 | 8.8 | 42.8 | 30.0 | 24.9 | 27.3 | 10.5 | -5.0 | -6.3 | 0.5 | 38.8 | -0.2 | 13.5 | -18.9 | -13.7 | -16.8 |
+| -20° | -50.9 | -66.4 | -57.2 | -21.8 | -22.6 | -17.4 | -7.4 | -10.6 | -12.4 | 34.4 | 12.3 | 45.6 | 31.5 | 25.0 | 20.7 | -0.9 | -17.4 | -7.9 | 9.5 | 31.6 | 10.2 | 20.9 | -30.4 | -26.7 | -26.9 |
+| -10° | -50.6 | -65.1 | -69.1 | -19.9 | -23.1 | -20.3 | -5.9 | -9.4 | -12.2 | 33.8 | 15.7 | 47.2 | 32.2 | 24.3 | 12.9 | -12.2 | -29.0 | -9.3 | 18.5 | 23.1 | 20.4 | 27.9 | -40.5 | -38.4 | -35.7 |
+| 0° | -49.1 | -62.6 | -74.8 | -17.5 | -22.8 | -22.2 | -4.4 | -8.1 | -11.7 | 33.9 | 19.0 | 47.5 | 31.9 | 22.6 | 4.4 | -22.7 | -39.1 | -10.3 | 27.2 | 13.7 | 30.3 | 34.3 | -48.8 | -48.4 | -43.1 |
+| 10° | -46.7 | -59.3 | -76.7 | -14.8 | -22.0 | -23.4 | -2.7 | -6.6 | -10.8 | 34.4 | 22.1 | 46.3 | 30.5 | 20.0 | -4.4 | -31.8 | -47.6 | -10.9 | 35.8 | 3.6 | 39.5 | 39.9 | -55.3 | -56.3 | -48.9 |
+| 20° | -43.5 | -55.4 | -76.0 | -11.8 | -20.5 | -23.7 | -1.0 | -4.9 | -9.7 | 35.3 | 24.9 | 43.4 | 27.9 | 16.4 | -12.8 | -39.3 | -54.0 | -11.2 | 44.1 | -6.6 | 48.0 | 44.5 | -59.6 | -62.0 | -52.8 |
+| 30° | -39.6 | -50.9 | -73.5 | -8.6 | -18.6 | -23.4 | 0.7 | -3.2 | -8.4 | 36.5 | 27.6 | 38.8 | 24.0 | 12.0 | -20.3 | -45.0 | -58.4 | -11.1 | 52.0 | -16.5 | 55.5 | 48.0 | -61.9 | -65.4 | -54.9 |
+| 40° | -35.3 | -46.0 | -69.7 | -5.2 | -16.3 | -22.4 | 2.4 | -1.4 | -6.9 | 38.7 | 29.9 | 32.5 | 18.9 | 6.9 | -26.7 | -48.7 | -60.7 | -10.7 | 59.6 | -25.7 | 61.9 | 50.3 | -62.3 | -66.7 | -55.2 |
+| 50° | -30.6 | -40.7 | -64.9 | -1.8 | -13.6 | -20.8 | 4.1 | 0.5 | -5.2 | 41.1 | 31.9 | 24.6 | 12.8 | 1.5 | -31.6 | -50.7 | -61.1 | -10.0 | 66.6 | -33.8 | 66.8 | 51.1 | -60.7 | -65.9 | -54.0 |
+| 60° | -25.6 | -35.0 | -59.3 | 1.6 | -10.6 | -18.7 | 5.7 | 2.3 | -3.4 | 42.9 | 33.4 | 15.5 | 5.9 | -3.9 | -35.1 | -51.0 | -59.6 | -9.1 | 73.2 | -40.5 | 70.0 | 50.4 | -57.5 | -63.3 | -51.2 |
+| 70° | -20.2 | -29.0 | -53.1 | 5.1 | -7.4 | -16.3 | 7.1 | 4.1 | -1.5 | 44.1 | 34.3 | 5.5 | -1.2 | -9.0 | -37.2 | -49.8 | -56.6 | -7.9 | 79.2 | -45.7 | 71.4 | 48.0 | -52.8 | -58.9 | -47.0 |
+| 80° | -14.7 | -22.8 | -48.9 | 8.4 | -4.1 | -13.5 | 8.4 | 5.8 | 0.3 | 44.2 | 34.3 | -4.8 | -8.2 | -13.5 | -38.1 | -47.3 | -52.1 | -6.6 | 84.5 | -49.3 | 70.6 | 44.0 | -46.9 | -53.2 | -41.7 |
+| 90° | -9.1 | -16.4 | -45.2 | 11.6 | -0.7 | -10.4 | 9.6 | 7.4 | 2.2 | 42.6 | 33.0 | -14.8 | -14.7 | -17.3 | -37.7 | -43.6 | -46.3 | -5.1 | 89.1 | -51.2 | 67.5 | 38.3 | -39.8 | -46.2 | -35.4 |
+| 100° | -3.3 | -9.9 | -41.4 | 14.6 | 2.7 | -7.2 | 10.5 | 8.8 | 4.1 | 37.4 | 29.6 | -23.9 | -20.4 | -20.2 | -36.3 | -39.0 | -39.5 | -3.4 | 92.9 | -51.5 | 61.8 | 31.0 | -31.8 | -38.1 | -28.3 |
+| 110° | 2.5 | -3.3 | -37.5 | 17.4 | 6.1 | -3.8 | 11.1 | 10.0 | 5.8 | 24.8 | 22.3 | -31.8 | -25.0 | -22.4 | -34.0 | -33.6 | -31.8 | -1.7 | 95.7 | -50.2 | 53.6 | 22.4 | -23.1 | -29.3 | -20.5 |
+| 120° | 8.3 | 3.4 | -33.6 | 19.8 | 9.4 | -0.3 | 11.4 | 11.0 | 7.4 | 1.0 | 9.6 | -38.2 | -28.5 | -23.6 | -30.9 | -27.5 | -23.5 | -0.0 | 97.1 | -47.5 | 42.9 | 12.9 | -14.0 | -19.9 | -12.4 |
 
 ## Knee flexion
 
@@ -338,52 +334,52 @@ Swept from 0 to 120 degrees in 10-degree steps, hip and ankle neutral. Ours: `kn
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
 | tensor_fasciae_latae_r | -10.6 at 30° | -8.2 at 10° | 2.9 | 4.7 at 60° | ok |
-| gracilis_r | 48.2 at 90° | 54.0 at 70° | 14.0 | 27.2 at 0° | recorded (OQ-015) |
-| sartorius_r | 41.6 at 120° | 46.8 at 100° | 11.6 | 15.1 at 40° | recorded (OQ-015) |
+| gracilis_r | 48.8 at 100° | 54.0 at 70° | 14.5 | 28.3 at 0° | recorded (OQ-015) |
+| sartorius_r | 41.7 at 120° | 46.8 at 100° | 12.0 | 15.7 at 40° | recorded (OQ-015) |
 | rectus_femoris_r | -49.4 at 30° | -43.5 at 0° | 6.7 | 17.4 at 120° | recorded (OQ-015) |
 | vastus_lateralis_r | -49.4 at 30° | -38.6 at 0° | 9.6 | 15.5 at 120° | recorded (OQ-015) |
 | vastus_medialis_r | -49.4 at 30° | -40.8 at 0° | 9.8 | 14.5 at 120° | recorded (OQ-015) |
 | vastus_intermedius_r | -49.4 at 30° | -41.7 at 0° | 9.1 | 16.7 at 120° | recorded (OQ-015) |
-| biceps_femoris_long_r | 51.9 at 50° | 44.2 at 50° | 4.6 | 7.9 at 40° | ok |
+| biceps_femoris_long_r | 52.8 at 50° | 44.2 at 50° | 5.2 | 8.8 at 40° | recorded (OQ-015) |
 | biceps_femoris_short_r | 49.2 at 100° | 48.7 at 70° | 17.0 | 49.7 at 120° | recorded (OQ-015) |
-| semitendinosus_r | 55.8 at 70° | 63.0 at 50° | 11.2 | 23.1 at 0° | recorded (OQ-015) |
+| semitendinosus_r | 56.2 at 70° | 63.0 at 50° | 11.6 | 23.8 at 0° | recorded (OQ-015) |
 | semimembranosus_r | 42.2 at 90° | 54.2 at 50° | 21.2 | 38.7 at 0° | recorded (OQ-015) |
-| gastrocnemius_lateral_r | 32.3 at 100° | 26.4 at 40° | 17.9 | 40.1 at 120° | sign change, awaiting the owner |
+| gastrocnemius_lateral_r | 32.3 at 100° | 26.4 at 40° | 17.9 | 40.1 at 120° | sign change, accepted by the owner |
 | gastrocnemius_medial_r | 30.2 at 90° | 26.6 at 60° | 7.9 | 19.5 at 120° | recorded (OQ-015) |
 
 ### Notes
 
 - **tensor_fasciae_latae_r** — within tolerance of the reference
 - **gracilis_r** — A flexor in both, but ours starts from 2.5 mm at full extension where the reference’s is 30, and catches up by 70 degrees.
-- **sartorius_r** — A flexor in both, smaller than the reference’s by 10 to 15 mm through the first half of the range.
+- **sartorius_r** — A flexor in both, smaller than the reference’s by 10 to 16 mm through the first half of the range. The bound rose from 12 mm when the malleoli were answered by their own rules rather than projected (OQ-032), which moved the shank’s frame correspondence and the points it carries.
 - **rectus_femoris_r** — An extensor in both over the measured patella poles; ours is up to 12 mm larger in mid-range and falls where the reference’s rises again past 100 degrees.
 - **vastus_lateralis_r** — As rectus femoris, over the same two poles: ours 49 mm at 30 degrees against the reference’s 38, and 21 against 36 at 120.
 - **vastus_medialis_r** — As vastus lateralis, over the same two poles.
 - **vastus_intermedius_r** — As vastus lateralis, over the same two poles.
-- **biceps_femoris_long_r** — within tolerance of the reference
+- **biceps_femoris_long_r** — A flexor in both with the same shape; ours is up to 9 mm larger at 40 to 50 degrees and 6 mm smaller at 120. Within tolerance until the shank’s frame moved with the malleoli (OQ-032), which took its mean from 4.6 to 5.2 mm.
 - **biceps_femoris_short_r** — A flexor throughout in ours; ours starts at 4 mm where the reference’s is 29, and at 120 degrees the reference’s crosses to -4 while ours holds 45.
-- **semitendinosus_r** — A flexor in both, half the reference’s at full extension (23 mm against 46) and larger past 90 degrees.
+- **semitendinosus_r** — A flexor in both, half the reference’s at full extension (23 mm against 46) and larger past 90 degrees. The bound rose from 11.5 mm with the shank’s frame, as sartorius’s did.
 - **semimembranosus_r** — A flexor in both, but ours starts from 1.6 mm at full extension where the reference’s is 40.
-- **gastrocnemius_lateral_r** — pulls the other way from the reference (muscle spec 13.2). Ours is an extensor of 3 mm at full extension and a flexor from 10 degrees; the reference’s is a 26 mm flexor there and turns extensor past 110. The two cross zero in opposite directions.
+- **gastrocnemius_lateral_r** — pulls the other way from the reference (muscle spec 13.2). Ours is an extensor of 3 mm at full extension and a flexor from 10 degrees; the reference’s is a 26 mm flexor there and turns extensor past 110. Accepted by the owner, 2026-09-27, as a recorded difference.
 - **gastrocnemius_medial_r** — A flexor in both; ours grows with flexion to 30 mm where the reference’s falls from 27 to 7 at 120 degrees.
 
 ### Ours, millimetres
 
 | Flexion | tensor_fasciae_latae | gracilis | sartorius | rectus_femoris | vastus_lateralis | vastus_medialis | vastus_intermedius | biceps_femoris_long | biceps_femoris_short | semitendinosus | semimembranosus | gastrocnemius_lateral | gastrocnemius_medial |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0° | -9.0 | 2.5 | 7.6 | -40.6 | -40.6 | -40.6 | -40.6 | 37.3 | 3.8 | 23.3 | 1.6 | -3.2 | 3.5 |
-| 10° | -9.9 | 10.0 | 11.4 | -47.1 | -47.1 | -47.1 | -47.1 | 42.6 | 10.7 | 30.8 | 8.1 | 2.1 | 8.3 |
-| 20° | -10.4 | 17.2 | 15.1 | -49.3 | -49.3 | -49.3 | -49.3 | 46.9 | 17.4 | 37.6 | 14.5 | 7.3 | 13.0 |
-| 30° | -10.6 | 24.1 | 18.8 | -49.4 | -49.4 | -49.4 | -49.4 | 49.9 | 23.8 | 43.6 | 20.6 | 12.3 | 17.3 |
-| 40° | -10.5 | 29.8 | 21.9 | -48.3 | -48.3 | -48.3 | -48.3 | 51.6 | 29.2 | 48.2 | 25.6 | 16.5 | 20.8 |
-| 50° | -10.0 | 36.0 | 25.6 | -46.4 | -46.4 | -46.4 | -46.4 | 51.9 | 35.3 | 52.4 | 31.2 | 21.3 | 24.4 |
-| 60° | -9.3 | 40.8 | 28.7 | -43.8 | -43.8 | -43.8 | -43.8 | 50.6 | 40.0 | 54.9 | 35.4 | 25.0 | 27.1 |
-| 70° | -8.4 | 44.5 | 31.6 | -40.8 | -40.8 | -40.8 | -40.8 | 47.5 | 44.0 | 55.8 | 38.7 | 28.1 | 29.0 |
-| 80° | -7.3 | 47.0 | 34.2 | -37.3 | -37.3 | -37.3 | -37.3 | 42.7 | 46.9 | 55.0 | 41.0 | 30.4 | 30.0 |
-| 90° | -6.0 | 48.2 | 36.5 | -33.6 | -33.6 | -33.6 | -33.6 | 36.5 | 48.7 | 52.6 | 42.2 | 31.8 | 30.2 |
-| 100° | -4.6 | 48.0 | 38.6 | -29.4 | -29.4 | -29.4 | -29.4 | 28.3 | 49.2 | 48.0 | 42.1 | 32.3 | 29.5 |
-| 110° | -3.1 | 46.3 | 40.3 | -25.1 | -25.1 | -25.1 | -25.1 | 19.0 | 48.1 | 41.7 | 40.7 | 31.9 | 27.8 |
-| 120° | -1.5 | 43.0 | 41.6 | -20.5 | -20.5 | -20.5 | -20.5 | 9.0 | 45.4 | 33.6 | 37.9 | 30.4 | 25.2 |
+| 0° | -9.0 | 1.5 | 6.8 | -40.6 | -40.6 | -40.6 | -40.6 | 38.2 | 3.8 | 22.6 | 1.6 | -3.2 | 3.5 |
+| 10° | -9.9 | 9.0 | 10.6 | -47.1 | -47.1 | -47.1 | -47.1 | 43.6 | 10.7 | 30.2 | 8.1 | 2.1 | 8.3 |
+| 20° | -10.4 | 16.4 | 14.4 | -49.3 | -49.3 | -49.3 | -49.3 | 47.9 | 17.4 | 37.2 | 14.5 | 7.3 | 13.0 |
+| 30° | -10.6 | 23.4 | 18.1 | -49.4 | -49.4 | -49.4 | -49.4 | 50.9 | 23.8 | 43.3 | 20.6 | 12.3 | 17.3 |
+| 40° | -10.5 | 29.3 | 21.3 | -48.3 | -48.3 | -48.3 | -48.3 | 52.5 | 29.2 | 48.0 | 25.6 | 16.5 | 20.8 |
+| 50° | -10.0 | 35.7 | 25.0 | -46.4 | -46.4 | -46.4 | -46.4 | 52.8 | 35.3 | 52.5 | 31.2 | 21.3 | 24.4 |
+| 60° | -9.3 | 40.6 | 28.2 | -43.8 | -43.8 | -43.8 | -43.8 | 51.3 | 40.0 | 55.1 | 35.4 | 25.0 | 27.1 |
+| 70° | -8.4 | 44.6 | 31.1 | -40.8 | -40.8 | -40.8 | -40.8 | 48.1 | 44.0 | 56.2 | 38.7 | 28.1 | 29.0 |
+| 80° | -7.3 | 47.3 | 33.9 | -37.3 | -37.3 | -37.3 | -37.3 | 43.1 | 46.9 | 55.6 | 41.0 | 30.4 | 30.0 |
+| 90° | -6.0 | 48.8 | 36.2 | -33.6 | -33.6 | -33.6 | -33.6 | 36.8 | 48.7 | 53.4 | 42.2 | 31.8 | 30.2 |
+| 100° | -4.6 | 48.8 | 38.4 | -29.4 | -29.4 | -29.4 | -29.4 | 28.2 | 49.2 | 49.0 | 42.1 | 32.3 | 29.5 |
+| 110° | -3.1 | 47.3 | 40.2 | -25.1 | -25.1 | -25.1 | -25.1 | 18.8 | 48.1 | 42.8 | 40.7 | 31.9 | 27.8 |
+| 120° | -1.5 | 44.2 | 41.7 | -20.5 | -20.5 | -20.5 | -20.5 | 8.5 | 45.4 | 34.9 | 37.9 | 30.4 | 25.2 |
 
 ### The reference, millimetres
 
@@ -409,17 +405,17 @@ Swept from -40 to 30 degrees in 10-degree steps, hip and knee neutral. Ours: `ta
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| gastrocnemius_lateral_r | -50.6 at -40° | -44.6 at -10° | 7.7 | 14.4 at 30° | recorded (OQ-021) |
-| gastrocnemius_medial_r | -52.9 at -40° | -43.6 at -10° | 8.9 | 15.5 at -40° | recorded (OQ-021) |
-| soleus_r | -51.1 at -40° | -44.2 at -20° | 5.9 | 10.6 at 30° | recorded (OQ-021) |
-| tibialis_anterior_r | 65.2 at 30° | 44.0 at 20° | 10.4 | 22.7 at 30° | recorded (OQ-021) |
-| tibialis_posterior_r | -22.7 at -40° | -13.7 at -40° | 10.0 | 10.5 at 0° | recorded (OQ-021) |
-| fibularis_longus_r | -20.7 at 0° | -10.8 at -40° | 9.5 | 12.7 at 30° | recorded (OQ-021) |
-| fibularis_brevis_r | -17.8 at 0° | -8.3 at -40° | 9.5 | 12.7 at 30° | recorded (OQ-021) |
-| extensor_digitorum_longus_r | 121.8 at 30° | 37.1 at 20° | 54.1 | 86.3 at 30° | recorded (OQ-021) |
-| extensor_hallucis_longus_r | 91.8 at 30° | 40.2 at 20° | 25.4 | 52.9 at 30° | recorded (OQ-021) |
-| flexor_digitorum_longus_r | -24.9 at -40° | -13.4 at -40° | 11.5 | 11.8 at -20° | recorded (OQ-021) |
-| flexor_hallucis_longus_r | -30.0 at -40° | -19.8 at -40° | 11.2 | 11.7 at 0° | recorded (OQ-021) |
+| gastrocnemius_lateral_r | -47.7 at -40° | -44.6 at -10° | 6.6 | 12.8 at 30° | recorded (OQ-021) |
+| gastrocnemius_medial_r | -50.2 at -40° | -43.6 at -10° | 7.6 | 13.5 at 30° | recorded (OQ-021) |
+| soleus_r | -48.3 at -40° | -44.2 at -20° | 4.8 | 9.0 at 30° | ok |
+| tibialis_anterior_r | 63.1 at 30° | 44.0 at 20° | 9.6 | 20.6 at 30° | recorded (OQ-021) |
+| tibialis_posterior_r | -21.8 at -30° | -13.7 at -40° | 9.8 | 10.5 at 10° | recorded (OQ-021) |
+| fibularis_longus_r | -19.8 at 0° | -10.8 at -40° | 8.8 | 12.1 at 30° | recorded (OQ-021) |
+| fibularis_brevis_r | -16.7 at 0° | -8.3 at -40° | 8.5 | 12.0 at 30° | recorded (OQ-021) |
+| extensor_digitorum_longus_r | 120.3 at 30° | 37.1 at 20° | 53.5 | 84.9 at 30° | recorded (OQ-021) |
+| extensor_hallucis_longus_r | 91.5 at 30° | 40.2 at 20° | 25.1 | 52.5 at 30° | recorded (OQ-021) |
+| flexor_digitorum_longus_r | -24.5 at -40° | -13.4 at -40° | 11.5 | 11.8 at -10° | recorded (OQ-021) |
+| flexor_hallucis_longus_r | -29.4 at -40° | -19.8 at -40° | 11.2 | 11.8 at 0° | recorded (OQ-021) |
 
 ### Notes
 
@@ -439,14 +435,14 @@ Swept from -40 to 30 degrees in 10-degree steps, hip and knee neutral. Ours: `ta
 
 | Dorsiflexion | gastrocnemius_lateral | gastrocnemius_medial | soleus | tibialis_anterior | tibialis_posterior | fibularis_longus | fibularis_brevis | extensor_digitorum_longus | extensor_hallucis_longus | flexor_digitorum_longus | flexor_hallucis_longus |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| -40° | -50.6 | -52.9 | -51.1 | 21.4 | -22.7 | -6.8 | -9.1 | 46.6 | 27.7 | -24.9 | -30.0 |
-| -30° | -49.5 | -51.5 | -49.6 | 29.7 | -22.5 | -14.6 | -13.8 | 60.3 | 38.1 | -24.0 | -29.5 |
-| -20° | -47.1 | -48.6 | -46.8 | 37.5 | -21.8 | -18.5 | -16.4 | 73.2 | 48.2 | -22.7 | -28.5 |
-| -10° | -43.3 | -44.5 | -42.8 | 44.9 | -20.7 | -20.2 | -17.5 | 85.5 | 58.0 | -21.2 | -27.0 |
-| 0° | -38.7 | -39.5 | -38.1 | 51.3 | -19.4 | -20.7 | -17.8 | 96.3 | 67.0 | -19.5 | -25.3 |
-| 10° | -32.9 | -33.2 | -32.1 | 57.2 | -17.8 | -20.5 | -17.6 | 106.6 | 76.1 | -17.5 | -23.3 |
-| 20° | -26.4 | -26.3 | -25.7 | 61.8 | -16.0 | -19.9 | -17.0 | 115.1 | 84.3 | -15.4 | -21.1 |
-| 30° | -19.3 | -18.8 | -18.8 | 65.2 | -14.0 | -19.0 | -16.1 | 121.8 | 91.8 | -13.1 | -18.7 |
+| -40° | -47.7 | -50.2 | -48.3 | 21.0 | -21.7 | -6.3 | -7.9 | 46.6 | 27.2 | -24.5 | -29.4 |
+| -30° | -47.3 | -49.4 | -47.5 | 29.1 | -21.8 | -13.4 | -12.4 | 60.2 | 37.7 | -23.7 | -29.2 |
+| -20° | -45.5 | -47.2 | -45.4 | 36.7 | -21.4 | -17.3 | -15.0 | 72.9 | 47.7 | -22.6 | -28.4 |
+| -10° | -42.4 | -43.7 | -42.0 | 43.8 | -20.5 | -19.2 | -16.3 | 85.0 | 57.6 | -21.2 | -27.0 |
+| 0° | -38.4 | -39.3 | -37.9 | 50.0 | -19.3 | -19.8 | -16.7 | 95.7 | 66.6 | -19.5 | -25.4 |
+| 10° | -33.2 | -33.7 | -32.6 | 55.6 | -17.8 | -19.7 | -16.7 | 105.7 | 75.7 | -17.6 | -23.5 |
+| 20° | -27.4 | -27.4 | -26.8 | 60.0 | -16.1 | -19.2 | -16.2 | 113.9 | 83.9 | -15.5 | -21.3 |
+| 30° | -20.9 | -20.5 | -20.4 | 63.1 | -14.2 | -18.4 | -15.4 | 120.3 | 91.5 | -13.3 | -18.9 |
 
 ### The reference, millimetres
 

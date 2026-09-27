@@ -1,6 +1,6 @@
 {
  "format": "bs-humany.surface-landmarks/1",
- "generatedAt": "2026-09-16",
+ "inputsSha256": "cb6ad980ae7519890fb241c62bab75061a21d380c36e9369077e0fbad3030920",
  "dataset": {
   "name": "Z-Anatomy SkeletalSystem",
   "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",
@@ -897,24 +897,6 @@
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
   {
-   "bone": "vertebra_t8",
-   "feature": "Spinous_process_tip",
-   "marker": [
-    0,
-    1.226127,
-    0.100269
-   ],
-   "surface": [
-    0,
-    1.222675,
-    0.091231
-   ],
-   "offset": 0.009675,
-   "vertices": 79,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
    "bone": "vertebra_c1",
    "feature": "(Canal_for_vertebral_artery)",
    "marker": [
@@ -1739,42 +1721,6 @@
    ],
    "offset": 0.009209,
    "vertices": 27,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "sternum",
-   "feature": "Jugular_notch",
-   "marker": [
-    -0.00716,
-    1.391732,
-    -0.044546
-   ],
-   "surface": [
-    -0.008661,
-    1.391897,
-    -0.039966
-   ],
-   "offset": 0.004823,
-   "vertices": 130,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "sternum",
-   "feature": "Xiphoid_tip",
-   "marker": [
-    0,
-    1.211702,
-    -0.102304
-   ],
-   "surface": [
-    0,
-    1.216547,
-    -0.106221
-   ],
-   "offset": 0.00623,
-   "vertices": 170,
    "patchRadius": 0.015,
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
@@ -11608,24 +11554,6 @@
   },
   {
    "bone": "tibia_l",
-   "feature": "Medial_malleolus",
-   "marker": [
-    -0.054135,
-    0.066015,
-    0.031796
-   ],
-   "surface": [
-    -0.049452,
-    0.069311,
-    0.031547
-   ],
-   "offset": 0.005732,
-   "vertices": 50,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "tibia_l",
    "feature": "Medial_intercondylar_tubercle",
    "marker": [
     -0.066522,
@@ -12292,24 +12220,6 @@
   },
   {
    "bone": "tibia_r",
-   "feature": "Medial_malleolus",
-   "marker": [
-    0.054135,
-    0.066015,
-    0.031796
-   ],
-   "surface": [
-    0.049452,
-    0.069311,
-    0.031547
-   ],
-   "offset": 0.005732,
-   "vertices": 50,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "tibia_r",
    "feature": "Articular_surface_of_medial_condyle",
    "marker": [
     0.053619,
@@ -12831,24 +12741,6 @@
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
   {
-   "bone": "fibula_l",
-   "feature": "Lateral_malleolus",
-   "marker": [
-    -0.101624,
-    0.046008,
-    0.052057
-   ],
-   "surface": [
-    -0.098055,
-    0.051126,
-    0.050152
-   ],
-   "offset": 0.006524,
-   "vertices": 79,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
    "bone": "fibula_r",
    "feature": "Head_of_fibula",
    "marker": [
@@ -13007,24 +12899,6 @@
    ],
    "offset": 0.023328,
    "vertices": 40,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "fibula_r",
-   "feature": "Lateral_malleolus",
-   "marker": [
-    0.101624,
-    0.046008,
-    0.052057
-   ],
-   "surface": [
-    0.098055,
-    0.051126,
-    0.050152
-   ],
-   "offset": 0.006524,
-   "vertices": 79,
    "patchRadius": 0.015,
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
@@ -14019,24 +13893,6 @@
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
   {
-   "bone": "calcaneus_l",
-   "feature": "Posterior_calcaneal_tuberosity_point",
-   "marker": [
-    -0.080434,
-    0.025569,
-    0.091556
-   ],
-   "surface": [
-    -0.079897,
-    0.024943,
-    0.091468
-   ],
-   "offset": 0.00083,
-   "vertices": 27,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
    "bone": "calcaneus_r",
    "feature": "Groove_for_tendon_of_flexor_hallucis_longus_of_calcaneus",
    "marker": [
@@ -14217,24 +14073,6 @@
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
   {
-   "bone": "calcaneus_r",
-   "feature": "Posterior_calcaneal_tuberosity_point",
-   "marker": [
-    0.080434,
-    0.025569,
-    0.091556
-   ],
-   "surface": [
-    0.079897,
-    0.024943,
-    0.091468
-   ],
-   "offset": 0.00083,
-   "vertices": 27,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
    "bone": "navicular_l",
    "feature": "Tuberosity_of_navicular_bone",
    "marker": [
@@ -14361,24 +14199,6 @@
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
   {
-   "bone": "metatarsal_1_l",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    -0.069672,
-    0.016531,
-    -0.08441
-   ],
-   "surface": [
-    -0.069951,
-    0.010447,
-    -0.082465
-   ],
-   "offset": 0.006393,
-   "vertices": 135,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
    "bone": "metatarsal_1_r",
    "feature": "First_metatarsal_bone",
    "marker": [
@@ -14393,24 +14213,6 @@
    ],
    "offset": 0.009517,
    "vertices": 126,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_1_r",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    0.069672,
-    0.016531,
-    -0.08441
-   ],
-   "surface": [
-    0.069951,
-    0.010447,
-    -0.082465
-   ],
-   "offset": 0.006393,
-   "vertices": 135,
    "patchRadius": 0.015,
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
@@ -14447,42 +14249,6 @@
    ],
    "offset": 0.015128,
    "vertices": 57,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_3_l",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    -0.104706,
-    0.011995,
-    -0.081308
-   ],
-   "surface": [
-    -0.110673,
-    0.012116,
-    -0.073627
-   ],
-   "offset": 0.009727,
-   "vertices": 129,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_3_r",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    0.104706,
-    0.011995,
-    -0.081308
-   ],
-   "surface": [
-    0.110673,
-    0.012116,
-    -0.073627
-   ],
-   "offset": 0.009727,
-   "vertices": 129,
    "patchRadius": 0.015,
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
@@ -14721,24 +14487,6 @@
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   },
   {
-   "bone": "metatarsal_5_l",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    -0.129289,
-    0.007554,
-    -0.059695
-   ],
-   "surface": [
-    -0.125767,
-    0.004348,
-    -0.053671
-   ],
-   "offset": 0.007679,
-   "vertices": 130,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
    "bone": "metatarsal_5_r",
    "feature": "Fifth_metatarsal_bone",
    "marker": [
@@ -14753,114 +14501,6 @@
    ],
    "offset": 0.008346,
    "vertices": 96,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_5_r",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    0.129289,
-    0.007554,
-    -0.059695
-   ],
-   "surface": [
-    0.125767,
-    0.004348,
-    -0.053671
-   ],
-   "offset": 0.007679,
-   "vertices": 130,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "vertebra_c7",
-   "feature": "Spinous_process_tip",
-   "marker": [
-    0,
-    1.434155,
-    0.077226
-   ],
-   "surface": [
-    0,
-    1.432843,
-    0.071754
-   ],
-   "offset": 0.005627,
-   "vertices": 108,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_2_l",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    -0.094729,
-    0.012289,
-    -0.085154
-   ],
-   "surface": [
-    -0.097226,
-    0.014836,
-    -0.078978
-   ],
-   "offset": 0.007132,
-   "vertices": 58,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_2_r",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    0.094729,
-    0.012289,
-    -0.085154
-   ],
-   "surface": [
-    0.097225,
-    0.014836,
-    -0.078978
-   ],
-   "offset": 0.007132,
-   "vertices": 58,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_4_l",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    -0.116542,
-    0.009499,
-    -0.072185
-   ],
-   "surface": [
-    -0.11326,
-    0.012338,
-    -0.065972
-   ],
-   "offset": 0.007578,
-   "vertices": 97,
-   "patchRadius": 0.015,
-   "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
-  },
-  {
-   "bone": "metatarsal_4_r",
-   "feature": "Head_of_metatarsal_bone",
-   "marker": [
-    0.116542,
-    0.009499,
-    -0.072185
-   ],
-   "surface": [
-    0.11326,
-    0.012338,
-    -0.065972
-   ],
-   "offset": 0.007578,
-   "vertices": 97,
    "patchRadius": 0.015,
    "rule": "nearest vertex of the named bone, then the centroid of the surface patch around it (15 mm, widened where the mesh is sparser than 12 vertices), then the nearest vertex to that centroid"
   }

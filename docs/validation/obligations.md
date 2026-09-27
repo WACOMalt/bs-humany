@@ -26,7 +26,7 @@ Generated 2026-09-27. 10 of 10 obligations met.
 
 **Met.**
 
-- 1016 sites across 519 structures, as muscle_origin and muscle_insertion and tendon_via_point and ligament
+- 1030 sites across 533 structures, as muscle_origin and muscle_insertion and tendon_via_point and ligament
 - every site names a bone the document carries
 - every site carries a citation
 
