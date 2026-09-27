@@ -14,7 +14,8 @@
 
 /**
  * What a value must look like, by kind, as the words an error uses, and how to read it.
- * `choices` on an entry are words accepted as they are in place of a number.
+ * `choices` on an entry are words accepted as they are in place of a number, and `min` and `max`
+ * the range, inclusive, that a number must be in.
  */
 const KINDS = {
   string: { wants: 'a value', read: (v) => v },
@@ -37,6 +38,9 @@ const KINDS = {
     },
   },
   bool: { wants: 'nothing', read: () => true },
+  // Only the entry's `choices`, which are accepted before a kind is consulted; anything else is
+  // refused here, and the error lists them.
+  choice: { wants: 'one of', read: () => undefined },
 };
 
 function finite(v) {
@@ -108,8 +112,20 @@ export function parse(argv, table) {
     const kind = KINDS[entry.kind];
     const value = kind.read(raw);
     if (value === undefined) {
-      const or = entry.choices ? `, or ${entry.choices.join(' or ')}` : '';
-      errors.push(`--${name} wants ${kind.wants}${or}, not '${raw}'`);
+      const wants =
+        entry.kind === 'choice'
+          ? `one of ${entry.choices.join(', ')}`
+          : `${kind.wants}${entry.choices ? `, or ${entry.choices.join(' or ')}` : ''}`;
+      errors.push(`--${name} wants ${wants}, not '${raw}'`);
+      continue;
+    }
+    if (
+      typeof value === 'number' &&
+      ((entry.min !== undefined && value < entry.min) ||
+        (entry.max !== undefined && value > entry.max))
+    ) {
+      const what = entry.kind === 'int0' ? 'a whole number' : kind.wants;
+      errors.push(`--${name} wants ${what} from ${entry.min} to ${entry.max}, not '${raw}'`);
       continue;
     }
     values[name] = value;
@@ -120,11 +136,17 @@ export function parse(argv, table) {
 /** What a flag wants after it, for the help. */
 function placeholder(entry) {
   if (entry.kind === 'bool') return '';
+  // A choice's words are listed after its help rather than here: a list of four bodies would push
+  // every other line of the help off the side of the terminal.
+  if (entry.kind === 'choice') return ' <name>';
   if (entry.choices) return ` <${['n', ...entry.choices].join('|')}>`;
   return entry.kind === 'string' ? ' <text>' : entry.kind === 'intlist' ? ' <n,n>' : ' <n>';
 }
 
-/** The help: the header, then a line a flag, with its default where it has one. */
+/**
+ * The help: the header, then a line a flag, with what it accepts -- its words, or its range --
+ * and its default where it has one.
+ */
 export function formatHelp(table, header) {
   const heads = table.map((entry) => `  --${entry.name}${placeholder(entry)}`);
   const width = Math.max(...heads.map((h) => h.length)) + 2;
@@ -133,73 +155,166 @@ export function formatHelp(table, header) {
       entry.default === undefined || entry.kind === 'bool'
         ? ''
         : ` (default ${Array.isArray(entry.default) ? entry.default.join(',') : entry.default})`;
-    return `${heads[i].padEnd(width)}${entry.help}${fallback}`;
+    const accepts =
+      entry.kind === 'choice'
+        ? ` [${entry.choices.join(', ')}]`
+        : entry.min !== undefined && entry.max !== undefined
+          ? ` [${entry.min} to ${entry.max}]`
+          : '';
+    return `${heads[i].padEnd(width)}${entry.help}${accepts}${fallback}`;
   });
   return `${header}\n\n${lines.join('\n')}\n`;
 }
 
 /**
- * Every flag `train-nerves.mjs` takes. The defaults a run falls back on live here and nowhere
- * else in the script; the noise and the cord have none, because without a flag they are the
- * recipe's own.
+ * Every flag `train-nerves.mjs` takes, from the recipe module `tools/train/src/recipe.ts`.
+ *
+ * A function of that module rather than a table of literals, because the literals were a copy: the
+ * command line kept its own defaults, the dashboard its own and the studio its own, and a default
+ * changed in one of them stayed the same in the other three. The module is TypeScript and this
+ * file is not, so the caller loads it -- the trainer through jiti, a test directly -- and hands it
+ * here. What comes from it: the run's length and width, the search's settings, the tasks and
+ * bodies there are, and the range every number of the loop is held to. A value outside its range
+ * is refused, where the dashboard moves it into range and says so: the dashboard answers a slider
+ * that may have been sent anything, and the person who typed a flag is here to be told.
+ *
+ * The noise and the cord have no defaults, because without a flag they are the recipe's own.
  */
-export const TRAIN_FLAGS = [
-  { name: 'recipe', kind: 'string', help: 'a recipe file: names the run and says what it is in' },
-  {
-    name: 'task',
-    kind: 'string',
-    default: 'stand',
-    help: 'without a recipe: what is scored, stand or balance; also the run name',
-  },
-  {
-    name: 'profile',
-    kind: 'string',
-    default: 'l3_anatomical',
-    help: 'without a recipe: the body; with --resume, the body to carry the checkpoint onto',
-  },
-  { name: 'authority', kind: 'number', default: 0.3, help: 'how much of the drive is the brain' },
-  { name: 'noise', kind: 'number', help: "the tremor on the muscles; the recipe's when not given" },
-  {
-    name: 'sense-noise',
-    kind: 'number',
-    help: "the grain on the senses; the recipe's when not given",
-  },
-  {
-    name: 'noise-tau',
-    kind: 'number',
-    help: "how long one push of the tremor lasts, s; the recipe's when not given",
-  },
-  {
-    name: 'reflex',
-    kind: 'number',
-    choices: ['default', 'none'],
-    help: 'the stretch gain; `default` is the measured cord, `none` no cord at all',
-  },
-  { name: 'reflex-velocity', kind: 'number', help: 'the cord: its velocity (damping) gain' },
-  { name: 'reflex-delay', kind: 'number', help: 'the cord: conduction time down and back, s' },
-  { name: 'reflex-inhibition', kind: 'number', help: 'the cord: reciprocal inhibition' },
-  { name: 'reflex-setpoint', kind: 'number', help: 'the cord: the strain it holds the fibre at' },
-  { name: 'reflex-ceiling', kind: 'number', help: 'the cord: the Golgi tendon ceiling' },
-  {
-    name: 'reflex-force-inhibition',
-    kind: 'number',
-    help: 'the cord: how hard the Golgi ceiling inhibits',
-  },
-  { name: 'memory', kind: 'int0', help: 'context units carried between control steps' },
-  { name: 'generations', kind: 'posint', default: 300, help: 'generations to run this time' },
-  { name: 'population', kind: 'evenint', default: 32, help: 'candidates a generation, in pairs' },
-  { name: 'workers', kind: 'posint', help: 'worker threads (default one a core, up to 16)' },
-  { name: 'seconds', kind: 'positive', default: 6, help: 'the length of an episode, s' },
-  { name: 'seeds', kind: 'posint', default: 2, help: 'episodes a candidate is scored over' },
-  { name: 'sigma', kind: 'positive', default: 0.03, help: 'the size of a perturbation' },
-  { name: 'lr', kind: 'positive', default: 0.005, help: 'the learning rate' },
-  { name: 'hidden', kind: 'intlist', default: [32, 32], help: 'hidden layer widths' },
-  { name: 'resume', kind: 'bool', help: 'continue the saved checkpoint of this name' },
-  { name: 'force', kind: 'bool', help: 'start a checkpoint that exists afresh, replacing it' },
-  {
-    name: 'print-recipe',
-    kind: 'bool',
-    help: 'print the recipe this run would train under, and stop',
-  },
-  { name: 'help', kind: 'bool', help: 'this' },
-];
+export function trainFlags(recipe) {
+  const range = (limit) => ({ min: limit.min, max: limit.max });
+  return [
+    { name: 'recipe', kind: 'string', help: 'a recipe file: names the run and says what it is in' },
+    {
+      name: 'task',
+      kind: 'choice',
+      choices: [...recipe.TASKS],
+      default: recipe.TASKS[0],
+      help: 'without a recipe: what is scored; also the run name',
+    },
+    {
+      name: 'profile',
+      kind: 'choice',
+      choices: [...recipe.PROFILES],
+      default: recipe.DEFAULT_PROFILE,
+      help: 'without a recipe: the body; with --resume, the body to carry the checkpoint onto',
+    },
+    {
+      name: 'authority',
+      kind: 'number',
+      ...range(recipe.AUTHORITY_LIMIT),
+      default: recipe.DEFAULT_AUTHORITY,
+      help: 'how much of the drive is the brain',
+    },
+    {
+      name: 'noise',
+      kind: 'number',
+      ...range(recipe.NOISE_LIMITS.motor),
+      help: "the tremor on the muscles; the recipe's when not given",
+    },
+    {
+      name: 'sense-noise',
+      kind: 'number',
+      ...range(recipe.NOISE_LIMITS.sense),
+      help: "the grain on the senses; the recipe's when not given",
+    },
+    {
+      name: 'noise-tau',
+      kind: 'number',
+      ...range(recipe.NOISE_LIMITS.tau),
+      help: "how long one push of the tremor lasts, s; the recipe's when not given",
+    },
+    {
+      name: 'reflex',
+      kind: 'number',
+      ...range(recipe.REFLEX_LIMITS.stretch),
+      choices: ['default', 'none'],
+      help: 'the stretch gain; `default` is the measured cord, `none` no cord at all',
+    },
+    ...Object.entries(REFLEX_FLAGS).map(([name, field]) => ({
+      name,
+      kind: 'number',
+      ...range(recipe.REFLEX_LIMITS[field]),
+      help: `the cord: ${REFLEX_HELP[field]}`,
+    })),
+    {
+      name: 'memory',
+      kind: 'int0',
+      ...range(recipe.MEMORY_LIMIT),
+      help: 'context units carried between control steps',
+    },
+    {
+      name: 'generations',
+      kind: 'posint',
+      default: recipe.CLI_RUN_DEFAULTS.generations,
+      help: 'generations to run this time',
+    },
+    {
+      name: 'population',
+      kind: 'evenint',
+      default: recipe.CLI_RUN_DEFAULTS.population,
+      help: 'candidates a generation, in pairs',
+    },
+    { name: 'workers', kind: 'posint', help: 'worker threads (default one a core, up to 16)' },
+    {
+      name: 'seconds',
+      kind: 'positive',
+      default: recipe.SEARCH_DEFAULTS.seconds,
+      help: 'the length of an episode, s',
+    },
+    {
+      name: 'seeds',
+      kind: 'posint',
+      default: recipe.SEARCH_DEFAULTS.seeds,
+      help: 'episodes a candidate is scored over',
+    },
+    {
+      name: 'sigma',
+      kind: 'positive',
+      default: recipe.SEARCH_DEFAULTS.sigma,
+      help: 'the size of a perturbation',
+    },
+    {
+      name: 'lr',
+      kind: 'positive',
+      default: recipe.SEARCH_DEFAULTS.learningRate,
+      help: 'the learning rate',
+    },
+    {
+      name: 'hidden',
+      kind: 'intlist',
+      default: [...recipe.SEARCH_DEFAULTS.hidden],
+      help: 'hidden layer widths',
+    },
+    { name: 'resume', kind: 'bool', help: 'continue the saved checkpoint of this name' },
+    { name: 'force', kind: 'bool', help: 'start a checkpoint that exists afresh, replacing it' },
+    {
+      name: 'print-recipe',
+      kind: 'bool',
+      help: 'print the recipe this run would train under, and stop',
+    },
+    { name: 'help', kind: 'bool', help: 'this' },
+  ];
+}
+
+/**
+ * The cord's flags other than `--reflex` itself, each to the one number of the cord it sets, by
+ * the name `reflexWithFlags` in the recipe module takes it under.
+ */
+export const REFLEX_FLAGS = {
+  'reflex-velocity': 'velocity',
+  'reflex-delay': 'delaySeconds',
+  'reflex-inhibition': 'inhibition',
+  'reflex-setpoint': 'setPoint',
+  'reflex-ceiling': 'forceCeiling',
+  'reflex-force-inhibition': 'forceInhibition',
+};
+
+/** What each of those numbers is, for the help. */
+const REFLEX_HELP = {
+  velocity: 'its velocity (damping) gain',
+  delaySeconds: 'conduction time down and back, s',
+  inhibition: 'reciprocal inhibition',
+  setPoint: 'the strain it holds the fibre at',
+  forceCeiling: 'the Golgi tendon ceiling',
+  forceInhibition: 'how hard the Golgi ceiling inhibits',
+};

@@ -10,9 +10,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TRAIN_FLAGS, formatHelp, parse } from '../bin/flags.mjs';
+import { REFLEX_FLAGS, formatHelp, parse, trainFlags } from '../bin/flags.mjs';
+import * as recipe from './recipe.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
+/** The table the trainer reads, built from the recipe module exactly as the trainer builds it. */
+const TRAIN_FLAGS = trainFlags(recipe);
 
 /** Parse against the trainer's table and say only what was wrong. */
 function problems(argv: string[]): { errors: string[]; unknown: string[] } {
@@ -105,5 +108,60 @@ describe("train-nerves' flags", () => {
     const { values, given } = parse(['--generations', '5'], TRAIN_FLAGS);
     expect(values).toMatchObject({ generations: 5, population: 32, hidden: [32, 32] });
     expect([...given]).toEqual(['generations']);
+  });
+
+  it('takes every default from the recipe module, not from a copy of it', () => {
+    const { values } = parse([], TRAIN_FLAGS);
+    expect(values).toEqual({
+      task: recipe.TASKS[0],
+      profile: recipe.DEFAULT_PROFILE,
+      authority: recipe.DEFAULT_AUTHORITY,
+      generations: recipe.CLI_RUN_DEFAULTS.generations,
+      population: recipe.CLI_RUN_DEFAULTS.population,
+      seconds: recipe.SEARCH_DEFAULTS.seconds,
+      seeds: recipe.SEARCH_DEFAULTS.seeds,
+      sigma: recipe.SEARCH_DEFAULTS.sigma,
+      lr: recipe.SEARCH_DEFAULTS.learningRate,
+      hidden: [...recipe.SEARCH_DEFAULTS.hidden],
+    });
+  });
+
+  it('refuses a task or a body the recipe module does not have, listing the ones it does', () => {
+    expect(problems(['--task', 'blance']).errors).toEqual([
+      "--task wants one of stand, balance, not 'blance'",
+    ]);
+    // `walk` was once accepted, had a clip picked for it, and was trained as a stand.
+    expect(problems(['--task', 'walk']).errors).toHaveLength(1);
+    expect(problems(['--task', 'balance'])).toEqual(clean);
+    expect(problems(['--profile', 'l9_imaginary']).errors[0]).toContain('l3_anatomical');
+    expect(problems(['--profile', 'l1_standard'])).toEqual(clean);
+  });
+
+  it('holds every number of the loop to the range the recipe module gives it', () => {
+    const { max: delayMax } = recipe.REFLEX_LIMITS.delaySeconds;
+    expect(problems(['--reflex-delay', String(delayMax * 2)]).errors).toEqual([
+      `--reflex-delay wants a number from 0 to ${delayMax}, not '${delayMax * 2}'`,
+    ]);
+    expect(problems(['--reflex-delay', String(delayMax)])).toEqual(clean);
+    expect(
+      problems(['--reflex', String(recipe.REFLEX_LIMITS.stretch.max + 1)]).errors,
+    ).toHaveLength(1);
+    expect(problems(['--reflex-setpoint', '-0.6']).errors).toHaveLength(1);
+    expect(problems(['--authority', '1.5']).errors).toHaveLength(1);
+    expect(problems(['--noise', '-0.1']).errors).toHaveLength(1);
+    expect(problems(['--noise-tau', '0']).errors).toHaveLength(1);
+    expect(problems(['--memory', String(recipe.MEMORY_LIMIT.max + 1)]).errors).toEqual([
+      `--memory wants a whole number from 0 to ${recipe.MEMORY_LIMIT.max}, not '${recipe.MEMORY_LIMIT.max + 1}'`,
+    ]);
+  });
+
+  it('gives each number of the cord one flag, and each flag one number', () => {
+    // `--reflex` is the stretch; every other number of the cord has a flag of its own.
+    const fields = Object.values(REFLEX_FLAGS);
+    expect(new Set(fields).size).toBe(fields.length);
+    expect(['stretch', ...fields].sort()).toEqual([...recipe.REFLEX_FIELDS].sort());
+    for (const flag of Object.keys(REFLEX_FLAGS)) {
+      expect(TRAIN_FLAGS.some((f) => f.name === flag)).toBe(true);
+    }
   });
 });
