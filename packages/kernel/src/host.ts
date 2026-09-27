@@ -3,7 +3,12 @@
  *
  * `WorkerHost` runs a `Kernel` behind a port. `KernelProxy` drives it from the other side. The
  * two speak a small typed protocol, and neither depends on the DOM: a test wires them over a
- * `MessageChannel`, the studio wires them over a `Worker`.
+ * `MessageChannel`. No app wires them yet; see ADR-008's implementation status. The studio runs
+ * its kernel on the main thread under an interim exception to ADR-008, because its scrub, restore,
+ * carry, grab and captures are synchronous calls there, and training runs whole kernels in workers
+ * of its own that exchange a score rather than channel state. Both classes are reserved for the
+ * worker move ADR-008 plans after the headless session package, not dead code: keep them tested,
+ * and keep `KernelOptions.config` beside them for the modules a worker will build.
  *
  * The host publishes channel state after each batch of ticks through the transport, so the main
  * thread never reads kernel memory except through `Receiver`.

@@ -210,6 +210,8 @@ Procedural recipes (§5.4) are retained only as an internal fallback for any bon
 
 **Rationale.** Retrofitting a worker boundary is expensive and invasive. Establishing it while there are three modules is nearly free. It is also the same boundary a remote backend would sit behind, so the "backend later" path in ADR-002 reduces to swapping the transport. MuJoCo's multi-threaded WASM build needs cross-origin isolation anyway, so the headers are required regardless.
 
+**Amended 2026-09-26 and 2026-09-27.** The worker host and transport were built and tested (M2.6), but no app uses them: the studio runs its kernel on the main thread, because its scrub, restore, carry, grab and captures are synchronous calls there, and training runs whole kernels in workers of its own. On 2026-09-26 the owner accepted that as an interim studio exception, to be revisited on the studio's L3 frame time after the frame-cost fixes or on a mobile `L0` target. On 2026-09-27, with L3 and the muscles at 0.33x life speed and the page at 20 frames a second while running (0.07x at the audit), the owner decided a headless session package first (M2.9) and the worker move in a later pass built on it (M2.10). The numbers, how they were measured, and the path are recorded in ADR-008 (`docs/adr/adr-008-web-worker.md`); the text above is the record of what was planned.
+
 ---
 
 ### ADR-009 — Licensing: the skeleton data is CC BY-SA 4.0. Code stays Apache-2.0. Nothing is done for commercial reasons
@@ -230,6 +232,8 @@ Procedural recipes (§5.4) are retained only as an internal fallback for any bon
 ### ADR-010 — Project naming and platform floor
 
 Recorded in `docs/adr/adr-010-naming-and-platform-floor.md`. Project is `bs-humany`, reverse-DNS namespace `bsums.xyz.bs-humany`, and `L0` must run on mobile.
+
+**Status note 2026-09-26, updated 2026-09-27.** The floor is unchanged. With MuJoCo the only backend it is statically imported and every profile, `L0` on a phone included, downloads it; the worker transport the floor's consequences describe has no app behind it yet (ADR-008). Both are recorded in the ADR.
 
 ### ADR-011 — Commercial viability is not a goal. Measurement from licensed meshes is permitted
 
@@ -880,7 +884,7 @@ bs-humany/
 
 pnpm workspaces. TypeScript strict, including `noUncheckedIndexedAccess`. Vite for the app, tsup for libraries. Vitest. three.js `^0.186`. `@dimforge/rapier3d-compat`. `@mujoco/mujoco`. Zod or TypeBox for runtime validation with type inference. Biome or ESLint + Prettier. Changesets for versioning.
 
-*As built, 2026-09-27.* Vite builds the studio. The libraries have no build step and no tsup: each package exports its TypeScript source, and `tsc --build` type-checks the workspace. Runtime validation is Zod 4. Lint and format are Biome. There are no Changesets. `@mujoco/mujoco` is the only physics engine, because the Rapier backend and `@dimforge/rapier3d-compat` were deleted on 2026-09-26 (ADR-003). The studio runs its simulation single-threaded on the main thread, with shared channels off (`preferShared: false` in `apps/studio/src/simulation.ts`), so it does not use the worker of ADR-008 yet. The kernel's `WorkerHost` is kept for that move. The trainer runs its episodes in worker threads.
+*As built, 2026-09-27.* Vite builds the studio. The libraries have no build step and no tsup: each package exports its TypeScript source, and `tsc --build` type-checks the workspace. Runtime validation is Zod 4. Lint and format are Biome. There are no Changesets. `@mujoco/mujoco` is the only physics engine, because the Rapier backend and `@dimforge/rapier3d-compat` were deleted on 2026-09-26 (ADR-003). The studio runs its simulation single-threaded on the main thread, with shared channels off (`preferShared: false` in `apps/studio/src/simulation.ts`), so it does not use the worker of ADR-008 yet. The kernel's `WorkerHost` is kept for that move, which the owner decided on 2026-09-27 comes after a headless session package (ADR-008, M2.9 and M2.10). The trainer runs its episodes in worker threads.
 
 Server requirements: the app MUST be served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` to enable `SharedArrayBuffer` and MuJoCo's multi-threaded build. Configure this in the dev server and document it for deployment — it is an easy thing to discover far too late.
 
@@ -962,9 +966,11 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 `M2.3` Scheduler: phases, ordering, `rateDivisor`, dependency resolution with cycle detection.
 `M2.4` `DelayLine<T>` + tests. *Unused by design. See §14.5.*
 `M2.5` Snapshot/restore of kernel and channel state.
-`M2.6` Web Worker host + main-thread proxy + transport abstraction (ADR-008).
+`M2.6` Web Worker host + main-thread proxy + transport abstraction (ADR-008). *Built and tested in `packages/kernel` on both the shared and the transferable path; not yet adopted by any app. The studio runs its kernel on the main thread under ADR-008's interim exception, and `WorkerHost` and `KernelOptions.config` are reserved for M2.10.*
 `M2.7` Determinism harness: run twice, assert bit-identical.
 `M2.8` Module lint: detect undeclared access, allocation in `step`, banned globals.
+`M2.9` Headless session package `@bs-humany/session`: the studio's simulation session (articulation, kernel, modules, restore points, captures, recording) moves out of `apps/studio` into a package with no DOM that the studio, `publish-pose` and the training showcase import. Behaviour, threading and goldens unchanged. *Decided 2026-09-27 (ADR-008); planned as package headless-session-package, wave 15 of the experience pass.*
+`M2.10` The studio's session behind the worker host: the session from M2.9 runs in a worker, the studio drives it through a proxy, and its synchronous calls (scrub, restore, carry, grab, reading the captures) become requests. *A later pass, built on M2.9; not yet planned in detail (ADR-008).*
 
 ### M3 — Articulation and physics
 `M3.1` Joint definitions for `L1-standard` with per-DoF axes, ranges, and citations. Split by region.
