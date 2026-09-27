@@ -30,6 +30,7 @@
 
 mod bridge;
 mod geometry;
+mod gpu;
 mod math;
 mod pack;
 mod panel;
