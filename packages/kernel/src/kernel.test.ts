@@ -29,6 +29,16 @@ const TORQUE: ChannelSpec = {
   backing: 'local',
 };
 
+const ORIENTATION: ChannelSpec = {
+  id: 'body.orientation',
+  version: '1.0.0',
+  layout: 'SoA',
+  fields: [{ name: 'orientation', dtype: 'f64', components: 4 }],
+  elementCount: 1,
+  mode: 'single-writer',
+  backing: 'local',
+};
+
 const manifest = (
   id: string,
   phase: Phase,
@@ -258,6 +268,20 @@ describe('stepping', () => {
   });
 });
 
+/** Gives the orientation channel, sets it to `start` at init, and leaves it alone thereafter. */
+function orienter(start: readonly number[]): SimModule {
+  return {
+    manifest: manifest('orienter', 'solve', {
+      gives: [ORIENTATION],
+      writes: [{ id: ORIENTATION.id, version: '^1.0.0' }],
+    }),
+    init(ctx) {
+      (ctx.write(ORIENTATION.id).fields.orientation as Float64Array).set(start);
+    },
+    step() {},
+  };
+}
+
 /** A module that writes the pose through the read view it declared, which the audit must catch. */
 function rogue(): SimModule {
   return {
@@ -316,6 +340,40 @@ describe('audit', () => {
   it('is on by default under vitest', async () => {
     const k = await kernelWith([physics(), rogue()]);
     expect(() => k.step()).toThrow(/'rogue' changed channel 'body.pose'/);
+  });
+
+  // The audit must see any change to any bit, not only the ones a hash happens to catch. A sign
+  // flip is the undeclared write a module is most likely to make by mistake -- a quaternion
+  // hemisphere fix-up, q -> -q, done in place on a view it only declared a read of -- and each
+  // flip changes only the top bit of a word, so a word-wise FNV-1a let an even number of them
+  // cancel. A swap changes where two values are but not what they are, and a one-ulp nudge
+  // changes one bit. A hash can miss any of these; the audit compares the words themselves.
+  it.each([
+    ['negates a whole quaternion', [0.5, 0.5, 0.5, 0.5], [-0.5, -0.5, -0.5, -0.5]],
+    ['negates two components', [0.5, 0.5, 0.5, 0.5], [0.5, -0.5, 0.5, -0.5]],
+    ['swaps two components', [0.5, 0.25, 0.5, 0.5], [0.5, 0.5, 0.25, 0.5]],
+    ['nudges one component by an ulp', [0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5000000000000001]],
+  ])('catches a module that %s through a read view', async (_, start, edited) => {
+    let view: ChannelView | undefined;
+    const editor: SimModule = {
+      manifest: manifest('editor', 'post', { reads: [{ id: ORIENTATION.id, version: '^1.0.0' }] }),
+      init(ctx) {
+        view = ctx.read(ORIENTATION.id);
+      },
+      step() {
+        (view?.fields.orientation as Float64Array).set(edited);
+      },
+    };
+    const k = await kernelWith([orienter(start), editor], { audit: true });
+    expect(() => k.step()).toThrow(/'editor' changed channel 'body.orientation'/);
+  });
+
+  // The determinism harness compares stateHash across runs, so it is held to the same pair: two
+  // states a negated quaternion apart must not hash alike, as they did under the word-wise fold.
+  it('gives a negated quaternion a different stateHash', async () => {
+    const ka = await kernelWith([orienter([0.5, 0.5, 0.5, 0.5])], { audit: false });
+    const kb = await kernelWith([orienter([-0.5, -0.5, -0.5, -0.5])], { audit: false });
+    expect(kb.stateHash()).not.toBe(ka.stateHash());
   });
 
   it('stays off when a host says so, whatever the environment', async () => {

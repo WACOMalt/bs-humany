@@ -30,11 +30,13 @@ Read this file before your first change. It is short on purpose.
 6. **Do not write to a channel you have not declared.** Declared `reads`/`writes` are enforced,
    not documentary. In every build the kernel hands a module a view only for an access its
    manifest declares, and refuses a second writer. A read view is the same memory as a write
-   view, so a write through one is caught by the kernel's audit, which hashes every channel a
-   module did not declare before and after its step and throws on a change. Every `vitest` run
-   turns the audit on through `BS_HUMANY_KERNEL_AUDIT=1` (`vitest.config.ts`); the golden
-   scenarios run unaudited at full length for speed and again audited for their first 300 ticks.
-   Other hosts -- the studio, the trainer -- opt in with `KernelOptions.audit`.
+   view, so a write through one is caught by the kernel's audit, which compares every channel a
+   module did not declare, bit for bit, with a copy taken before its step and throws on any
+   change. Every `vitest` run sets `BS_HUMANY_KERNEL_AUDIT=1` (`vitest.config.ts`), which turns
+   the audit on for every kernel whose host does not choose. Two hosts choose off inside tests,
+   for speed: the golden scenarios run unaudited at full length and again audited for their first
+   300 ticks, and the studio's kernel stays unaudited because the same modules are audited in that
+   scenario pass. Outside a test run the audit is off unless a host passes `KernelOptions.audit`.
 7. **Do not use `Math.random`, `Date.now`, or `performance.now` in simulation code.** A seeded PRNG
    arrives via `ModuleInitContext`. Simulation time is `tick * dt`, never accumulated.
 8. **Do not put three.js or React types in** `kernel`, `hsdl`, `frames`, `anthropometry`, or any

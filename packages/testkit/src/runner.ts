@@ -116,7 +116,7 @@ export async function runScenario(
   const dt = 1 / rate;
   // The audit is passed explicitly rather than left to the environment, which turns it on for
   // every test run. A golden is up to ten seconds of a whole body at up to a kilohertz, and
-  // hashing every channel after every module's step for all of it would slow the suite's longest
+  // checking every channel after every module's step for all of it would slow the suite's longest
   // file for nothing the golden checks; the audit reads and never writes, so it cannot change a
   // trajectory either way. The scenarios are audited instead by a short second pass over each
   // (scenarios.test.ts), which asks for it here.
