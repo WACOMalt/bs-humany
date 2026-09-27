@@ -836,7 +836,7 @@ that reports proximal and distal tendon lengths separately.
 guess.
 
 ### OQ-024 — Standing up is a reflex, and a scenario script cannot see enough to be one
-**Needed for:** the `quiet-standing` scenario, which is what the studio opens on
+**Needed for:** the `quiet-standing` scenario, which the studio opened on until 2026-09-27
 **Provisional value:** the ankle strategy alone, on the tone in `POSTURAL_TONE`.
 
 Quiet standing looks passive and is not. The body is an inverted pendulum with most of its mass a
@@ -876,19 +876,20 @@ a floor under a controller, not a controller that stands, and it does not close 
 ADR-014's first figures (0.67 s, 0.87 s) do not apply: they were measured against the broken
 afferent, and its amendment says so.
 
-It is also not what `quiet-standing` runs as the studio opens it. The studio builds the cord at
-zero gains unless the Spine sliders or a checkpoint's recipe set them, so the scenario as it opens
-is still the ankle loop alone. The owner decided on 2026-09-26 that the studio and the scripted
-scenarios will run with the measured cord on; until that change lands, the cord is off by
-default. Nobody has yet measured `quiet-standing` with the cord on, and nobody has tried the
-joint-state route through `ScenarioApi`.
+Since 2026-09-27 it is also what `quiet-standing` runs over in the studio. The owner decided on
+2026-09-26 that the studio and the scripted scenarios would run with the measured cord on, and the
+Spine panel now opens on it (a stretch of 8.5 after the second sweep; `OPENING_CORD` in the
+studio's brain.ts) and hands it to every run, scripted or not, unless a slider or a checkpoint's
+recipe sets another. A body built with no cord given, as a headless caller builds one, still runs
+the module's default, which is off. Nobody has yet measured `quiet-standing` with the cord on, and
+nobody has tried the joint-state route through `ScenarioApi`.
 
 **Closes when:** either `ScenarioApi` carries joint state and `quiet-standing` closes a servo per
 postural joint, or the scenario is honest about being a posture and a separate control module owns
 standing. Until then the scenario stands for a second and says so in its own description.
-**Status:** open — a cord now exists (ADR-014) but is off by default in the studio and does not by
-itself hold standing; the joint-state route through `ScenarioApi` is untried. The muscle loads are
-right.
+**Status:** open — a cord now exists (ADR-014), the studio runs every scenario over the measured
+cord by default, and it does not by itself hold standing; the joint-state route through
+`ScenarioApi` is untried. The muscle loads are right.
 **Status, 2026-09-27:** `SpinalModule` and the `nerves-stand` scenario (the quiet-standing clip
 under the trained standing policy) now exist, but `quiet-standing`'s own script still has only
 the ankle loop. The cord's delay and gains are themselves chosen, not sourced: OQ-031.
