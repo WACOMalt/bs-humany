@@ -31,9 +31,11 @@ export default defineConfig({
   // Measured locally: the slowest test, the tab walk, takes about 30 s, and a run's test about
   // 17 s, of which the boot is 2 s and the compile of the body and MuJoCo's WebAssembly about 4 s.
   // The rest is the page itself: drawn in software, a frame takes 80 ms at rest and 200 ms with a
-  // run going, and each step a test takes waits on one. Three times the slowest leaves room for a
-  // slower CI runner without letting a hang sit for minutes.
-  timeout: 90_000,
+  // run going, and each step a test takes waits on one. The tab walk is the slowest at about 30 s
+  // on a quiet machine, and it took 90 s -- the old limit, exactly -- with the machine's load
+  // average above 25 from other work. Three minutes leaves room for a busy desktop and a slow CI
+  // runner without letting a hang sit for long.
+  timeout: 180_000,
   // Long enough for one compile on a slow runner, which is the longest a single wait is for.
   expect: { timeout: 30_000 },
   use: {
