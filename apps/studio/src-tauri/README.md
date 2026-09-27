@@ -21,20 +21,66 @@ reachable from JavaScript.
 ```bash
 pnpm desktop:build      # the binary alone, which is what most of this is for
 pnpm desktop:appimage   # the binary wrapped in an AppImage
+pnpm desktop:tarball    # desktop:build, then the release tarball in dist-release/
 pnpm desktop:dev        # a window on the vite dev server, with hot reload
 ```
 
-Each runs `pnpm build:studio` first, so the bundle in the binary is never stale.
+Every one of them runs `pnpm desktop:sidecar` first -- see the next section for why it cannot be
+skipped. After that, `desktop:build` and `desktop:appimage` build the bundle with
+`pnpm build:studio`, so the bundle in the binary is never stale; `desktop:dev` builds no bundle
+and starts the vite dev server instead (`pnpm -w run dev`), which is where its hot reload comes
+from.
 
 | Command | Output | Built |
 | --- | --- | --- |
-| `pnpm desktop:build` | `target/release/bs-humany-studio` | 11.5 MB |
-| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_0.2.0_amd64.AppImage` | 124 MB |
+| `pnpm desktop:build` | `target/release/bs-humany-studio` | 16.4 MB |
+| `pnpm desktop:appimage` | `target/release/bundle/appimage/bs-humany-studio_0.2.0_amd64.AppImage` | 128 MB |
+| `pnpm desktop:tarball` | `dist-release/bs-humany-studio-0.2.0-linux-x86_64.tar.gz` | 20.7 MB |
 
-The studio's `dist` is about 27 MB -- the MuJoCo wasm, the skeleton meshes and the landmark
-tables -- and all of it is embedded in the binary rather than fetched, so nothing is downloaded at
-run time. Tauri compresses it on the way in, which is why 27 MB of assets plus a web view shell
-comes out at eleven and a half.
+The studio's `dist` is about 39 MB -- the MuJoCo wasm, the skeleton meshes, the landmark tables,
+and the Align tab's 8 MB of reference meshes when `pnpm sync:ref-meshes` has put them there --
+and all of it is embedded in the binary rather than fetched, so nothing is downloaded at run
+time. Tauri compresses it on the way in, which is why 39 MB of assets plus a web view shell comes
+out at a little over sixteen. The figures are from 26 September 2026 and move with the bundle.
+
+The tarball is what the root README promises beside the AppImage: the studio, the VR viewer, the
+mesh pack the viewer draws, the repository's `LICENSE` and `NOTICE`, the mesh pack's own CC BY-SA
+`LICENSE` and `NOTICE` under `assets-anatomical/`, and a `README.txt` written from
+`tools/cli/bin/desktop-tarball-readme.txt`. `tools/cli/bin/desktop-tarball.mjs` stages it in
+`dist-release/stage/`, clears the stage once the archive is written, and refuses to write it at
+all if any of those is missing. The AppImage carries the same two licence files, at
+`usr/lib/bs-humany-studio/assets-anatomical/`, beside the pack they cover.
+
+## The VR viewer sidecar
+
+**Connect VR viewer** launches `bs-humany-xr-viewer`, the native OpenXR viewer in
+`apps/xr-viewer`, and hands it the mesh pack. Tauri ships it as a sidecar:
+`tauri.conf.json` lists it under `bundle.externalBin`, and for that entry Tauri wants a file
+named `binaries/bs-humany-xr-viewer-<host triple>` -- `x86_64-unknown-linux-gnu` on the machine
+this was written on, and whatever the `host:` line of `rustc -vV` says on yours.
+
+`pnpm desktop:sidecar` makes that file: it builds the viewer in release, asks `rustc` for the
+triple, and copies the binary into `binaries/` under the name Tauri expects. It needs Rust and
+nothing else -- none of the web view packages below. The directory is gitignored, because it
+holds a build product, and `tauri-build` refuses to build the crate without it, in `tauri dev`
+as much as in a release: on a fresh clone `desktop:dev` used to stop in `build.rs` with
+`resource path ... doesn't exist` before a window opened. That is why every desktop script runs
+it first, and why it is not a placeholder file -- the shell looks beside its own executable first
+and would launch the placeholder. The copy goes through a temporary file and a rename, so it can
+replace a viewer that is still running from the last session.
+
+Where the shell looks for the viewer, in order: `BS_HUMANY_XR_VIEWER` if it is set; beside its
+own executable, which is where Tauri puts the sidecar in `target/`, in the tarball and in the
+AppImage; then the checkout's `apps/xr-viewer/target/release`. A debug build -- `desktop:dev` --
+takes the checkout's over the one beside it whenever the checkout's is newer, because the copy in
+`target/debug` is only refreshed when the studio crate rebuilds, and an edit to the viewer alone
+would otherwise not reach the headset. The mesh pack is `BS_HUMANY_PACK_DIR` if set, then
+`assets-anatomical/data` beside the executable (the tarball), then among the bundled resources
+(the AppImage), then the checkout's `packages/assets-anatomical/data`.
+
+So the bare binary runs the studio on its own, but Connect VR needs `bs-humany-xr-viewer` and
+`assets-anatomical/data` beside it, which is the reason the tarball carries both rather than the
+binary alone.
 
 ## What "portable" means here, and what it does not
 
@@ -45,8 +91,8 @@ Fedora, Nobara, Ubuntu 24.04 or Arch and absent on anything older. `ldd` on the 
 exactly what it wants.
 
 The AppImage is the answer to that and it is why it is worth having: it carries the web view and
-its dependencies with it, so it runs on distributions whose own web view is too old. It is 112 MB
-against 11.5. Build the binary for a machine you know and the AppImage for one you do not.
+its dependencies with it, so it runs on distributions whose own web view is too old. It is 128 MB
+against 16.4. Build the binary for a machine you know and the AppImage for one you do not.
 
 ## Prerequisites
 

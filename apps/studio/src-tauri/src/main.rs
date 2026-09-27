@@ -435,23 +435,39 @@ fn studio_log(message: String) {
 
 /// Where the viewer binary is: named outright, beside this executable, or in this repository's
 /// build directory when running from a checkout.
+///
+/// A debug build takes the checkout's viewer over the one beside it when the checkout's is newer.
+/// The copy beside a debug executable is not something anybody put there on purpose: `tauri-build`
+/// copies the sidecar into `target/debug` when the crate builds, and nothing copies it again when
+/// only the viewer changes. So an edit to the viewer, rebuilt with cargo in `apps/xr-viewer`, was
+/// invisible to `pnpm desktop:dev` -- Connect VR launched the viewer as it was at the studio's
+/// last build, and said so only in a path nobody reads twice. A release build is a tarball or an
+/// AppImage whose viewer was shipped beside it, and it keeps that order: the checkout it was built
+/// from may not exist on the machine it runs on, and when it does it is not what was released.
 fn find_viewer() -> Option<std::path::PathBuf> {
     if let Some(named) = std::env::var_os("BS_HUMANY_XR_VIEWER") {
         return Some(std::path::PathBuf::from(named));
     }
     let name = "bs-humany-xr-viewer";
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let beside = dir.join(name);
-            if beside.exists() {
-                return Some(beside);
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join(name)))
+        .filter(|path| path.exists());
+    let checkout = Some(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../xr-viewer/target/release")
+            .join(name),
+    )
+    .filter(|path| path.exists());
+    if cfg!(debug_assertions) {
+        if let (Some(beside), Some(checkout)) = (&beside, &checkout) {
+            let modified = |path: &std::path::Path| path.metadata().and_then(|m| m.modified()).ok();
+            if modified(checkout) > modified(beside) {
+                return Some(checkout.clone());
             }
         }
     }
-    let checkout = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../xr-viewer/target/release")
-        .join(name);
-    checkout.exists().then_some(checkout)
+    beside.or(checkout)
 }
 
 /// Where the mesh pack is: named outright, bundled with the app, or in the checkout.

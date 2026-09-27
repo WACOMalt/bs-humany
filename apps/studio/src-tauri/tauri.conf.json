@@ -44,7 +44,9 @@
     "externalBin": ["binaries/bs-humany-xr-viewer"],
     "resources": {
       "../../../packages/assets-anatomical/data/manifest.json": "assets-anatomical/data/manifest.json",
-      "../../../packages/assets-anatomical/data/skeleton.bin": "assets-anatomical/data/skeleton.bin"
+      "../../../packages/assets-anatomical/data/skeleton.bin": "assets-anatomical/data/skeleton.bin",
+      "../../../packages/assets-anatomical/LICENSE": "assets-anatomical/LICENSE",
+      "../../../packages/assets-anatomical/NOTICE": "assets-anatomical/NOTICE"
     }
   }
 }
