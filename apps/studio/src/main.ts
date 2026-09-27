@@ -45,6 +45,7 @@ import {
   type ScenarioDefinition,
   inertiaAudit,
   jointSweep,
+  profileRateHz,
 } from '@bs-humany/scenarios';
 import { type DriveSection, MUSCLE_GROUPS, driveForSlider } from '@bs-humany/scenarios';
 import { buildDocument, computeWorldTransforms, modelLimitations } from '@bs-humany/skeleton';
@@ -81,18 +82,27 @@ import { BridgeFollower } from './follow.js';
 import { FollowTissue } from './followTissue.js';
 import { createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
+import { type RunSettings, pendingChanges } from './pending.js';
 import { Playback } from './playback.js';
 import { RingTubes } from './ringTubes.js';
 import { createRunGate, startSingleFlight } from './runController.js';
 import {
+  type NormalisedSettings,
+  RESTORE_REFUSED,
+  type RunPrint,
+  SESSION_FORMAT,
   type SessionFile,
-  type SessionSettings,
+  channelPrints,
   deserializeSnapshot,
   download,
   downloadSet,
   isSessionFile,
+  normaliseSettings,
   openTextFile,
+  restoreMismatch,
+  savedRunPrint,
   serializeSnapshot,
+  sessionFormatOf,
   usesNativeFilePickers,
 } from './session.js';
 import { keyOwnedByTarget } from './shortcuts.js';
@@ -258,6 +268,14 @@ let alignedSegmentBones: readonly string[] = [];
 let restBounds: { min: [number, number, number]; max: [number, number, number] } | null = null;
 let simulation: Simulation | null = null;
 /**
+ * The settings the running body was built with, which are what a Restart would change and what a
+ * saved session's snapshot belongs to. Null with no run of this page's own. Up here with the run
+ * state, because `setRunControls` reads it from the first frame on; see `showPendingChanges`.
+ */
+let compiledWith: RunSettings | null = null;
+/** What the strip last said, so the page is written only when that changes: it runs a frame. */
+let shownPending = '';
+/**
  * Whether an export is being built or written: both export buttons stay grey until it is done.
  *
  * Building the Blender export takes seconds on a long run and blocks the page while it does, and
@@ -313,9 +331,6 @@ const ui = {
   stature: must<HTMLInputElement>('#stature'),
   mass: must<HTMLInputElement>('#mass'),
   percentile: must<HTMLInputElement>('#percentile'),
-  crural: must<HTMLInputElement>('#crural'),
-  brachial: must<HTMLInputElement>('#brachial'),
-  legLength: must<HTMLInputElement>('#legLength'),
   showGrid: must<HTMLInputElement>('#showGrid'),
   spin: must<HTMLInputElement>('#spin'),
   profile: must<HTMLSelectElement>('#profile'),
@@ -420,16 +435,16 @@ const driveInputs = new Map<string, HTMLInputElement>();
   }
 }
 
+/**
+ * The body the sliders describe. No limb proportions: nothing measured follows the crural or
+ * brachial index or the relative leg length yet (see `modelLimitations`), so the studio no longer
+ * offers them and every body resolves at the reference proportions.
+ */
 function currentMorphology(): Morphology {
   return {
     sex: Number(ui.sex.value),
     stature: Number(ui.stature.value),
     mass: Number(ui.mass.value),
-    proportions: {
-      crural: Number(ui.crural.value),
-      brachial: Number(ui.brachial.value),
-      relativeLegLength: Number(ui.legLength.value),
-    },
   };
 }
 
@@ -633,9 +648,6 @@ function updateReadouts(stature: number, mass: number): void {
   must<HTMLOutputElement>('#sex-value').textContent = Number(ui.sex.value).toFixed(2);
   must<HTMLOutputElement>('#stature-value').textContent = `${stature.toFixed(2)} m`;
   must<HTMLOutputElement>('#mass-value').textContent = `${mass.toFixed(1)} kg`;
-  must<HTMLOutputElement>('#crural-value').textContent = Number(ui.crural.value).toFixed(3);
-  must<HTMLOutputElement>('#brachial-value').textContent = Number(ui.brachial.value).toFixed(3);
-  must<HTMLOutputElement>('#legLength-value').textContent = Number(ui.legLength.value).toFixed(3);
 
   // The percentile reads back where the current stature sits in the distribution for the current
   // blend. It used to keep whatever it was last set to, so after a stature drag or a session load
@@ -653,9 +665,8 @@ function updateReadouts(stature: number, mass: number): void {
 }
 
 // The sliders that move the body. The three limb proportions are not among them: nothing measured
-// follows them yet (see `modelLimitations`), so they are disabled in the panel. A value that
-// arrives from a session or a checkpoint is still kept, and goes into the next compile with the
-// rest of the settings, so those files round-trip unchanged.
+// follows them yet (see `modelLimitations`), so the panel no longer has them. A value that arrives
+// from an older session, a checkpoint's recipe or the headset is read and ignored.
 for (const input of [ui.sex, ui.stature, ui.mass]) {
   input.addEventListener('input', () => {
     // Another slider moving means the percentile is not, whatever it last said: a percentile drag
@@ -998,6 +1009,7 @@ function stopSimulation(): void {
 function forgetRun(): void {
   grabState = null;
   simulation = null;
+  compiledWith = null;
   overlays?.dispose();
   overlays = null;
   clearFurniture();
@@ -1117,6 +1129,7 @@ function setRunControls(running: boolean): void {
   ui.exportRecording.disabled = !running || exporting;
   ui.exportBlender.disabled = !running || exporting;
   setPlaybackControls(running);
+  showPendingChanges();
 }
 
 /**
@@ -1143,14 +1156,25 @@ function setPlaybackControls(running: boolean): void {
   ui.goLive.disabled = !running || following;
 }
 
-function currentSettings(): SessionSettings {
+/**
+ * Every setting a session holds, as the panels show them now.
+ *
+ * The step rate only when somebody chose one, so a session saved with the slider left alone runs
+ * at whatever profile it names. The cord, the authority and the chosen checkpoint are the Brain
+ * panel's, read from its state rather than off its elements, and absent while it has not been
+ * made.
+ */
+function currentSettings(): NormalisedSettings {
+  const brainState = brain?.state();
+  const drive: Record<string, number> = {};
+  for (const [id, input] of driveInputs) {
+    const level = Number(input.value);
+    if (level !== 0) drive[id] = level;
+  }
   return {
     sex: Number(ui.sex.value),
     stature: Number(ui.stature.value),
     mass: Number(ui.mass.value),
-    crural: Number(ui.crural.value),
-    brachial: Number(ui.brachial.value),
-    legLength: Number(ui.legLength.value),
     profile: ui.profile.value,
     backend: ui.backend.value,
     scenario: ui.scenario.value,
@@ -1163,40 +1187,164 @@ function currentSettings(): SessionSettings {
     ...(ui.scenario.value
       ? { scenarioParameters: { ...scenarioValues.get(ui.scenario.value) } }
       : {}),
+    muscles: ui.muscles.checked,
+    ...(fidelityTouched ? { stepsPerSecond: Number(ui.stepsPerSecond.value) } : {}),
+    outputFramerate: Number(ui.outputFramerate.value),
+    captureBudgetMiB: Number(ui.captureBudget.value),
+    drive,
+    ...(brainState
+      ? {
+          reflex: { ...brainState.reflex },
+          brainAuthority: brainState.authority,
+          ...(brainState.selected ? { checkpoint: brainState.selected } : {}),
+        }
+      : {}),
   };
 }
 
-function applySettings(settings: SessionSettings): void {
+/**
+ * What Save writes: the panels as they are, except that with a run going, the settings the run
+ * was built with stand in for the ones a restart would change.
+ *
+ * The snapshot in the file is of the running body, and it can only go back into a body built the
+ * same way. A profile chosen, or Passive unticked, since the run started is listed in the Sim
+ * tab as waiting for a restart; saved as it stands, it made a file whose settings built another
+ * body than its snapshot came from, which then refused to restore.
+ */
+function settingsToSave(): NormalisedSettings {
+  const now = currentSettings();
+  if (!simulation || !compiledWith) return now;
+  const built = compiledWith;
+  const { stepsPerSecond: _, scenarioParameters: __, ...rest } = now;
+  return {
+    ...rest,
+    profile: built.profile,
+    scenario: built.scenario,
+    ...(built.scenario ? { scenarioParameters: { ...built.scenarioParameters } } : {}),
+    passive: built.passive,
+    redistribute: built.redistribute,
+    muscles: built.muscles,
+    dropHeight: built.dropHeight,
+    ...(built.stepsPerSecond !== undefined ? { stepsPerSecond: built.stepsPerSecond } : {}),
+  };
+}
+
+/**
+ * Put a value on a slider as though somebody had moved it there, so whatever it drives -- its
+ * readout, the running body, the Brain panel's comparison -- follows. The one way the settings,
+ * a checkpoint's recipe and the cord are put on the panels.
+ */
+function setControl(input: HTMLInputElement, value: number): void {
+  input.value = String(value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/**
+ * Put a whole set of settings on the panels, and restart a running body with them.
+ *
+ * The order matters in two places. The Muscles box goes before the scenario, because a scenario
+ * that drives muscles ticks it. Passive and Redistribute go after it, because choosing a scenario
+ * sets Passive to the one the scenario is tuned with -- and a saved or recipe value applied before
+ * that was quietly overwritten, so a session saved with Passive off ran with it on, and its
+ * snapshot, which had no passive module, then refused to restore.
+ */
+function applySettings(settings: NormalisedSettings): void {
   ui.sex.value = String(settings.sex);
   ui.stature.value = String(settings.stature);
   ui.mass.value = String(settings.mass);
-  ui.crural.value = String(settings.crural);
-  ui.brachial.value = String(settings.brachial);
-  ui.legLength.value = String(settings.legLength);
   ui.profile.value = settings.profile;
   // Rapier was deleted on 2026-09-26 (ADR-003); a saved session naming it runs on MuJoCo.
   ui.backend.value = settings.backend === 'rapier' ? 'mujoco' : settings.backend;
+  ui.muscles.checked = settings.muscles;
+  must<HTMLElement>('#muscle-control').hidden = !settings.muscles;
   ui.scenario.value = settings.scenario;
-  ui.passive.checked = settings.passive;
-  ui.redistribute.checked = settings.redistribute;
-  ui.dropHeight.value = String(settings.dropHeight);
-  must<HTMLOutputElement>('#dropHeight-value').textContent = `${settings.dropHeight.toFixed(2)} m`;
-  if (settings.gravity !== undefined) ui.gravity.checked = settings.gravity;
-  if (settings.floor !== undefined) ui.floor.checked = settings.floor;
-  if (settings.grabStrength !== undefined) {
-    ui.grabStrength.value = String(settings.grabStrength);
-    must<HTMLOutputElement>('#grabStrength-value').textContent =
-      `${settings.grabStrength.toFixed(1)}\u00d7`;
-  }
   if (settings.scenario && settings.scenarioParameters) {
     scenarioValues.set(settings.scenario, { ...settings.scenarioParameters });
   }
   ui.scenario.dispatchEvent(new Event('change'));
+  ui.passive.checked = settings.passive;
+  ui.redistribute.checked = settings.redistribute;
+  // The box is what the settings say, not what the scenario turned it to, so the note stops
+  // saying the scenario turned it.
+  showScenarioNote();
+  setControl(ui.dropHeight, settings.dropHeight);
+  ui.gravity.checked = settings.gravity;
+  ui.floor.checked = settings.floor;
+  setControl(ui.grabStrength, settings.grabStrength);
+  // A rate somebody chose is theirs again; none means the profile's own, as in a fresh studio.
+  if (settings.stepsPerSecond !== undefined) {
+    ui.stepsPerSecond.value = String(settings.stepsPerSecond);
+    fidelityTouched = true;
+  } else {
+    fidelityTouched = false;
+  }
+  syncStepRate();
+  setControl(ui.outputFramerate, settings.outputFramerate);
+  if (settings.captureBudgetMiB !== undefined) {
+    setControl(ui.captureBudget, settings.captureBudgetMiB);
+  }
+  for (const [id, input] of driveInputs) setControl(input, settings.drive[id] ?? 0);
+  applyBrainSettings(settings);
   cancelPreview();
   rebuildMesh();
   // Always a restart when a run is going, whether or not the body changed: the settings carry the
   // profile, the scenario and the joints as well, and none of those reach a run already built.
   rebuildBody('Settings applied', { always: true });
+}
+
+/**
+ * The cord and the authority onto the Brain panel, through its own hands, and only where they
+ * differ: moving Authority on a panel with a policy in charge reaches the running body, and a
+ * recipe that re-applies the panel's own values should not touch it.
+ */
+function applyBrainSettings(settings: NormalisedSettings): void {
+  if (!brain) return;
+  const state = brain.state();
+  const cord = settings.reflex;
+  if (cord) {
+    const moves = [
+      ['reflexStretch', state.reflex.stretch, cord.stretch],
+      ['reflexVelocity', state.reflex.velocity, cord.velocity],
+      ['reflexSetPoint', state.reflex.setPoint, cord.setPoint],
+      ['reflexInhibition', state.reflex.inhibition, cord.inhibition],
+      ['reflexDelay', state.reflex.delaySeconds, cord.delaySeconds],
+    ] as const;
+    for (const [action, was, value] of moves) {
+      if (was !== value) brain.act(action, undefined, value);
+    }
+  }
+  if (settings.brainAuthority !== undefined && settings.brainAuthority !== state.authority) {
+    brain.act('authority', undefined, settings.brainAuthority);
+  }
+}
+
+/** The settings the next run would be built with, as the Sim tab compares them. */
+function runSettings(): RunSettings {
+  return {
+    profile: ui.profile.value,
+    scenario: ui.scenario.value,
+    scenarioParameters: { ...(scenarioValues.get(ui.scenario.value) ?? {}) },
+    passive: ui.passive.checked,
+    redistribute: ui.redistribute.checked,
+    // As a run is built: a scenario that drives muscles has them, whatever the box says.
+    muscles: ui.muscles.checked || scenarioDrivesMuscles,
+    dropHeight: Number(ui.dropHeight.value),
+    stepsPerSecond: fidelityTouched ? Number(ui.stepsPerSecond.value) : undefined,
+  };
+}
+
+/**
+ * The Sim tab's strip: what has changed since the running body was built, and the button that
+ * builds the body the panels now describe. Hidden with no run of this page's own, and when a
+ * restart would build the same body.
+ */
+function showPendingChanges(): void {
+  const changed = simulation && compiledWith ? pendingChanges(compiledWith, runSettings()) : [];
+  const text = changed.join(', ');
+  if (text === shownPending) return;
+  shownPending = text;
+  must<HTMLElement>('#pending-changes-list').textContent = text;
+  must<HTMLElement>('#pending-changes').hidden = changed.length === 0;
 }
 
 /**
@@ -1342,8 +1490,12 @@ async function startSimulation(
   pendingStart = { ...(restoreFrom ? { restoreFrom } : {}), ...(carry ? { carry } : {}) };
   // Kept so a failure after the run was put in place can take it out again.
   let built: Simulation | undefined;
+  // The settings it was built from, read at the same moment as the build reads them.
+  let builtWith: RunSettings | undefined;
+  // Whether a session's run was refused part-way into its restore, so a fresh one is started.
+  let restartFresh = false;
   try {
-    await startSingleFlight(runGate, {
+    const installed = await startSingleFlight(runGate, {
       before: async () => {
         setRunControls(false);
         setSimulationStatus('Compiling the body…');
@@ -1374,18 +1526,30 @@ async function startSimulation(
           // a restored session all run the reflexes the sliders say rather than none at all.
           reflex: brain?.state().reflex,
         });
+        builtWith = runSettings();
         return built;
       },
       install: (sim) => installRun(sim, restoreFrom, carry),
     });
+    if (installed && installed === simulation && builtWith) compiledWith = builtWith;
   } catch (error) {
     // The run may have been put in place before something in the installing failed; the gate has
     // disposed it, so it only has to come off the page.
     if (built && simulation === built) forgetRun();
-    console.error('The simulation failed to start.', error);
-    announce(`The run failed to start: ${messageOf(error)}`, {
-      error: true,
-    });
+    if (error instanceof RestoreRefused) {
+      // The kernel may refuse a snapshot after it has begun to put it back, and then the run it
+      // was given is spent: the gate has disposed it, so no backend is left behind, and a fresh
+      // one is built below from the settings the session applied. What the kernel said names
+      // channels and modules, which is for the console; the page says what happened.
+      console.error('The session’s run could not be restored.', error.cause);
+      announce(error.message, { error: true });
+      restartFresh = true;
+    } else {
+      console.error('The simulation failed to start.', error);
+      announce(`The run failed to start: ${messageOf(error)}`, {
+        error: true,
+      });
+    }
     setSimulationStatus(restStatus());
   } finally {
     if (!runGate.busy) pendingStart = null;
@@ -1393,6 +1557,18 @@ async function startSimulation(
     // compiling, or nothing.
     setRunControls(simulation !== null);
   }
+  if (restartFresh) await startSimulation();
+}
+
+/**
+ * A restore the kernel refused once the run built for it had started: the message is the one the
+ * page shows, and the kernel's own words are the cause.
+ */
+class RestoreRefused extends Error {}
+
+/** What a run's restore depends on, read off its kernel; see `restoreMismatch`. */
+function runPrintOf(sim: Simulation): RunPrint {
+  return { dt: sim.dt, channels: channelPrints(sim.kernel.channels), modules: sim.kernel.order() };
 }
 
 /**
@@ -1434,7 +1610,22 @@ function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], ca
   if (!fidelityTouched) ui.stepsPerSecond.value = String(sim.stepsPerSecond);
   applyFidelity(sim);
   showRates();
-  if (restoreFrom) sim.restore(deserializeSnapshot(restoreFrom.snapshot), restoreFrom.ticks);
+  // A session's run goes back in only when the body built for it can take it. Checked here,
+  // before anything is restored, so a mismatch leaves this run as it started -- at its first tick,
+  // with the session's settings -- and the page says what differed rather than the kernel's list
+  // of channel ids. A refusal from inside the restore spends the run; see `RestoreRefused`.
+  let refused: string | undefined;
+  if (restoreFrom) {
+    const snapshot = deserializeSnapshot(restoreFrom.snapshot);
+    refused = restoreMismatch(savedRunPrint(snapshot, restoreFrom.channels), runPrintOf(sim));
+    if (refused === undefined) {
+      try {
+        sim.restore(snapshot, restoreFrom.ticks);
+      } catch (error) {
+        throw new RestoreRefused(RESTORE_REFUSED, { cause: error });
+      }
+    }
+  }
   let unmatched: string[] = [];
   if (carry) {
     unmatched = sim.carryFrom(carry.state, carry.ticks);
@@ -1471,6 +1662,9 @@ function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], ca
   refreshSelection();
   setRunControls(true);
   setSimulationStatus('Running.');
+  // After the start has cleared the last run's notices, and as an error, because the run going is
+  // not the one the file holds.
+  if (refused !== undefined) announce(refused, { error: true });
 }
 
 /**
@@ -1917,7 +2111,8 @@ function muscleTension(
  *
  * The output frame rate is live because it only says how much simulated time one rendered frame
  * covers. The step rate is not here, and cannot be: `dt` is fixed for the life of a run, which is
- * what makes two runs of a scenario the same run, so changing it restarts.
+ * what makes two runs of a scenario the same run, so a new rate is used from the next run and the
+ * one running keeps its own. The Sim tab lists it as waiting for a restart until then.
  */
 function applyFidelity(sim: Simulation | null | undefined): void {
   if (!sim) return;
@@ -1968,8 +2163,26 @@ ui.stepsPerSecond.addEventListener('input', () => {
   fidelityTouched = true;
   showRates();
 });
+
+/** The step rate the chosen profile's solver was tuned for, which a run gets unless told. */
+function profileStepRate(): number {
+  return profileRateHz(document_.segmentation.find((p) => p.id === ui.profile.value));
+}
+
+/**
+ * Put the slider on the rate the next run will use, and say what that comes to.
+ *
+ * Left alone, the slider follows the profile, because an untouched slider is not a choice and
+ * the run will step at the profile's own rate: it used to open at 500 while the L3 run it started
+ * stepped at 1000, and jump when the run began. Moved by hand, it stays where it was put.
+ */
+function syncStepRate(): void {
+  if (!fidelityTouched) ui.stepsPerSecond.value = String(profileStepRate());
+  showRates();
+}
+ui.profile.addEventListener('change', syncStepRate);
 // Once at startup, so the pair reads as a pair before anyone has touched either or started a run.
-showRates();
+syncStepRate();
 
 /**
  * What the two rates come to together, in the terms somebody exporting cares about.
@@ -2633,14 +2846,41 @@ function refreshScenarioParameters(): void {
   scenarioValues.set(definition.id, values);
 }
 
+/**
+ * Whether the chosen scenario drives muscles, and so gets them whatever the box says. Kept from
+ * the last choice rather than worked out again, because working it out builds the scenario, and
+ * the Sim tab's list of pending changes asks every frame.
+ */
+let scenarioDrivesMuscles = false;
+
+/**
+ * The chosen scenario's description, and what choosing it did to the Passive box when it did
+ * anything: the box is on another tab, and a setting that changes out of sight should be said.
+ */
+function showScenarioNote(passive?: boolean): void {
+  const definition = definitionFor(ui.scenario.value);
+  const said =
+    passive === undefined
+      ? ''
+      : passive
+        ? ' Passive joint resistance turned on: this scenario is tuned with it.'
+        : ' Passive joint resistance turned off: this scenario is tuned without it.';
+  must<HTMLElement>('#scenario-note').textContent = `${definition?.description ?? ''}${said}`;
+}
+
 function scenarioChanged(): void {
   const definition = definitionFor(ui.scenario.value);
-  must<HTMLElement>('#scenario-note').textContent = definition?.description ?? '';
   must<HTMLElement>('#dropHeight-control').hidden = definition !== undefined;
 
   refreshScenarioParameters();
   const chosen = currentScenario();
+  // Set to what the scenario is tuned with, as before -- a scenario is chosen to be watched as it
+  // was made -- and now said, when it differs from what the box had.
+  const turned =
+    chosen && chosen.passiveJoints !== ui.passive.checked ? chosen.passiveJoints : undefined;
   if (chosen) ui.passive.checked = chosen.passiveJoints;
+  showScenarioNote(turned);
+  scenarioDrivesMuscles = chosen?.muscles === true;
   // A scenario that drives muscles turns them on, and says so by ticking the box rather than
   // leaving the panel claiming they are off while the arms move.
   if (chosen?.muscles === true) {
@@ -2652,6 +2892,32 @@ ui.scenario.addEventListener('change', scenarioChanged);
 // Once at startup, because the picker opens on a scenario rather than on nothing and the note,
 // the sliders and the muscle box all follow from which one that is.
 scenarioChanged();
+// A box ticked by hand is the person's choice, not the scenario's, so the note stops saying the
+// scenario turned it.
+ui.passive.addEventListener('change', () => showScenarioNote());
+
+// The strip of settings waiting for a restart follows every control that reaches a run only when
+// it is built, as it moves, rather than at the next frame; the scenario's own sliders are made
+// afresh with each scenario, so their container is watched instead.
+for (const control of [
+  ui.profile,
+  ui.scenario,
+  ui.scenarioParameters,
+  ui.passive,
+  ui.redistribute,
+  ui.muscles,
+  ui.dropHeight,
+  ui.stepsPerSecond,
+]) {
+  control.addEventListener('input', showPendingChanges);
+  control.addEventListener('change', showPendingChanges);
+}
+// Straight to a new run, not through the Start button: that button carries a paused run on, and
+// the point here is a run built with the settings as they now stand, paused or not.
+must<HTMLButtonElement>('#pending-restart').addEventListener('click', (event) => {
+  blurAfterMouse(event);
+  void startSimulation();
+});
 /**
  * Write a file and say what happened, because in the desktop shell it can fail.
  *
@@ -2768,29 +3034,76 @@ ui.exportBlender.addEventListener('click', async () => {
 });
 ui.save.addEventListener('click', () => {
   const file: SessionFile = {
-    format: 'bs-humany.session/1',
+    format: SESSION_FORMAT,
     savedAt: new Date().toISOString(),
-    settings: currentSettings(),
+    settings: settingsToSave(),
     ...(simulation
       ? {
           simulation: {
             ticks: simulation.ticks,
             snapshot: serializeSnapshot(simulation.snapshot()),
+            channels: channelPrints(simulation.kernel.channels),
           },
         }
       : {}),
   };
   void saving('bs-humany-session.json', download('bs-humany-session.json', JSON.stringify(file)));
 });
+
+/**
+ * Choose the session's checkpoint in the Brain panel's list, or say that it is not there.
+ *
+ * The list is read first, because a studio that has not opened the Brain tab has not asked for
+ * it yet, and a checkpoint missing from an unread list is not missing. A file names a checkpoint
+ * rather than carrying one, so a checkpoint from another machine, or one forgotten since, cannot
+ * be chosen, and the page says so rather than leaving the list on whatever it was.
+ */
+async function chooseSessionCheckpoint(id: string): Promise<void> {
+  if (!brain) return;
+  await brain.poll();
+  const state = brain.state();
+  if (state.selected === id) return;
+  if (!state.checkpoints.some((c) => c.id === id)) {
+    announce(
+      `The session's checkpoint ${id} could not be found in the Brain panel's list; ` +
+        'the rest of the session was applied.',
+    );
+    return;
+  }
+  brain.act('select', id);
+}
+
 /** Apply a session file's contents, whichever picker they came through. */
 async function loadSessionText(text: string): Promise<void> {
   try {
     const parsed: unknown = JSON.parse(text);
-    if (!isSessionFile(parsed)) throw new Error('Not a bs-humany session file.');
+    if (!isSessionFile(parsed)) {
+      const format = sessionFormatOf(parsed);
+      throw new Error(
+        format
+          ? `it was written by a newer studio (${format}); this one reads ${SESSION_FORMAT} and ` +
+              'the format before it.'
+          : 'it is not a bs-humany session file.',
+      );
+    }
+    // The saved run decides its own rate and muscles; its step and channel ids are all that is
+    // read of it here, so it is decoded once, when it is restored.
+    const settings = normaliseSettings(parsed.settings, parsed.simulation?.snapshot);
+    // Named, rather than left for the select to fall back to its first option or to nothing: a
+    // session that ran on a profile or a scenario this studio lacks cannot be the session it was.
+    if (![...ui.profile.options].some((o) => o.value === settings.profile)) {
+      throw new Error(`it names the body profile ${settings.profile}, which this studio lacks.`);
+    }
+    if (settings.scenario !== '' && !definitionFor(settings.scenario)) {
+      throw new Error(`it names the scenario ${settings.scenario}, which this studio lacks.`);
+    }
     // A session with a run in it starts that run. Stopped first, so the settings going in do not
     // carry the old run across into a restart of their own that the snapshot then races.
     if (parsed.simulation) stopSimulation();
-    applySettings(parsed.settings);
+    // The checkpoint before the settings. Choosing one in the list sets the scene and the body
+    // from its recipe, and the session's own settings are the ones that must win.
+    if (settings.checkpoint) await chooseSessionCheckpoint(settings.checkpoint);
+    applySettings(settings);
     if (parsed.simulation) await startSimulation(parsed.simulation);
   } catch (error) {
     console.error('The session failed to load.', error);
@@ -3504,9 +3817,6 @@ const vrHost = {
         sex: Number(ui.sex.value),
         stature: Number(ui.stature.value),
         mass: Number(ui.mass.value),
-        crural: Number(ui.crural.value),
-        brachial: Number(ui.brachial.value),
-        legLength: Number(ui.legLength.value),
         percentile: Number(ui.percentile.value),
         dropHeight: Number(ui.dropHeight.value),
         passive: ui.passive.checked,
@@ -3633,9 +3943,9 @@ const vrHost = {
           case 'crural':
           case 'brachial':
           case 'legLength':
-            // Accepted and ignored. Nothing measured follows the limb proportions yet, so the
-            // desktop's sliders are disabled; an older viewer still offers them, and a value from
-            // it would otherwise rebuild the body and restart the run for no change at all.
+            // Accepted and ignored. Nothing measured follows the limb proportions yet, so neither
+            // the desktop nor the headset offers them any more; an older viewer still may, and a
+            // value from it would otherwise rebuild the body and restart the run for no change.
             break;
           case 'dropHeight':
           case 'passive':
@@ -4071,9 +4381,7 @@ void loadSourceSites().then((data) => {
 function putSpine(cord: NonNullable<NonNullable<PolicyFile['recipe']>['reflex']>): void {
   const put = (selector: string, value: number): void => {
     const input = document.querySelector<HTMLInputElement>(selector);
-    if (!input) return;
-    input.value = String(value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    if (input) setControl(input, value);
   };
   put('#spine-stretch', cord.stretch);
   put('#spine-velocity', cord.velocity);
@@ -4143,47 +4451,33 @@ brain = createBrainPanel({
   },
   // A checkpoint's recipe is a session's settings for the scene and the body; the rest stays.
   applyRecipe(recipe) {
-    const p = recipe.morphology.proportions ?? {};
-    // The timescale it was trained at. A policy learned against one timestep behaves differently
-    // against another -- the contacts and the muscles' own dynamics both follow the step -- so
-    // this is set rather than offered, and the Sim tab shows what it was set to.
-    if (recipe.stepsPerSecond) {
-      ui.stepsPerSecond.value = String(recipe.stepsPerSecond);
-      must<HTMLOutputElement>('#stepsPerSecond-value').textContent = String(recipe.stepsPerSecond);
-      fidelityTouched = true;
-    }
     // The cord and the memory it was brought up with, onto their sliders, so the panel says
-    // what this checkpoint knows rather than what the last one did.
+    // what this checkpoint knows rather than what the last one did. Before the settings are read
+    // back below, so that they carry this cord rather than put the last one back.
     if (recipe.reflex) putSpine(recipe.reflex);
     const memory = document.querySelector<HTMLInputElement>('#train-memory');
-    if (memory && recipe.memory !== undefined) {
-      memory.value = String(recipe.memory);
-      memory.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    // Trained with nothing under the brain: the sliders start where the training had them, at
-    // zero, so what the body does is the policy's doing and not the policy plus a held pose.
-    if (recipe.feedforward.kind === 'none') {
-      for (const slider of driveInputs.values()) {
-        slider.value = '0';
-        slider.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
+    if (memory && recipe.memory !== undefined) setControl(memory, recipe.memory);
     // Whether this lands on a running body, which the settings below restart with the body carried
     // across, or waits for the next run: the message says which.
     const running = simulation !== null;
+    // Its limb proportions, if it has any, are left out: nothing follows them yet.
     applySettings({
       ...currentSettings(),
       sex: recipe.morphology.sex,
       stature: recipe.morphology.stature,
       mass: recipe.morphology.mass,
-      crural: p.crural ?? Number(ui.crural.value),
-      brachial: p.brachial ?? Number(ui.brachial.value),
-      legLength: p.relativeLegLength ?? Number(ui.legLength.value),
       profile: recipe.profile,
       scenario: recipe.scenario,
       passive: recipe.passive,
       redistribute: recipe.redistribute,
       scenarioParameters: { ...recipe.parameters },
+      // The timescale it was trained at. A policy learned against one timestep behaves
+      // differently against another -- the contacts and the muscles' own dynamics both follow
+      // the step -- so this is set rather than offered, and the Sim tab shows what it was set to.
+      ...(recipe.stepsPerSecond ? { stepsPerSecond: recipe.stepsPerSecond } : {}),
+      // Trained with nothing under the brain: the sliders start where the training had them, at
+      // zero, so what the body does is the policy's doing and not the policy plus a held pose.
+      ...(recipe.feedforward.kind === 'none' ? { drive: {} } : {}),
     });
     announce(
       `Set from the checkpoint ${recipe.name}: its scene, body and joints` +
