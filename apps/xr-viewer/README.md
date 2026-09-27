@@ -158,9 +158,16 @@ for a publisher and at the foot of its Health tab once one is running, from one 
 | Stick, aimed at a panel     | scroll it                                             |
 | Trigger on the dotted strip | carry the panel                                       |
 
+Each controller draws its aim ray: a thin blue line from the tip of the controller, down the way
+it points, to the blue mark where it meets a panel, or a metre and a half into the room when it
+meets none. A hand holding a bone draws none, since it is not a pointer then. The controllers also
+tick as things happen, so the hand knows without looking: a short, light tick as a press lands on a
+panel's face, and a longer, firmer one on grabbing a bone and letting it go, and on taking a panel
+by its strip and putting it down.
+
 What actually happens is the other way round: the world -- body, muscles, grid, scenery and
 panel -- is moved and turned under a stage that never moves, and the hands, which belong to the
-stage, are not. A grab or a press carries the move and the turn back over, so nothing else knows
+stage, are not; nor are the rays and the marks, which are the hands'. A grab or a press carries the move and the turn back over, so nothing else knows
 you moved.
 
 ### Grabbing it
@@ -211,8 +218,8 @@ and, in the publisher, `holding femur_r` on its own line while it lasts.
 
 The studio's controls, in the room, on two dark panels that face where you stand: the
 **properties panel**, sixty centimetres wide, to your right of the body at chest height, and the
-**transport strip** a metre wide under it. Point a controller at either and a small blue mark
-shows where the aim ray lands; the trigger presses.
+**transport strip** a metre wide under it. Point a controller at either and its ray runs to a
+small blue mark where it lands; the trigger presses, with a tick.
 
 Down the left edge of each is a **grab strip**, a darker band with a row of dots. Point at it,
 pull the trigger, and the panel comes with the hand -- turned as the hand turns -- until the

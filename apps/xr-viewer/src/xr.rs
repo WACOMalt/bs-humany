@@ -449,21 +449,19 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut ground = 0.0f32;
     let mut place = crate::render::placement(ground);
     // Bones, the two controllers, the world slot at the placement, a pointer mark a hand, the
-    // grid at the identity, and the scenery at the placement.
-    let mut matrices: Vec<[f32; 16]> = vec![
-        place;
-        pack.bones.len()
-            + crate::render::CONTROLLERS
-            + 1
-            + crate::render::MARKERS
-            + 1
-            + crate::render::SCENE_SLOTS
-    ];
+    // grid at the identity, the scenery at the placement, and an aim ray a hand; `Slots` says
+    // where each is.
+    let slots = renderer.slots();
+    let mut matrices: Vec<[f32; 16]> = vec![place; slots.total];
+    // The marks and the rays are nothing until a hand points.
     for hand in 0..crate::render::MARKERS {
-        matrices[renderer.marker_slot(hand)] = crate::render::scale_matrix(0.0);
+        matrices[slots.marker(hand)] = crate::render::scale_matrix(0.0);
+    }
+    for hand in 0..crate::render::RAYS {
+        matrices[slots.ray(hand)] = crate::render::scale_matrix(0.0);
     }
     // The grid is the stage itself: the identity.
-    matrices[renderer.stage_slot()] = crate::render::scale_matrix(1.0);
+    matrices[slots.stage] = crate::render::scale_matrix(1.0);
 
     // What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
     // together, and reopened together whenever the publisher's generation changes, which is how
@@ -650,8 +648,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     scene_generation = Some(s.generation);
                     ground = s.ground_height as f32;
                     place = crate::render::placement(ground);
-                    matrices[renderer.world_slot()] = place;
-                    matrices[renderer.scene_slot()] = place;
+                    matrices[slots.world] = place;
+                    matrices[slots.scene] = place;
                     renderer.set_scene(&s.static_boxes)?;
                     println!(
                         "scene: ground at {:.2} m, {} static boxes",
@@ -728,7 +726,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                             &frame.rings,
                             m.rings,
                             m.segments,
-                            renderer.world_slot() as u32,
+                            slots.world as u32,
                             tension,
                             &mut muscle_vertices,
                         );
@@ -802,14 +800,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         };
         let show_muscles = overlay("muscles") || overlay("muscleVolumes");
         let show_tissue = overlay("tissue");
-        matrices[renderer.stage_slot()] =
+        matrices[slots.stage] =
             crate::render::scale_matrix(if overlay("grid") { 1.0 } else { 0.0 });
         // What is drawn: the world's slots through the shift, the hands' slots as they are.
         let mut drawn = matrices.clone();
         for (slot, m) in drawn.iter_mut().enumerate() {
-            let of_the_hands = (renderer.controller_slot(0)..=renderer.controller_slot(1)).contains(&slot)
-                || (renderer.marker_slot(0)..=renderer.marker_slot(1)).contains(&slot);
-            if !of_the_hands {
+            if !slots.is_hand(slot) {
                 *m = crate::render::multiply(&shift, &matrices[slot]);
             }
         }
@@ -819,7 +815,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let mut pointers = [crate::panel::Pointer::default(); 2];
         let mut pointer_candidate: [Option<(usize, egui::Pos2, bool)>; 2] = [None, None];
         for hand in 0..crate::bridge::HANDS {
-            let slot = renderer.controller_slot(hand);
+            let slot = slots.controller(hand);
             let located = hands.locate(&hands.grip_spaces[hand], &stage, state.predicted_display_time)?;
             if let Some((position, orientation)) = located {
                 if !hand_seen[hand] {
@@ -833,10 +829,11 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
             // Where the aim ray meets the panel, if it does: a mark there, and a candidate for
             // being the pointer.
-            let marker = renderer.marker_slot(hand);
+            let marker = slots.marker(hand);
             drawn[marker] = crate::render::scale_matrix(0.0);
             let pull = hands.trigger(&session, hand)?;
-            trigger_down[hand] = if trigger_down[hand] { pull > 0.25 } else { pull > 0.6 };
+            let was_down = trigger_down[hand];
+            trigger_down[hand] = if was_down { pull > 0.25 } else { pull > 0.6 };
             let pressed = trigger_down[hand];
             let aimed = hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?;
             // The panels are of the world; the ray is of the stage. Carry the ray over, turn
@@ -849,18 +846,23 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     crate::render::rotate([0.0, 0.0, -1.0], q),
                 )
             });
+            // How far the drawn ray reaches: to the mark where it meets a panel, or to the strip
+            // of the panel it is carrying; to RAY_REACH when it meets nothing.
+            let mut reach: Option<f32> = None;
             // A hand carrying a panel keeps carrying it while the trigger is down, wherever it
             // points; let go, the panel stays.
             on_face[hand] = None;
             if let Some((which, held)) = carrying[hand] {
                 match ray {
-                    Some((from, q, _)) if pressed => {
+                    Some((from, q, forward)) if pressed => {
                         placements[which] = placements[which].carried(&held, from, q);
+                        reach = placements[which].hit(from, forward).map(|(t, _)| t);
                     }
                     Some(_) => {
                         carrying[hand] = None;
                         press_on[hand] = None;
                         panels[which].grabbed = false;
+                        hands.pulse(&session, hand, FIRM_TICK);
                         println!("hand {}: put the panel down", ["left", "right"][hand]);
                     }
                     None => {}
@@ -869,14 +871,28 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 // A hand that is holding a bone is busy; its ray is not a pointer.
                 let busy = holding[hand].is_some();
                 let pointing = ray.map(|(from, _, forward)| (from, forward));
-                let mark = |which: usize, at: egui::Pos2| {
+                // A mark where the ray meets a panel, in the stage, and the ray drawn as far as
+                // it. The distance is the same in the stage as in the world, which differ only by
+                // a turn and a shift. Measured to the mark rather than along the ray: the two are
+                // the same while the ray is on the face, and for a press held past a panel's
+                // edge, whose mark waits at the edge, the ray still stops about the panel's
+                // depth instead of running on through it.
+                let mut mark = |which: usize, at: egui::Pos2| {
                     let in_stage = view_point.to_stage(placements[which].to_world(at));
+                    if let Some((from, _)) = aimed {
+                        reach = Some(distance(from, in_stage));
+                    }
                     crate::render::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0])
                 };
                 match aim(&placements, pointing, pressed, busy, &mut press_on[hand]) {
                     Aim::Face { which, at, pressing } => {
                         drawn[marker] = mark(which, at);
                         on_face[hand] = Some(which);
+                        // A tick as a press lands on a face: the trigger's travel says nothing
+                        // about whether the button under the mark took it.
+                        if pressing && !was_down {
+                            hands.pulse(&session, hand, PRESS_TICK);
+                        }
                         // The hand that pressed keeps the panel; otherwise the first hand on it,
                         // unless a later one is pressing and the first only pointing.
                         let keep = pointer_hand[which] == Some(hand);
@@ -892,6 +908,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                             if let Some((from, q, _)) = ray {
                                 carrying[hand] = Some((which, placements[which].held_by(from, q)));
                                 panels[which].grabbed = true;
+                                hands.pulse(&session, hand, FIRM_TICK);
                                 println!("hand {}: took the panel", ["left", "right"][hand]);
                             }
                         }
@@ -899,6 +916,17 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     Aim::Nothing => {}
                 }
             }
+            // The ray, from the aim pose in the stage, where the hands live. None for a hand the
+            // runtime cannot aim this frame, and none for a hand holding a bone, which is not a
+            // pointer and would only draw a line through the body it is holding.
+            drawn[slots.ray(hand)] = match aimed {
+                Some((position, orientation)) if holding[hand].is_none() => crate::render::ray_matrix(
+                    position,
+                    orientation,
+                    reach.unwrap_or(crate::render::RAY_REACH),
+                ),
+                _ => crate::render::scale_matrix(0.0),
+            };
             let Some(f) = feeds.as_mut() else { continue };
             let squeezing = hands.squeezing(&session, hand)?;
             let intent = match (&holding[hand], squeezing, located) {
@@ -913,6 +941,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 ["left", "right"][hand],
                                 pack.bones[pack_bone].id
                             );
+                            hands.pulse(&session, hand, FIRM_TICK);
+                            // A hand holding a bone draws no ray, from this frame on.
+                            drawn[slots.ray(hand)] = crate::render::scale_matrix(0.0);
                             // The surface is in the stage; the simulation wants the world.
                             let point = crate::render::unplace(view_point.to_world(surface), ground);
                             holding[hand] = Some(Hold {
@@ -981,6 +1012,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 }
                 (Some(_), false, _) => {
                     println!("hand {}: let go", ["left", "right"][hand]);
+                    hands.pulse(&session, hand, FIRM_TICK);
                     holding[hand] = None;
                     crate::bridge::GrabIntent::default()
                 }
@@ -1642,9 +1674,35 @@ fn nearest_surface(
     best.map(|(_, i, j, p)| (i, j, p))
 }
 
+/// A haptic tick: how hard, 0..1, and for how long, in seconds.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Tick {
+    amplitude: f32,
+    seconds: f32,
+}
+
+/// The tick a press gives as it lands on a panel's face: short and light, because every press
+/// gives one, and a row of buttons pressed in turn would be a buzz if each were heavy.
+const PRESS_TICK: Tick = Tick {
+    amplitude: 0.3,
+    seconds: 0.015,
+};
+
+/// The tick for taking hold and letting go -- a bone grabbed or released, a panel taken or put
+/// down: longer and firmer, because the hand has changed what it is doing, and the eye is often
+/// on the body rather than on the hand when it happens.
+const FIRM_TICK: Tick = Tick {
+    amplitude: 0.6,
+    seconds: 0.040,
+};
+
+fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
+    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+}
+
 /// The tracked controllers as OpenXR actions: a grip pose, an aim pose, a squeeze and a trigger,
-/// per hand. The grip is where the cube is drawn and the squeeze grabs; the aim is the ray that
-/// points at the panel and the trigger presses what it points at.
+/// per hand, and the vibration back. The grip is where the cube is drawn and the squeeze grabs;
+/// the aim is the ray that points at the panel and the trigger presses what it points at.
 struct Hands {
     set: openxr::ActionSet,
     #[allow(dead_code)]
@@ -1656,6 +1714,8 @@ struct Hands {
     /// across its threshold, and every flicker was a release and a press to the panel.
     trigger: openxr::Action<f32>,
     thumbstick: openxr::Action<openxr::Vector2f>,
+    /// The controller's vibration, which is how a press, a grab or a panel taken is felt.
+    haptic: openxr::Action<openxr::Haptic>,
     paths: [openxr::Path; crate::bridge::HANDS],
     grip_spaces: Vec<openxr::Space>,
     aim_spaces: Vec<openxr::Space>,
@@ -1673,6 +1733,7 @@ impl Hands {
         let squeeze = set.create_action::<bool>("grab", "Grab", &paths)?;
         let trigger = set.create_action::<f32>("point", "Press", &paths)?;
         let thumbstick = set.create_action::<openxr::Vector2f>("move", "Move", &paths)?;
+        let haptic = set.create_action::<openxr::Haptic>("tick", "Tick", &paths)?;
         // Suggested per profile; the runtime picks the profile for the controller in hand. The
         // Index binds the squeeze to the grip sensor and the press to the trigger; the simple
         // profile has only a select, which is both.
@@ -1701,6 +1762,13 @@ impl Hands {
                     &trigger,
                     xr.string_to_path(&format!("/user/hand/{side}/input/{trigger_input}"))?,
                 ));
+                // Both profiles name the vibration `output/haptic`. A path a profile does not
+                // have makes the runtime refuse that profile's whole suggestion, which for the
+                // Index is fatal -- so this is the one path, spelled as both profiles spell it.
+                bindings.push(openxr::Binding::new(
+                    &haptic,
+                    xr.string_to_path(&format!("/user/hand/{side}/output/haptic"))?,
+                ));
             }
             xr.suggest_interaction_profile_bindings(xr.string_to_path(profile)?, &bindings)?;
             Ok(())
@@ -1725,6 +1793,7 @@ impl Hands {
             squeeze,
             trigger,
             thumbstick,
+            haptic,
             paths,
             grip_spaces,
             aim_spaces,
@@ -1767,6 +1836,21 @@ impl Hands {
         } else {
             [0.0, 0.0]
         })
+    }
+
+    /// Vibrate one hand's controller: a tick, at the runtime's own frequency for the device.
+    ///
+    /// A courtesy, never a reason to stop: a runtime that refuses one says so and the frame goes
+    /// on, since the press or the grab it marks has already happened. A controller with no
+    /// vibration, or none bound, is a no-op in OpenXR rather than an error.
+    fn pulse(&self, session: &openxr::Session<openxr::Vulkan>, hand: usize, tick: Tick) {
+        let vibration = openxr::HapticVibration::new()
+            .amplitude(tick.amplitude)
+            .duration(openxr::Duration::from_nanos((tick.seconds * 1e9) as i64))
+            .frequency(openxr::FREQUENCY_UNSPECIFIED);
+        if let Err(e) = self.haptic.apply_feedback(session, self.paths[hand], &vibration) {
+            println!("hand {}: the runtime refused a haptic tick ({e})", ["left", "right"][hand]);
+        }
     }
 
     /// How far the trigger is pulled, 0..1; a boolean binding reads as 0 or 1.
