@@ -167,11 +167,13 @@ const OBLIGATIONS = [
       // have somewhere to put its latency, and nothing was to lean on it until one did. One does
       // now. So the check is no longer that nothing uses it but that everything which does was
       // put there on purpose, by a decision that says so.
-      // This file names the symbol in order to look for it, which does not count as using it.
+      // This file names the symbol in order to look for it, and module-lint names `DelayLine.read`
+      // as one of the helpers a module's step may call; neither counts as using it.
       const users = ALL_SOURCES.filter(
         (f) =>
           !f.startsWith('packages/kernel/') &&
           f !== 'tools/cli/bin/audit-obligations.mjs' &&
+          f !== 'tools/cli/bin/module-lint.mjs' &&
           /\bDelayLine\b/.test(read(f)),
       );
       out.push(
