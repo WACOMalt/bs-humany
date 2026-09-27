@@ -18,9 +18,11 @@
 //! geometry is here, the Vulkan that draws them is in `render.rs`, and what the buttons do goes
 //! back to the publisher as commands through `bridge::CommandWriter`.
 //!
-//! Everything in points inside egui, at one millimetre a point in the room, so a 620-point panel
-//! is 62 centimetres wide: text the size it would be on a poster at arm's length, which is what
-//! a headset's resolution wants.
+//! Everything in points inside egui, at one millimetre a point in the room, so the 640-point
+//! properties panel is 64 centimetres wide: text the size it would be on a poster at arm's
+//! length, which is what a headset's resolution wants. egui rasterises it at two pixels a point,
+//! and `render.rs` gives every texture a mip chain, so text read from across the room is averaged
+//! rather than shimmering.
 
 use crate::bridge::Status;
 
@@ -370,6 +372,22 @@ fn slider(
     decimals: usize,
     live: bool,
 ) -> Option<f32> {
+    slider_shown(ui, editing, key, label, from_status, range, live, |s| s.fixed_decimals(decimals))
+}
+
+/// `slider`, with the number beside it written and read by `shown` rather than to a fixed number
+/// of decimals: a drive slider, whose number is not its position.
+#[allow(clippy::too_many_arguments)]
+fn slider_shown(
+    ui: &mut egui::Ui,
+    editing: &mut Editing,
+    key: &str,
+    label: &str,
+    from_status: f32,
+    range: std::ops::RangeInclusive<f32>,
+    live: bool,
+    shown: impl for<'s> FnOnce(egui::Slider<'s>) -> egui::Slider<'s>,
+) -> Option<f32> {
     let held = match &editing.current {
         Some((k, v)) if k == key => Some(*v),
         _ => None,
@@ -380,7 +398,7 @@ fn slider(
     // edge, where the panel's clip now cuts them off mid-word.
     let response = ui
         .horizontal(|ui| {
-            let response = ui.add(egui::Slider::new(&mut value, range).fixed_decimals(decimals));
+            let response = ui.add(shown(egui::Slider::new(&mut value, range)));
             ui.add(egui::Label::new(label).wrap());
             response
         })
@@ -428,15 +446,56 @@ fn heading(ui: &mut egui::Ui, text: &str) {
     ui.label(egui::RichText::new(text).strong());
 }
 
+/// The panels' background, premultiplied: nearly opaque, so the room shows through only faintly.
+const PANEL_FILL: egui::Color32 = egui::Color32::from_rgba_premultiplied(18, 20, 24, 235);
+/// A label's text: brighter than egui's dark theme gives it, so that a note can sit below it and
+/// still be read.
+const BODY_TEXT: egui::Color32 = egui::Color32::from_gray(210);
+/// A note's text. egui's `weak` blends the label colour halfway towards the theme's background,
+/// which on this fill came out a grey of 83, about 2.4:1 -- well under WCAG's 4.5:1 for body
+/// text, and in a headset, where the lenses soften text already, the long notes were the first
+/// thing to go. This clears 4.5:1 over the fill whatever is behind the panel, and is still
+/// visibly dimmer than a label.
+const NOTE_TEXT: egui::Color32 = egui::Color32::from_gray(160);
+
 fn note(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(text).weak());
+    ui.label(egui::RichText::new(text).color(NOTE_TEXT));
+}
+
+/// What the controllers do, as the headset's own guide says it: in the waiting view, where
+/// someone who has just put the headset on looks first, and at the foot of the Health tab.
+/// README's "Moving about" says the same, from this list.
+pub const CONTROLS: &[(&str, &str)] = &[
+    ("Left stick", "walk, the way you are looking"),
+    ("Right stick", "turn (left / right), rise or sink (forward / back)"),
+    ("Grip on a bone", "grab it (the trigger, on a basic controller)"),
+    ("Trigger at a panel", "press"),
+    ("Stick, aimed at a panel", "scroll it"),
+    ("Trigger on the dotted strip", "carry the panel"),
+];
+
+/// The controls, as two columns: the control, and what it does. Each row splits the width there
+/// is in two afresh and wraps its text inside its half. An egui `Grid` keeps last frame's column
+/// widths to place this frame's, and a first frame laid out before the scroll area knows its
+/// width left the guide's second column past the panel's edge.
+fn controls_guide(ui: &mut egui::Ui) {
+    for (control, action) in CONTROLS {
+        ui.columns(2, |columns| {
+            columns[0].add(egui::Label::new(egui::RichText::new(*control).strong()).wrap());
+            columns[1].add(egui::Label::new(*action).wrap());
+        });
+    }
 }
 
 impl Panel {
     pub fn new(kind: Kind) -> Self {
         let ctx = egui::Context::default();
         ctx.set_pixels_per_point(2.0);
-        ctx.set_visuals(egui::Visuals::dark());
+        let mut visuals = egui::Visuals::dark();
+        // Every label's colour. egui's dark theme gives text a grey of 140, which a note in a
+        // colour of its own could not sit below and still be read.
+        visuals.widgets.noninteractive.fg_stroke.color = BODY_TEXT;
+        ctx.set_visuals(visuals);
         // A click, to egui, is a press that moves under six points before release. Six points
         // here is six millimetres, and a hand pulling a trigger moves more than that -- so nearly
         // every press was a drag and buttons hardly ever fired. Four centimetres of travel and
@@ -570,7 +629,7 @@ impl Panel {
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::none()
-                        .fill(egui::Color32::from_rgba_premultiplied(18, 20, 24, 235))
+                        .fill(PANEL_FILL)
                         .inner_margin(egui::Margin::ZERO),
                 )
                 .show(ctx, |ui| {
@@ -600,7 +659,7 @@ impl Panel {
                                                     properties(ui, tab, s, &mut editing, &mut commands, feeds)
                                                 });
                                             }
-                                            None => waiting(ui, feeds, status_error),
+                                            None => waiting(ui, feeds, status_error, true),
                                         });
                                     scroll_id = Some(scrolled.id);
                                     ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -624,7 +683,7 @@ impl Panel {
                                                 transport(ui, s, &mut editing, &mut commands)
                                             });
                                         }
-                                        None => waiting(ui, feeds, status_error),
+                                        None => waiting(ui, feeds, status_error, false),
                                     }
                                 });
                             }
@@ -706,12 +765,20 @@ fn tab_column(ui: &mut egui::Ui, tab: &mut Tab, height: f32) {
         });
 }
 
-fn waiting(ui: &mut egui::Ui, feeds: &str, status_error: Option<&str>) {
+/// What a panel says with no publisher to show. The properties panel, which has the room, adds
+/// the controls guide: this is the first thing someone who has just put the headset on sees, and
+/// nothing else in the room says what the sticks and buttons do. The transport strip is 150
+/// points tall and has no room for it.
+fn waiting(ui: &mut egui::Ui, feeds: &str, status_error: Option<&str>, guide: bool) {
     ui.label("Waiting for the publisher: start a run in the studio, or run `pnpm publish:pose`.");
     if let Some(why) = status_error {
         unreadable(ui, why);
     }
     note(ui, feeds);
+    if guide {
+        heading(ui, "Controls");
+        controls_guide(ui);
+    }
 }
 
 /// A status file that is there and cannot be read: a publisher and a viewer that disagree about
@@ -785,8 +852,55 @@ fn properties(
 
 // --- The transport -----------------------------------------------------------------------------
 
+/// What the transport strip's timeline and Play button say, from the status alone.
+#[derive(Debug, PartialEq)]
+struct TransportView {
+    /// Where the timeline's handle sits: the playhead, in simulated seconds.
+    value: f32,
+    /// The timeline's end, in whole seconds.
+    end: f32,
+    /// The speed beside the mode, and whether the playhead is on the live edge.
+    label: String,
+    play_label: &'static str,
+    /// What Play sends as `set('play', …)`: the state it asks for, not a toggle, so that a
+    /// publisher which checks the value can ignore a press made on a status a quarter of a second
+    /// old, rather than undo what the button said.
+    play_sends: bool,
+}
+
+/// The timeline and Play as the desktop has them. The studio sends `simSeconds` as the time of
+/// the frame it is showing -- the playhead, scrubbed back or replaying -- with how far its
+/// recording reaches, whether it is playing that recording back and whether it is on the live
+/// edge. The headless publisher and the showcase have no recording: their playhead is the run's
+/// own time, as it always was, and Play is Play.
+fn transport_view(s: &Status) -> TransportView {
+    let playhead = s.sim_seconds;
+    // The range grows in whole seconds, so the handle never sits on an end that moves under it,
+    // and reaches the end of the recording rather than the playhead, so a scrubbed-back handle
+    // is not at the end of a bar that stops where it is.
+    let reach = s.recorded_seconds.unwrap_or(playhead).max(playhead);
+    let playing = s.playing == Some(true);
+    // The playhead's time is not repeated here: the timeline's own number says it, and the row
+    // had room for it once but not twice once a long run's seconds ran to three figures.
+    let mut label = if s.paused { "paused".to_string() } else { format!("{:.2}x life", s.speed) };
+    if s.live == Some(true) {
+        label.push_str(" · live");
+    }
+    TransportView {
+        value: playhead as f32,
+        end: (reach as f32).ceil().max(1.0),
+        label,
+        play_label: if playing { "Pause" } else { "Play" },
+        play_sends: !playing,
+    }
+}
+
 fn transport(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     ui.horizontal(|ui| {
+        // Seven buttons, the mode, the speed and the timeline share one row a metre wide. The
+        // panel's padding either side of a button's text is trimmed here, where the row is full;
+        // the buttons keep their height, which is what a ray has to find.
+        ui.spacing_mut().button_padding.x = 8.0;
         let at_rest = s.mode == "rest";
         if s.paused {
             if ui.button(if at_rest { "▶ Start sim" } else { "▶ Resume" }).clicked() {
@@ -813,14 +927,11 @@ fn transport(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
             }
         };
         ui.label(egui::RichText::new(mode).strong());
-        ui.label(format!(
-            "{:.2} s, {}",
-            s.sim_seconds,
-            if s.paused { "paused".to_string() } else { format!("{:.2}x life", s.speed) }
-        ));
+        let view = transport_view(s);
+        ui.label(view.label);
         ui.add_space(10.0);
-        if ui.button("Play").clicked() {
-            commands.push(set("play", true));
+        if ui.button(view.play_label).clicked() {
+            commands.push(set("play", view.play_sends));
         }
         if ui.button("◀").clicked() {
             commands.push(Command::Step(-1));
@@ -831,16 +942,23 @@ fn transport(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
         if ui.button("Live").clicked() {
             commands.push(set("live", true));
         }
-        // The range grows in whole seconds, so the handle never sits on an end that moves under it.
-        let end = (s.sim_seconds as f32).ceil().max(1.0);
-        ui.style_mut().spacing.slider_width = 260.0;
-        if let Some(seconds) =
-            slider(ui, editing, "timeline", "s", s.sim_seconds as f32, 0.0..=end, 2, true)
-        {
+        // What is left of the row, less the number and the unit after it, up to the 260 points it
+        // had: a fixed 260 ran the number off the strip's right edge, out of reach of any ray,
+        // and the Pause and the live mark the row now carries would have pushed it further.
+        // The unit goes in the number's box rather than in a label after it, which, wrapped to a
+        // sliver of row, stood its letter on a line of its own below the strip.
+        ui.style_mut().spacing.slider_width = (ui.available_width() - 140.0).clamp(120.0, 260.0);
+        let timeline = slider_shown(ui, editing, "timeline", "", view.value, 0.0..=view.end, true, |s| {
+            s.fixed_decimals(2).suffix(" s")
+        });
+        if let Some(seconds) = timeline {
             commands.push(Command::Scrub(seconds as f64));
         }
     });
     ui.horizontal_wrapped(|ui| {
+        // A little closer than the panel's spacing: the eight boxes and their heading only just
+        // fill the strip's width, and a second line would push the row below it off the strip.
+        ui.spacing_mut().item_spacing.x = 6.0;
         let on = |name: &str| s.overlays.get(name).copied().unwrap_or(true);
         for (name, label) in [
             ("grid", "Grid"),
@@ -853,7 +971,9 @@ fn transport(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
             }
         }
         ui.separator();
-        note(ui, "desktop viewport:");
+        // A heading and not a note: it names the four boxes after it, which a dim note beside
+        // bright checkboxes did not read as doing.
+        heading(ui, "Desktop view:");
         let off = |name: &str| s.overlays.get(name).copied().unwrap_or(false);
         for (name, label) in [
             ("proxies", "Proxies"),
@@ -887,19 +1007,22 @@ fn body_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut
             commands.push(set(key, v as f64));
         }
     }
-    note(ui, "The percentile sets stature and mass together from the distribution.");
+    // The desktop's notes, said as it says them: what the proportions slider changes today, and
+    // that the percentile follows the body rather than only setting it.
+    note(ui, "Skeletal proportions change the segment mass distribution (de Leva) and the ANSUR stature and mass behind the percentile; not bone shape or placement yet.");
+    note(ui, "The percentile sets stature and mass together from the distribution for the current blend, and reads back where the current stature sits. Each change rebuilds the body.");
+    // The crural and brachial indices and the relative leg length had sliders here that sent
+    // keys the body never used: the measured skeleton is one subject scaled by stature. The
+    // desktop greys its own out; here, where a slider is one more thing to aim past, they are
+    // gone, and the values the desktop's greyed sliders show are said with the reason.
     heading(ui, "Proportions");
-    let rows: [(&str, &str, f32, std::ops::RangeInclusive<f32>, usize); 3] = [
-        ("crural", "crural index, shank / thigh", st.crural as f32, 0.85..=1.15, 3),
-        ("brachial", "brachial index, forearm / upper arm", st.brachial as f32, 0.68..=0.9, 3),
-        ("legLength", "relative leg length", st.leg_length as f32, 0.9..=1.1, 3),
-    ];
-    for (key, label, value, range, decimals) in rows {
-        if let Some(v) = slider(ui, editing, key, label, value, range, decimals, false) {
-            commands.push(set(key, v as f64));
-        }
-    }
-    note(ui, "Each change rebuilds the body.");
+    note(
+        ui,
+        &format!(
+            "Crural index {:.2}, brachial index {:.2}, relative leg length {:.2}: not applied yet. The measured skeleton is one subject scaled by stature; per-segment lengths need landmark-derived joint frames.",
+            st.crural, st.brachial, st.leg_length
+        ),
+    );
     heading(ui, "Inspector");
     ui.label(if s.holding.is_empty() {
         "Squeeze a controller on a bone to grab it.".to_string()
@@ -1036,6 +1159,36 @@ fn scenario_description(s: &Status) -> Option<&str> {
         .filter(|description| !description.is_empty())
 }
 
+/// The excitation a drive slider at `position` (0..100) asks of its muscles, as a fraction: the
+/// square of its travel. `driveForSlider` in packages/scenarios/src/muscleGroups.ts is the rule
+/// the publisher applies to what is sent, and the one this must agree with; the square gives the
+/// low end of the slider the fine control that a muscle's weak, postural range needs.
+fn drive_excitation(position: f64) -> f64 {
+    (position / 100.0).powi(2)
+}
+
+/// A drive slider's number, as the desktop prints it: the excitation as a percentage, whole above
+/// one per cent and to a tenth below it, so that a slider nudged off zero does not read 0%.
+fn excitation_text(position: f64) -> String {
+    let percent = drive_excitation(position) * 100.0;
+    if percent > 0.0 && percent < 1.0 {
+        format!("{percent:.1}%")
+    } else {
+        // Halves up, as the desktop's Math.round does; `{:.0}` would take them to even.
+        format!("{}%", percent.round() as i64)
+    }
+}
+
+/// A number typed into a drive slider, read as the excitation it shows, back to the position that
+/// asks for it.
+fn position_from_excitation_text(text: &str) -> Option<f64> {
+    let percent: f64 = text.trim().trim_end_matches('%').trim().parse().ok()?;
+    if !percent.is_finite() || percent < 0.0 {
+        return None;
+    }
+    Some((percent / 100.0).sqrt() * 100.0)
+}
+
 fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     if !s.muscles {
         ui.label("Muscles are off for this run. Turn them on under Scene.");
@@ -1058,13 +1211,19 @@ fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &
             for i in members {
                 let group = &s.drive_groups[i];
                 let key = format!("drive{i}");
-                if let Some(v) = slider(ui, editing, &key, &group.title, group.level as f32, 0.0..=100.0, 0, true) {
+                // The number beside it is the excitation, as the desktop's is; what is sent is
+                // still the slider's position, which the publisher squares.
+                let sent = slider_shown(ui, editing, &key, &group.title, group.level as f32, 0.0..=100.0, true, |s| {
+                    s.custom_formatter(|position, _| excitation_text(position))
+                        .custom_parser(position_from_excitation_text)
+                });
+                if let Some(v) = sent {
                     commands.push(Command::Drive(i, v));
                 }
             }
         });
     }
-    note(ui, "Each slider drives its muscles on both sides at once, and is squared.");
+    note(ui, "Each slider drives its muscles on both sides at once; the number is the excitation, the square of the slider's travel.");
     heading(ui, "Readout");
     egui::Grid::new("muscle-readout").num_columns(2).show(ui, |ui| {
         for (key, label) in [
@@ -1217,6 +1376,10 @@ fn health_tab(ui: &mut egui::Ui, s: &Status, feeds: &str) {
     ));
     heading(ui, "The bridge");
     ui.label(feeds);
+    // The guide the waiting view shows, kept here for once a publisher is running and the
+    // waiting view has gone: a tab of its own would be a ninth the desktop has not got.
+    heading(ui, "Controls");
+    controls_guide(ui);
 }
 
 #[cfg(test)]
@@ -1506,5 +1669,167 @@ mod tests {
             // egui's anti-aliasing feathers every edge it draws by under a point.
             assert!(widest <= size[0] + 1.0, "{name}: drawn out to {widest} of {}", size[0]);
         }
+    }
+
+    /// WCAG 2's relative luminance of an opaque colour.
+    fn luminance(c: egui::Color32) -> f64 {
+        let channel = |v: u8| {
+            let v = v as f64 / 255.0;
+            if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * channel(c.r()) + 0.7152 * channel(c.g()) + 0.0722 * channel(c.b())
+    }
+
+    /// WCAG 2's contrast ratio between two opaque colours, 1 to 21.
+    fn contrast(a: egui::Color32, b: egui::Color32) -> f64 {
+        let (la, lb) = (luminance(a), luminance(b));
+        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+    }
+
+    /// The premultiplied fill over whatever is behind the panel, as the blend draws it.
+    fn over(fill: egui::Color32, behind: egui::Color32) -> egui::Color32 {
+        let rest = 1.0 - fill.a() as f64 / 255.0;
+        let mix = |f: u8, b: u8| (f as f64 + b as f64 * rest).round().min(255.0) as u8;
+        egui::Color32::from_rgb(mix(fill.r(), behind.r()), mix(fill.g(), behind.g()), mix(fill.b(), behind.b()))
+    }
+
+    #[test]
+    fn notes_are_readable_on_the_panel_and_still_quieter_than_labels() {
+        // The panel lets a little of the room through, so the fill is checked over the darkest
+        // and the brightest room there could be.
+        for behind in [egui::Color32::BLACK, egui::Color32::WHITE] {
+            let fill = over(PANEL_FILL, behind);
+            let note = contrast(NOTE_TEXT, fill);
+            let body = contrast(BODY_TEXT, fill);
+            assert!(note >= 4.5, "a note is {note:.2}:1 over {fill:?}");
+            assert!(body > note, "a label {body:.2}:1 and a note {note:.2}:1 over {fill:?}");
+        }
+        // And the labels are that colour: the panel sets it on its theme.
+        let panel = Panel::new(Kind::Properties);
+        assert_eq!(panel.ctx.style().visuals.widgets.noninteractive.fg_stroke.color, BODY_TEXT);
+    }
+
+    #[test]
+    fn a_drive_slider_shows_the_excitation_it_asks_for() {
+        assert_eq!(excitation_text(50.0), "25%");
+        assert_eq!(excitation_text(5.0), "0.3%");
+        assert_eq!(excitation_text(100.0), "100%");
+        assert_eq!(excitation_text(0.0), "0%");
+        assert_eq!(excitation_text(10.0), "1%");
+        // What is typed is read as that excitation, back to the position that asks for it.
+        assert_eq!(position_from_excitation_text("25%"), Some(50.0));
+        assert_eq!(position_from_excitation_text(" 100 "), Some(100.0));
+        assert_eq!(position_from_excitation_text("0"), Some(0.0));
+        assert_eq!(position_from_excitation_text("lots"), None);
+        assert_eq!(position_from_excitation_text("-4%"), None);
+        // The drive itself is unchanged: still the position, which the publisher squares.
+        assert_eq!(Command::Drive(0, 50.0).to_json(), r#"{"kind":"drive","group":0,"value":50}"#);
+    }
+
+    #[test]
+    fn the_timeline_and_play_follow_the_studio_playhead() {
+        // The studio scrubbed back to 1.5 s of a 2.75 s recording, playing it back.
+        let studio = fixture();
+        let view = transport_view(&studio);
+        assert_eq!(view.value, 1.5);
+        assert_eq!(view.end, 3.0, "the bar reaches the end of the recording, not the playhead");
+        assert_eq!((view.play_label, view.play_sends), ("Pause", false));
+        assert_eq!(view.label, "paused");
+        // Paused on the live edge: Play plays, and the label says where it is.
+        let mut at_the_edge = studio.clone();
+        at_the_edge.playing = Some(false);
+        at_the_edge.live = Some(true);
+        let view = transport_view(&at_the_edge);
+        assert_eq!((view.play_label, view.play_sends), ("Play", true));
+        assert_eq!(view.label, "paused · live");
+        // The headless publisher sends none of it: its run's own time is the playhead and the
+        // end, and Play asks it to play.
+        let headless: Status = serde_json::from_str(
+            r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
+            "profile":"l1_standard","simSeconds":12.5,"speed":1,"paused":false,"muscles":true,
+            "holding":[],"grabStrength":1}"#,
+        )
+        .expect("parses");
+        let view = transport_view(&headless);
+        assert_eq!((view.value, view.end), (12.5, 13.0));
+        assert_eq!((view.play_label, view.play_sends), ("Play", true));
+        assert_eq!(view.label, "1.00x life");
+    }
+
+    #[test]
+    fn play_sends_the_state_its_label_offers() {
+        // Pressed while the studio says it is playing, the button asks it to stop, not to toggle.
+        let status = fixture();
+        let mut panel = Panel::new(Kind::Transport);
+        let pause = (0..1000).step_by(4).find_map(|x| {
+            (40..150).step_by(4).find_map(|y| {
+                let at = Some(egui::pos2(x as f32, y as f32));
+                step(&mut panel, &status, at, false, 0.0);
+                step(&mut panel, &status, at, true, 0.0);
+                let up = step(&mut panel, &status, at, false, 0.0);
+                up.commands.into_iter().find(|c| matches!(c, Command::Set(key, _) if key == "play"))
+            })
+        });
+        assert_eq!(pause, Some(set("play", false)));
+    }
+
+    #[test]
+    fn the_transport_strip_fits_its_longest_labels() {
+        // Pause rather than Play, the live mark, the longest mode, and a run twenty minutes long
+        // with the speed to two places: the row still ends on the strip. The panel's own fill
+        // reaches its right edge exactly, so anything past it is the row running off.
+        let size = Kind::Transport.size();
+        for (seconds, mode, paused) in [(1.5, "running", false), (1234.5, "following", false), (1234.5, "rest", true)] {
+            let mut status = fixture();
+            status.live = Some(true);
+            status.playing = Some(true);
+            status.recorded_seconds = Some(seconds);
+            status.sim_seconds = seconds;
+            status.speed = 0.98765;
+            status.paused = paused;
+            status.mode = mode.to_string();
+            let mut panel = Panel::new(Kind::Transport);
+            step(&mut panel, &status, None, false, 0.0);
+            let frame = step(&mut panel, &status, None, false, 0.0);
+            let widest = frame.meshes.iter().flat_map(|m| m.vertices.iter()).map(|v| v.pos.x).fold(0.0f32, f32::max);
+            assert!(widest <= size[0] + 1.0, "{mode} at {seconds} s: drawn out to {widest} of {}", size[0]);
+        }
+    }
+
+    /// The height the waiting view takes in the properties panel's column, with or without the
+    /// guide, laid out at the column's width as `run` gives it.
+    fn waiting_height(guide: bool, status_error: Option<&str>) -> f32 {
+        let panel = Panel::new(Kind::Properties);
+        let size = Kind::Properties.size();
+        let mut height = 0.0;
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(size[0], size[1]))),
+                ..Default::default()
+            };
+            let _ = panel.ctx.run(input, |ctx| {
+                egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+                    // The grab strip, the tab column and the gap after it, as `run` lays them.
+                    ui.set_width(size[0] - GRAB_WIDTH - 110.0 - 8.0);
+                    let content = ui.vertical(|ui| {
+                        waiting(ui, "pose /tmp/bs-humany-pose: waiting for the publisher", status_error, guide)
+                    });
+                    height = content.response.rect.height();
+                });
+            });
+        }
+        height
+    }
+
+    #[test]
+    fn the_waiting_view_shows_the_controls_without_running_off_the_panel() {
+        // The guide is there -- a row a control -- and, with an unreadable status said above it
+        // as well, the whole view still fits the scrolled column without a scroll.
+        let bare = waiting_height(false, None);
+        let guided = waiting_height(true, None);
+        assert!(guided - bare > CONTROLS.len() as f32 * 20.0, "{bare} without the guide, {guided} with");
+        let worst = waiting_height(true, Some("invalid type: null, expected u64 at line 1 column 18"));
+        let column = Kind::Properties.size()[1] - 60.0;
+        assert!(worst <= column, "{worst} points of waiting view in a {column} point column");
     }
 }

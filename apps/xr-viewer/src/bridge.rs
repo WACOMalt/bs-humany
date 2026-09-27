@@ -636,6 +636,7 @@ mod tests {
         assert!(b.spine_note.contains("no reflexes"));
         let t = status.training.as_ref().expect("the training run");
         assert_eq!((t.task.as_str(), t.episode, t.generation, t.fitness), ("stand", 4, 7, 0.812));
+        assert_eq!((status.recorded_seconds, status.playing, status.live), (Some(2.75), Some(true), Some(false)));
 
         // An older publisher that says none of that is still a status: every new key defaults.
         let before = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
@@ -645,6 +646,7 @@ mod tests {
         assert!(status.overlays.is_empty() && status.tissue.discs.is_empty());
         assert!(status.training.is_none() && !status.brain.active);
         assert_eq!(status.settings.drop_height, None);
+        assert_eq!((status.recorded_seconds, status.playing, status.live), (None, None, None));
         let b = &status.brain;
         assert!(!b.can_start && !b.can_stop && !b.can_hand_over && !b.can_release);
         assert!(b.policy_note.is_empty() && b.spine_note.is_empty());
@@ -846,6 +848,16 @@ pub struct Status {
     /// What the training showcase says of the run it is playing, when that is the publisher.
     #[serde(default)]
     pub training: Option<Training>,
+    /// How far the studio's recording reaches, in the seconds `sim_seconds` counts, which is the
+    /// playhead's time. The headless publisher and the showcase have no recording and send none.
+    #[serde(default)]
+    pub recorded_seconds: Option<f64>,
+    /// Whether the studio is playing its recording back; `None` from a publisher with no replay.
+    #[serde(default)]
+    pub playing: Option<bool>,
+    /// Whether the studio's playhead is on the live edge rather than scrubbed back.
+    #[serde(default)]
+    pub live: Option<bool>,
 }
 
 #[derive(serde::Deserialize, Clone, Debug, Default)]
