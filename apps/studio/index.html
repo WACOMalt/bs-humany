@@ -39,6 +39,7 @@
           <button type="button" id="load" title="Load a session file">Load session</button>
           <button type="button" id="connect-vr" hidden title="Launch the OpenXR viewer on this run: the headset shows this body, the controllers grab it, and its panel drives these controls">Connect VR viewer</button>
           <input type="file" id="load-file" accept="application/json" hidden />
+          <input type="file" id="align-load-file" accept="application/json" hidden />
         </div>
       </header>
 
@@ -50,14 +51,7 @@
             <button type="button" data-view="left" title="Left (3)">Left</button>
             <button type="button" data-view="back" title="Back (9)">Back</button>
             <button type="button" data-view="three-quarter" title="Three-quarter (7)">¾</button>
-          </div>
-          <div class="group">
-            <label for="quality" class="inline">Tessellation</label>
-            <select id="quality" title="How finely the bones are meshed">
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high" selected>High</option>
-            </select>
+            <button type="button" id="frame-view" title="Put the body back in the middle of the view, keeping the angle (F)">Frame</button>
           </div>
           <div class="group popover-host">
             <button type="button" id="overlays-button" class="popover-button" aria-expanded="false" aria-controls="overlays-popover">Overlays &#9662;</button>
@@ -100,11 +94,12 @@
               <summary>Who</summary>
               <div class="control">
                 <label for="sex">
-                  Skeletal proportions
+                  <span id="sex-label">Skeletal proportions</span>
                   <output id="sex-value">0.50</output>
                 </label>
                 <input type="range" id="sex" min="0" max="1" step="0.01" value="0.5" />
                 <div class="endpoints"><span>female-typical</span><span>male-typical</span></div>
+                <p class="note live">Changes the segment mass distribution (de Leva) and the ANSUR stature and mass behind the percentile; not bone shape or placement yet.</p>
                 <p class="note" id="sex-note"></p>
               </div>
               <div class="control">
@@ -121,24 +116,25 @@
                   <output id="percentile-value">50th</output>
                 </label>
                 <input type="range" id="percentile" min="0.01" max="0.99" step="0.01" value="0.5" />
-                <p class="note">Sets stature and mass together from the distribution for the current blend.</p>
+                <p class="note">Sets stature and mass together from the distribution for the current blend; reads back where the current stature sits.</p>
               </div>
             </details>
             <details class="panel">
               <summary>Proportions</summary>
+              <p class="note live">Not applied yet: the measured skeleton is one subject scaled by stature. Per-segment lengths need landmark-derived joint frames (M1.2/M1.3).</p>
               <div class="control">
                 <label for="crural">Crural index <output id="crural-value">1.00</output></label>
-                <input type="range" id="crural" min="0.85" max="1.15" step="0.005" value="1.004" />
+                <input type="range" id="crural" min="0.85" max="1.15" step="0.005" value="1.004" disabled />
                 <p class="note">Shank length relative to thigh.</p>
               </div>
               <div class="control">
                 <label for="brachial">Brachial index <output id="brachial-value">0.78</output></label>
-                <input type="range" id="brachial" min="0.68" max="0.9" step="0.005" value="0.785" />
+                <input type="range" id="brachial" min="0.68" max="0.9" step="0.005" value="0.785" disabled />
                 <p class="note">Forearm length relative to upper arm.</p>
               </div>
               <div class="control">
                 <label for="legLength">Relative leg length <output id="legLength-value">1.00</output></label>
-                <input type="range" id="legLength" min="0.9" max="1.1" step="0.005" value="1" />
+                <input type="range" id="legLength" min="0.9" max="1.1" step="0.005" value="1" disabled />
               </div>
             </details>
             <details class="panel" open>
@@ -649,7 +645,7 @@
       <footer id="statusbar">
         <p class="note live" id="sim-status" aria-live="off">At rest.</p>
         <p id="sim-event" role="status" aria-live="polite" hidden></p>
-        <div id="hint">drag to orbit · right- or Shift-drag to pan · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space start/pause</div>
+        <div id="hint">drag to orbit · right- or Shift-drag to pan · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space start/pause · F to frame</div>
         <label class="checkbox inline" title="Show the paragraphs that say why a control does what it does"><input type="checkbox" id="showNotes" /> Explain</label>
         <div id="attribution" hidden></div>
       </footer>

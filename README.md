@@ -137,9 +137,11 @@ and a status bar. The tabs, in order:
 - **Export**: recordings, sessions, and a run for Blender (`docs/guides/blender-export.md`).
 - **Health**: whether the numbers are right.
 
-Drag to orbit, right- or Shift-drag to pan, scroll to zoom. Space starts, pauses and resumes a
-run; the arrows step a frame, Home goes live, and 1, 3, 7 and 9 pick the front, left,
-three-quarter and back views.
+Drag to orbit, right- or Shift-drag to pan, scroll or pinch to zoom; click a bone to inspect it
+and Ctrl-drag one to pull it during a run. Space starts, pauses and resumes a run; the arrows
+step a frame, Home goes live, and 1, 3, 7 and 9 pick the front, left, three-quarter and back
+views. The views, and F (or the Frame button) which keeps the angle, aim at the body wherever it
+is and stand off in proportion to its stature.
 
 The Brain tab hands a checkpoint control of the running body and trains new ones. With no
 dashboard running it trains in the window itself: the desktop build reads and writes the same
