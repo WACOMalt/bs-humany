@@ -70,6 +70,12 @@ export class Playback {
   private ringPosition = new Float32Array(0);
   private ringOrientation = new Float32Array(0);
   private ringRadius = new Float32Array(0);
+  /** The three ring arrays together, as `ringsAt` hands them out, remade only when they are. */
+  private ringView = {
+    position: this.ringPosition,
+    orientation: this.ringOrientation,
+    radius: this.ringRadius,
+  };
   private mesh: ReplayedMesh | undefined;
   /** Zeroes, so a belly drawn from history is drawn relaxed rather than at a stale tension. */
   private slack = new Float64Array(0);
@@ -89,6 +95,16 @@ export class Playback {
   /** The capture index an output frame sits on. */
   static tickOf(frame: number, ticksPerOutputFrame: number): number {
     return Math.round(frame * ticksPerOutputFrame);
+  }
+
+  /**
+   * The output frame nearest a run's tick, for a capture whose first frame is `firstTick`: the
+   * way back from a time somebody asked for -- the headset's timeline says seconds of the run --
+   * to the playhead. The caller clamps it into the capture.
+   */
+  static frameOfTick(tick: number, firstTick: number, ticksPerOutputFrame: number): number {
+    if (!(ticksPerOutputFrame > 0)) return 0;
+    return Math.round((tick - firstTick) / ticksPerOutputFrame);
   }
 
   /**
@@ -153,6 +169,41 @@ export class Playback {
   }
 
   /**
+   * Every belly's rings at one capture index, as they were captured: what the headset is sent
+   * while the desktop replays, so it shows the bellies of the frame on screen rather than of the
+   * newest tick. Into arrays this keeps -- the same ones `bellyAt` sweeps -- so reading a frame
+   * allocates nothing once the first has been read, and the caller consumes them before the next
+   * read overwrites them.
+   */
+  ringsAt(
+    rings: CapturedRings,
+    index: number,
+  ):
+    | {
+        readonly position: Float32Array;
+        readonly orientation: Float32Array;
+        readonly radius: Float32Array;
+      }
+    | undefined {
+    const count = rings.ringCount;
+    if (count <= 0) return undefined;
+    if (this.ringRadius.length !== count) {
+      this.ringPosition = new Float32Array(count * 3);
+      this.ringOrientation = new Float32Array(count * 4);
+      this.ringRadius = new Float32Array(count);
+      this.ringView = {
+        position: this.ringPosition,
+        orientation: this.ringOrientation,
+        radius: this.ringRadius,
+      };
+    }
+    if (!rings.frameInto(index, this.ringPosition, this.ringOrientation, this.ringRadius)) {
+      return undefined;
+    }
+    return this.ringView;
+  }
+
+  /**
    * Belly geometry at one capture index, rebuilt from the rings.
    *
    * Vertex `v` of a ring is at angle `2πv / segments` from the frame's own X axis, in the plane X
@@ -170,16 +221,9 @@ export class Playback {
     ringsPerUnit: number,
     segments: number,
   ): ReplayedMesh | undefined {
+    if (ringsPerUnit <= 0 || segments <= 0) return undefined;
+    if (!this.ringsAt(rings, index)) return undefined;
     const count = rings.ringCount;
-    if (count <= 0 || ringsPerUnit <= 0 || segments <= 0) return undefined;
-    if (this.ringRadius.length !== count) {
-      this.ringPosition = new Float32Array(count * 3);
-      this.ringOrientation = new Float32Array(count * 4);
-      this.ringRadius = new Float32Array(count);
-    }
-    if (!rings.frameInto(index, this.ringPosition, this.ringOrientation, this.ringRadius)) {
-      return undefined;
-    }
     const vertices = count * segments;
     if (!this.mesh || this.mesh.position.length !== vertices * 3) {
       this.mesh = {

@@ -115,4 +115,52 @@ describe('playing a capture back', () => {
     expect(playback.clampedFrame(60)).toBe(59);
     expect(playback.playing).toBe(false);
   });
+
+  it('finds the frame a run time lands on, from a capture that started late', () => {
+    // A capture whose first frame is tick 500, at 16.67 ticks a frame: the headset asks for a
+    // time of the run, and the playhead counts from the capture's start.
+    const perFrame = 1000 / 60;
+    expect(Playback.frameOfTick(500, 500, perFrame)).toBe(0);
+    for (const frame of [0, 1, 17, 59]) {
+      const tick = 500 + Playback.tickOf(frame, perFrame);
+      expect(Playback.frameOfTick(tick, 500, perFrame)).toBe(frame);
+    }
+    // Before the capture is a negative frame, which the caller clamps; a rate of nothing is 0.
+    expect(Playback.frameOfTick(0, 500, perFrame)).toBeLessThan(0);
+    expect(Playback.frameOfTick(900, 500, 0)).toBe(0);
+  });
+
+  it('hands out a frame’s rings in arrays it keeps, and nothing for a frame it lacks', () => {
+    const frames = 3;
+    const ringCount = 4;
+    const rings = {
+      frameCount: frames,
+      ringCount,
+      frameInto(
+        index: number,
+        position: Float32Array,
+        orientation: Float32Array,
+        radius: Float32Array,
+      ) {
+        if (index < 0 || index >= frames) return false;
+        position.fill(index);
+        orientation.fill(index + 0.5);
+        radius.fill(index / 10);
+        return true;
+      },
+    };
+    const playback = new Playback();
+    const first = playback.ringsAt(rings, 1);
+    if (!first) throw new Error('no rings for frame 1');
+    expect(first.position).toHaveLength(ringCount * 3);
+    expect(first.orientation).toHaveLength(ringCount * 4);
+    expect(Array.from(first.radius)).toEqual([0.1, 0.1, 0.1, 0.1].map(Math.fround));
+    // The next read is into the same arrays, handed out in the same object: once a run has been
+    // read, replaying it to the headset allocates nothing a frame.
+    const second = playback.ringsAt(rings, 2);
+    expect(second).toBe(first);
+    expect(first.position[0]).toBe(2);
+    expect(playback.ringsAt(rings, 3)).toBeUndefined();
+    expect(playback.ringsAt({ ...rings, ringCount: 0 }, 0)).toBeUndefined();
+  });
 });
