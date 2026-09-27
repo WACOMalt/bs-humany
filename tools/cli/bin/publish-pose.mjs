@@ -274,7 +274,27 @@ async function build() {
     muscleWriter,
     rings,
     pose,
+    body: publishedBody(simulation.resolved.context),
     ticksPerFrame: simulation.ticksPerOutputFrame,
+  };
+}
+
+/**
+ * The body a build is, as the flat numbers the studio's sliders hold, for the status's
+ * `morphology`: a studio following this run builds its skeleton from them, so the bones it draws
+ * are the size of the bones being simulated. Read from the resolved body rather than the
+ * settings, because that is what was built -- a scenario's own morphology with the panel's
+ * overrides on it, and every proportion the resolver filled in.
+ */
+function publishedBody(context) {
+  const at = (name) => evaluate(param(name), context);
+  return {
+    sex: at('sex'),
+    stature: at('stature'),
+    mass: at('mass'),
+    crural: at('crural'),
+    brachial: at('brachial'),
+    legLength: at('relativeLegLength'),
   };
 }
 
@@ -411,12 +431,13 @@ function writeStatus() {
     drives,
     overlays,
   });
-  // Two optional fields past the contract's: how often the solver has reset the body in this
-  // build, and why the run stopped itself when it did. A reader that does not know them ignores
-  // them -- the viewer's status type takes unknown fields -- so nothing on the other side has to
-  // change for them to be there.
+  // Three optional fields past the contract's: how often the solver has reset the body in this
+  // build, why the run stopped itself when it did, and the body it was built as. A reader that
+  // does not know them ignores them -- the viewer's status type takes unknown fields -- so nothing
+  // on the other side has to change for them to be there.
   status.resets = live.simulation.physics.backendResets;
   if (stoppedBecause !== undefined) status.error = stoppedBecause;
+  status.morphology = live.body;
   const tmp = temporaryName(`${path}${STATUS_SUFFIX}`);
   writeFileSync(tmp, JSON.stringify(status));
   renameSync(tmp, `${path}${STATUS_SUFFIX}`);

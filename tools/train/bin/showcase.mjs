@@ -363,6 +363,24 @@ const muscleWriter = shape
 
 // Static for the run: the body does not change while a showcase is playing it.
 const tissue = tissueTable(rig.articulation);
+/**
+ * The body the recipe built, as the flat numbers the studio's sliders hold, for the status's
+ * `morphology`. A studio following the showcase builds its skeleton from these, so the bones it
+ * draws are the size of the bones being simulated: without them it drew the recipe's body on
+ * whatever its own sliders said, and a 1.60 m studio following a 1.70 m policy showed bones that
+ * did not meet at the joints. Read from the resolved body, so the proportions the recipe leaves to
+ * the resolver's defaults are the ones it filled in.
+ */
+const body = Object.fromEntries(
+  [
+    ['sex', 'sex'],
+    ['stature', 'stature'],
+    ['mass', 'mass'],
+    ['crural', 'crural'],
+    ['brachial', 'brachial'],
+    ['legLength', 'relativeLegLength'],
+  ].map(([key, name]) => [key, evaluate(param(name), rig.restContext)]),
+);
 
 const posePartial = temporaryName(posePath);
 const activityPartial = temporaryName(activityPath);
@@ -467,6 +485,9 @@ function writeStatus(episode, upFor) {
     tissue,
     tension: rig.muscleTension(),
   });
+  // Past the contract's fields, as publish:pose's `resets` is: a reader that does not know it --
+  // the headset, which skins from the bridge's own rest table and scale -- ignores it.
+  status.morphology = body;
   const tmp = temporaryName(`${path}${STATUS_SUFFIX}`);
   writeFileSync(tmp, JSON.stringify(status));
   renameSync(tmp, `${path}${STATUS_SUFFIX}`);
