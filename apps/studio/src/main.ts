@@ -1313,9 +1313,6 @@ async function startSimulation(
           // The cord the Spine panel shows, so a Start, a Reset-and-Start, a carry restart and
           // a restored session all run the reflexes the sliders say rather than none at all.
           reflex: brain?.state().reflex,
-          // A checkpoint trained with nothing under the brain has never felt a scenario's tone,
-          // so the scenario's script does everything else it does and drives no muscle.
-          scriptMuscleDrive: brain?.chosenRecipe()?.feedforward.kind !== 'none',
         });
         return built;
       },
@@ -4077,12 +4074,14 @@ brain = createBrainPanel({
     if (!nerves || !simulation?.brainActive) return undefined;
     const inputs = nerves.observation.size;
     const outputs = nerves.outputs.length;
-    return { carried: nerves.carried ?? { inputs, outputs }, inputs, outputs };
-  },
-  controlDivisor() {
-    const profile = document_.segmentation.find((p) => p.id === ui.profile.value);
-    const rate = fidelityTouched ? Number(ui.stepsPerSecond.value) : (profile?.solver?.rate ?? 500);
-    return Math.max(1, Math.round(rate / 100));
+    return {
+      carried: nerves.carried ?? { inputs, outputs },
+      inputs,
+      outputs,
+      trainedRate: simulation.policyInCharge?.recipe?.stepsPerSecond,
+      rate: simulation.stepsPerSecond,
+      scriptDrives: simulation.scriptDrivingMuscles,
+    };
   },
   following() {
     return bridgeFollower.active;
