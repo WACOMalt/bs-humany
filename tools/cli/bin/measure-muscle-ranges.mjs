@@ -71,12 +71,14 @@ const { compileArticulation, allocateBuffers } = await jiti.import(
 const { Kernel } = await jiti.import(join(ROOT, 'packages/kernel/src/index.ts'));
 const mechanics = await jiti.import(join(ROOT, 'packages/modules-mechanics/src/index.ts'));
 const muscleData = await jiti.import(join(ROOT, 'packages/muscle-data/src/index.ts'));
-const { buildDocument } = await jiti.import(join(ROOT, 'packages/skeleton/src/index.ts'));
+const { buildDocument, REFERENCE_MORPHOLOGY, REFERENCE_PROFILE } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/index.ts'),
+);
 const modules = await jiti.import(join(ROOT, 'packages/modules-muscle/src/index.ts'));
 
 const document = buildDocument();
-const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
-const { articulation } = compileArticulation(document, 'l3_anatomical', morphology);
+const morphology = resolveMorphology(REFERENCE_MORPHOLOGY);
+const { articulation } = compileArticulation(document, REFERENCE_PROFILE, morphology);
 const groups = [...muscleData.ALL_MUSCLES];
 const muscles = modules.compileMuscleSet(
   groups,

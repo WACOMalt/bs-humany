@@ -13,6 +13,7 @@
 import type { StaticBox } from '@bs-humany/compiler';
 import { type Quat, type Vec3, fromAxisAngle, vec3 } from '@bs-humany/frames';
 import type { Morphology } from '@bs-humany/hsdl';
+import { REFERENCE_MORPHOLOGY } from '@bs-humany/skeleton';
 
 /** What a script may do each tick. */
 export interface ScenarioApi {
@@ -100,7 +101,7 @@ export type PlausibilityKey =
   | 'drift'
   | 'ballistic';
 
-const REFERENCE: Morphology = { sex: 0.5, stature: 1.7, mass: 70 };
+const REFERENCE = REFERENCE_MORPHOLOGY;
 const SUPINE = fromAxisAngle(vec3(1, 0, 0), Math.PI / 2);
 const PRONE = fromAxisAngle(vec3(1, 0, 0), -Math.PI / 2);
 

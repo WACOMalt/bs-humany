@@ -24,14 +24,16 @@ const { fitBodies, fittedFromPlacement, suggestBodyPairs } = await jiti.import(
 const { describeFits } = await jiti.import(`${ROOT}apps/studio/src/align/fit.ts`);
 const { jointsOnSegment } = await jiti.import(`${ROOT}apps/studio/src/align/ourBody.ts`);
 const { defaultPlacement } = await jiti.import(`${ROOT}apps/studio/src/align/sourceOverlay.ts`);
-const { buildDocument } = await jiti.import(`${ROOT}packages/skeleton/src/index.ts`);
+const { buildDocument, REFERENCE_MORPHOLOGY, REFERENCE_PROFILE } = await jiti.import(
+  `${ROOT}packages/skeleton/src/index.ts`,
+);
 const { compileArticulation } = await jiti.import(`${ROOT}packages/compiler/src/index.ts`);
 const { resolveMorphology } = await jiti.import(`${ROOT}packages/anthropometry/src/index.ts`);
 
 const data = JSON.parse(readFileSync(`${ROOT}apps/studio/public/sourceSites.json`, 'utf8'));
 const doc = buildDocument();
-const mo = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
-const { articulation } = compileArticulation(doc, 'l3_anatomical', mo);
+const mo = resolveMorphology(REFERENCE_MORPHOLOGY);
+const { articulation } = compileArticulation(doc, REFERENCE_PROFILE, mo);
 const jointsOn = (segment) => jointsOnSegment(articulation, segment);
 
 for (const [name, model] of Object.entries(data.models)) {

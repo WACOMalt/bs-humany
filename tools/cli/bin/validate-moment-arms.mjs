@@ -616,14 +616,16 @@ const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropomet
 const { MujocoBackend } = await jiti.import(join(ROOT, 'packages/backend-mujoco/src/index.ts'));
 const { compileArticulation } = await jiti.import(join(ROOT, 'packages/compiler/src/index.ts'));
 const muscleData = await jiti.import(join(ROOT, 'packages/muscle-data/src/index.ts'));
-const { buildDocument } = await jiti.import(join(ROOT, 'packages/skeleton/src/index.ts'));
+const { buildDocument, REFERENCE_MORPHOLOGY, REFERENCE_PROFILE } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/index.ts'),
+);
 const { compileMuscleSet, degreeRange, sweepMomentArms } = await jiti.import(
   join(ROOT, 'packages/modules-muscle/src/index.ts'),
 );
 
 const document = buildDocument();
-const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
-const { articulation } = compileArticulation(document, 'l3_anatomical', morphology);
+const morphology = resolveMorphology(REFERENCE_MORPHOLOGY);
+const { articulation } = compileArticulation(document, REFERENCE_PROFILE, morphology);
 
 /** One compile per distinct set of muscle-data sets, shared by the rows that name it. */
 const compiled = new Map();

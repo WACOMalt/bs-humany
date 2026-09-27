@@ -19,7 +19,8 @@
     "@bs-humany/hsdl": "workspace:*",
     "@bs-humany/anthropometry": "workspace:*",
     "@bs-humany/modules-mechanics": "workspace:*",
-    "@bs-humany/modules-nerves": "workspace:*"
+    "@bs-humany/modules-nerves": "workspace:*",
+    "@bs-humany/skeleton": "workspace:*"
   },
   "devDependencies": {
     "@bs-humany/muscle-data": "workspace:*"

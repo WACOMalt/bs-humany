@@ -31,6 +31,7 @@ import { BONE_SHAPES, FALLBACK_BONES, fallbackShape } from './geometry/shapes.js
 import { buildJoints } from './joints.js';
 import { buildLandmarks } from './landmarks.js';
 import { buildCollisionSetup, buildContactRules } from './proxies.js';
+import { REFERENCE_MORPHOLOGY } from './reference.js';
 import { SEGMENTATION_PROFILES } from './segmentation.js';
 import { BONES } from './taxonomy.js';
 import { buildWrappingSurfaces } from './wrapSurfaces.js';
@@ -181,7 +182,7 @@ export function buildDocument(options: BuildOptions = {}): HsdlDocument {
     constraints: options.placement === 'procedural' ? [] : buildConstraints(joints),
 
     morphology: {
-      default: { sex: 0.5, stature: 1.7, mass: 70 },
+      default: REFERENCE_MORPHOLOGY,
       statureRange: [1.4, 2.05],
       massRange: [35, 150],
       populations: [
