@@ -67,3 +67,40 @@ jobs:
 
       - name: Viewer tests
         run: cargo test --locked --manifest-path apps/xr-viewer/Cargo.toml
+
+  # The studio in a real browser (apps/studio/e2e): it boots with a clean console, Start runs the
+  # body, Space pauses and resumes, the tabs show their panels, and a shipped checkpoint takes
+  # charge with no dashboard. Playwright starts the studio's Vite server itself, on port 5299.
+  studio-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Only Chromium, and the system libraries it needs, which a runner can install and a
+      # developer's machine usually already has.
+      - name: Browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Smoke test
+        run: pnpm test:e2e
+
+      # A trace for each failed test: the page, the console, the network and every step, to open
+      # with `pnpm exec playwright show-trace`.
+      - name: Traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-smoke-traces
+          path: test-results/
+          retention-days: 14

@@ -24,3 +24,9 @@ apps/studio/public/refMeshes/
 /bonePairing.json
 /sourceCorrespondence.json
 /pointOverrides.json
+
+# Playwright's own output from `pnpm test:e2e`: the traces of failed tests and any reports. CI
+# uploads the traces as an artifact; locally they are for opening with `playwright show-trace`.
+test-results/
+playwright-report/
+blob-report/

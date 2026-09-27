@@ -12,7 +12,10 @@
       "**/*.tsbuildinfo",
       "packages/assets-anatomical/data/**",
       "apps/xr-viewer/target",
-      "apps/xr-viewer/fixtures/**"
+      "apps/xr-viewer/fixtures/**",
+      "test-results",
+      "playwright-report",
+      "blob-report"
     ]
   },
   "formatter": {
