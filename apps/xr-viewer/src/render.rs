@@ -1,12 +1,29 @@
-//! Drawing the skeleton into an OpenXR swapchain, both eyes in one pass.
+//! Drawing the body in the room into an OpenXR swapchain, both eyes in one pass.
 //!
-//! ## The shape of it
+//! ## What is drawn
 //!
-//! One vertex buffer and one index buffer holding every bone, because the pack's positions are
-//! already in world metres and a rest pose is therefore a single draw call. Each vertex carries
-//! the index of the bone it belongs to, and a uniform array holds a transform per bone -- all
-//! identity while the pose is static. That attribute is the whole provision for what comes next:
-//! feeding real poses is a buffer write rather than a different renderer.
+//! **The bones**, skinned: one vertex buffer and one index buffer hold every bone of the pack,
+//! each vertex carrying the index of the bone it belongs to, and a uniform array holds a
+//! transform per bone. Posing the body is a write into that array -- one copy of it per
+//! swapchain image, beside the eyes' view-projections -- rather than a draw call a bone or a
+//! geometry rewrite, so the whole skeleton is still one draw.
+//!
+//! **Everything that is not a bone** is drawn through the same array, in the slots after the
+//! bones that `Slots` names: a controller cube a hand, the world slot that places whatever is in
+//! the simulation's frame, a pointer mark a hand, the floor grid, the scenery, and an aim ray a
+//! hand. The cubes, marks, grid and rays are built into the bones' buffers once and moved by
+//! their slots' matrices; the scenery is a pair of buffers of its own, rebuilt when the
+//! scenario's boxes change.
+//!
+//! **The muscle tubes and the connective tissue** are swept on the CPU from the newest belly
+//! rings and bone poses, and written each frame into a vertex buffer per swapchain image; their
+//! connectivity depends only on counts and is built once. Their vertices carry colour codes
+//! rather than bones -- a muscle's tension, a disc, a bead, a bar -- and are placed by the world
+//! slot.
+//!
+//! **The egui panels**, the properties panel and the transport strip, come last on a pipeline of
+//! their own over the same render pass: textured, blended, tested against the body's depth and
+//! never writing it, each mesh cut to its clip rectangle.
 //!
 //! ## Multiview, which is the only performance decision here that matters
 //!
@@ -18,9 +35,14 @@
 //!
 //! ## What is deliberately simple
 //!
-//! Memory is allocated per resource with no allocator, because there are six allocations. There
-//! is no descriptor pool churn: one set, written once. There is no MSAA, because the runtime asks
-//! for one sample. None of that is where the time goes at half a million triangles.
+//! Memory is allocated per resource, with no allocator: the resources are few and made once, or
+//! once a scenario. Anything written every frame -- the view and bone uniforms, the muscle and
+//! tissue vertices, the panels' meshes -- has a copy per swapchain image, because a buffer shared
+//! between images would be written for one frame while the GPU still reads it for the last; the
+//! depth image is the one thing shared, which the render pass's dependency makes safe. There is
+//! no descriptor pool churn: one set an image for the uniforms, written once, and one a panel
+//! texture. There is no MSAA, because the runtime asks for one sample. None of that is where the
+//! time goes at half a million triangles.
 
 use anyhow::{Context, Result, bail};
 use ash::vk;
