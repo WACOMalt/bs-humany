@@ -31,6 +31,7 @@
 mod bridge;
 mod geometry;
 mod gpu;
+mod locomotion;
 mod math;
 mod pack;
 mod panel;
