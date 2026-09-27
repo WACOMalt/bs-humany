@@ -446,23 +446,51 @@ function capRing(builder: MeshBuilder, ring: readonly number[], reverse: boolean
  * in size.
  */
 export function recomputeSmoothNormals(builder: MeshBuilder): void {
-  const count = builder.positions.length / 3;
+  smoothNormalsInto(builder.positions, builder.indices, builder.normals);
+}
+
+/**
+ * Smooth normals for finished mesh data, e.g. a dataset bone whose pack stores no normals.
+ *
+ * Same area-weighted averaging as the builder variant above; this one allocates the output. It
+ * reads the typed arrays where they are: a full measured skeleton is a quarter of a million
+ * vertices, and copying each bone into plain arrays first, as this used to, was most of what a
+ * rebuild cost. The arithmetic is the same float64 arithmetic in the same order, so the normals
+ * are the same bits.
+ */
+export function computeSmoothNormals(positions: Float32Array, indices: Uint32Array): Float32Array {
+  const normals = new Float32Array(positions.length);
+  smoothNormalsInto(positions, indices, normals);
+  return normals;
+}
+
+/**
+ * The one implementation of both: accumulate each face's un-normalized normal onto its three
+ * corners, then normalize. Written against whatever holds the numbers, so the builder's plain
+ * arrays and a dataset bone's typed ones go through exactly the same steps.
+ */
+function smoothNormalsInto(
+  positions: ArrayLike<number>,
+  indices: ArrayLike<number>,
+  out: { [index: number]: number },
+): void {
+  const count = Math.floor(positions.length / 3);
   const accumulated = new Float64Array(count * 3);
 
-  for (let t = 0; t + 2 < builder.indices.length; t += 3) {
-    const ia = builder.indices[t] ?? 0;
-    const ib = builder.indices[t + 1] ?? 0;
-    const ic = builder.indices[t + 2] ?? 0;
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    const ia = indices[t] ?? 0;
+    const ib = indices[t + 1] ?? 0;
+    const ic = indices[t + 2] ?? 0;
 
-    const ax = builder.positions[ia * 3] ?? 0;
-    const ay = builder.positions[ia * 3 + 1] ?? 0;
-    const az = builder.positions[ia * 3 + 2] ?? 0;
-    const bx = builder.positions[ib * 3] ?? 0;
-    const by = builder.positions[ib * 3 + 1] ?? 0;
-    const bz = builder.positions[ib * 3 + 2] ?? 0;
-    const cx = builder.positions[ic * 3] ?? 0;
-    const cy = builder.positions[ic * 3 + 1] ?? 0;
-    const cz = builder.positions[ic * 3 + 2] ?? 0;
+    const ax = positions[ia * 3] ?? 0;
+    const ay = positions[ia * 3 + 1] ?? 0;
+    const az = positions[ia * 3 + 2] ?? 0;
+    const bx = positions[ib * 3] ?? 0;
+    const by = positions[ib * 3 + 1] ?? 0;
+    const bz = positions[ib * 3 + 2] ?? 0;
+    const cx = positions[ic * 3] ?? 0;
+    const cy = positions[ic * 3 + 1] ?? 0;
+    const cz = positions[ic * 3 + 2] ?? 0;
 
     const e1x = bx - ax;
     const e1y = by - ay;
@@ -477,11 +505,16 @@ export function recomputeSmoothNormals(builder: MeshBuilder): void {
     const ny = e1z * e2x - e1x * e2z;
     const nz = e1x * e2y - e1y * e2x;
 
-    for (const index of [ia, ib, ic]) {
-      accumulated[index * 3] = (accumulated[index * 3] ?? 0) + nx;
-      accumulated[index * 3 + 1] = (accumulated[index * 3 + 1] ?? 0) + ny;
-      accumulated[index * 3 + 2] = (accumulated[index * 3 + 2] ?? 0) + nz;
-    }
+    // The three corners in turn, written out rather than looped over a fresh array per triangle.
+    accumulated[ia * 3] = (accumulated[ia * 3] ?? 0) + nx;
+    accumulated[ia * 3 + 1] = (accumulated[ia * 3 + 1] ?? 0) + ny;
+    accumulated[ia * 3 + 2] = (accumulated[ia * 3 + 2] ?? 0) + nz;
+    accumulated[ib * 3] = (accumulated[ib * 3] ?? 0) + nx;
+    accumulated[ib * 3 + 1] = (accumulated[ib * 3 + 1] ?? 0) + ny;
+    accumulated[ib * 3 + 2] = (accumulated[ib * 3 + 2] ?? 0) + nz;
+    accumulated[ic * 3] = (accumulated[ic * 3] ?? 0) + nx;
+    accumulated[ic * 3 + 1] = (accumulated[ic * 3 + 1] ?? 0) + ny;
+    accumulated[ic * 3 + 2] = (accumulated[ic * 3 + 2] ?? 0) + nz;
   }
 
   for (let i = 0; i < count; i++) {
@@ -490,22 +523,8 @@ export function recomputeSmoothNormals(builder: MeshBuilder): void {
       accumulated[i * 3 + 1] ?? 0,
       accumulated[i * 3 + 2] ?? 0,
     );
-    builder.normals[i * 3] = nx;
-    builder.normals[i * 3 + 1] = ny;
-    builder.normals[i * 3 + 2] = nz;
+    out[i * 3] = nx;
+    out[i * 3 + 1] = ny;
+    out[i * 3 + 2] = nz;
   }
-}
-
-/**
- * Smooth normals for finished mesh data, e.g. a dataset bone whose pack stores no normals.
- *
- * Same area-weighted averaging as the builder variant above; this one allocates the output.
- */
-export function computeSmoothNormals(positions: Float32Array, indices: Uint32Array): Float32Array {
-  const builder = createBuilder();
-  builder.positions = Array.from(positions);
-  builder.indices = Array.from(indices);
-  builder.normals = new Array<number>(positions.length).fill(0);
-  recomputeSmoothNormals(builder);
-  return new Float32Array(builder.normals);
 }

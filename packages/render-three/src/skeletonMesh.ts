@@ -12,7 +12,7 @@
  * resolve to a bone `id` (spec section 11, bone picking and inspector).
  */
 
-import type { SkeletonAssets } from '@bs-humany/assets-anatomical';
+import type { BoneMesh, SkeletonAssets } from '@bs-humany/assets-anatomical';
 import {
   IDENTITY_TRANSFORM,
   type Transform,
@@ -76,7 +76,48 @@ import { computeWorldTransforms } from '@bs-humany/skeleton';
 
 export { computeWorldTransforms };
 
-/** Evaluate every bone's geometry and bake it into one merged buffer. */
+/**
+ * Each measured bone's smooth normals, worked out once per loaded pack.
+ *
+ * A measured bone is only ever scaled, and uniformly -- by `stature / subjectStature`, see
+ * `BuildOptions.assets` -- and a uniform scale does not turn a surface, so its normals are the same
+ * whatever the sliders say. Recomputing them for all two hundred bones on every rebuild was most of
+ * the cost of a stature drag. Keyed on the pack's own bone objects, so a pack that is let go takes
+ * its normals with it.
+ */
+const datasetNormals = new WeakMap<BoneMesh, Float32Array>();
+
+function normalsOf(bone: BoneMesh): Float32Array {
+  let normals = datasetNormals.get(bone);
+  if (!normals) {
+    normals = computeSmoothNormals(bone.positions, bone.indices);
+    datasetNormals.set(bone, normals);
+  }
+  return normals;
+}
+
+/** One bone's contribution to the merged buffer, decided before anything is allocated. */
+type Planned =
+  | {
+      readonly bone: HsdlDocument['bones'][number];
+      readonly transform: Transform;
+      readonly dataset: BoneMesh;
+    }
+  | {
+      readonly bone: HsdlDocument['bones'][number];
+      readonly transform: Transform;
+      readonly mesh: MeshData;
+    };
+
+/**
+ * Evaluate every bone's geometry and bake it into one merged buffer.
+ *
+ * Two passes: the first decides where every bone's geometry comes from and counts it, the second
+ * writes it into buffers allocated once at their final size. It used to push each of a quarter of
+ * a million vertices onto plain arrays and copy those into typed ones at the end, which on a
+ * slider drag was a second copy of the whole skeleton per input event. The numbers written are
+ * the same: the same float64 products, rounded to float32 once, where they land.
+ */
 export function buildSkeletonMesh(
   document: HsdlDocument,
   context: ExprContext,
@@ -88,13 +129,10 @@ export function buildSkeletonMesh(
   const stature = evaluate({ param: 'stature' }, context);
   const datasetScale = assets ? stature / assets.manifest.subjectStature : 1;
 
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const indices: number[] = [];
-  const boneIndex: number[] = [];
-  const bones: BoneInstance[] = [];
-
-  let index = 0;
+  // --- Pass one: what each bone is drawn from, and how much of it there is ----------------------
+  const plan: Planned[] = [];
+  let vertexTotal = 0;
+  let indexTotal = 0;
   for (const bone of document.bones) {
     if (options.include && !options.include.has(bone.id)) continue;
 
@@ -102,36 +140,9 @@ export function buildSkeletonMesh(
     const datasetBone = assets?.bones.get(bone.id);
 
     if (datasetBone) {
-      // Already in world space: scale about the origin and skip the rest-transform chain.
-      const vertexStart = positions.length / 3;
-      const count = datasetBone.positions.length / 3;
-      const normalsOut = computeSmoothNormals(datasetBone.positions, datasetBone.indices);
-      for (let i = 0; i < count; i++) {
-        positions.push(
-          (datasetBone.positions[i * 3] ?? 0) * datasetScale,
-          (datasetBone.positions[i * 3 + 1] ?? 0) * datasetScale,
-          (datasetBone.positions[i * 3 + 2] ?? 0) * datasetScale,
-        );
-        normals.push(
-          normalsOut[i * 3] ?? 0,
-          normalsOut[i * 3 + 1] ?? 0,
-          normalsOut[i * 3 + 2] ?? 0,
-        );
-        boneIndex.push(index);
-      }
-      for (const i of datasetBone.indices) indices.push(vertexStart + i);
-      bones.push({
-        id: bone.id,
-        displayName: bone.displayName,
-        ta: bone.ta,
-        region: bone.region,
-        worldTransform: transform,
-        index,
-        vertexStart,
-        vertexCount: count,
-        geometrySource: 'dataset',
-      });
-      index++;
+      plan.push({ bone, transform, dataset: datasetBone });
+      vertexTotal += datasetBone.positions.length / 3;
+      indexTotal += datasetBone.indices.length;
       continue;
     }
 
@@ -146,34 +157,73 @@ export function buildSkeletonMesh(
           `${error instanceof Error ? error.message : String(error)}`,
       );
     }
+    plan.push({ bone, transform, mesh });
+    vertexTotal += mesh.positions.length / 3;
+    indexTotal += mesh.indices.length;
+  }
 
-    const vertexStart = positions.length / 3;
-    const count = mesh.positions.length / 3;
-    const base = vertexStart;
+  // --- Pass two: fill buffers allocated once -----------------------------------------------------
+  const positions = new Float32Array(vertexTotal * 3);
+  const normals = new Float32Array(vertexTotal * 3);
+  const indices = new Uint32Array(indexTotal);
+  const boneIndex = new Float32Array(vertexTotal);
+  const bones: BoneInstance[] = [];
 
-    for (let i = 0; i < count; i++) {
-      const local = vec3(
-        mesh.positions[i * 3] ?? 0,
-        mesh.positions[i * 3 + 1] ?? 0,
-        mesh.positions[i * 3 + 2] ?? 0,
-      );
-      const localNormal = vec3(
-        mesh.normals[i * 3] ?? 0,
-        mesh.normals[i * 3 + 1] ?? 0,
-        mesh.normals[i * 3 + 2] ?? 0,
-      );
+  let vertexStart = 0;
+  let indexStart = 0;
+  plan.forEach((entry, index) => {
+    const { bone, transform } = entry;
+    let count: number;
+    let source: GeometrySource;
 
-      const worldPosition = transformPoint(transform, local);
-      // Normals are directions: rotate, never translate.
-      const worldNormal = rotate(transform.rotation, localNormal);
+    if ('dataset' in entry) {
+      // Already in world space: scale about the origin and skip the rest-transform chain.
+      const from = entry.dataset.positions;
+      count = from.length / 3;
+      for (let i = 0; i < count * 3; i++) {
+        positions[vertexStart * 3 + i] = (from[i] ?? 0) * datasetScale;
+      }
+      normals.set(normalsOf(entry.dataset), vertexStart * 3);
+      const local = entry.dataset.indices;
+      for (let i = 0; i < local.length; i++)
+        indices[indexStart + i] = vertexStart + (local[i] ?? 0);
+      indexStart += local.length;
+      source = 'dataset';
+    } else {
+      const mesh = entry.mesh;
+      count = mesh.positions.length / 3;
+      for (let i = 0; i < count; i++) {
+        const local = vec3(
+          mesh.positions[i * 3] ?? 0,
+          mesh.positions[i * 3 + 1] ?? 0,
+          mesh.positions[i * 3 + 2] ?? 0,
+        );
+        const localNormal = vec3(
+          mesh.normals[i * 3] ?? 0,
+          mesh.normals[i * 3 + 1] ?? 0,
+          mesh.normals[i * 3 + 2] ?? 0,
+        );
 
-      positions.push(worldPosition.x, worldPosition.y, worldPosition.z);
-      normals.push(worldNormal.x, worldNormal.y, worldNormal.z);
-      boneIndex.push(index);
+        const worldPosition = transformPoint(transform, local);
+        // Normals are directions: rotate, never translate.
+        const worldNormal = rotate(transform.rotation, localNormal);
+
+        const at = (vertexStart + i) * 3;
+        positions[at] = worldPosition.x;
+        positions[at + 1] = worldPosition.y;
+        positions[at + 2] = worldPosition.z;
+        normals[at] = worldNormal.x;
+        normals[at + 1] = worldNormal.y;
+        normals[at + 2] = worldNormal.z;
+      }
+      for (let i = 0; i < mesh.indices.length; i++) {
+        indices[indexStart + i] = vertexStart + (mesh.indices[i] ?? 0);
+      }
+      indexStart += mesh.indices.length;
+      source = 'procedural';
     }
 
-    for (const i of mesh.indices) indices.push(base + i);
-
+    boneIndex.fill(index, vertexStart, vertexStart + count);
     bones.push({
       id: bone.id,
       displayName: bone.displayName,
@@ -183,18 +233,18 @@ export function buildSkeletonMesh(
       index,
       vertexStart,
       vertexCount: count,
-      geometrySource: 'procedural',
+      geometrySource: source,
     });
-    index++;
-  }
+    vertexStart += count;
+  });
 
   return {
-    positions: new Float32Array(positions),
-    normals: new Float32Array(normals),
-    indices: new Uint32Array(indices),
-    boneIndex: new Float32Array(boneIndex),
+    positions,
+    normals,
+    indices,
+    boneIndex,
     bones,
-    triangleCount: indices.length / 3,
+    triangleCount: indexTotal / 3,
   };
 }
 
