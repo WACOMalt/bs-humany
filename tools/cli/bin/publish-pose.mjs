@@ -344,6 +344,53 @@ function letGo() {
 let paused = false;
 let started = performance.now();
 let nextPublishAt = 0;
+/**
+ * Why the run stopped on its own, if it did: a tick that threw, or the solver resetting the body.
+ * Said in the status's optional `error` so the headset's panel can show it, since the terminal
+ * this was started from is usually not where anybody is looking. Cleared by whatever starts the
+ * run going again -- a resume, a reset, a rebuild -- and set again if the same thing happens.
+ */
+let stoppedBecause;
+/** The backend's reset count when last looked at, so only a new reset stops the run. */
+let resetsSeen = 0;
+
+/** Pause the run where it is, and say why in the status and on the terminal. */
+function stopRun(why) {
+  if (!paused) {
+    paused = true;
+    pausedAt = performance.now();
+  }
+  stoppedBecause = why;
+  console.error(`  ${why}`);
+  writeStatus();
+}
+
+/**
+ * One tick, guarded: true when the run may go on, false when it stopped itself. A tick that throws leaves the kernel part-way through a
+ * step, so the run stops there rather than stepping on from a state nobody can vouch for -- and
+ * rather than the throw ending the publisher and the headset's body freezing with no word why.
+ */
+function tickOrStop(simulation) {
+  try {
+    simulation.tick();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    stopRun(`Stopped at ${(simulation.ticks * simulation.dt).toFixed(3)} s: ${message}`);
+    return false;
+  }
+  // MuJoCo's autoreset after a bad acceleration puts the body back at its reference and would
+  // carry on as though the run had just begun, which must not pass unremarked.
+  const resets = simulation.physics.backendResets;
+  if (resets !== resetsSeen) {
+    resetsSeen = resets;
+    stopRun(
+      `Diverged at ${(simulation.ticks * simulation.dt).toFixed(3)} s: MuJoCo reset the body ` +
+        '(bad acceleration). Paused.',
+    );
+    return false;
+  }
+  return true;
+}
 
 function writeStatus() {
   const status = publisherStatus({
@@ -364,6 +411,12 @@ function writeStatus() {
     drives,
     overlays,
   });
+  // Two optional fields past the contract's: how often the solver has reset the body in this
+  // build, and why the run stopped itself when it did. A reader that does not know them ignores
+  // them -- the viewer's status type takes unknown fields -- so nothing on the other side has to
+  // change for them to be there.
+  status.resets = live.simulation.physics.backendResets;
+  if (stoppedBecause !== undefined) status.error = stoppedBecause;
   const tmp = temporaryName(`${path}${STATUS_SUFFIX}`);
   writeFileSync(tmp, JSON.stringify(status));
   renameSync(tmp, `${path}${STATUS_SUFFIX}`);
@@ -406,7 +459,14 @@ async function readCommands() {
     while (newline >= 0) {
       const line = commandsTail.slice(0, newline).trim();
       commandsTail = commandsTail.slice(newline + 1);
-      if (line) await command(line);
+      // A command re-simulates on a scrub, a step or a rebuild, and a tick there can throw like
+      // any other; it stops the run and is said, rather than ending the publisher.
+      try {
+        if (line) await command(line);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        stopRun(`The panel's ${line.slice(0, 80)} failed: ${message}`);
+      }
       newline = commandsTail.indexOf('\n');
     }
   }
@@ -428,15 +488,19 @@ async function rebuild(why) {
   console.log(`  panel: ${why}, rebuilding`);
   live = await build();
   generation += 1;
+  // A new build is a new backend with a count of its own, and whatever stopped the old run
+  // stopped a run that is gone.
+  resetsSeen = live.simulation.physics.backendResets;
+  stoppedBecause = undefined;
   realign();
 }
 
-/** One frame's worth of ticks, for stepping while paused. */
+/** One frame's worth of ticks, for stepping while paused; short, when a tick stops the run. */
 function stepForward() {
   const { simulation, ticksPerFrame } = live;
   for (let i = 0; i < ticksPerFrame; i++) {
     applyGrabs();
-    simulation.tick();
+    if (!tickOrStop(simulation)) return;
   }
 }
 
@@ -556,6 +620,8 @@ async function command(line) {
     case 'resume':
       if (paused) {
         paused = false;
+        // Going again is going on from whatever stopped it; if it happens again, it is said again.
+        stoppedBecause = undefined;
         // The clock the pacing runs against skips the pause, so resuming does not race to
         // catch up on time that was never meant to pass.
         started += performance.now() - pausedAt;
@@ -565,6 +631,7 @@ async function command(line) {
     case 'reset':
       letGo();
       live.simulation.reset();
+      stoppedBecause = undefined;
       realign();
       console.log('  panel: reset to the start');
       break;
@@ -619,7 +686,7 @@ while (live.simulation.ticks * live.simulation.dt < seconds) {
   let ran = 0;
   while (!paused && simulation.ticks * simulation.dt < wall && ran < ticksPerFrame) {
     applyGrabs();
-    simulation.tick();
+    if (!tickOrStop(simulation)) break;
     ran += 1;
   }
   if (simulation.ticks >= nextPublishAt) {
