@@ -242,7 +242,8 @@ describe('bone meshes', () => {
     const overlay = new SourceOverlay();
     overlay.load(SITES);
     void overlay.showBones('A');
-    await settle();
+    await pending('refMeshes/a1.stl');
+    await pending('refMeshes/a2.stl');
     const again = overlay.showBones('A');
     await settle();
     await answer(['a1.stl', 'a2.stl']);
@@ -271,7 +272,7 @@ describe('bone meshes', () => {
     const overlay = new SourceOverlay();
     overlay.load(SITES);
     const loading = overlay.showBones('A');
-    await settle();
+    await pending('refMeshes/a1.stl');
     const fits = new Map<string, BodyFit>([
       ['a1', { position: new Vector3(0, 1, 0), rotation: new Quaternion(), scale: 2 }],
     ]);
@@ -290,7 +291,7 @@ describe('bone meshes', () => {
     const overlay = new SourceOverlay();
     overlay.load(SITES);
     const loading = overlay.showBones('A');
-    await settle();
+    await pending('refMeshes/a1.stl');
     overlay.dispose();
     await answer(['a1.stl', 'a2.stl']);
     await loading;
