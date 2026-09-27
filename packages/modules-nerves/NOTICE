@@ -1,0 +1,26 @@
+@bs-humany/modules-nerves
+
+This package is code, and its code is Apache-2.0 (see the root LICENSE). Its policies/ directory is
+not code: the trained policies there are in the Data tier of ADR-009, by the owner's decision of
+2026-09-27, and are distributed under Creative Commons Attribution-ShareAlike 4.0 International.
+The licence text is the one in packages/skeleton/LICENSE and packages/muscle-data/LICENSE. That
+holds for every checkpoint in policies/, the ones there today and any that replace them.
+
+Each is a network's weights, found by searching against this project's simulated body: the
+skeleton of @bs-humany/skeleton, the muscles of @bs-humany/muscle-data and the fibre lengths, ranges
+and attachments measured on the bone meshes of @bs-humany/assets-anatomical. Every file names the
+senses and muscles of that body, and what its weights are worth is what they do to it. So they are
+treated as derivatives of the data they were trained on, and they carry its licence and its
+attribution:
+
+  "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"
+  "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+
+Z-Anatomy authors: Kousaku Okubo (original BodyParts3D model), Gauthier Kervyn (design, 3D,
+anatomy), Marcin Zielinski (Blender add-on), Lluis Vinent (Unity development).
+Source: https://github.com/LluisV/Z-Anatomy (Resources/Models/FBX/SkeletalSystem100.fbx) and
+https://github.com/Z-Anatomy/Models-of-human-anatomy.
+
+The code that loads, runs and trains them -- src/ here and tools/train -- is not a derivative of
+the weights and stays Apache-2.0, as the code that loads the skeleton does. See ADR-009, the tier
+table in CONTRIBUTING.md and the root NOTICE.

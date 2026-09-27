@@ -167,11 +167,13 @@ const ROWS = [
     ourJoint: 'wrist_r',
     ourDof: 'ulnar_deviation',
     refJoint: 'deviation_r',
-    // Over our range, which is the source's with its sign turned: the source's `deviation_r` is
-    // positive toward the thumb (joints.ts says how that was settled), ours toward the little
-    // finger. Taken with the same sign, all four wrist muscles pulled the other way from the
-    // reference at every angle, which is what first showed it.
-    range: { from: -25, to: 10, step: 5 },
+    // Over our range, the clinical 20 degrees radial to 30 ulnar (joints.ts), with the reference
+    // sampled at minus our angle: the source's `deviation_r` is positive toward the thumb, ours
+    // toward the little finger. Taken with the same sign, all four wrist muscles pulled the other
+    // way from the reference at every angle, which is what first showed it. Our ulnar end takes
+    // the reference twenty degrees past its own ulnar limit of ten; the coordinate is set, not
+    // simulated, and a joint limit does not bend the tendon geometry measured there.
+    range: { from: -20, to: 30, step: 5 },
     sign: -1,
     offset: 0,
     hold: SUPINATED,

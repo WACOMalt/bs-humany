@@ -106,5 +106,5 @@ export function spineNote(gains: { readonly stretch: number; readonly velocity: 
     gains.stretch === 0 && gains.velocity === 0
       ? 'Stretch and Damping at zero is a body with no reflexes at all, the body every checkpoint before the cord was trained in.'
       : `The cord is on: stretch ${gains.stretch.toFixed(2)}, damping ${gains.velocity.toFixed(2)}.`;
-  return `${now} Under the committed standing policy the best stretch measured is about 3.5–4; see docs/validation/reflex-gains.md.`;
+  return `${now} Under the committed standing policy time upright levels off from a stretch of 8.5; see docs/validation/reflex-gains.md.`;
 }

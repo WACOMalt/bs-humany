@@ -76,8 +76,8 @@ Where a value cannot be found in a compatible source, record it in
 
 | Tier | Packages | Licence | May draw on |
 |---|---|---|---|
-| Code | `packages/`: `anthropometry`, `backend-mujoco`, `compiler`, `export-gltf`, `frames`, `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves`, `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`, `pose-bridge`, `render-three`, `scenarios` (all but its `data/` fixtures), `testkit`. `apps/`: `studio` (with `src-tauri`), `xr-viewer`. `tools/`: `blender`, `cli`, `ingest`, `train`. The repository root. | Apache-2.0 | Permissive software only. Not a derivative of the data it loads. |
-| Data | `skeleton`, `assets-anatomical` (the data under `data/`), `muscle-data`, and the `scenarios` fixtures under `packages/scenarios/data/` | **CC BY-SA 4.0** | Z-Anatomy / BodyParts3D (BY-SA), Rajagopal 2016, MyoSuite (Apache-2.0), Seth 2019 (CC BY), de Leva, ANSUR II, ISB. **Not MyoSkeleton** -- licence incompatibility, see §11. |
+| Code | `packages/`: `anthropometry`, `backend-mujoco`, `compiler`, `export-gltf`, `frames`, `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves` (all but its `policies/`), `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`, `pose-bridge`, `render-three`, `scenarios` (all but its `data/` fixtures), `testkit`. `apps/`: `studio` (with `src-tauri`), `xr-viewer` (all but its pose-bridge fixture). `tools/`: `blender`, `cli`, `ingest`, `train`. The repository root. | Apache-2.0 | Permissive software only. Not a derivative of the data it loads. |
+| Data | `skeleton`, `assets-anatomical` (the data under `data/`), `muscle-data`, the `scenarios` fixtures under `packages/scenarios/data/`, the trained policies under `packages/modules-nerves/policies/`, and the pose-bridge fixture `apps/xr-viewer/fixtures/pose-bridge.bin` (with its sidecar and muscle file) | **CC BY-SA 4.0** | Z-Anatomy / BodyParts3D (BY-SA), Rajagopal 2016, MyoSuite (Apache-2.0), Seth 2019 (CC BY), de Leva, ANSUR II, ISB. **Not MyoSkeleton** -- licence incompatibility, see §11. |
 | Validation tooling | `tools/validate-external`, developer-local, never published | n/a | MyoSkeleton as a behavioural oracle. Compare; never transcribe. |
 
 Every workspace package is named in this table, and ADR-009 names the same ones. A new package
@@ -85,7 +85,12 @@ adds itself to both before it lands: which tier it is in decides what it may dra
 package in neither is one nobody has decided about. A package wholly in the Data tier carries the
 licence in its `package.json` (`CC-BY-SA-4.0`), a copy of the licence text in `LICENSE`, and a
 `NOTICE` that says what it derives from. `scenarios` is split, code and fixtures, so its
-`package.json` names both licences and the root `NOTICE` covers its fixtures.
+`package.json` names both licences and the root `NOTICE` covers its fixtures. `modules-nerves` and
+`xr-viewer` are split too, by the owner's decision of 2026-09-27: the trained policies, whose
+weights were found against the Data-tier body, and the fixture that carries a sample of that
+body's bones in the bridge format, are CC BY-SA 4.0, each with a `NOTICE` that says so
+(`packages/modules-nerves/NOTICE`, `apps/xr-viewer/fixtures/NOTICE`). Their code, and the licence
+fields that describe it, stay Apache-2.0.
 
 `muscle-data` is in the Data tier as a whole, schema and validation code included. Its
 attachments, its muscle length ranges and some of its fibre lengths are measured on the skeleton,

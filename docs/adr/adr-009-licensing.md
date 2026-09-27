@@ -3,6 +3,8 @@
 **Status:** Rewritten 2026-09-12 (spec 0.5). The 0.4 text is in git history. See ADR-011.
 Amended 2026-09-26: the owner placed `muscle-data` in the Data tier as a whole and the `scenarios`
 fixtures in it too, and asked for the tiers to name every package.
+Amended 2026-09-27: the owner placed the trained policies under `packages/modules-nerves/policies/`
+and the pose-bridge fixture `apps/xr-viewer/fixtures/pose-bridge.bin` in the Data tier.
 
 ## Context
 
@@ -20,10 +22,11 @@ Two licence tiers, and a third for tooling that is never distributed.
    relicense it, and Apache-2.0 is the least surprising licence for the engines it sits between.
    It is:
    - in `packages/`: `anthropometry`, `backend-mujoco`, `compiler`, `export-gltf`, `frames`,
-     `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves`,
-     `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`, `pose-bridge`,
-     `render-three`, `scenarios` (all but its fixtures) and `testkit`;
-   - in `apps/`: `studio`, with its `src-tauri` desktop shell, and `xr-viewer`;
+     `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves` (all but its
+     trained policies), `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`,
+     `pose-bridge`, `render-three`, `scenarios` (all but its fixtures) and `testkit`;
+   - in `apps/`: `studio`, with its `src-tauri` desktop shell, and `xr-viewer` (all but its
+     pose-bridge fixture);
    - in `tools/`: `blender`, `cli`, `ingest` and `train`;
    - the repository root.
 
@@ -38,6 +41,14 @@ Two licence tiers, and a third for tooling that is never distributed.
      in a CC BY-SA work.
    - the `scenarios` fixtures, under `packages/scenarios/data/`. The rest of that package is code,
      so its `package.json` names both licences and the root `NOTICE` covers the fixtures.
+   - the trained policies, under `packages/modules-nerves/policies/`. Their weights were found by
+     searching against the body the packages above describe, and each names that body's senses
+     and muscles, so they are treated as its derivatives. `packages/modules-nerves/NOTICE` says
+     so; the package's code, and its `package.json` licence, stay Apache-2.0.
+   - the pose-bridge fixture, `apps/xr-viewer/fixtures/pose-bridge.bin` with its sidecar and
+     muscle file: a sample of the skeleton's bones, with muscle bellies beside them, in the bridge
+     format, all three written by one generator. `apps/xr-viewer/fixtures/NOTICE` covers it; the
+     viewer's code stays Apache-2.0.
    - every other value derived from Z-Anatomy or BodyParts3D geometry, wherever it lands.
 
    Landmarks, local frames, joint centres, rest transforms, convex hulls, decimated LODs and

@@ -158,7 +158,7 @@ describe('what a Resume changes', () => {
   it('reads an old recipe as the body it was trained in', () => {
     const now = { ...bare, reflex: DEFAULT_REFLEX };
     const changes = recipeChanges(bare, now);
-    expect(changes).toContainEqual({ field: 'reflex.stretch', from: 0, to: 3.5 });
+    expect(changes).toContainEqual({ field: 'reflex.stretch', from: 0, to: 8.5 });
     expect(changes).toContainEqual({ field: 'reflex.velocity', from: 0, to: 0.25 });
     expect(changes).toHaveLength(2);
   });
@@ -186,7 +186,7 @@ describe('what a Resume changes', () => {
 describe('a recipe in one line', () => {
   it('says where, what is under the brain, the cord, the noise and the memory', () => {
     expect(describeRecipe(defaultRecipe('stand', 'l3_anatomical', 0.3))).toBe(
-      'reference stand; the quiet-standing clip under the brain; authority 0.3; cord stretch 3.5, damping 0.25, 30 ms; tremor 0.05, sense 0.01; no memory',
+      'reference stand; the quiet-standing clip under the brain; authority 0.3; cord stretch 8.5, damping 0.25, 30 ms; tremor 0.05, sense 0.01; no memory',
     );
     expect(
       describeRecipe({

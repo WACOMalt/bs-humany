@@ -68,7 +68,7 @@ export const CONTROL_RANGES: Readonly<Record<ControlKey, ControlRange>> = Object
   fps: { min: 1, max: 240, step: 1 },
   /** The most one policy output may add to or take from a group's excitation. */
   'brain.authority': { min: 0, max: 1, step: 0.05 },
-  'spine.stretch': { min: 0, max: 8, step: 0.1 },
+  'spine.stretch': { min: 0, max: 10, step: 0.1 },
   'spine.velocity': { min: 0, max: 2, step: 0.05 },
   /** A strain: 0.1 is a fibre a tenth longer than optimal. */
   'spine.setPoint': { min: -0.2, max: 0.2, step: 0.01 },

@@ -115,8 +115,8 @@ export interface SpinalGains {
    * hardly any muscle is past a set point of 0 -- two of 272 -- and a body on its way down puts
    * 61 of them there, reaching 0.39 at the worst. So a gain of a few turns a real stretch into a
    * few tenths of excitation, and that is the range. Measured under a trained policy on this cord,
-   * a unit answering its own spindle, 2 is worth 0.73 s upright, 3.5 is worth 0.82 and 5 is worth
-   * 0.85, against 0.46 with no reflex at all.
+   * a unit answering its own spindle, 2 is worth 0.66 s upright, 5 is worth 0.86 and 8.5 is worth
+   * 0.95, against 0.43 with no reflex at all; past 8.5 it is level, 0.96 at 9.5 and at 10.
    *
    * The ceiling still matters at the top of that range. The cord runs after the brain in the
    * control phase (see the header), so it adds its drive on top of the correction the brain has
@@ -125,10 +125,11 @@ export interface SpinalGains {
    * silences the policy is worse than no reflex. On the pooled cord this replaced, where a group's
    * mean drove every unit in it and both legs together, that was a fall-off past 4 -- 0.89 s at
    * 3.5, 0.90 at 4, 0.85 at 5 -- and 3.5 was chosen on it. Per unit the cord drives less of the
-   * body at any gain and the fall-off has not been reached by 5, the top of the sweep; 3.5 stays
-   * until a sweep past 5, under a policy trained over this cord, finds where it is
-   * (reflex-gains.md). (A correction that would take a unit below 0 is lost earlier, at the
-   * brain's own clamp, before the cord adds anything.)
+   * body at any gain, and a second sweep, to 10, found no fall-off at all: time upright levels off
+   * from 8.5 rather than falling, so 8.5 is the default, the smallest gain within 1% of the best
+   * (reflex-gains.md). The policy it was measured under was trained with no cord; one trained over
+   * this cord may put the fall-off somewhere else. (A correction that would take a unit below 0 is
+   * lost earlier, at the brain's own clamp, before the cord adds anything.)
    *
    * This used to be five thousandths, and the reason is worth keeping: the length afferent was
    * divided by the optimal fibre length twice, so it read 2.3 to 41 instead of -0.44 to 0, and
@@ -201,15 +202,15 @@ export const SPINAL_CONDUCTION_DELAY_S = 0.03;
  * decided the studio and the scripted scenarios will run with. Every number is from
  * `docs/validation/reflex-gains.md`, which has the tables and how to reproduce them;
  * `SpinalGains` says what each one is. They were chosen on the pooled cord and measured again on
- * the cord per side and per unit; the second sweep moved none of them (`SpinalGains.stretch` says
- * why the stretch gain stays where it is).
+ * the cord per side and per unit. That moved only the stretch gain, from 3.5 to 8.5, once a sweep
+ * past 5 found where time upright levels off (`SpinalGains.stretch` says why).
  *
  * The training recipe (`tools/train/src/recipe.ts`) keeps its own copy of these as
  * `DEFAULT_REFLEX`, because it loads without this package; a test here holds the two together
  * field by field.
  */
 export const MEASURED_SPINAL_GAINS: SpinalGains = {
-  stretch: 3.5,
+  stretch: 8.5,
   velocity: 0.25,
   // Hold the fibre at its optimal length. Below this the reflex stops being a reflex: at -0.1,
   // 173 of the body's 272 muscles are past the set point standing perfectly still, so the cord

@@ -256,9 +256,13 @@ Two tiers, set out in ADR-009 (`docs/adr/adr-009-licensing.md`):
 
 - **Code** is Apache-2.0 (`LICENSE`) and depends only on permissively-licensed software. It is not
   a derivative of the data it loads.
-- **Anatomical data** -- everything derived from the Z-Anatomy and BodyParts3D geometry: bone
-  meshes, landmarks, frames, joint centres, hulls -- is CC BY-SA 4.0, with the attribution in
-  `NOTICE` and in the packages that carry it.
+- **Data** -- everything derived from the Z-Anatomy and BodyParts3D geometry -- is CC BY-SA 4.0,
+  with the attribution in `NOTICE` and in the packages that carry it. That is the bone meshes,
+  landmarks, frames, joint centres and hulls (`skeleton`, `assets-anatomical`); the muscle
+  definitions of `muscle-data`, which are measured on those bones; the scenario fixtures; the
+  trained policies in `packages/modules-nerves/policies/`, whose weights were found against that
+  body; and the headset's pose fixture, `apps/xr-viewer/fixtures/pose-bridge.bin`. The tier table
+  in `CONTRIBUTING.md` lists every package.
 
 MyoSkeleton, being non-commercial, is incompatible with Share-Alike data and is never a source of
 values; `CONTRIBUTING.md` §11 says why.
