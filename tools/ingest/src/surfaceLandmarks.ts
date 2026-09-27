@@ -1,7 +1,7 @@
 /**
  * Markers put back on the bone they name.
  *
- *   pnpm --filter @bs-humany/ingest surface-landmarks [dataDir]
+ *   pnpm --filter @bs-humany/ingest surface-landmarks [dataDir] [--check]
  *
  * The dataset's markers are label anchors. They are placed *beside* the feature they name, in the
  * clear, so a text label can point at it without the text sitting inside the mesh -- which is what
@@ -46,14 +46,22 @@
  * recorded as its own question rather than folded in here.
  *
  * Reads the packed meshes rather than the source export, so it re-runs without the 500 MB FBX.
+ *
+ * ## Not part of `derive`
+ *
+ * This is the one pack-only stage that `pnpm --filter @bs-humany/ingest derive` leaves out and
+ * `check` does not hold. It projects every entry in `landmarks.json`, and since it last ran that
+ * table has gained 842 of the points `derived.ts` measures -- which are on the bone by construction,
+ * so projecting them only moves them, by up to a patch radius, and the surface table outranks the
+ * raw one in every landmark lookup, so the muscles attached to them would move too. Re-running it
+ * as it stands is therefore a golden-moving change, not a refresh. OQ-032 in
+ * docs/sources/open-questions.md records the decision (skip the derived points) and where it lands;
+ * until then the committed `landmarks-surface.json` is the input `ridge-attachments` and
+ * `wrap-radii` read, and still carries the date stamp from before tables recorded their inputs.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const dataDir = resolve(process.argv[2] ?? join(HERE, '../../../packages/assets-anatomical/data'));
+import { nearestVertex, vertexAt } from './geometry.js';
+import { DataDir, emit, loadPack, stageArgs } from './packData.js';
 
 /**
  * How wide an attachment footprint is taken to be, metres.
@@ -84,15 +92,6 @@ export const MIN_PATCH = 12;
 /** How far the patch may be widened when the mesh is sparse there. */
 export const MAX_WIDENING = 4;
 
-interface Manifest {
-  readonly dataset: unknown;
-  readonly bones: readonly {
-    readonly id: string;
-    readonly vertexOffset: number;
-    readonly vertexCount: number;
-  }[];
-}
-
 export interface SurfaceLandmark {
   readonly bone: string;
   readonly feature: string;
@@ -111,33 +110,11 @@ export interface SurfaceLandmark {
 
 export interface SurfaceLandmarkTable {
   readonly format: 'bs-humany.surface-landmarks/1';
-  readonly generatedAt: string;
+  /** What the table was measured from: see `DataDir.inputsSha256` in packData.ts. */
+  readonly inputsSha256: string;
   readonly dataset: unknown;
   readonly patchRadius: number;
   readonly landmarks: readonly SurfaceLandmark[];
-}
-
-/** The vertex of `bone` nearest a point, as an index into the packed positions. */
-function nearestVertex(
-  positions: Float32Array,
-  from: number,
-  count: number,
-  point: readonly [number, number, number],
-): { index: number; distance: number } {
-  let best = Number.POSITIVE_INFINITY;
-  let at = from;
-  for (let i = 0; i < count; i++) {
-    const o = 3 * (from + i);
-    const dx = (positions[o] as number) - point[0];
-    const dy = (positions[o + 1] as number) - point[1];
-    const dz = (positions[o + 2] as number) - point[2];
-    const d = dx * dx + dy * dy + dz * dz;
-    if (d < best) {
-      best = d;
-      at = from + i;
-    }
-  }
-  return { index: at, distance: Math.sqrt(best) };
 }
 
 /** The centroid of the bone's vertices within `radius` of a point, and how many there were. */
@@ -179,12 +156,7 @@ export function projectToSurface(
   marker: readonly [number, number, number],
   radius = PATCH_RADIUS,
 ): { surface: [number, number, number]; offset: number; vertices: number; radius: number } {
-  const anchor = nearestVertex(positions, from, count, marker);
-  const seed: [number, number, number] = [
-    positions[3 * anchor.index] as number,
-    positions[3 * anchor.index + 1] as number,
-    positions[3 * anchor.index + 2] as number,
-  ];
+  const seed = vertexAt(positions, nearestVertex(positions, from, count, marker).index);
   let used = radius;
   let patch = patchCentroid(positions, from, count, seed, used);
   while (patch.vertices < MIN_PATCH && used < radius * MAX_WIDENING) {
@@ -194,12 +166,7 @@ export function projectToSurface(
   const { centroid, vertices } = patch;
   // Back onto the bone: the centroid of a curved patch sits inside it, and an attachment inside
   // the bone pulls a muscle's line of action through the surface it is supposed to lie on.
-  const settled = nearestVertex(positions, from, count, centroid);
-  const surface: [number, number, number] = [
-    positions[3 * settled.index] as number,
-    positions[3 * settled.index + 1] as number,
-    positions[3 * settled.index + 2] as number,
-  ];
+  const surface = vertexAt(positions, nearestVertex(positions, from, count, centroid).index);
   return {
     surface,
     offset: Math.hypot(surface[0] - marker[0], surface[1] - marker[1], surface[2] - marker[2]),
@@ -208,14 +175,9 @@ export function projectToSurface(
   };
 }
 
-const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')) as Manifest;
-const landmarks = JSON.parse(readFileSync(join(dataDir, 'landmarks.json'), 'utf8')) as Record<
-  string,
-  Record<string, [number, number, number]>
->;
-const bin = readFileSync(join(dataDir, 'skeleton.bin'));
-const positions = new Float32Array(bin.buffer, bin.byteOffset, bin.byteLength / 4);
-const packed = new Map(manifest.bones.map((b) => [b.id, b]));
+const { dataDir, check } = stageArgs();
+const data = new DataDir(dataDir);
+const { manifest, meshOf, landmarks } = loadPack(data);
 
 const round = (x: number) => Math.round(x * 1e6) / 1e6;
 const RULE =
@@ -227,12 +189,12 @@ const measured: SurfaceLandmark[] = [];
 const thin: string[] = [];
 
 for (const [bone, table] of Object.entries(landmarks)) {
-  const mesh = packed.get(bone);
+  const mesh = meshOf(bone);
   if (!mesh) continue;
   for (const [feature, marker] of Object.entries(table)) {
     const { surface, offset, vertices, radius } = projectToSurface(
-      positions,
-      mesh.vertexOffset,
+      mesh.positions,
+      0,
       mesh.vertexCount,
       marker,
     );
@@ -252,18 +214,20 @@ for (const [bone, table] of Object.entries(landmarks)) {
 
 const table: SurfaceLandmarkTable = {
   format: 'bs-humany.surface-landmarks/1',
-  generatedAt: new Date().toISOString().slice(0, 10),
+  inputsSha256: data.inputsSha256(),
   dataset: manifest.dataset,
   patchRadius: PATCH_RADIUS,
   landmarks: measured,
 };
 
-writeFileSync(join(dataDir, 'landmarks-surface.json'), `${JSON.stringify(table, null, 1)}\n`);
+emit('surface-landmarks', dataDir, check, [
+  ['landmarks-surface.json', `${JSON.stringify(table, null, 1)}\n`],
+]);
 
 const offsets = measured.map((m) => m.offset).sort((a, b) => a - b);
 const median = offsets[Math.floor(offsets.length / 2)] ?? 0;
 console.error(
-  `surface landmarks: ${measured.length} markers on ${packed.size} bones put back on the bone. ` +
+  `surface landmarks: ${measured.length} markers on ${manifest.bones.length} bones put back on the bone. ` +
     `Median move ${(median * 1000).toFixed(1)} mm, worst ${((offsets.at(-1) ?? 0) * 1000).toFixed(1)} mm.`,
 );
 if (thin.length > 0) {

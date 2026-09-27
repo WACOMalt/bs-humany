@@ -6,6 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
+    "@bs-humany/assets-anatomical": "workspace:*",
     "@bs-humany/frames": "workspace:*",
     "@bs-humany/hsdl": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
@@ -17,6 +18,9 @@
   },
   "scripts": {
     "ingest": "jiti src/ingest.ts",
+    "derive": "pnpm derived-from-pack && pnpm ridge-attachments && pnpm centres && pnpm wrap-radii",
+    "ingest:all": "sh -c 'pnpm ingest \"$1\" && pnpm derive' ingest-all",
+    "check": "pnpm derived-from-pack --check && pnpm ridge-attachments --check && pnpm centres --check && pnpm wrap-radii --check",
     "inspect": "node scripts/inspect-fbx.mjs",
     "hulls": "jiti src/hulls.ts",
     "lods": "jiti src/lods.ts",

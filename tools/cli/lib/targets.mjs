@@ -45,6 +45,34 @@ const FIRST = ['generate:via-points', 'measure:muscle-ranges', 'measure:source-t
 const PRINT_ONLY = ['measure:dataset-gap', 'measure:reflex-gains'];
 
 /**
+ * Checks that live in a workspace package rather than the root package.json, as the pnpm
+ * arguments that run them. `pnpm check:generated` runs them; `pnpm regenerate` does not rewrite
+ * them, though its closing check pass holds them like everything else.
+ *
+ * - The anatomical data's pack-only stages (`derive` in tools/ingest, checked by its `check`
+ *   script). They sit upstream of every generator -- the landmarks, centres and wrap radii are
+ *   what the skeleton and the muscle data are built from -- so they are checked first. They are
+ *   not regenerated with the rest because re-measuring the anatomy is a step of its own, taken
+ *   after a new pack and in the order packages/assets-anatomical/README.md gives, never as a side
+ *   effect of refreshing a report.
+ */
+const CHECK_ONLY = [{ label: 'ingest check', args: ['--filter', '@bs-humany/ingest', 'check'] }];
+
+/**
+ * Everything `pnpm check:generated` runs, in order: the check-only targets above, then every
+ * target of `orderedTargets` with `--check`.
+ *
+ * @param {Record<string, string>} scripts the root package.json `scripts` block
+ * @returns {{ label: string, args: string[] }[]} what to print, and the arguments for `pnpm`
+ */
+export function checkTargets(scripts) {
+  return [
+    ...CHECK_ONLY,
+    ...orderedTargets(scripts).map((name) => ({ label: name, args: [name, '--check'] })),
+  ];
+}
+
+/**
  * The scripts to run, in dependency order.
  *
  * @param {Record<string, string>} scripts the root package.json `scripts` block

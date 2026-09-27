@@ -170,3 +170,44 @@ export function markerCentre(mesh: Mesh): [number, number, number] {
   const { centroid } = extractWorldMesh(mesh);
   return centroid;
 }
+
+/**
+ * The vertex nearest a point, among `count` vertices of a packed position array starting at
+ * vertex `from`, as an index into that array and the distance to it.
+ *
+ * Every stage that settles a measured point back onto a bone ends with this search, and there
+ * used to be one copy per stage. They agreed on the answer but not on how they got it -- one
+ * compared `Math.hypot`, one squared distances, one inlined its own loop -- and a copy that
+ * breaks a tie differently puts a landmark on a different vertex. One helper, squared distances,
+ * and the first vertex wins a tie, so every stage settles the same point on the same vertex.
+ */
+export function nearestVertex(
+  positions: Float32Array,
+  from: number,
+  count: number,
+  point: readonly [number, number, number],
+): { index: number; distance: number } {
+  let best = Number.POSITIVE_INFINITY;
+  let at = from;
+  for (let i = 0; i < count; i++) {
+    const o = 3 * (from + i);
+    const dx = (positions[o] as number) - point[0];
+    const dy = (positions[o + 1] as number) - point[1];
+    const dz = (positions[o + 2] as number) - point[2];
+    const d = dx * dx + dy * dy + dz * dz;
+    if (d < best) {
+      best = d;
+      at = from + i;
+    }
+  }
+  return { index: at, distance: Math.sqrt(best) };
+}
+
+/** The position of vertex `index` of a packed position array. */
+export function vertexAt(positions: Float32Array, index: number): [number, number, number] {
+  return [
+    positions[3 * index] as number,
+    positions[3 * index + 1] as number,
+    positions[3 * index + 2] as number,
+  ];
+}

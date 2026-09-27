@@ -1,7 +1,7 @@
 /**
  * Where along a ridge a muscle actually attaches.
  *
- *   pnpm --filter @bs-humany/ingest ridge-attachments [dataDir]
+ *   pnpm --filter @bs-humany/ingest ridge-attachments [dataDir] [--check]
  *
  * A marker names a feature; it does not say where along it. For a tubercle that distinction does
  * not arise, and for a ridge it is the whole question. The lateral supracondylar ridge runs the
@@ -34,12 +34,8 @@
  * apart where the bone between them measures 63.8.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const dataDir = resolve(process.argv[2] ?? join(HERE, '../../../packages/assets-anatomical/data'));
+import { nearestVertex, vertexAt } from './geometry.js';
+import { DataDir, emit, loadLocatedLandmarks, loadPack, stageArgs } from './packData.js';
 
 /** How many bins the ridge's stretch is divided into when tracing it. */
 export const BINS = 24;
@@ -106,15 +102,6 @@ const RIDGES: readonly RidgeSpec[] = [
   },
 ];
 
-interface Manifest {
-  readonly dataset: unknown;
-  readonly bones: readonly {
-    readonly id: string;
-    readonly vertexOffset: number;
-    readonly vertexCount: number;
-  }[];
-}
-
 export interface RidgeAttachment {
   readonly bone: string;
   readonly feature: string;
@@ -139,18 +126,14 @@ const norm = (a: Vec3): Vec3 => {
   return [a[0] / n, a[1] / n, a[2] / n];
 };
 
-const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')) as Manifest;
-const surfaceTable = JSON.parse(readFileSync(join(dataDir, 'landmarks-surface.json'), 'utf8')) as {
-  readonly landmarks: readonly { bone: string; feature: string; surface: Vec3 }[];
-};
-const rawTable = JSON.parse(readFileSync(join(dataDir, 'landmarks.json'), 'utf8')) as Record<
-  string,
-  Record<string, Vec3>
->;
-const bin = readFileSync(join(dataDir, 'skeleton.bin'));
-const positions = new Float32Array(bin.buffer, bin.byteOffset, bin.byteLength / 4);
-const packed = new Map(manifest.bones.map((b) => [b.id, b]));
-const measured = new Map(surfaceTable.landmarks.map((l) => [`${l.bone}/${l.feature}`, l.surface]));
+const { dataDir, check } = stageArgs();
+const data = new DataDir(dataDir);
+const { manifest, meshOf } = loadPack(data);
+/**
+ * The markers on the bone, the raw table beneath them: the ingest's landmark precedence, stopped
+ * at the surface points because the ridge points are what this stage writes.
+ */
+const located = loadLocatedLandmarks(data, 'surface');
 
 const round = (x: number) => Math.round(x * 1e6) / 1e6;
 const RULE =
@@ -163,12 +146,12 @@ const found: RidgeAttachment[] = [];
 for (const spec of RIDGES) {
   for (const s of ['r', 'l'] as const) {
     const bone = spec.bone.replace('$', s);
-    const mesh = packed.get(bone);
-    const at = (feature: string) => measured.get(`${bone}/${feature}`);
+    const mesh = meshOf(bone);
+    const at = (feature: string): Vec3 | undefined => located[bone]?.[feature];
     const proximal = at(spec.axis[0]);
     const distalOf = spec.axis[1].map(at);
     const outwardAt = at(spec.outward);
-    const marker = at(spec.feature) ?? rawTable[bone]?.[spec.feature];
+    const marker = at(spec.feature);
     if (!mesh || !proximal || !outwardAt || !marker || distalOf.some((p) => !p)) continue;
 
     const midpoint = (i: 0 | 1 | 2) =>
@@ -191,12 +174,7 @@ for (const spec of RIDGES) {
     const best: (Vec3 | undefined)[] = Array.from({ length: BINS });
     const reach = new Float64Array(BINS).fill(Number.NEGATIVE_INFINITY);
     for (let i = 0; i < mesh.vertexCount; i++) {
-      const o = 3 * (mesh.vertexOffset + i);
-      const v: Vec3 = [
-        positions[o] as number,
-        positions[o + 1] as number,
-        positions[o + 2] as number,
-      ];
+      const v: Vec3 = vertexAt(mesh.positions, i);
       const along = dot(sub(v, distal), up);
       if (along < low || along > high) continue;
       const slot = Math.min(BINS - 1, Math.floor(((along - low) / (high - low)) * BINS));
@@ -216,19 +194,10 @@ for (const spec of RIDGES) {
     const centroid: Vec3 = [mean(0), mean(1), mean(2)];
 
     // Back onto the bone: a centroid of points around a curved ridge sits just inside it.
-    let nearest = centroid;
-    let closest = Number.POSITIVE_INFINITY;
-    for (let i = 0; i < mesh.vertexCount; i++) {
-      const o = 3 * (mesh.vertexOffset + i);
-      const dx = (positions[o] as number) - centroid[0];
-      const dy = (positions[o + 1] as number) - centroid[1];
-      const dz = (positions[o + 2] as number) - centroid[2];
-      const d = dx * dx + dy * dy + dz * dz;
-      if (d < closest) {
-        closest = d;
-        nearest = [positions[o] as number, positions[o + 1] as number, positions[o + 2] as number];
-      }
-    }
+    const nearest = vertexAt(
+      mesh.positions,
+      nearestVertex(mesh.positions, 0, mesh.vertexCount, centroid).index,
+    );
 
     found.push({
       bone,
@@ -244,20 +213,22 @@ for (const spec of RIDGES) {
   }
 }
 
-writeFileSync(
-  join(dataDir, 'ridge-attachments.json'),
-  `${JSON.stringify(
-    {
-      format: 'bs-humany.ridge-attachments/1',
-      generatedAt: new Date().toISOString().slice(0, 10),
-      dataset: manifest.dataset,
-      bins: BINS,
-      attachments: found,
-    },
-    null,
-    1,
-  )}\n`,
-);
+emit('ridge-attachments', dataDir, check, [
+  [
+    'ridge-attachments.json',
+    `${JSON.stringify(
+      {
+        format: 'bs-humany.ridge-attachments/1',
+        inputsSha256: data.inputsSha256(),
+        dataset: manifest.dataset,
+        bins: BINS,
+        attachments: found,
+      },
+      null,
+      1,
+    )}\n`,
+  ],
+]);
 
 console.error(`ridge attachments: ${found.length} measured.`);
 for (const a of found) {

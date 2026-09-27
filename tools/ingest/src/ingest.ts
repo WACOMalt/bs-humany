@@ -3,9 +3,10 @@
  *
  *   pnpm --filter @bs-humany/ingest run ingest <SkeletalSystem100.fbx> [outDir]
  *
- * Outputs `skeleton.bin`, `manifest.json`, `landmarks.json` and a symmetry report. Everything is
- * re-derivable from the source file and this tool, which is the point: when the dataset updates,
- * re-run rather than re-author.
+ * Outputs `skeleton.bin`, `manifest.json`, `landmarks.json`, `landmarks-derived.json` and
+ * `INGEST-REPORT.txt`. Everything is re-derivable from the source file and this tool, which is the
+ * point: when the dataset updates, re-run rather than re-author. It is the first stage of the
+ * pipeline in packages/assets-anatomical/README.md, and `ingest:all` runs it with the rest.
  */
 
 import { createHash } from 'node:crypto';
@@ -13,7 +14,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import type { Mesh, Object3D } from 'three';
 import { DERIVED_RULES } from './derived.js';
-import { allNodes, isMesh, loadFbx } from './fbx.js';
+import { allNodes, indexMeshesByName, isMesh, loadFbx } from './fbx.js';
 import { type WorldMesh, extractWorldMesh, markerCentre, mergeWorldMeshes } from './geometry.js';
 import { BONE_SOURCES } from './mapping.js';
 import { pack } from './pack.js';
@@ -27,15 +28,11 @@ mkdirSync(outDir, { recursive: true });
 
 const started = Date.now();
 const root = await loadFbx(input);
-const nodes = allNodes(root);
-const meshByName = new Map<string, Mesh>();
-for (const n of nodes) {
-  if (!isMesh(n)) continue;
-  // Bone names are unique in the export; assert rather than assume.
-  if (meshByName.has(n.name))
-    meshByName.set(n.name, n); // keep last; duplicates checked below
-  else meshByName.set(n.name, n);
-}
+// Every bone is found by its node name, so a name two meshes share would make the pack depend on
+// traversal order. indexMeshesByName refuses that for any name a bone is looked up by, and returns
+// the duplicates nobody looks up for the report below.
+const wanted = new Set(BONE_SOURCES.flatMap((source) => source.nodes));
+const { byName: meshByName, duplicates } = indexMeshesByName(allNodes(root), wanted);
 
 interface Extracted {
   id: string;
@@ -187,7 +184,16 @@ const report = [
   `symmetry discrepancies over 5 mm or in vertex count (${symmetry.length}):`,
   ...symmetry.map((s) => `  ${s}`),
   '',
+  `duplicate node names, none of them a bone's source (${duplicates.length}):`,
+  ...duplicates.map((d) => `  ${d.name} (${d.count} meshes)`),
+  '',
   `elapsed ${((Date.now() - started) / 1000).toFixed(1)} s`,
 ];
 writeFileSync(join(outDir, 'INGEST-REPORT.txt'), `${report.join('\n')}\n`);
 console.log(report.join('\n'));
+// The pack is new, and everything measured from it is now stale until it is re-measured. The
+// order is in packages/assets-anatomical/README.md; this is its next step.
+console.log(
+  '\nNext: `pnpm --filter @bs-humany/ingest derive` re-measures the tables that read the pack, ' +
+    'then `pnpm regenerate` rebuilds everything generated from them.',
+);

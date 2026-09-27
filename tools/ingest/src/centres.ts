@@ -1,7 +1,7 @@
 /**
  * Articular joint centres fitted to the bone meshes.
  *
- *   pnpm --filter @bs-humany/ingest centres [dataDir]
+ *   pnpm --filter @bs-humany/ingest centres [dataDir] [--check]
  *
  * The Z-Anatomy export marks anatomical features with small marker meshes, and `ingest` records
  * each marker's centroid as the landmark's position. For a surface feature that is what one
@@ -20,12 +20,7 @@
  * the pack is a faithful copy of those meshes (ADR-011). Offline by design: no runtime fitting.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const dataDir = resolve(process.argv[2] ?? join(HERE, '../../../packages/assets-anatomical/data'));
+import { DataDir, emit, loadPack, stageArgs } from './packData.js';
 
 /** Inlier band for the refinement, metres. A bone mesh is accurate to well under a millimetre. */
 export const INLIER_BAND = 0.0025;
@@ -33,15 +28,6 @@ export const INLIER_BAND = 0.0025;
 const PASSES = 12;
 /** Minimum inliers for a fit to be trusted; a real articular surface has hundreds. */
 export const MIN_INLIERS = 60;
-
-interface PackedBone {
-  readonly id: string;
-  readonly vertexOffset: number;
-  readonly vertexCount: number;
-  readonly centroid: readonly [number, number, number];
-  readonly min: readonly [number, number, number];
-  readonly max: readonly [number, number, number];
-}
 
 /**
  * An articular surface to fit.
@@ -314,33 +300,26 @@ export function fitArticularSphere(
 
 // --- Driver ------------------------------------------------------------------------------------
 
-const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')) as {
-  dataset: Record<string, unknown>;
-  subjectStature: number;
-  totals: { vertices: number };
-  bones: PackedBone[];
+const { dataDir, check } = stageArgs();
+const data = new DataDir(dataDir);
+// The raw marker table rather than the located one. A seed only chooses which vertices the first
+// fit sees and the refinement then follows the surface, so putting the seed on the bone would buy
+// nothing, and it would re-measure every committed centre by a hair for no reason.
+const { manifest, meshOf, landmarks } = loadPack(data);
+/** A bone's own vertices, in double precision for the fits. */
+const verticesOf = (bone: string): Float64Array | undefined => {
+  const mesh = meshOf(bone);
+  return mesh ? Float64Array.from(mesh.positions) : undefined;
 };
-const landmarks = JSON.parse(readFileSync(join(dataDir, 'landmarks.json'), 'utf8')) as Record<
-  string,
-  Record<string, [number, number, number]>
->;
-const bin = readFileSync(join(dataDir, 'skeleton.bin'));
-const positions = new Float32Array(
-  bin.buffer.slice(bin.byteOffset, bin.byteOffset + manifest.totals.vertices * 12),
-);
-const packed = new Map(manifest.bones.map((b) => [b.id, b]));
 
 const round = (x: number) => Math.round(x * 1e6) / 1e6;
 const fitted: FittedCentre[] = [];
 for (const target of TARGETS) {
   for (const side of ['r', 'l'] as const) {
     const boneId = `${target.bone}_${side}`;
-    const bone = packed.get(boneId);
+    const vertices = verticesOf(boneId);
     const seed = landmarks[boneId]?.[target.seedFeature];
-    if (!bone || !seed) throw new Error(`no ${boneId} or its seed ${target.seedFeature}`);
-    const vertices = Float64Array.from(
-      positions.subarray(bone.vertexOffset * 3, (bone.vertexOffset + bone.vertexCount) * 3),
-    );
+    if (!vertices || !seed) throw new Error(`no ${boneId} or its seed ${target.seedFeature}`);
     const fit = fitArticularSphere(vertices, seed, target.seedRadius);
     fitted.push({
       bone: boneId,
@@ -366,15 +345,9 @@ for (const target of CONTACTS) {
   for (const side of ['r', 'l'] as const) {
     const aId = `${target.a}_${side}`;
     const bId = `${target.b}_${side}`;
-    const boneA = packed.get(aId);
-    const boneB = packed.get(bId);
-    if (!boneA || !boneB) throw new Error(`no ${aId} or ${bId}`);
-    const va = Float64Array.from(
-      positions.subarray(boneA.vertexOffset * 3, (boneA.vertexOffset + boneA.vertexCount) * 3),
-    );
-    const vb = Float64Array.from(
-      positions.subarray(boneB.vertexOffset * 3, (boneB.vertexOffset + boneB.vertexCount) * 3),
-    );
+    const va = verticesOf(aId);
+    const vb = verticesOf(bId);
+    if (!va || !vb) throw new Error(`no ${aId} or ${bId}`);
     const fit = contactCentre(va, vb);
     contacts.push({
       bones: [aId, bId],
@@ -405,7 +378,5 @@ const out = {
   centres: fitted,
   contacts,
 };
-writeFileSync(join(dataDir, 'articular-centres.json'), `${JSON.stringify(out, null, 1)}\n`);
-console.error(
-  `wrote ${join(dataDir, 'articular-centres.json')}: ${fitted.length} fitted centres, ${contacts.length} contact centres`,
-);
+emit('centres', dataDir, check, [['articular-centres.json', `${JSON.stringify(out, null, 1)}\n`]]);
+console.error(`centres: ${fitted.length} fitted centres, ${contacts.length} contact centres.`);

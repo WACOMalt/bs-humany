@@ -1,7 +1,7 @@
 /**
  * Radii of the bone surfaces a tendon rides over, measured from the meshes.
  *
- *   pnpm --filter @bs-humany/ingest wrap-radii [dataDir]
+ *   pnpm --filter @bs-humany/ingest wrap-radii [dataDir] [--check]
  *
  * A muscle crossing a joint does not run in a straight line from one attachment to the other: it
  * lies against the bone at the joint and turns over it. How far that surface stands off the joint
@@ -31,12 +31,7 @@
  * Offline by design: no runtime fitting.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const dataDir = resolve(process.argv[2] ?? join(HERE, '../../../packages/assets-anatomical/data'));
+import { DataDir, emit, loadLocatedLandmarks, loadPack, stageArgs } from './packData.js';
 
 /** Vertices further than this from the seed marker are not part of the surface being measured. */
 export const SEED_RADIUS = 0.022;
@@ -174,7 +169,8 @@ export interface WrapRadius {
 
 export interface WrapRadiusTable {
   readonly format: 'bs-humany.wrap-radii/1';
-  readonly generatedAt: string;
+  /** What the table was measured from: see `DataDir.inputsSha256` in packData.ts. */
+  readonly inputsSha256: string;
   readonly dataset: unknown;
   readonly radii: readonly WrapRadius[];
 }
@@ -234,14 +230,9 @@ export function enclosingRadius(distances: number[]): { radius: number; spread: 
   };
 }
 
-const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')) as {
-  readonly dataset: unknown;
-  readonly bones: readonly {
-    readonly id: string;
-    readonly vertexOffset: number;
-    readonly vertexCount: number;
-  }[];
-};
+const { dataDir, check } = stageArgs();
+const data = new DataDir(dataDir);
+const { manifest, meshOf } = loadPack(data);
 /**
  * The markers, on the bone rather than beside it.
  *
@@ -250,31 +241,11 @@ const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')
  * where the bone between them measures 63.8 -- each floats about 20 mm out along the very axis it
  * defines. A radius measured about that axis is a radius about a line through the wrong place.
  *
- * The raw table is the fallback, so a marker the projection has no bone for still resolves.
+ * So the landmarks come through the ingest's one lookup, which answers the way the skeleton's
+ * does: a ridge point over a surface point over the raw marker, and the raw table as the fallback,
+ * so a marker the projection has no bone for still resolves.
  */
-const surface = JSON.parse(readFileSync(join(dataDir, 'landmarks-surface.json'), 'utf8')) as {
-  readonly landmarks: readonly {
-    readonly bone: string;
-    readonly feature: string;
-    readonly surface: [number, number, number];
-  }[];
-};
-const raw = JSON.parse(readFileSync(join(dataDir, 'landmarks.json'), 'utf8')) as Record<
-  string,
-  Record<string, [number, number, number]>
->;
-const landmarks: Record<string, Record<string, [number, number, number]>> = (() => {
-  const merged: Record<string, Record<string, [number, number, number]>> = {};
-  for (const [bone, features] of Object.entries(raw)) merged[bone] = { ...features };
-  for (const l of surface.landmarks) {
-    merged[l.bone] ??= {};
-    (merged[l.bone] as Record<string, [number, number, number]>)[l.feature] = l.surface;
-  }
-  return merged;
-})();
-const bin = readFileSync(join(dataDir, 'skeleton.bin'));
-const positions = new Float32Array(bin.buffer, bin.byteOffset, bin.byteLength / 4);
-const packed = new Map(manifest.bones.map((b) => [b.id, b]));
+const landmarks = loadLocatedLandmarks(data);
 
 const round = (x: number) => Math.round(x * 1e6) / 1e6;
 const name = (end: AxisEnd) => (typeof end === 'string' ? end : `midpoint of ${end.join(' and ')}`);
@@ -284,7 +255,7 @@ for (const target of TARGETS) {
   for (const side of ['r', 'l'] as const) {
     const boneId = `${target.bone}_${side}`;
     const axisBoneId = `${target.axisBone ?? target.bone}_${side}`;
-    const bone = packed.get(boneId);
+    const bone = meshOf(boneId);
     const seed = landmarks[boneId]?.[target.seedFeature];
     const end = (which: AxisEnd): [number, number, number] => {
       if (typeof which === 'string') {
@@ -309,8 +280,9 @@ for (const target of TARGETS) {
 
     const distances: number[] = [];
     const along: number[] = [];
+    const positions = bone.positions;
     for (let i = 0; i < bone.vertexCount; i++) {
-      const at = (bone.vertexOffset + i) * 3;
+      const at = i * 3;
       const p = [
         positions[at] as number,
         positions[at + 1] as number,
@@ -360,14 +332,12 @@ for (const target of TARGETS) {
 
 const table: WrapRadiusTable = {
   format: 'bs-humany.wrap-radii/1',
-  generatedAt: new Date().toISOString(),
+  inputsSha256: data.inputsSha256(),
   dataset: manifest.dataset,
   radii: measured,
 };
 
-const out = join(dataDir, 'wrap-radii.json');
-writeFileSync(out, `${JSON.stringify(table, null, 2)}\n`);
-console.log(`wrap-radii: wrote ${out}`);
+emit('wrap-radii', dataDir, check, [['wrap-radii.json', `${JSON.stringify(table, null, 2)}\n`]]);
 for (const r of measured) {
   console.log(
     `  ${r.bone.padEnd(12)} ${r.feature.padEnd(38)} r ${(r.radius * 1000).toFixed(1).padStart(5)} mm` +
