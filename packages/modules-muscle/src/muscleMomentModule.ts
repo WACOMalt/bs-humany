@@ -25,7 +25,8 @@
  * coordinate carries sweeps a circle about its axis, so the derivative is the sum of those
  * sweeps projected on the path's own directions. Everything needed is on `muscle.polyline` --
  * the points and, since it publishes one, the body carrying each. No re-solving, no differencing,
- * and no reaching into the path module.
+ * and no reaching into the path module. The arithmetic is `pathLengthDerivativeFlat` from the path
+ * package, the one implementation of the derivative there is.
  *
  * Only revolute coordinates. A slide has a moment arm in the sense of a lever ratio rather than a
  * length, and nothing in the elbow needs one; a model that grows a prismatic joint under a muscle
@@ -33,9 +34,13 @@
  *
  * ## Rate
  *
- * A tenth of the physics rate. Nothing consumes it within a tick, a moment arm changes about as
- * fast as a joint angle does, and the cost is a pass over every path point for every crossed
- * coordinate -- which is the one part of this module anyone would notice.
+ * A tenth of the physics rate: 50 Hz at the usual 500. Nothing consumes it within a tick, a moment
+ * arm changes about as fast as a joint angle does, and the cost is a pass over every path point for
+ * every crossed coordinate -- which is the one part of this module anyone would notice.
+ *
+ * It runs in `actuate` rather than after the solve, though it feeds nothing there. The polyline it
+ * differentiates was solved from the pose the tick started in, and the joint axes have to come
+ * from that same pose; after the solve, `body.pose` has moved on by a step.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
@@ -47,6 +52,7 @@ import type {
   SimModule,
 } from '@bs-humany/kernel';
 import { BODY_POSE, CHANNEL_VERSION } from '@bs-humany/modules-mechanics';
+import { pathLengthDerivativeFlat } from '@bs-humany/muscle-path';
 import {
   DIAGNOSTICS_MOMENT_ARM,
   MUSCLE_CHANNEL_VERSION,
@@ -186,8 +192,12 @@ export class MuscleMomentModule implements SimModule {
     this.manifest = {
       id: MUSCLE_MOMENT_MODULE_ID,
       version: '1.0.0',
-      // After the solve, reading the path the tick produced.
-      phase: 'post',
+      // In `actuate`, after the path module (the dependency below orders the two within the
+      // phase), so that the pose this reads the joint axes from is the start-of-tick `body.pose`
+      // the path was solved from. In `post` the axes would come from the pose the solve had just
+      // produced, one step newer than the polyline they are differentiated against -- right only
+      // while nothing moves.
+      phase: 'actuate',
       rateDivisor: 10,
       dependsOn: [{ id: MUSCLE_PATH_MODULE_ID, version: '1.0.0' }],
       reads: [
@@ -275,12 +285,13 @@ export class MuscleMomentModule implements SimModule {
   }
 
   /**
-   * `-dL/dq` for one unit about one coordinate, summed over the path's segments.
+   * `-dL/dq` for one unit about one coordinate.
    *
-   * Each end of a segment contributes the sweep it would make under a unit rate of the
-   * coordinate, projected on the segment's own direction; an end the coordinate does not carry
-   * contributes nothing. A zero-length segment has no direction and is skipped rather than
-   * producing a NaN, which a path with two coincident points would otherwise do.
+   * The derivative itself is `pathLengthDerivativeFlat`, the same function the path package's
+   * tests check against a central difference, called straight on the channel buffers so that
+   * nothing is built per tick. This module used to carry its own copy of that loop; two copies of
+   * one derivative is one more than can be kept in step, and it was this one that had the
+   * allocation in it.
    */
   private armOf(
     unit: number,
@@ -292,39 +303,19 @@ export class MuscleMomentModule implements SimModule {
     originY: number,
     originZ: number,
   ): number {
-    const point = this.point as Float64Array;
-    const body = this.pointBody as Int32Array;
-    const from = (this.pointStart as Int32Array)[unit] as number;
-    const points = (this.pointCount as Int32Array)[unit] as number;
-    const mask = pair * this.segments;
-
-    let derivative = 0;
-    for (let i = 0; i + 1 < points; i++) {
-      const a = 3 * (from + i);
-      const b = 3 * (from + i + 1);
-      const dx = (point[b] as number) - (point[a] as number);
-      const dy = (point[b + 1] as number) - (point[a + 1] as number);
-      const dz = (point[b + 2] as number) - (point[a + 2] as number);
-      const segment = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (segment <= 0) continue;
-      const ux = dx / segment;
-      const uy = dy / segment;
-      const uz = dz / segment;
-
-      for (const end of [0, 1]) {
-        const carried = this.carries[mask + (body[from + i + end] as number)];
-        if (carried !== 1) continue;
-        const at = end === 0 ? a : b;
-        const rx = (point[at] as number) - originX;
-        const ry = (point[at + 1] as number) - originY;
-        const rz = (point[at + 2] as number) - originZ;
-        const sweep =
-          ux * (axisY * rz - axisZ * ry) +
-          uy * (axisZ * rx - axisX * rz) +
-          uz * (axisX * ry - axisY * rx);
-        derivative += end === 0 ? -sweep : sweep;
-      }
-    }
-    return -derivative;
+    return -pathLengthDerivativeFlat(
+      this.point as Float64Array,
+      this.pointBody as Int32Array,
+      (this.pointStart as Int32Array)[unit] as number,
+      (this.pointCount as Int32Array)[unit] as number,
+      axisX,
+      axisY,
+      axisZ,
+      originX,
+      originY,
+      originZ,
+      this.carries,
+      pair * this.segments,
+    );
   }
 }

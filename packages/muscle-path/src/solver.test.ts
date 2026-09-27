@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { momentArm, momentArmByDifference, pathLengthDerivative } from './momentArm.js';
+import {
+  momentArm,
+  momentArmByDifference,
+  pathLengthDerivative,
+  pathLengthDerivativeFlat,
+} from './momentArm.js';
 import { ViaPointPathSolver } from './solver.js';
 import {
   HINGE_AXIS,
@@ -429,6 +434,89 @@ describe('the moment arm', () => {
     expect(first).toBeGreaterThan(0);
     expect(second).toBeLessThan(0);
     expect(second).toBeCloseTo(-first, 12);
+  });
+
+  it('comes out the same from the flat buffers the kernel module reads', () => {
+    // The kernel's moment module calls the flat form directly, on one buffer holding every path
+    // end to end and one buffer holding every coordinate's mask end to end. So this lays the
+    // hinge's paths out exactly that way -- each at its own `from`, the hinge's mask after a
+    // decoy coordinate's -- and asks for every path at every angle. The Vec3 form packs a single
+    // path into the same function, so the two must agree to the last bit; if they did not, the
+    // offsets would be reading some other path's points or some other coordinate's mask.
+    const kinked: MusclePath = {
+      id: 'kinked',
+      origin: { bone: 'parent', point: { x: -0.25, y: 0.04, z: 0.01 } },
+      elements: [
+        { kind: 'viaPoint', site: { bone: 'parent', point: { x: -0.05, y: 0.03, z: 0 } } },
+        { kind: 'viaPoint', site: { bone: 'child', point: { x: 0.06, y: 0.02, z: -0.01 } } },
+      ],
+      insertion: { bone: 'child', point: { x: 0.22, y: -0.01, z: 0.02 } },
+    };
+    const inert: MusclePath = {
+      id: 'inert',
+      origin: { bone: 'parent', point: ORIGIN_POINT },
+      elements: [],
+      insertion: { bone: 'parent', point: { x: -0.1, y: 0.3, z: 0 } },
+    };
+    const flipped: MusclePath = {
+      ...SPANNING,
+      id: 'flipped',
+      origin: { bone: 'parent', point: { x: -0.3, y: -0.05, z: 0 } },
+    };
+    const paths = [SPANNING, kinked, inert, flipped];
+    const coordinate = { axis: HINGE_AXIS, centre: HINGE_CENTRE, movesWith: hingeMovesWith };
+
+    // Two masks of two bodies each. The first carries nothing; the second is the hinge's, where
+    // body 1 moves and body 0 does not.
+    const carries = Uint8Array.from([0, 0, 0, 1]);
+    const HINGE_MASK = 2;
+
+    for (const angle of [-1.2, -0.3, 0, 0.7, 1.9]) {
+      const { solver, state } = solved(paths, angle);
+      const worlds = paths.map((_, p) => solver.worldPoints(p, state.pose));
+      const total = worlds.reduce((n, w) => n + w.length, 0);
+      const point = new Float64Array(3 * total);
+      const body = new Int32Array(total);
+      const from: number[] = [];
+      let at = 0;
+      for (let p = 0; p < paths.length; p++) {
+        from.push(at);
+        const bodies = solver.bodiesOf(p);
+        for (const [i, w] of (worlds[p] ?? []).entries()) {
+          point.set([w.x, w.y, w.z], 3 * at);
+          body[at] = bodies[i] as number;
+          at++;
+        }
+      }
+
+      for (let p = 0; p < paths.length; p++) {
+        const points = worlds[p] ?? [];
+        const expected = pathLengthDerivative(points, solver.bodiesOf(p), coordinate);
+        const flat = (mask: number) =>
+          pathLengthDerivativeFlat(
+            point,
+            body,
+            from[p] as number,
+            points.length,
+            HINGE_AXIS.x,
+            HINGE_AXIS.y,
+            HINGE_AXIS.z,
+            HINGE_CENTRE.x,
+            HINGE_CENTRE.y,
+            HINGE_CENTRE.z,
+            carries,
+            mask,
+          );
+        const label = `${paths[p]?.id} at ${angle} rad`;
+        expect(flat(HINGE_MASK), label).toBe(expected);
+        // And through the decoy mask, which carries nothing: no leverage at all.
+        expect(flat(0), label).toBe(0);
+      }
+      // The crossing paths have leverage, so agreement above was not two zeros agreeing.
+      expect(
+        Math.abs(pathLengthDerivative(worlds[1] ?? [], solver.bodiesOf(1), coordinate)),
+      ).toBeGreaterThan(1e-3);
+    }
   });
 
   it('grows with the distance the insertion sits from the axis', () => {

@@ -9,11 +9,13 @@
  * ## Posing rather than simulating
  *
  * The body is placed at each angle by writing the generalized state, not by driving it there.
- * Gravity is off and the muscles are undriven, so nothing accelerates; the pose is re-imposed
- * before every tick anyway, which makes the sweep independent of how the dynamics behave and of
- * any drift between one angle and the next. Each angle is held for a few ticks because the path
- * and moment modules run at a tenth of the physics rate -- the pose has to survive long enough to
- * be measured.
+ * Gravity is off and the muscles are undriven, so almost nothing accelerates -- an undriven muscle
+ * still pulls a little, passively, and moves the body a little in each step. The pose is
+ * re-imposed before every tick, which makes the sweep independent of how the dynamics behave and
+ * of any drift between one angle and the next. Each angle is held for a few ticks because the
+ * moment module runs at a tenth of the physics rate -- the path module runs every tick, but the
+ * arm is only published when the moment module does, so the pose has to survive long enough for
+ * that to happen.
  *
  * ## The backend comes from the caller
  *
@@ -38,8 +40,11 @@ const ROOT_NQ = 7;
 /**
  * Ticks held at each angle.
  *
- * The moment module runs at a tenth of the physics rate, so ten ticks is the least that
- * guarantees it sees the pose; twelve leaves the path module a tick either side of it.
+ * The moment module runs at a tenth of the physics rate, and it reads the pose each tick starts
+ * in, which on the first tick at a new angle is still the old angle stepped forward. So ten ticks
+ * is not enough: an angle whose first tick fell on a firing would be measured only there, at the
+ * angle before it. Twelve always puts the last firing at an angle on its third tick or later,
+ * because each angle starts two ticks further round the module's ten-tick cycle than the last.
  */
 const TICKS_PER_POSE = 12;
 

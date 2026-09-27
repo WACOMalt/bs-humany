@@ -446,10 +446,12 @@ Muscle meshes are an asset-pack concern, as bone meshes are. Base spec ADR-005 a
 |---|---|---|---|
 | `muscle.path` | `actuate` | physics rate | `muscle.path` |
 | `muscle.dynamics` | `actuate` | physics rate | `muscle.state`, accumulates `actuation.bodyWrench` |
-| `muscle.moment` | `post` | 60 Hz | `diagnostics.momentArm` |
+| `muscle.moment` | `actuate` | 50 Hz (`rateDivisor` 10 at 500 Hz) | `diagnostics.momentArm` |
 | `muscle.volume` | `post` | 60 Hz | `render.muscleMesh` |
 
 `muscle.path` MUST run before `muscle.dynamics`. Declare the order with the `order` field in the manifest.
+
+`muscle.moment` runs in `actuate`, after `muscle.path`, so that it reads the joint axes from the same start-of-tick `body.pose` the path was solved from. In `post` the axes would be one step newer than the polyline.
 
 ### 10.2 Channels
 
