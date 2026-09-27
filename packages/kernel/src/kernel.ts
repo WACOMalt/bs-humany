@@ -47,7 +47,12 @@ export interface KernelOptions {
    * passes `false`.
    */
   readonly audit?: boolean;
-  /** Per-module configuration, keyed by module id. */
+  /**
+   * Per-module configuration, keyed by module id, handed to each module as
+   * `ModuleInitContext.config`. Reserved for data-driven module configuration (spec 10.1's
+   * `configSchema`, and the WorkerHost path, where modules are built in the worker). No module
+   * reads it today; configure a module through its constructor.
+   */
   readonly config?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 

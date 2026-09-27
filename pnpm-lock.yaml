@@ -437,6 +437,9 @@ importers:
       '@bs-humany/backend-mujoco':
         specifier: workspace:*
         version: link:../backend-mujoco
+      '@bs-humany/modules-sensing':
+        specifier: workspace:*
+        version: link:../modules-sensing
 
   tools/cli: {}
 

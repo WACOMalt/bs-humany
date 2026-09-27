@@ -1,0 +1,82 @@
+{
+  "actuation.bodyWrench": {
+    "version": "1.0.0",
+    "hash": "69cb361acba2221a"
+  },
+  "actuation.jointTorque": {
+    "version": "1.0.0",
+    "hash": "0d9d0bd2d6ecc0dc"
+  },
+  "body.boneTransforms": {
+    "version": "1.0.0",
+    "hash": "f33a82a499413563"
+  },
+  "body.jointState": {
+    "version": "1.0.0",
+    "hash": "6983b49b91e49272"
+  },
+  "body.pose": {
+    "version": "1.0.0",
+    "hash": "d5e9f108418990f3"
+  },
+  "body.velocity": {
+    "version": "1.0.0",
+    "hash": "04884c8fc808e539"
+  },
+  "contact.manifolds": {
+    "version": "1.0.0",
+    "hash": "bca94967b12350e3"
+  },
+  "diagnostics.energy": {
+    "version": "1.0.0",
+    "hash": "189162b1175d4ab8"
+  },
+  "diagnostics.limits": {
+    "version": "1.0.0",
+    "hash": "a9731d8ca75f1511"
+  },
+  "diagnostics.momentArm": {
+    "version": "1.0.0",
+    "hash": "b4b42017d0ad45df"
+  },
+  "efferent.alphaMotor": {
+    "version": "1.0.0",
+    "hash": "0e9eef8ceebf25a5"
+  },
+  "efferent.gammaMotor": {
+    "version": "1.0.0",
+    "hash": "55b76af8f673590b"
+  },
+  "interaction.grab": {
+    "version": "1.0.0",
+    "hash": "b2420c36c2c911c9"
+  },
+  "muscle.contact": {
+    "version": "1.0.0",
+    "hash": "a91441a0d4b29b90"
+  },
+  "muscle.path": {
+    "version": "1.0.0",
+    "hash": "674b845450825f83"
+  },
+  "muscle.polyline": {
+    "version": "1.0.0",
+    "hash": "1574d5eafb86bace"
+  },
+  "muscle.state": {
+    "version": "1.0.0",
+    "hash": "f2a1a16031a42ebb"
+  },
+  "render.muscleMesh": {
+    "version": "1.0.0",
+    "hash": "3b340088459678a1"
+  },
+  "sense.vestibular": {
+    "version": "1.0.0",
+    "hash": "67f5c04a37063ff1"
+  },
+  "sim.gravity": {
+    "version": "1.0.0",
+    "hash": "4114eced23916f70"
+  }
+}
