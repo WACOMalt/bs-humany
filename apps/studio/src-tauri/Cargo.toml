@@ -13,13 +13,16 @@ rust-version = "1.77.2"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# A window, two headers and two commands. The commands exist because a web view is not a browser:
+# A window, two headers, and the commands the header of `main.rs` lists: file dialogs, the VR
+# bridge, checkpoints, the viewer's lifecycle and a log line.
+tauri = { version = "2", features = [] }
+# The dialog plugin serves the file commands. They exist because a web view is not a browser:
 # `<a download>` and `<input type="file">` do nothing inside WebKitGTK, so saving and loading have
 # to go through a native dialog. `main.rs` argues for the shape they take -- the page hands over
 # bytes and a name and never names or learns a path.
-tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-# For the two headers that say which files a set holds and how long each of them is.
+# For the two headers that say which files a set holds and how long each of them is, and for the
+# viewer's state, which goes back to the page as an object.
 serde_json = "1"
 
 # A single binary somebody can copy to another machine is the point, so it is built for size and

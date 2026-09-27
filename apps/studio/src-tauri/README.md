@@ -3,18 +3,64 @@
 The same web application the container serves, in a native window instead of a browser tab. The
 container stays exactly as it was: this is a second way to run the studio, not a replacement.
 
-What this crate adds is a window, two headers, and two commands for saving and opening files.
+What this crate adds is a window, the two headers cross-origin isolation needs (below), the
+commands the next section lists, and two things bundled beside the binary: the VR viewer as a
+sidecar, and the mesh pack it draws.
 
-The commands are not a preference. A web view is not a browser: `<a download>` has no download
-handler behind it and `<input type="file">` has no file chooser, so in the binary Save, Load and
-Export clicked and did nothing and said nothing. They go through a native dialog instead.
+## What the page can ask the host for
 
-The shape keeps that at what a Save button means. The page hands over file names and the bytes;
-it does not name a path and never learns the one chosen, so the dialog is the only thing that
-decides where a file lands. `save_file_set` asks for a folder once, because a Blender export is
-three files that are no use apart, and it refuses any name that is not a plain file name. Nothing
-else is exposed -- the dialog plugin is registered for its Rust side alone and no part of it is
-reachable from JavaScript.
+Nineteen commands, in five families -- every name `generate_handler!` registers in `src/main.rs`,
+whose header says the same. None of them takes a path from the page: each family is bounded so
+that a page doing its worst reaches only what that family is for.
+
+**File dialogs: `save_file`, `save_file_set`, `open_text_file`.** These are not a preference. A
+web view is not a browser: `<a download>` has no download handler behind it and
+`<input type="file">` has no file chooser, so in the binary Save, Load and Export clicked and did
+nothing and said nothing. They go through a native dialog instead, and the shape keeps that at
+what a Save button means. The page hands over file names and the bytes; it does not name a path
+and never learns the one chosen, so the dialog is the only thing that decides where a file lands.
+`save_file_set` asks for a folder once, because a Blender export is three files that are no use
+apart, and it refuses any name that is not a plain file name. `open_text_file` asks for a session
+file and hands back its text.
+
+**The VR bridge: `bridge_claim`, `bridge_release`, `bridge_create`, `bridge_write`,
+`bridge_text`, `bridge_read_pair`, `bridge_commands`, `bridge_close`, `bridge_clear`.** The page
+cannot touch tmpfs, so it builds the bridge bytes and hands them here to be written. The files are
+fixed, under `/dev/shm/bs-humany-studio` -- the studio's own bridge, not the one the command-line
+publishers share -- and the page chooses among them by name, never by path: a ring is one of
+`BRIDGE_NAMES` (the pose ring, `-muscles`, `-grab`), a text file is the `.json` sidecar or the
+`-status.json` status, and the viewer's command log and the single-writer claim (`-owner`) have
+names of their own. A ring is at most `BRIDGE_MAX_BYTES` (64 MiB), every write in a batch is
+checked to lie inside the file at the length it was created with before any of them is made, and a
+new ring is built under a temporary name and renamed into place, so a viewer that has the old one
+mapped keeps it whole. The page takes the claim before it clears anything, and quitting clears the
+bridge only if this process holds it.
+
+**Checkpoints: `checkpoint_write`, `checkpoint_read`, `checkpoint_list`.** The shared data
+directory the command-line trainer and the dashboard use too -- `$XDG_DATA_HOME/bs-humany`, or
+`~/.local/share/bs-humany`, on Linux, and `BS_HUMANY_HOME` over all of it when it is set. A name
+must pass the checkpoint rule (lower-case letters, digits, `-` and `_`, starting with a letter or
+a digit, forty at most), because it becomes a file stem, and a part is one of three kinds:
+`policy` in `policies/`, `centre` and `latest` in `runs/`.
+
+**The viewer's lifecycle: `xr_viewer_launch`, `xr_viewer_state`, `xr_viewer_stop`.** The viewer
+binary and the mesh pack are found by the shell -- from `BS_HUMANY_XR_VIEWER` and
+`BS_HUMANY_PACK_DIR`, from beside the executable, or from the checkout, as the sidecar section
+below says -- and never named by the page, and the arguments it is started with are fixed.
+`xr_viewer_state` says whether it runs and, once it has stopped, its exit code or signal and the
+last lines it printed, so the studio can say why. The viewer is killed when the studio exits.
+
+**`studio_log`.** A line from the page's VR link onto the shell's stderr, where the viewer's own
+lines are, and nowhere else.
+
+The dialog plugin is registered for its Rust side alone. The crate has no capabilities file, so
+none of the plugin's own commands is reachable from JavaScript, and the page has no filesystem or
+shell access beyond the nineteen above.
+
+What is bundled comes from `tauri.conf.json`: `bundle.externalBin` names the viewer sidecar
+(`binaries/bs-humany-xr-viewer`), and `bundle.resources` carries the mesh pack the viewer draws --
+`assets-anatomical/data/manifest.json` and `skeleton.bin` -- together with that pack's own CC BY-SA
+`LICENSE` and `NOTICE`, under `assets-anatomical/`.
 
 ## Building
 
