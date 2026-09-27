@@ -17,7 +17,9 @@
  *
  * The intrinsics are not here. The lumbricals and the interossei insert into the dorsal
  * expansion and the thenar and hypothenar muscles arise from the flexor retinaculum: soft
- * structures, none of which the dataset carries. `attachmentGaps` lists them.
+ * structures, none of which the dataset carries. `UNMODELLED_MUSCLES` in
+ * `@bs-humany/skeleton` names them, and `docs/plans/dataset-correspondence.md` 5.2 is the
+ * work that would add them.
  *
  * ## Where each half comes from
  *
@@ -25,8 +27,15 @@
  * statement located on this subject, and for the digits measured off the bones themselves,
  * because beyond the wrist the export's four markers are label anchors floating clear of the
  * hand. *What a muscle can do* is MyoSuite's. Every actuator here is a `<muscle>` element with
- * no operating range of its own, so every fiber length comes from the travel measured on this
- * skeleton and is marked `fiberLengthFromTravel`; OQ-022 has the argument.
+ * no operating range of its own, so peak force is as stated and every fiber length is the stated
+ * `lengthrange` width over `TYPICAL_NORMALISED_TRAVEL`: a stand-in good to about half, which
+ * every unit's citation, `myoArmStandIn`, says. OQ-022 has the argument.
+ *
+ * That number is also the one the simulation runs. Compile lengthens a set's fibers where a
+ * muscle travels further on this skeleton than on the source's (OQ-020), but the source-travel
+ * sweep does not cover the hand's tendons, so
+ * `deriveOptimalFiberLength` has nothing to translate by and keeps the stated fiber, capped at
+ * four fifths of its path, which none of these reaches.
  *
  * ## The paths are ours and have to be
  *
@@ -44,12 +53,14 @@ import type { MuscleGroup } from './schema.js';
 /** Anatomy: which bony feature a muscle attaches to. The sites themselves are cited in M5.3. */
 const gray = (muscle: string) => cite('gray1918', `Part IV, Myology: The ${muscle}`);
 
-/** Parameters: the actuator in the vendored arm model they were derived from. */
-const myoArm = (actuator: string) =>
+/** Parameters, for an actuator that states no operating range: the fiber length is a stand-in. */
+const myoArmStandIn = (actuator: string) =>
   cite(
     'caggiano2022',
-    `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated. Fiber length from the ` +
-      'travel measured on this skeleton (OQ-022), which the unit marks with fiberLengthFromTravel',
+    `myoarm_r_muscle.xml, actuator name="${actuator}": peak force as stated; fiber length is the ` +
+      'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (0.667), a stand-in good to ' +
+      'about half (OQ-022); not translated at compile, since the source-travel sweep does not ' +
+      'cover the hand (OQ-020)',
   );
 
 export const HAND_MUSCLES: readonly MuscleGroup[] = [
@@ -84,7 +95,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0932264,
           tendonSlackLength: 0.274213,
           pennationAngle: 0,
-          source: myoArm('FDS2'),
+          source: myoArmStandIn('FDS2'),
         },
       },
       {
@@ -111,7 +122,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0931034,
           tendonSlackLength: 0.272627,
           pennationAngle: 0,
-          source: myoArm('FDS3'),
+          source: myoArmStandIn('FDS3'),
         },
       },
       {
@@ -138,7 +149,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0871514,
           tendonSlackLength: 0.369797,
           pennationAngle: 0,
-          source: myoArm('FDS4'),
+          source: myoArmStandIn('FDS4'),
         },
       },
       {
@@ -165,7 +176,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.103562,
           tendonSlackLength: 0.292779,
           pennationAngle: 0,
-          source: myoArm('FDS5'),
+          source: myoArmStandIn('FDS5'),
         },
       },
     ],
@@ -202,7 +213,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0984363,
           tendonSlackLength: 0.277891,
           pennationAngle: 0,
-          source: myoArm('FDP2'),
+          source: myoArmStandIn('FDP2'),
         },
       },
       {
@@ -230,7 +241,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0938441,
           tendonSlackLength: 0.279772,
           pennationAngle: 0,
-          source: myoArm('FDP3'),
+          source: myoArmStandIn('FDP3'),
         },
       },
       {
@@ -258,7 +269,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.104666,
           tendonSlackLength: 0.285365,
           pennationAngle: 0,
-          source: myoArm('FDP4'),
+          source: myoArmStandIn('FDP4'),
         },
       },
       {
@@ -286,7 +297,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0952339,
           tendonSlackLength: 0.330084,
           pennationAngle: 0,
-          source: myoArm('FDP5'),
+          source: myoArmStandIn('FDP5'),
         },
       },
     ],
@@ -332,7 +343,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0892969,
           tendonSlackLength: 0.342336,
           pennationAngle: 0,
-          source: myoArm('EDC2'),
+          source: myoArmStandIn('EDC2'),
         },
       },
       {
@@ -369,7 +380,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0853733,
           tendonSlackLength: 0.348567,
           pennationAngle: 0,
-          source: myoArm('EDC3'),
+          source: myoArmStandIn('EDC3'),
         },
       },
       {
@@ -406,7 +417,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0966237,
           tendonSlackLength: 0.333732,
           pennationAngle: 0,
-          source: myoArm('EDC4'),
+          source: myoArmStandIn('EDC4'),
         },
       },
       {
@@ -443,7 +454,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0672909,
           tendonSlackLength: 0.341334,
           pennationAngle: 0,
-          source: myoArm('EDC5'),
+          source: myoArmStandIn('EDC5'),
         },
       },
     ],
@@ -480,7 +491,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0678216,
           tendonSlackLength: 0.205116,
           pennationAngle: 0,
-          source: myoArm('EIP'),
+          source: myoArmStandIn('EIP'),
         },
       },
     ],
@@ -529,7 +540,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0606882,
           tendonSlackLength: 0.340657,
           pennationAngle: 0,
-          source: myoArm('EDM'),
+          source: myoArmStandIn('EDM'),
         },
       },
     ],
@@ -552,7 +563,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0415487,
           tendonSlackLength: 0.254112,
           pennationAngle: 0,
-          source: myoArm('ECU'),
+          source: myoArmStandIn('ECU'),
         },
       },
     ],
@@ -582,7 +593,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0851574,
           tendonSlackLength: 0.171776,
           pennationAngle: 0,
-          source: myoArm('FPL'),
+          source: myoArmStandIn('FPL'),
         },
       },
     ],
@@ -623,7 +634,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.111441,
           tendonSlackLength: 0.186283,
           pennationAngle: 0,
-          source: myoArm('EPL'),
+          source: myoArmStandIn('EPL'),
         },
       },
     ],
@@ -656,7 +667,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0794363,
           tendonSlackLength: 0.0986302,
           pennationAngle: 0,
-          source: myoArm('EPB'),
+          source: myoArmStandIn('EPB'),
         },
       },
     ],
@@ -681,7 +692,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0354243,
           tendonSlackLength: 0.183501,
           pennationAngle: 0,
-          source: myoArm('APL'),
+          source: myoArmStandIn('APL'),
         },
       },
     ],
@@ -717,7 +728,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0932264,
           tendonSlackLength: 0.274213,
           pennationAngle: 0,
-          source: myoArm('FDS2'),
+          source: myoArmStandIn('FDS2'),
         },
       },
       {
@@ -744,7 +755,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0931034,
           tendonSlackLength: 0.272627,
           pennationAngle: 0,
-          source: myoArm('FDS3'),
+          source: myoArmStandIn('FDS3'),
         },
       },
       {
@@ -771,7 +782,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0871514,
           tendonSlackLength: 0.369797,
           pennationAngle: 0,
-          source: myoArm('FDS4'),
+          source: myoArmStandIn('FDS4'),
         },
       },
       {
@@ -798,7 +809,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.103562,
           tendonSlackLength: 0.292779,
           pennationAngle: 0,
-          source: myoArm('FDS5'),
+          source: myoArmStandIn('FDS5'),
         },
       },
     ],
@@ -835,7 +846,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0984363,
           tendonSlackLength: 0.277891,
           pennationAngle: 0,
-          source: myoArm('FDP2'),
+          source: myoArmStandIn('FDP2'),
         },
       },
       {
@@ -863,7 +874,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0938441,
           tendonSlackLength: 0.279772,
           pennationAngle: 0,
-          source: myoArm('FDP3'),
+          source: myoArmStandIn('FDP3'),
         },
       },
       {
@@ -891,7 +902,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.104666,
           tendonSlackLength: 0.285365,
           pennationAngle: 0,
-          source: myoArm('FDP4'),
+          source: myoArmStandIn('FDP4'),
         },
       },
       {
@@ -919,7 +930,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0952339,
           tendonSlackLength: 0.330084,
           pennationAngle: 0,
-          source: myoArm('FDP5'),
+          source: myoArmStandIn('FDP5'),
         },
       },
     ],
@@ -965,7 +976,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0892969,
           tendonSlackLength: 0.342336,
           pennationAngle: 0,
-          source: myoArm('EDC2'),
+          source: myoArmStandIn('EDC2'),
         },
       },
       {
@@ -1002,7 +1013,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0853733,
           tendonSlackLength: 0.348567,
           pennationAngle: 0,
-          source: myoArm('EDC3'),
+          source: myoArmStandIn('EDC3'),
         },
       },
       {
@@ -1039,7 +1050,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0966237,
           tendonSlackLength: 0.333732,
           pennationAngle: 0,
-          source: myoArm('EDC4'),
+          source: myoArmStandIn('EDC4'),
         },
       },
       {
@@ -1076,7 +1087,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0672909,
           tendonSlackLength: 0.341334,
           pennationAngle: 0,
-          source: myoArm('EDC5'),
+          source: myoArmStandIn('EDC5'),
         },
       },
     ],
@@ -1113,7 +1124,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0678216,
           tendonSlackLength: 0.205116,
           pennationAngle: 0,
-          source: myoArm('EIP'),
+          source: myoArmStandIn('EIP'),
         },
       },
     ],
@@ -1162,7 +1173,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0606882,
           tendonSlackLength: 0.340657,
           pennationAngle: 0,
-          source: myoArm('EDM'),
+          source: myoArmStandIn('EDM'),
         },
       },
     ],
@@ -1185,7 +1196,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0415487,
           tendonSlackLength: 0.254112,
           pennationAngle: 0,
-          source: myoArm('ECU'),
+          source: myoArmStandIn('ECU'),
         },
       },
     ],
@@ -1215,7 +1226,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0851574,
           tendonSlackLength: 0.171776,
           pennationAngle: 0,
-          source: myoArm('FPL'),
+          source: myoArmStandIn('FPL'),
         },
       },
     ],
@@ -1256,7 +1267,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.111441,
           tendonSlackLength: 0.186283,
           pennationAngle: 0,
-          source: myoArm('EPL'),
+          source: myoArmStandIn('EPL'),
         },
       },
     ],
@@ -1289,7 +1300,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0794363,
           tendonSlackLength: 0.0986302,
           pennationAngle: 0,
-          source: myoArm('EPB'),
+          source: myoArmStandIn('EPB'),
         },
       },
     ],
@@ -1314,7 +1325,7 @@ export const HAND_MUSCLES: readonly MuscleGroup[] = [
           optimalFiberLength: 0.0354243,
           tendonSlackLength: 0.183501,
           pennationAngle: 0,
-          source: myoArm('APL'),
+          source: myoArmStandIn('APL'),
         },
       },
     ],

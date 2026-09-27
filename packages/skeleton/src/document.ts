@@ -19,7 +19,11 @@ import {
   provisional,
 } from '@bs-humany/hsdl';
 import { mul, param } from '@bs-humany/hsdl';
-import { buildAttachmentSites, buildMuscleViaPointSites } from './attachments.js';
+import {
+  UNMODELLED_MUSCLES,
+  buildAttachmentSites,
+  buildMuscleViaPointSites,
+} from './attachments.js';
 import { buildConstraints } from './constraints.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { buildFrameDefs, buildVirtualLandmarks } from './frames.js';
@@ -269,6 +273,19 @@ export function modelLimitations(): string[] {
     'Parameter tables are consistency-checked but not yet verified line by line against their ' +
       'source publications. See OQ-001 and OQ-002.',
   ];
+  // Built from the table rather than written out, so the panel and the list the tests hold against
+  // the muscle set cannot name different things.
+  const groups = UNMODELLED_MUSCLES.map((u) => u.group);
+  const named =
+    groups.length > 1
+      ? `${groups.slice(0, -1).join(', ')} and ${groups[groups.length - 1]}`
+      : groups[0];
+  if (named !== undefined) {
+    limitations.push(
+      `Not modelled: ${named} -- where they attach is soft tissue, or bone the dataset does ` +
+        'not mark, so there is nothing on this skeleton to bind them to.',
+    );
+  }
   limitations.push(
     'The procedural skeleton is disabled as a user option and is a future goal; the measured ' +
       'skeleton is the only one rendered. Procedural recipes serve only as the fallback for bones ' +

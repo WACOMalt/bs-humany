@@ -14,9 +14,21 @@
  * measured, and the forearm set says so in its own header.
  *
  * Every one is a `<muscle>` element in the source, stating force and a length range and no
- * operating range, so the same reading applies as to the forearm's seven: peak force is the
- * source's, and the fiber length comes from the travel measured on this skeleton, marked with
- * `fiberLengthFromTravel`. OQ-022 has the argument.
+ * operating range, so the same reading applies as to the forearm's six: peak force is the
+ * source's, and the fiber length is the stated length range's width over
+ * `TYPICAL_NORMALISED_TRAVEL`, a stand-in good to about half. There is no marker field on the
+ * unit that says so; the citation does, since every unit here cites `myoArmStandIn`, and the
+ * generator refuses to run if an actuator ever turns up that states its architecture after all,
+ * because that one would deserve the ordinary derivation and the ordinary citation. OQ-022 has
+ * the argument.
+ *
+ * The stand-in is not translated to this skeleton at compile either. `deriveOptimalFiberLength`
+ * lengthens a fiber by how much further its muscle travels here than on the source's (OQ-020),
+ * and the source's side of that ratio is `SOURCE_MUSCLE_TRAVEL`, which `measure-source-travel`
+ * sweeps, in the arm, for the elbow, shoulder and forearm tendons and not for these.
+ * With no row a unit keeps the number it was given, capped at four fifths of its path, which none
+ * of these reaches. The citation says so, and this generator refuses to run once a hand unit has
+ * a row, because the citation would then be false.
  *
  * ## Their paths are ours, and have to be
  *
@@ -35,7 +47,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { ARM, readActuators, renderGroups, requirePhysical, sided } from '../lib/myoSuite.mjs';
+import {
+  ARM,
+  TYPICAL_NORMALISED_TRAVEL,
+  readActuators,
+  renderGroups,
+  sided,
+} from '../lib/myoSuite.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/hand.ts');
@@ -44,6 +62,9 @@ const check = process.argv.includes('--check');
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'),
+);
+const { sourceMuscleTravel } = await jiti.import(
+  join(ROOT, 'packages/muscle-data/src/sourceTravel.ts'),
 );
 
 /**
@@ -235,10 +256,29 @@ function render() {
           'moved; check tools/validate-external/README.md before changing this mapping.',
       );
     }
-    if (parameters.architecture === 'stated') requirePhysical(unit.actuator, parameters, ARM);
+    // The file emits one citation, the stand-in's, and it would be false on an actuator that
+    // states its operating range. None does at the vendored commit; if one ever does, it gets the
+    // forearm's treatment -- `requirePhysical` and a citation of its own -- rather than this one.
+    if (parameters.architecture !== 'not stated') {
+      throw new Error(
+        `${ARM.muscle} actuator '${unit.actuator}' states its operating range, and every hand ` +
+          'unit is cited as a stand-in. Give it the ordinary derivation and citation, as ' +
+          'generate-forearm-muscles.mjs does for supinator and anconeus.',
+      );
+    }
+    // The same citation says the fiber is not translated at compile, which holds only while the
+    // source-travel sweep has no row for the unit. Once it has one, compile may lengthen it.
+    if (sourceMuscleTravel(unit.id) !== undefined) {
+      throw new Error(
+        `SOURCE_MUSCLE_TRAVEL now measures '${unit.id}', so compile may lengthen its fiber, ` +
+          'and the hand citation saying it is not translated would be false. Change the ' +
+          'citation, and the header, before regenerating.',
+      );
+    }
     return {
       ...unit,
       parameters,
+      cite: 'myoArmStandIn',
       ...(unit.side === undefined ? {} : { preferredSide: unit.side }),
     };
   });
@@ -263,7 +303,9 @@ function render() {
  *
  * The intrinsics are not here. The lumbricals and the interossei insert into the dorsal
  * expansion and the thenar and hypothenar muscles arise from the flexor retinaculum: soft
- * structures, none of which the dataset carries. \`attachmentGaps\` lists them.
+ * structures, none of which the dataset carries. \`UNMODELLED_MUSCLES\` in
+ * \`@bs-humany/skeleton\` names them, and \`docs/plans/dataset-correspondence.md\` 5.2 is the
+ * work that would add them.
  *
  * ## Where each half comes from
  *
@@ -271,8 +313,15 @@ function render() {
  * statement located on this subject, and for the digits measured off the bones themselves,
  * because beyond the wrist the export's four markers are label anchors floating clear of the
  * hand. *What a muscle can do* is MyoSuite's. Every actuator here is a \`<muscle>\` element with
- * no operating range of its own, so every fiber length comes from the travel measured on this
- * skeleton and is marked \`fiberLengthFromTravel\`; OQ-022 has the argument.
+ * no operating range of its own, so peak force is as stated and every fiber length is the stated
+ * \`lengthrange\` width over \`TYPICAL_NORMALISED_TRAVEL\`: a stand-in good to about half, which
+ * every unit's citation, \`myoArmStandIn\`, says. OQ-022 has the argument.
+ *
+ * That number is also the one the simulation runs. Compile lengthens a set's fibers where a
+ * muscle travels further on this skeleton than on the source's (OQ-020), but the source-travel
+ * sweep does not cover the hand's tendons, so
+ * \`deriveOptimalFiberLength\` has nothing to translate by and keeps the stated fiber, capped at
+ * four fifths of its path, which none of these reaches.
  *
  * ## The paths are ours and have to be
  *
@@ -290,12 +339,14 @@ import type { MuscleGroup } from './schema.js';
 /** Anatomy: which bony feature a muscle attaches to. The sites themselves are cited in M5.3. */
 const gray = (muscle: string) => cite('gray1918', \`Part IV, Myology: The \${muscle}\`);
 
-/** Parameters: the actuator in the vendored arm model they were derived from. */
-const myoArm = (actuator: string) =>
+/** Parameters, for an actuator that states no operating range: the fiber length is a stand-in. */
+const myoArmStandIn = (actuator: string) =>
   cite(
     'caggiano2022',
-    \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated. Fiber length from the \` +
-      'travel measured on this skeleton (OQ-022), which the unit marks with fiberLengthFromTravel',
+    \`${ARM.muscle}, actuator name="\${actuator}": peak force as stated; fiber length is the \` +
+      'stated lengthrange width over TYPICAL_NORMALISED_TRAVEL (${TYPICAL_NORMALISED_TRAVEL}), a stand-in good to ' +
+      'about half (OQ-022); not translated at compile, since the source-travel sweep does not ' +
+      'cover the hand (OQ-020)',
   );
 
 export const HAND_MUSCLES: readonly MuscleGroup[] = [

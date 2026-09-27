@@ -6,7 +6,7 @@
  *   pnpm generate:shoulder-muscles --check  # fail if the file is not what this would write
  *
  * The same two files and the same two derivations as the elbow set -- both live in
- * `tools/cli/lib/myoArm.mjs` -- so what is here is the part that is about the shoulder.
+ * `tools/cli/lib/myoSuite.mjs` -- so what is here is the part that is about the shoulder.
  *
  * ## Which muscles, and which are missing
  *

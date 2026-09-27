@@ -2,7 +2,7 @@
 /**
  * Where every muscle of the reference models runs, in that model's own world.
  *
- *   pnpm extract:source-sites        # rewrite apps/studio/src/align/sourceSites.json
+ *   pnpm extract:source-sites        # rewrite apps/studio/public/sourceSites.json
  *
  * ## What this is for
  *
@@ -15,8 +15,10 @@
  * actually runs, as a polyline of world points in that model's own frame. The alignment tool
  * draws those beside ours so the pairing can be made by eye.
  *
- * Their meshes are not vendored -- only the XML -- so there are no bones to draw on that side.
- * Sites and paths are what there is, and for deciding which muscle is which they are enough.
+ * Their bone meshes are vendored beside the XML, under `tools/validate-external/myo_sim/meshes`,
+ * and this tool records which mesh each body wears and where; it does not copy them. The studio
+ * serves them from `apps/studio/public/refMeshes`, which `pnpm sync:ref-meshes` fills with the
+ * STLs, so the reference's bones can be drawn under its sites and paths.
  *
  * Positions are read from the loaded model rather than composed out of the XML by hand, because
  * the body tree nests and MuJoCo already knows how. The pose is the model's own neutral.
