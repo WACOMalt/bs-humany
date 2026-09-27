@@ -121,13 +121,16 @@ export const MtuParametersSchema = z
     tendonSlackLength: ScalarExprSchema,
     /** Radians, at the optimal fiber length. */
     pennationAngle: ScalarExprSchema,
-    /** Optimal fiber lengths per second. Defaults to the module's cited value of 10. */
+    /**
+     * Optimal fiber lengths per second. Defaults to the module's 10 (see
+     * DEFAULT_MAX_CONTRACTION_VELOCITY_SOURCE).
+     */
     maxContractionVelocity: ScalarExprSchema.optional(),
-    /** Seconds. Defaults to the module's cited Thelen value. */
+    /** Seconds. Defaults to the module's 10 ms (see DEFAULT_ACTIVATION_SOURCE). */
     activationTime: z.number().positive().optional(),
-    /** Seconds. Defaults to the module's cited Thelen value. */
+    /** Seconds. Defaults to the module's 40 ms (see DEFAULT_ACTIVATION_SOURCE). */
     deactivationTime: z.number().positive().optional(),
-    /** Dimensionless. Defaults to Millard's 0.1. */
+    /** Dimensionless. Defaults to Millard's 0.1 (see DEFAULT_FIBER_DAMPING_SOURCE). */
     damping: z.number().nonnegative().optional(),
     source: CitationSchema,
   })
