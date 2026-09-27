@@ -30,6 +30,7 @@ import {
   PoseBridgeWriter,
   type RestPose,
   STATUS_SUFFIX,
+  grabWritten,
   readGrabIntents,
 } from '@bs-humany/pose-bridge/codec';
 import { invoke } from '@tauri-apps/api/core';
@@ -622,14 +623,22 @@ export class VrLink {
         if (this.host.simulation() === simulation) {
           const status = this.host.status(simulation);
           const before = this.intents.holding().join(' and ');
-          this.intents.apply(
+          // The write count and the clock are what let go of a hand the viewer has stopped
+          // speaking for: killed, or no longer drawing, it leaves its last squeeze in the file.
+          // The count comes from the read the slots are parsed from, and the clock is the page's
+          // own, taken when the read came back.
+          const wentQuiet = this.intents.apply(
             simulation,
             this.order,
             readGrabIntents(first, second),
             status.grabStrength,
+            grabWritten(second),
+            performance.now(),
           );
           const after = this.intents.holding().join(' and ');
-          if (after !== before) {
+          if (wentQuiet) {
+            this.host.log('VR grab: the viewer went quiet, let go');
+          } else if (after !== before) {
             this.host.log(after ? `VR grab: holding ${after}` : 'VR grab: let go');
           }
         }

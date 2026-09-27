@@ -7,6 +7,13 @@
  * point in that segment's own frame, and holds it toward the hand -- and, from the hand's turn
  * since the grab, which way the segment should face. Each hand is its own grab slot, so both can
  * hold at once. Shared by the headless publisher and the studio, so there is one of it.
+ *
+ * It also keeps watch on the viewer. The slots are the viewer's last word, and a viewer that is
+ * killed, or stops drawing, leaves its last word in the file: a hand squeezing a bone, held for
+ * ever, and taken hold of again after every reset. The viewer rewrites the slots every frame it
+ * draws, so the count of writes in the file's header climbs while it is there; given that count
+ * and the reader's own clock, a count that has not moved for `GRAB_QUIET_MS` means both hands are
+ * read as open.
  */
 
 import type { GrabIntent } from '@bs-humany/pose-bridge/codec';
@@ -35,19 +42,77 @@ const qmul = (a: Quat, b: Quat): Quat => ({
 });
 const qconj = (q: Quat): Quat => ({ x: -q.x, y: -q.y, z: -q.z, w: q.w });
 
+/**
+ * How long the viewer's write count may stand still before its hands are read as open. A viewer
+ * that is drawing writes every frame, about 11 ms apart at 90 Hz, and the slowest reader, the
+ * studio's page, looks about once a frame of its own; a quarter of a second is a score of missed
+ * frames on either side, which no live viewer comes near, and short enough that a body left
+ * hanging from a hand that has gone drops before anyone wonders why.
+ */
+export const GRAB_QUIET_MS = 250;
+
+/**
+ * An open hand, stated: active false rather than no reading at all. An unreadable slot leaves a
+ * grab as it was, which is right for a slot caught mid-write and wrong for a viewer that has gone.
+ */
+const OPEN_HAND: GrabIntent = {
+  active: false,
+  bone: -1,
+  point: [0, 0, 0],
+  target: [0, 0, 0],
+  strength: 0,
+  rotation: [0, 0, 0, 1],
+};
+const BOTH_OPEN: readonly GrabIntent[] = [OPEN_HAND, OPEN_HAND];
+
 export class GrabIntents {
   readonly held: [Held | null, Held | null] = [null, null];
   grabsSeen = 0;
+  /** Whether the viewer's write count has stood still past `GRAB_QUIET_MS`, as of the last apply. */
+  quiet = false;
+  /** The write count last seen, and the reader's time when it last moved. */
+  private lastWritten: bigint | undefined;
+  private movedAt = 0;
 
-  /** Apply both hands' intents to the simulation, in grab slots 0 and 1. */
+  /**
+   * Apply both hands' intents to the simulation, in grab slots 0 and 1.
+   *
+   * `written` is the grab file's write count from the same read as `hands`, and `nowMs` the
+   * caller's own clock; given both, a count that has not moved for `GRAB_QUIET_MS` makes both
+   * hands open, whatever the slots say. The watch outlives `letGo`, so the stale slots cannot
+   * take hold again after a reset. Any change of count is the viewer writing, a smaller one
+   * included, because a viewer that started again counts from zero. The first count seen is taken
+   * as a change too: one look cannot tell a live viewer from a dead one, and the allowance is what
+   * decides. Without them, no watch is kept.
+   *
+   * True on the call that let go of something because the viewer went quiet, so the caller can
+   * say so, once.
+   */
   apply(
     simulation: Simulation,
     order: readonly string[],
     hands: readonly (GrabIntent | undefined)[],
     strength: number,
-  ): void {
+    written?: bigint,
+    nowMs?: number,
+  ): boolean {
+    let wentQuiet = false;
+    let read = hands;
+    if (written !== undefined && nowMs !== undefined) {
+      if (written !== this.lastWritten) {
+        this.lastWritten = written;
+        this.movedAt = nowMs;
+        this.quiet = false;
+      } else if (nowMs - this.movedAt > GRAB_QUIET_MS) {
+        if (!this.quiet) {
+          this.quiet = true;
+          wentQuiet = this.held[0] !== null || this.held[1] !== null;
+        }
+        read = BOTH_OPEN;
+      }
+    }
     for (let hand = 0; hand < 2; hand++) {
-      const intent = hands[hand];
+      const intent = read[hand];
       if (!intent) continue;
       const holding = this.held[hand] ?? null;
       if (intent.active) {
@@ -95,6 +160,7 @@ export class GrabIntents {
         this.held[hand] = null;
       }
     }
+    return wentQuiet;
   }
 
   /** Let go of everything, as before a reset or a rebuild. */
