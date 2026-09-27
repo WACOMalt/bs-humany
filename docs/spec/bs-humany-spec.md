@@ -155,6 +155,8 @@ Ordering note: implement Rapier first (faster feedback loop, simpler API, easier
 
 **Reassessed 2026-09-13 (M5.8).** MuJoCo-WASM is fast enough: 0.11 ms per step at L0 and 0.17 ms at L1 on the desktop benchmark, unchanged by the move to convex-hull collision proxies, with every scenario plausible and platform-independent goldens. Rapier went from 0.24 and 0.33 ms to 0.95 and 1.6 ms with hulls and became unstable in three scenarios (energy injection, torn joints), and it already carried the joint-angle solver, the emulated range stops and couplings, and OQ-009 purely to behave like a reduced-coordinate engine. **Decision: MuJoCo is the only enabled backend. `RapierBackend` is retained in the tree as a vestigial remnant, disabled and hidden from the studio, its scenario checks skipped, so it can be revisited.** What remains untested in Rapier's favour is payload and behaviour on a phone (its wasm is 2 MB against MuJoCo's 10 MB); measuring MuJoCo on real mobile hardware is the condition for deleting Rapier outright.
 
+**Amended 2026-09-26.** The owner waived that condition and Rapier was deleted: MuJoCo is the only backend. What went and what stays is recorded in ADR-003 (`docs/adr/adr-003-two-backends.md`, "Rapier deleted 2026-09-26"); the Rapier text in this specification is the record of what was planned.
+
 ---
 
 ### ADR-004 — Fixed-timestep, phase-ordered, single-writer module kernel

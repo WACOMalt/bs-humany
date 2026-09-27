@@ -15,7 +15,7 @@ pattern.
 |---|---|---|
 | [001](adr-001-two-layer-body-model.md) | Two-layer body model: anatomy is complete, dynamics is scalable | Accepted |
 | [002](adr-002-hsdl-canonical-format.md) | Canonical model format is a project-owned declarative schema, shaped as an MJCF superset | Accepted |
-| [003](adr-003-two-backends.md) | Two backends in Phase 1: Rapier as default, MuJoCo as the accuracy backend | Reassessed 2026-09-13 (MuJoCo only); Rapier deletion decided 2026-09-26 |
+| [003](adr-003-two-backends.md) | Two backends in Phase 1: Rapier as default, MuJoCo as the accuracy backend | Reassessed 2026-09-13 (MuJoCo only); Rapier deleted 2026-09-26 |
 | [004](adr-004-module-kernel.md) | Fixed-timestep, phase-ordered, single-writer module kernel | Accepted |
 | [005](adr-005-procedural-geometry.md) | Bone geometry comes from an anatomical mesh dataset; procedural geometry is the fallback and low-detail LOD | Rewritten in 0.5 |
 | [006](adr-006-collision-proxies.md) | Collision geometry is never anatomical geometry | Accepted |

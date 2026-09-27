@@ -1,31 +1,33 @@
 # Backend conformance and plausibility
 
-Spec sections 13.2 to 13.4. Every scenario in `@bs-humany/scenarios` runs on every enabled
-backend in `packages/testkit/src/scenarios.test.ts`. Since the ADR-003 reassessment of
-2026-09-13 that is MuJoCo alone: Rapier is retained in the tree, disabled and hidden, and its
-rows below are kept only as the record of why. Three things are checked, with the tolerances and
-their reasons written next to the numbers in `plausibility.ts` and `conformance.ts` rather than
-here, so they cannot drift apart.
+Spec sections 13.2 to 13.4. Every scenario in `@bs-humany/scenarios` runs on MuJoCo, the only
+backend, in `packages/testkit/src/scenarios.test.ts`. Two things are checked, with the tolerances
+and their reasons written next to the numbers in `plausibility.ts` rather than here, so they
+cannot drift apart. A third, conformance between backends, was retired with Rapier.
 
 ## What is compared
 
-**Plausibility**, per backend: no NaN or Inf; the energy balance (kinetic, gravitational, the
-elastic energy of the passive curves and emulated stops, less the work of emulated couplings)
-never rises in a passive system beyond 2 J per 20 ms sample on MuJoCo (20 J on Rapier); no DoF
-past its stop by more than 0.2 rad on MuJoCo (0.5 rad on Rapier); penetration under 3 cm on
-MuJoCo (4 cm on Rapier); joint drift under 5 cm; the body at rest (under 1 J kinetic) at the
-end; the centre of mass falling at g during free flight.
-
-**Conformance**, one backend against another: the centre of mass within 5 mm during the
-contact-free prefix; both at rest at the end with resting centre-of-mass heights within 12 cm;
-dissipated energy within a quarter of the initial mechanical energy. Skipped while only one
-backend is enabled; the harness resumes it the day a second one is.
+**Plausibility**: no NaN or Inf; the energy balance (kinetic, gravitational, the elastic energy
+of the passive curves, less the work of emulated couplings) never rises in a passive system
+beyond 2 J per 20 ms sample; no DoF past its stop by more than 0.2 rad; penetration under 3 cm;
+joint drift under 5 cm; the body at rest (under 1 J kinetic) at the end; the centre of mass
+falling at g during free flight.
 
 **Goldens**: an FNV-1a hash of every sampled position, orientation and joint coordinate, per
 scenario, profile and backend, committed in `packages/testkit/goldens/trajectories.json`. A
 changed hash fails the suite. Updating a golden is a deliberate commit with a written reason;
-run `UPDATE_GOLDENS=1 pnpm test` to regenerate. Rapier's hashes are platform-specific; MuJoCo's
-should not be, but the file records the platform they were produced on.
+run `UPDATE_GOLDENS=1 pnpm test` to regenerate. MuJoCo's hashes should not depend on the
+platform, but the file records the platform they were produced on.
+
+**Conformance, retired 2026-09-26.** Spec 13.3's harness ran two backends on the same scenario
+and held them to each other: the centre of mass within 5 mm during the contact-free prefix, both
+at rest at the end with resting centre-of-mass heights within 12 cm, and dissipated energy within
+a quarter of the initial mechanical energy. It compared MuJoCo with Rapier, and had been skipped
+since the ADR-003 reassessment of 2026-09-13 left only MuJoCo enabled. When the owner deleted
+Rapier on 2026-09-26 there was nothing left for it to compare, so `conformance.ts`, its skipped
+test and the scenarios' conformance tolerances were removed rather than kept waiting. A second
+backend (a native or remote MuJoCo, or MJX) would bring it back, from the history of that file,
+with tolerances measured for that pair rather than inherited from this one.
 
 ## Results, 2026-09-14, measured joint centres and the released scapula
 
@@ -51,10 +53,12 @@ last two, so they are unchanged by them. The body now lands harder in the
 standing collapse, and the sample after peak compression returns about 5 J of the 230 J that
 impact absorbs; that scenario carries its own energy tolerance with the reason beside it.
 
-## Results, 2026-09-13, primitive proxies (before M5.8)
+## Results, 2026-09-13, primitive proxies (before M5.8) -- history
 
 Largest values seen per scenario and backend: range violation (rad), penetration (mm), joint
-drift (mm), and kinetic energy at the end (J).
+drift (mm), and kinetic energy at the end (J). This is the last run with both backends and the
+conformance check between them; Rapier's tolerances then were 20 J, 0.5 rad and 4 cm. It is
+kept as the record of the reassessment and will not be rerun.
 
 | Scenario | Rapier | MuJoCo | Conformance |
 |---|---|---|---|
@@ -69,5 +73,5 @@ drift (mm), and kinetic energy at the end (J).
 The Rapier stop yields (up to 0.44 rad at the ankle in the standing collapse, 0.37 rad at the
 hanging shoulder) are the subject of OQ-009. Joint couplings (M5.2) run natively on MuJoCo and
 ran as one-way soft corrections on Rapier, whose work is subtracted in the energy balance. The
-stairs scenario carries its own conformance tolerance, with the reason in its definition: which
-step a body stops on is chaotic, so resting heights may differ by up to 0.6 m between backends.
+stairs scenario carried its own conformance tolerance, with the reason in its definition: which
+step a body stops on is chaotic, so resting heights could differ by up to 0.6 m between backends.
