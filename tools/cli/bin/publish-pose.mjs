@@ -351,7 +351,22 @@ function applyGrabs() {
     if (!grabs) return;
     console.log('  hands: a renderer is writing grab intents');
   }
-  intents.apply(live.simulation, live.order, grabs.read(), grabStrength);
+  // The reader's write count and this process's clock are the watch on the renderer: one that
+  // is killed, or stops drawing, leaves its last squeeze in the file, and a count that stands
+  // still is how that is told from a hand still holding on.
+  const hands = grabs.read();
+  if (
+    intents.apply(
+      live.simulation,
+      live.order,
+      hands,
+      grabStrength,
+      grabs.written,
+      performance.now(),
+    )
+  ) {
+    console.log('  hands: the viewer went quiet, let go');
+  }
 }
 
 function letGo() {

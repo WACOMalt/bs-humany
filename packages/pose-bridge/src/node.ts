@@ -27,6 +27,7 @@ import {
   type PoseBridgeOptions,
   PoseBridgeWriter,
   type RestPose,
+  grabWritten,
   readGrabIntents,
 } from './codec.js';
 import { temporaryName } from './owner.js';
@@ -104,6 +105,12 @@ export class GrabIntentReader {
   private readonly fd: number;
   private readonly first = new Uint8Array(GRAB_BYTES);
   private readonly second = new Uint8Array(GRAB_BYTES);
+  /**
+   * The renderer's slot-write count as of the last `read`, from the same bytes the hands were
+   * parsed from: the heartbeat a watchdog holds against its own clock, since a renderer that has
+   * gone leaves its last slots behind it and they may still say a hand is squeezing.
+   */
+  written = 0n;
 
   private constructor(fd: number) {
     this.fd = fd;
@@ -121,6 +128,7 @@ export class GrabIntentReader {
   read(): [GrabIntent | undefined, GrabIntent | undefined] {
     readSync(this.fd, this.first, 0, GRAB_BYTES, 0);
     readSync(this.fd, this.second, 0, GRAB_BYTES, 0);
+    this.written = grabWritten(this.second);
     return readGrabIntents(this.first, this.second);
   }
 

@@ -548,6 +548,37 @@ mod tests {
     }
 
     #[test]
+    fn an_open_hand_written_over_a_squeeze_reads_as_open() {
+        // What the viewer writes when it stops drawing: the default intent in both slots, over
+        // whatever the hands were doing. Both slots must then read inactive, completely written,
+        // and the count must have moved, which is how a reader knows it was said.
+        let path = std::env::temp_dir().join(format!("bs-humany-grab-open-{}", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let mut writer = GrabIntentWriter::create(&path).expect("the channel is created");
+        let squeeze = GrabIntent {
+            active: true,
+            bone: 17,
+            point: [0.1, 1.2, -0.3],
+            target: [0.15, 1.25, -0.35],
+            strength: 1.0,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+        };
+        writer.publish(0, &squeeze);
+        writer.publish(1, &squeeze);
+        writer.publish(0, &GrabIntent::default());
+        writer.publish(1, &GrabIntent::default());
+        let bytes = std::fs::read(&path).expect("readable");
+        let _ = std::fs::remove_file(&path);
+        let u32_at = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+        let u64_at = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
+        assert_eq!(u64_at(16), 4, "four slot writes");
+        for base in [64, 128] {
+            assert_eq!(u64_at(base) % 2, 0, "slot at {base} completely written");
+            assert_eq!(u32_at(base + 8), 0, "slot at {base} active is 0");
+        }
+    }
+
+    #[test]
     fn staleness_is_measured_by_the_reader_alone() {
         // A fixture never advances, so it is stale from the moment it is opened -- and the point
         // is that this needs no clock in common with whoever wrote it.

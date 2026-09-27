@@ -442,6 +442,24 @@ export function readGrabSlot(bytes: Uint8Array, hand: number): GrabIntent | unde
 }
 
 /**
+ * How many slot writes the renderer has made, from the header: 0 for a file too short or not a
+ * grab file at all.
+ *
+ * It is the renderer's heartbeat. A renderer that is drawing rewrites both slots every frame, so
+ * this climbs by two a frame whether or not a hand is squeezing; one that was killed, or stopped
+ * drawing, leaves it where it was -- and its last slots with it, which may still say a hand is
+ * holding a bone. The reader keeps its own clock against this number to tell the two apart,
+ * because the renderer's clock is not one it shares. It is read with the slots, not on its own,
+ * so the number goes with the bytes it describes.
+ */
+export function grabWritten(bytes: Uint8Array): bigint {
+  if (bytes.byteLength < GRAB_BYTES) return 0n;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint32(0, true) !== GRAB_MAGIC) return 0n;
+  return view.getBigUint64(16, true);
+}
+
+/**
  * Both hands out of two successive reads of the whole file. A seqlock needs the sequence read
  * before and after the body; a single read is not guaranteed atomic against a concurrent mapped
  * write, so the file is read twice and a slot is trusted only when its sequence agrees between

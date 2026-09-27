@@ -29,6 +29,7 @@ import {
   HEADER_BYTES,
   NO_FRAME,
   bridgeBytes,
+  grabWritten,
   openMuscleBridge,
   openPoseBridge,
   readBridge,
@@ -209,9 +210,28 @@ describe('the pose bridge file', () => {
     const [l, r] = reader.read();
     expect(l?.bone).toBe(17);
     expect(r).toBeUndefined();
+    // The renderer's write count comes with the hands, from the same read.
+    expect(reader.written).toBe(7n);
     reader.close();
     // No file yet is not an error: the renderer may simply not have started.
     expect(GrabIntentReader.open(join(dir, 'absent'))).toBeUndefined();
+  });
+
+  it("reads the renderer's write count from the grab header, and nothing from what is not one", () => {
+    // The heartbeat a reader's watchdog holds against its own clock: a u64 at 16, after the four
+    // u32s, whatever the slots say.
+    const bytes = Buffer.alloc(GRAB_BYTES);
+    bytes.writeUInt32LE(GRAB_MAGIC, 0);
+    bytes.writeBigUInt64LE(0x1_0000_0003n, 16);
+    expect(grabWritten(bytes)).toBe(0x1_0000_0003n);
+    // A view into a larger buffer reads from its own start, not the buffer's.
+    const inside = Buffer.alloc(GRAB_BYTES + 8);
+    bytes.copy(inside, 8);
+    expect(grabWritten(inside.subarray(8))).toBe(0x1_0000_0003n);
+    // Short, or not a grab file: no writes seen.
+    expect(grabWritten(bytes.subarray(0, GRAB_BYTES - 1))).toBe(0n);
+    bytes.writeUInt32LE(0, 0);
+    expect(grabWritten(bytes)).toBe(0n);
   });
 
   it('carries muscle rings round their own ring, the same shape the fixture pins', () => {

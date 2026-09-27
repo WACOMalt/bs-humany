@@ -554,14 +554,34 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut window_started = started;
     let mut window_frames = 0u32;
     let mut window_worst = 0f64;
+    // Whether the last frame was drawn, which is whether the hands were last written. The slots
+    // are only rewritten on a frame that is drawn, so every way out of drawing -- the session
+    // stopping, the runtime saying not to render, the session or the loop ending -- first
+    // writes both hands open: the simulation would otherwise read the last squeeze for as long
+    // as the file stands. Its readers keep a watch on the write count as well, which is what
+    // covers a viewer that is killed and never gets to say so.
+    let mut drawing = false;
 
     while started.elapsed().as_secs_f32() < seconds {
         if pump_events(&xr, &session, &mut event_storage, &mut running)? == Flow::Exit {
+            let_go_of_everything(
+                feeds.as_mut().map(|f| &mut f.grabs),
+                &mut holding,
+                "the session is over",
+            );
             // Nothing is destroyed while the GPU may still be drawing into it.
             renderer.wait_idle();
             return Ok(());
         }
         if !running {
+            if drawing {
+                drawing = false;
+                let_go_of_everything(
+                    feeds.as_mut().map(|f| &mut f.grabs),
+                    &mut holding,
+                    "the session stopped",
+                );
+            }
             std::thread::sleep(std::time::Duration::from_millis(50));
             continue;
         }
@@ -569,6 +589,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let state = frame_wait.wait()?;
         frame_stream.begin()?;
         if !state.should_render {
+            if drawing {
+                drawing = false;
+                let_go_of_everything(
+                    feeds.as_mut().map(|f| &mut f.grabs),
+                    &mut holding,
+                    "nothing is being drawn",
+                );
+            }
             frame_stream.end(
                 state.predicted_display_time,
                 openxr::EnvironmentBlendMode::OPAQUE,
@@ -576,6 +604,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             )?;
             continue;
         }
+        drawing = true;
 
         let cpu_started = std::time::Instant::now();
         let (_flags, views) = session.locate_views(
@@ -1172,6 +1201,11 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         }
     }
 
+    let_go_of_everything(
+        feeds.as_mut().map(|f| &mut f.grabs),
+        &mut holding,
+        "the viewer is done",
+    );
     renderer.wait_idle();
     println!(
         "{frames} frames in {:.1} s -- {:.1} Hz, worst CPU frame {worst_cpu:.2} ms",
@@ -1619,6 +1653,26 @@ struct Hold {
     hand_q: [f32; 4],
 }
 
+/// Both hands open, on both sides of the channel: an inactive intent written to each slot, so
+/// the simulation lets go, and nothing held here, so a squeeze after drawing resumes is a new grab
+/// rather than the carrying on of an old one. No channel yet -- no publisher followed -- is only
+/// the second. Said on the console when a bone was in fact let go, with why.
+fn let_go_of_everything(
+    grabs: Option<&mut crate::bridge::GrabIntentWriter>,
+    holding: &mut [Option<Hold>; crate::bridge::HANDS],
+    why: &str,
+) {
+    if holding.iter().any(Option::is_some) {
+        println!("hands: let go, {why}");
+    }
+    if let Some(grabs) = grabs {
+        for hand in 0..crate::bridge::HANDS {
+            grabs.publish(hand, &crate::bridge::GrabIntent::default());
+        }
+    }
+    *holding = [None, None];
+}
+
 /// The nearest point on a bone's surface to a hand in the room, with the bone, if any is within
 /// reach.
 ///
@@ -1998,6 +2052,51 @@ mod tests {
             m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14],
         ];
         assert!(close(drawn, v.to_stage(p)), "{drawn:?} vs {:?}", v.to_stage(p));
+    }
+
+    #[test]
+    fn letting_go_of_everything_opens_both_slots_and_both_hands() {
+        // Both hands holding, as the viewer is when it stops drawing mid-grab: afterwards both
+        // slots say open, the count has moved on so a reader sees it was said, and nothing is
+        // held here to carry on from.
+        let path = std::env::temp_dir().join(format!("bs-humany-let-go-{}", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let mut grabs =
+            crate::bridge::GrabIntentWriter::create(&path).expect("the channel is created");
+        let squeeze = crate::bridge::GrabIntent {
+            active: true,
+            bone: 3,
+            point: [0.1, 1.0, 0.2],
+            target: [0.1, 1.1, 0.2],
+            strength: 1.0,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+        };
+        grabs.publish(0, &squeeze);
+        grabs.publish(1, &squeeze);
+        let hold = || Hold {
+            pose_bone: 3,
+            point: [0.1, 1.0, 0.2],
+            offset: [0.0; 3],
+            hand_q: [0.0, 0.0, 0.0, 1.0],
+        };
+        let mut holding = [Some(hold()), Some(hold())];
+
+        let_go_of_everything(Some(&mut grabs), &mut holding, "the test is over");
+        let bytes = std::fs::read(&path).expect("readable");
+        let _ = std::fs::remove_file(&path);
+        let u32_at = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+        let u64_at = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
+        assert!(holding.iter().all(Option::is_none));
+        assert_eq!(u64_at(16), 4, "two squeezes and two open hands written");
+        for base in [64, 128] {
+            assert_eq!(u64_at(base), 4, "slot at {base} complete, written twice");
+            assert_eq!(u32_at(base + 8), 0, "slot at {base} open");
+        }
+
+        // With no publisher followed there is no channel, and the hands still let go here.
+        let mut holding = [Some(hold()), None];
+        let_go_of_everything(None, &mut holding, "no channel");
+        assert!(holding.iter().all(Option::is_none));
     }
 
     #[test]
