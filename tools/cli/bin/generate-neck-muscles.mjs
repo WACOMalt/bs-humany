@@ -28,6 +28,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createJiti } from 'jiti';
 import { bothSides, distance, renderMuscleGroups } from '../lib/renderMuscles.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
@@ -35,7 +36,17 @@ const OUT = join(ROOT, 'packages/muscle-data/src/neck.ts');
 const DATA = join(ROOT, 'packages/assets-anatomical/data');
 const check = process.argv.includes('--check');
 
+// The export's marker table, which CONTRIBUTING rule 5 says names a feature and never positions
+// it. The lengths below are still measured between those markers; measuring them through the
+// skeleton's `measuredWorld` changes this set's numbers, so it waits for its own commit with the
+// other anatomy-data fixes that move the goldens.
 const landmarks = JSON.parse(readFileSync(join(DATA, 'landmarks.json'), 'utf8'));
+// The site-id scheme `attachments.ts` builds the sites with, so an id named here is the one the
+// body carries.
+const jiti = createJiti(import.meta.url);
+const { attachmentSiteId } = await jiti.import(
+  join(ROOT, 'packages/skeleton/src/attachmentSiteId.ts'),
+);
 
 /** Zheng 2013: total neck muscle volume, cm³, men and women; the reference body takes the mean. */
 const TOTAL_VOLUME_MEN = 813.9;
@@ -186,8 +197,6 @@ const UNITS = [
   },
 ];
 
-const siteId = (muscle, role, s, feature) => `${muscle}_${role}_${s}_${feature.toLowerCase()}`;
-
 function render() {
   const groups = bothSides(UNITS).map((unit) => {
     const s = unit.id.endsWith('_l') ? 'l' : 'r';
@@ -217,8 +226,8 @@ function render() {
         {
           id: unit.id,
           displayName: `${unit.name}, ${s === 'r' ? 'right' : 'left'}`,
-          origin: siteId(muscle, 'origin', s, originFeature),
-          insertion: siteId(muscle, 'insertion', s, insertionFeature),
+          origin: attachmentSiteId(muscle, 'origin', s, originBone, originFeature),
+          insertion: attachmentSiteId(muscle, 'insertion', s, insertionBone, insertionFeature),
           path: [],
           parameters: {
             maxIsometricForce: force,

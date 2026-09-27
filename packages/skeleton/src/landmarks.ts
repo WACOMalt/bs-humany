@@ -33,22 +33,13 @@ import {
   writeExtension,
 } from '@bs-humany/hsdl';
 import { ARTICULAR_CENTRES, CONTACT_CENTRES } from './articularCentres.js';
+import { sanitizeFeatureId } from './attachmentSiteId.js';
 import { DATASET_MANIFEST } from './dataset.js';
 import { getBone } from './taxonomy.js';
 
 type LandmarkTable = Record<string, Record<string, [number, number, number]>>;
 /** The pack's own markers: one per named feature, at the marker mesh's centroid. */
 const RAW: LandmarkTable = landmarksJson as unknown as LandmarkTable;
-
-interface SurfaceLandmark {
-  readonly bone: string;
-  readonly feature: string;
-  readonly surface: [number, number, number];
-  readonly offset: number;
-  readonly vertices: number;
-  readonly patchRadius: number;
-  readonly rule: string;
-}
 
 /**
  * The same markers, put back on the bone they name.
@@ -69,15 +60,14 @@ interface SurfaceLandmark {
  * same way the fitted articular centres do. `markerWorld` still answers with the raw marker for
  * the places that need to know what the export itself placed.
  */
-interface RidgeAttachment {
+export interface SurfaceLandmark {
   readonly bone: string;
   readonly feature: string;
-  readonly surface: [number, number, number];
+  readonly surface: readonly [number, number, number];
   readonly offset: number;
-  readonly height: number;
-  readonly traced: number;
+  readonly vertices: number;
+  readonly patchRadius: number;
   readonly rule: string;
-  readonly anatomy: string;
 }
 
 /**
@@ -90,6 +80,17 @@ interface RidgeAttachment {
  * the part the muscle arises from, and the answer joins the table here under a name of its own so
  * an attachment can ask for it.
  */
+export interface RidgeAttachment {
+  readonly bone: string;
+  readonly feature: string;
+  readonly surface: readonly [number, number, number];
+  readonly offset: number;
+  readonly height: number;
+  readonly traced: number;
+  readonly rule: string;
+  readonly anatomy: string;
+}
+
 const RIDGES: readonly RidgeAttachment[] = (
   ridgeJson as unknown as { readonly attachments: readonly RidgeAttachment[] }
 ).attachments;
@@ -101,43 +102,6 @@ const DERIVED: Record<string, Record<string, string>> = derivedJson as Record<
   string,
   Record<string, string>
 >;
-
-/**
- * Markers and fitted centres together, which is what a landmark lookup wants.
- *
- * A marker marks a feature; the centre of a ball is not on the feature's surface and no marker
- * can carry it (see `articularCentres.ts`). The fitted centres join the table under their own
- * feature names, so they become ordinary landmarks with their derivation on the record, and the
- * ISB entries that mean "the centre of this ball" point at them.
- */
-const POSITIONS: LandmarkTable = (() => {
-  const merged: LandmarkTable = {};
-  for (const [bone, features] of Object.entries(RAW)) merged[bone] = { ...features };
-  // The measured point on the bone, over the label anchor that named it.
-  for (const l of SURFACE) {
-    merged[l.bone] ??= {};
-    const features = merged[l.bone];
-    if (features) features[l.feature] = [l.surface[0], l.surface[1], l.surface[2]];
-  }
-  // Measured along a ridge, for muscles that do not start at a feature's marker.
-  for (const r of RIDGES) {
-    merged[r.bone] ??= {};
-    const features = merged[r.bone];
-    if (features) features[r.feature] = [r.surface[0], r.surface[1], r.surface[2]];
-  }
-  for (const c of ARTICULAR_CENTRES) {
-    merged[c.bone] ??= {};
-    const features = merged[c.bone];
-    if (features) features[c.feature] = [c.centre[0], c.centre[1], c.centre[2]];
-  }
-  for (const c of CONTACT_CENTRES) {
-    const bone = c.bones[0];
-    merged[bone] ??= {};
-    const features = merged[bone];
-    if (features) features[c.feature] = [c.centre[0], c.centre[1], c.centre[2]];
-  }
-  return merged;
-})();
 
 const RIDGE_RULES = new Map<string, string>(
   RIDGES.map(
@@ -176,6 +140,78 @@ const FITTED_RULES = new Map<string, string>([
       ] as const,
   ),
 ]);
+
+/**
+ * Which table answered for a feature's position.
+ *
+ * `derived` is a point the ingest computed off the mesh by a stated rule (`landmarks-derived.json`)
+ * and published in the marker table beside the export's own markers. `marker` is one of those
+ * markers, a label anchor, and the only answer here that is not a measurement. It is still given,
+ * because a feature nothing has measured yet has nowhere else to be, and the table says so.
+ */
+export type FeatureTable = 'contact' | 'articular' | 'ridge' | 'surface' | 'derived' | 'marker';
+
+/**
+ * Where a feature is, and how that was found out.
+ *
+ * `rule` is the derivation in the words the landmark's provenance uses, and undefined for a raw
+ * marker, whose name is all the provenance it has. A ridge or surface answer carries the measured
+ * record as well, for a caller that words its provenance from the numbers, as `attachments.ts`
+ * does.
+ */
+export type LocatedFeature = {
+  readonly world: readonly [number, number, number];
+  readonly rule: string | undefined;
+} & (
+  | { readonly table: 'ridge'; readonly ridge: RidgeAttachment }
+  | { readonly table: 'surface'; readonly landmark: SurfaceLandmark }
+  | { readonly table: 'contact' | 'articular' | 'derived' | 'marker' }
+);
+
+/**
+ * Every located feature, bone by bone: the markers, the points measured on the bone and the
+ * fitted centres, which is what a landmark lookup wants.
+ *
+ * Later tables win: a surface point over the label anchor that named it, a ridge point over
+ * either, and a fitted centre over everything. A marker marks a feature; the centre of a ball is
+ * not on the feature's surface and no marker can carry it (see `articularCentres.ts`). The fitted
+ * centres join the table under their own feature names, so they become ordinary landmarks with
+ * their derivation on the record, and the ISB entries that mean "the centre of this ball" point
+ * at them.
+ */
+const LOCATED: Record<string, Record<string, LocatedFeature>> = (() => {
+  const merged: Record<string, Record<string, LocatedFeature>> = {};
+  const put = (bone: string, feature: string, located: LocatedFeature) => {
+    merged[bone] ??= {};
+    const features = merged[bone];
+    if (features) features[feature] = located;
+  };
+  for (const [bone, features] of Object.entries(RAW)) {
+    for (const [feature, world] of Object.entries(features)) {
+      const rule = DERIVED[bone]?.[feature];
+      put(bone, feature, { world, rule, table: rule === undefined ? 'marker' : 'derived' });
+    }
+  }
+  // The measured point on the bone, over the label anchor that named it.
+  for (const l of SURFACE) {
+    const rule = SURFACE_RULES.get(`${l.bone}/${l.feature}`);
+    put(l.bone, l.feature, { world: l.surface, rule, table: 'surface', landmark: l });
+  }
+  // Measured along a ridge, for muscles that do not start at a feature's marker.
+  for (const r of RIDGES) {
+    const rule = RIDGE_RULES.get(`${r.bone}/${r.feature}`);
+    put(r.bone, r.feature, { world: r.surface, rule, table: 'ridge', ridge: r });
+  }
+  for (const c of ARTICULAR_CENTRES) {
+    const rule = FITTED_RULES.get(`${c.bone}/${c.feature}`);
+    put(c.bone, c.feature, { world: c.centre, rule, table: 'articular' });
+  }
+  for (const c of CONTACT_CENTRES) {
+    const rule = FITTED_RULES.get(`${c.bones[0]}/${c.feature}`);
+    put(c.bones[0], c.feature, { world: c.centre, rule, table: 'contact' });
+  }
+  return merged;
+})();
 
 /** Namespace for dataset provenance carried on each landmark. */
 export const PROVENANCE_NS = moduleNamespace('provenance');
@@ -492,12 +528,7 @@ const isbByKey = new Map(ISB_LANDMARKS.map((l) => [`${l.bone}/${l.feature}`, l])
 
 /** The landmark id convention: `<bone>__<feature>` in snake_case. */
 export function landmarkId(bone: string, feature: string): string {
-  const feature_ = feature
-    .replace(/[()]/g, '')
-    .replace(/-/g, '_')
-    .replace(/[^A-Za-z0-9_]/g, '')
-    .toLowerCase();
-  return `${bone}__${feature_}`;
+  return `${bone}__${sanitizeFeatureId(feature)}`;
 }
 
 /**
@@ -512,17 +543,21 @@ export function buildLandmarks(): LandmarkDef[] {
   const out: LandmarkDef[] = [];
   const seen = new Set<string>();
 
-  for (const [bone, features] of Object.entries(POSITIONS)) {
+  for (const [bone, features] of Object.entries(LOCATED)) {
     const centroid = centroids.get(bone);
     const taxonomy = getBone(bone);
     if (!centroid || !taxonomy) continue;
 
-    for (const [feature, world] of Object.entries(features)) {
+    for (const [feature, { world }] of Object.entries(features)) {
       const id = landmarkId(bone, feature);
       if (seen.has(id)) continue;
       seen.add(id);
 
       const isb = isbByKey.get(`${bone}/${feature}`);
+      // Not `locateFeature(...).rule`, though it is nearly the same: twenty features are both
+      // derived and put back on the bone, and for those this keeps the derived rule while the
+      // position is the surface one. Changing it changes the provenance in every document, so
+      // it is left for a deliberate commit of its own.
       const derivedRule =
         DERIVED[bone]?.[feature] ??
         FITTED_RULES.get(`${bone}/${feature}`) ??
@@ -558,14 +593,27 @@ export function buildLandmarks(): LandmarkDef[] {
 }
 
 /**
+ * Where a feature is, from the measured tables, and which of them said so -- or undefined when no
+ * table has it.
+ *
+ * This is the one answer to "where is this feature". The export's markers are label anchors that
+ * name a feature and never position it, so a measured point wins over the marker of the same
+ * name, and a marker is returned only for a feature nothing has measured, with `table: 'marker'`
+ * saying so. `measuredWorld` is the same lookup for a caller that wants the point or an error.
+ */
+export function locateFeature(bone: string, feature: string): LocatedFeature | undefined {
+  return LOCATED[bone]?.[feature];
+}
+
+/**
  * World position of any landmark the document carries -- a dataset marker or a measured centre
  * -- at the dataset stature. Use this where the question is "where is this feature", and
  * `markerWorld` where it must be a marker the export itself placed.
  */
 export function measuredWorld(bone: string, feature: string): readonly [number, number, number] {
-  const p = POSITIONS[bone]?.[feature];
-  if (!p) throw new Error(`No landmark '${feature}' on '${bone}'.`);
-  return p;
+  const located = locateFeature(bone, feature);
+  if (!located) throw new Error(`No landmark '${feature}' on '${bone}'.`);
+  return located.world;
 }
 
 /** World position of a raw dataset marker at the dataset stature, or throw naming the gap. */
@@ -582,7 +630,7 @@ export function isbLandmarkWorld(
 ): readonly [number, number, number] {
   const entry = ISB_LANDMARKS.find((l) => l.bone === bone && l.abbreviation === abbreviation);
   if (!entry) throw new Error(`No ISB landmark '${abbreviation}' is defined on '${bone}'.`);
-  const p = POSITIONS[bone]?.[entry.feature];
+  const p = locateFeature(bone, entry.feature)?.world;
   if (!p) {
     throw new Error(
       `ISB landmark '${abbreviation}' on '${bone}' expects feature '${entry.feature}', which the ` +

@@ -66,21 +66,13 @@ const { VIA_PATH_DIRECTION } = await jiti.import(
 const { sourceMuscleTravel } = await jiti.import(
   join(ROOT, 'packages/muscle-data/src/sourceTravel.ts'),
 );
+// The site-id scheme and the wrist compartments, from the module `attachments.ts` builds the sites
+// with, so an id named here is the id the body carries. It imports nothing, so loading it is cheap.
+const { CARPAL_TUNNEL, FIRST_COMPARTMENT, LISTERS_TUBERCLE, ULNAR_COMPARTMENT, attachmentSiteId } =
+  await jiti.import(join(ROOT, 'packages/skeleton/src/attachmentSiteId.ts'));
 
-/**
- * The attachment-site ids `attachments.ts` builds, written the way it writes them.
- *
- * A path site carries the bone it is on and an attachment does not, because a tendon crosses the
- * same named feature on several bones and an attachment does not.
- */
-const site = (muscle, role, bone, feature) =>
-  role === 'path' ? `${muscle}_path_$_${bone}_${feature}` : `${muscle}_${role}_$_${feature}`;
-
-/** Where each tendon crosses the wrist, by the compartment it runs in. */
-const CARPAL_TUNNEL = ['hamate', 'hook_of_hamate_bone'];
-const FIRST_COMPARTMENT = ['radius', 'radial_styloid_process'];
-const LISTERS_TUBERCLE = ['radius', 'dorsal_radial_tubercle'];
-const ULNAR_COMPARTMENT = ['ulna', 'head_of_ulna'];
+/** An attachment-site id with the side left as `$`, for `sided` to fill in. */
+const site = (muscle, role, bone, feature) => attachmentSiteId(muscle, role, '$', bone, feature);
 
 /** Every bone in the digit from the metacarpal to the one the tendon ends on. */
 const chainTo = (digit, stop) => {

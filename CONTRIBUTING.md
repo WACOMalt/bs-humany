@@ -26,7 +26,9 @@ Read this file before your first change. It is short on purpose.
 5. **Measurements from the anatomical mesh dataset are legitimate and preferred** for placement,
    landmarks and joint centres (ADR-011). Record which dataset, version and structure each value
    came from so it can be re-derived. The ISB textual definition of a landmark still defines it;
-   the mesh is where it is located.
+   the mesh is where it is located. The export's markers are label anchors: they name a feature and
+   never position it. Positions come from the measured tables through `measuredWorld`/`locateFeature`;
+   `markerWorld` answers only where the export put its label.
 6. **Do not write to a channel you have not declared.** Declared `reads`/`writes` are enforced,
    not documentary. In every build the kernel hands a module a view only for an access its
    manifest declares, and refuses a second writer. A read view is the same memory as a write
