@@ -22,9 +22,6 @@
             <option value="l2_biomechanical">L2 — Biomechanical (49 bodies, 500 Hz)</option>
             <option value="l3_anatomical" selected>L3 — Anatomical (~135 bodies, 1000 Hz)</option>
           </select>
-          <select id="backend" title="Physics backend">
-            <option value="mujoco" selected>MuJoCo</option>
-          </select>
         </div>
         <div class="transport buttons">
           <button type="button" id="simStart" title="Start a run with the current settings (Space)">&#9654; Start sim</button>
@@ -33,6 +30,7 @@
         </div>
         <div class="mode" id="mode-indicator" title="Whether the viewport shows a run of your own, or follows a run published to the bridge">
           <span class="dot"></span><span id="mode-label">Own run</span>
+          <span class="buttons"><button type="button" id="stop-following" hidden title="Stop following the bridge and go back to a run of this studio's own">Stop following</button></span>
         </div>
         <div class="files buttons">
           <button type="button" id="save" title="Save the settings that define a run &mdash; body, profile, scenario and its values, joints, gravity and floor, grab strength, muscles and their drive, the cord, the step and output rates, the capture budget, and the Brain panel's authority and chosen checkpoint &mdash; and, during a run, its state, so Load carries on from the saved tick. Not the recording, the camera or the overlays">Save session</button>
@@ -56,17 +54,18 @@
           <div class="group popover-host">
             <button type="button" id="overlays-button" class="popover-button" aria-expanded="false" aria-controls="overlays-popover">Overlays &#9662;</button>
             <div id="overlays-popover" class="popover" hidden>
-              <label class="checkbox"><input type="checkbox" id="showMuscles" checked /> Muscle paths</label>
-              <label class="checkbox"><input type="checkbox" id="showMuscleVolumes" checked /> Muscle volumes</label>
-              <label class="checkbox" title="Discs at every spinal level, beads at the costovertebral joints, the costal cartilage as bars between rib and sternum, and the couplings as threads between the joints they tie: everything simulated that is neither bone nor muscle."><input type="checkbox" id="showTissue" checked /> Connective tissue</label>
-              <label class="checkbox"><input type="checkbox" id="showProxies" /> Collision proxies</label>
-              <label class="checkbox"><input type="checkbox" id="showAxes" /> Joint axes, end-range heat</label>
-              <label class="checkbox"><input type="checkbox" id="showCom" /> Centres of mass</label>
-              <label class="checkbox"><input type="checkbox" id="showContacts" /> Contacts</label>
+              <p class="note live" id="overlays-at-rest">Drawn while a run is going; press Start sim.</p>
+              <label for="showMuscles" class="checkbox"><input type="checkbox" id="showMuscles" checked /> Muscle paths</label>
+              <label for="showMuscleVolumes" class="checkbox"><input type="checkbox" id="showMuscleVolumes" checked /> Muscle volumes</label>
+              <label for="showTissue" class="checkbox" title="Discs at every spinal level, beads at the costovertebral joints, the costal cartilage as bars between rib and sternum, and the couplings as threads between the joints they tie: everything simulated that is neither bone nor muscle."><input type="checkbox" id="showTissue" checked /> Connective tissue</label>
+              <label for="showProxies" class="checkbox"><input type="checkbox" id="showProxies" /> Collision proxies</label>
+              <label for="showAxes" class="checkbox"><input type="checkbox" id="showAxes" /> Joint axes, end-range heat</label>
+              <label for="showCom" class="checkbox"><input type="checkbox" id="showCom" /> Centres of mass</label>
+              <label for="showContacts" class="checkbox"><input type="checkbox" id="showContacts" /> Contacts</label>
             </div>
           </div>
-          <label class="checkbox inline"><input type="checkbox" id="showGrid" checked /> Grid</label>
-          <label class="checkbox inline"><input type="checkbox" id="spin" /> Turntable</label>
+          <label for="showGrid" class="checkbox inline"><input type="checkbox" id="showGrid" checked /> Grid</label>
+          <label for="spin" class="checkbox inline"><input type="checkbox" id="spin" /> Turntable</label>
         </div>
         <div id="viewport"></div>
         <div id="loading">Loading the measured skeleton…</div>
@@ -74,8 +73,8 @@
 
       <!-- The properties editor: one concern at a time. ------------------------------------------- -->
       <aside id="properties" aria-label="Properties">
-        <div id="properties-resizer" title="Drag to resize; double-click to reset" role="separator" aria-orientation="vertical"></div>
-        <nav id="tabs" aria-label="Property tabs">
+        <div id="properties-resizer" title="Drag to resize, or focus and use the arrow keys; double-click to reset" role="separator" aria-orientation="vertical" aria-label="Resize properties" tabindex="0"></div>
+        <div id="tabs" role="tablist" aria-orientation="vertical" aria-label="Property tabs">
           <button type="button" data-tab="body" class="active" title="Body: who is being simulated, and how finely">Body</button>
           <button type="button" data-tab="world" title="World: what the body is in">World</button>
           <button type="button" data-tab="simulation" title="Simulation: how it is computed and recorded">Sim</button>
@@ -85,12 +84,12 @@
           <button type="button" data-tab="align" title="Align: the reference models beside ours, and the points that need moving">Align</button>
           <button type="button" data-tab="export" title="Export: recordings, Blender, sessions">Export</button>
           <button type="button" data-tab="health" title="Health: whether the numbers are right">Health</button>
-        </nav>
+        </div>
 
         <div id="panels">
           <!-- Body -->
           <section data-panel="body">
-            <details class="panel" open>
+            <details class="panel" data-memory="who" open>
               <summary>Who</summary>
               <div class="control">
                 <label for="sex">
@@ -120,28 +119,28 @@
                 <p class="note">Sets stature and mass together from the distribution for the current blend; reads back where the current stature sits.</p>
               </div>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="inspector" open>
               <summary>Inspector</summary>
               <div id="inspector" class="inspector">
-                <p class="note">Click a bone.</p>
+                <p class="note live">Click a bone to inspect it.</p>
               </div>
             </details>
           </section>
 
           <!-- World -->
           <section data-panel="world" hidden>
-            <details class="panel" open>
+            <details class="panel" data-memory="forces" open>
               <summary>Forces</summary>
-              <label class="checkbox"><input type="checkbox" id="gravity" checked /> Gravity</label>
-              <label class="checkbox"><input type="checkbox" id="floor" checked /> Floor collision</label>
+              <label for="gravity" class="checkbox"><input type="checkbox" id="gravity" checked /> Gravity</label>
+              <label for="floor" class="checkbox"><input type="checkbox" id="floor" checked /> Floor collision</label>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="tissues" open>
               <summary>Tissues</summary>
-              <label class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
-              <label class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
-              <p class="note">The discs at every spinal level and the costal cartilage are part of the skeleton and have no switch; the Connective tissue overlay shows them. These two take effect on the next run.</p>
+              <label for="passive" class="checkbox"><input type="checkbox" id="passive" checked /> Passive joint resistance</label>
+              <label for="redistribute" class="checkbox"><input type="checkbox" id="redistribute" checked /> Spinal redistribution</label>
+              <p class="note">The discs at every spinal level and the costal cartilage are part of the skeleton and have no switch; the Connective tissue overlay shows them during a run. These two take effect on the next run.</p>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="start-pose" open>
               <summary>Start pose</summary>
               <div class="control" id="dropHeight-control">
                 <label for="dropHeight">Drop height <output id="dropHeight-value">0.30 m</output></label>
@@ -149,7 +148,7 @@
                 <p class="note">For a free drop only; a scenario places the body itself.</p>
               </div>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="the-hand" open>
               <summary>The hand</summary>
               <div class="control">
                 <label for="grabStrength">Grab strength <output id="grabStrength-value">1.0&times;</output></label>
@@ -163,7 +162,7 @@
 
           <!-- Simulation -->
           <section data-panel="simulation" hidden>
-            <details class="panel" open>
+            <details class="panel" data-memory="time" open>
               <summary>Time</summary>
               <div class="control">
                 <label for="stepsPerSecond">Simulation steps per second <output id="stepsPerSecond-value">1000</output></label>
@@ -179,19 +178,21 @@
                 gives you frames rather than interpolation.</p>
                 <p class="note">One rendered frame advances the simulation by exactly one output frame,
                 whatever the machine was doing: every step is taken and every step is captured. A slow
-                machine takes longer in wall-clock seconds and produces the identical run. Playback moves
-                one output frame per display refresh, so 60 fps output on a 60 Hz display is life speed
-                and 24 is two and a half times life; neither changes the export. A new step rate is used
+                machine takes longer in wall-clock seconds and produces the identical run. While the run is
+                live the picture moves one output frame per display refresh, so 60 fps output on a 60 Hz
+                display is life speed and 24 is two and a half times life; Play on the timeline replays at
+                the output rate in real time. Neither changes the export. A new step rate is used
                 from the next run; the one running keeps its own, because the timestep is fixed for the
                 life of a run. Left alone, the slider follows the body profile's own rate.</p>
               </div>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="simulation.recording" open>
               <summary>Recording</summary>
               <div class="control">
                 <label for="captureBudget">Capture budget <output id="captureBudget-value">&mdash;</output></label>
                 <input type="range" id="captureBudget" min="32" max="4096" step="32" value="256" />
                 <p class="note live" id="capture-status"></p>
+                <p class="note live" id="capture-estimate"></p>
                 <p class="note">How much the Blender export may hold, per capture &mdash; one for the
                 bones and one for the muscle cross-sections, and whichever fills first stops both.
                 Raise it before it fills and the capture carries on. Once it has filled, raising it
@@ -208,8 +209,8 @@
                 muscle capture is the one that fills; the status line above shows how fast.</p>
               </div>
             </details>
-            <details class="panel" open>
-              <summary>Run</summary>
+            <details class="panel" open data-memory="simulation.readout">
+              <summary>Readout</summary>
               <div class="note live" id="pending-changes" hidden>
                 Changed since this run started: <span id="pending-changes-list"></span>.
                 <button type="button" id="pending-restart" title="Start a new run with the settings as they are now; this run and its recording are thrown away">Restart to apply</button>
@@ -217,6 +218,7 @@
               <p class="note">Start begins a run, or carries one on from wherever it was left; Pause stops
               computing and leaves everything that has been computed where it is. Reset takes the body
               back to the pose it started in and throws the recording away. They live in the top bar.</p>
+              <p class="note live" id="diagnostics-empty">Start a run to see energy, joint drift, contacts and tick rate.</p>
               <dl class="readout" id="diagnostics" hidden>
                 <dt>Kinetic</dt><dd id="diag-kinetic">—</dd>
                 <dt>Potential</dt><dd id="diag-potential">—</dd>
@@ -233,7 +235,7 @@
 
           <!-- Scenario -->
           <section data-panel="scenario" hidden>
-            <details class="panel" open>
+            <details class="panel" data-memory="scenario" open>
               <summary>Scenario</summary>
               <div class="control">
                 <select id="scenario">
@@ -242,33 +244,37 @@
                 <p class="note live" id="scenario-note"></p>
                 <div id="scenario-parameters"></div>
               </div>
-              <label class="checkbox"><input type="checkbox" id="muscles" checked /> Muscles</label>
+              <label for="muscles" class="checkbox"><input type="checkbox" id="muscles" checked /> Muscles</label>
               <p class="note">A scenario that needs muscles turns them on itself. Muscles start with the next run.</p>
             </details>
           </section>
 
           <!-- Muscles -->
           <section data-panel="muscles" hidden>
+            <div id="muscles-off" class="note live" hidden>
+              <p>Muscles are off for the next run.</p>
+              <div class="buttons"><button type="button" id="muscles-on">Turn muscles on</button></div>
+            </div>
             <div id="muscle-control">
-              <details class="panel" open>
+              <details class="panel" data-memory="drive" open>
                 <summary>Drive</summary>
                 <!-- One slider a drive group, generated from the same table the headset's panel uses. -->
                 <div id="muscle-drives"></div>
-                <p class="note">Two hundred and thirty-four units a body. Peak force comes from the MyoSuite
+                <p class="note"><span id="muscle-unit-count"></span> units a body. Peak force comes from the MyoSuite
                 arm, leg and torso models where they have the muscle, and from cited tables and measured
                 volumes where they do not; attachments are Gray's, located on this subject's own bones;
                 and both lengths are derived against this skeleton. Each slider drives its muscles on
                 both sides at once, and is squared, so the readout shows the excitation given rather
                 than where the handle sits.</p>
               </details>
-              <details class="panel" open>
+              <details class="panel" data-memory="readout" open>
                 <summary>Readout</summary>
                 <!-- A row a body section, summed over every drive group in it, is put here from the
                      same table the sliders are made from; each slider shows its own group's pull. -->
                 <dl class="readout" id="muscle-readout">
                   <dt>Loaded</dt><dd id="muscle-loaded">&mdash;</dd>
                   <dt>Wrapping</dt><dd id="muscle-wrapping">&mdash;</dd>
-                  <dt title="Units whose equilibrium did not solve cleanly this tick: their path is longer or shorter than their parameters expect, and the force shown for them is the model's fallback">Out of range</dt><dd id="muscle-strained">&mdash;</dd>
+                  <dt title="Units the model could not keep in its working range this tick: a fibre held at the shortest or longest length the model allows, a unit whose path is shorter than its own tendon, or an elastic tendon whose balance with its fibre could not be found. The force shown for them is the model's fallback, not a measurement">Out of range</dt><dd id="muscle-strained">&mdash;</dd>
                 </dl>
                 <p class="note live" id="muscle-readout-note" hidden></p>
               </details>
@@ -277,7 +283,7 @@
 
           <!-- Brain -->
           <section data-panel="brain" hidden>
-            <details class="panel" open>
+            <details class="panel" data-memory="policy-in-the-loop" open>
               <summary>Policy in the loop</summary>
               <div class="control">
                 <label for="brain-policy">Checkpoint</label>
@@ -300,7 +306,7 @@
               </div>
               <p class="note live" id="brain-fit-note"></p>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="activity" open>
               <summary>Activity</summary>
               <div id="nerves-control" hidden>
                 <canvas id="nerves-activity" width="320" height="64" role="img" aria-label="The policy's activity: one row a layer, senses at the top, drives at the bottom; blue is negative, red positive" aria-describedby="nerves-note"></canvas>
@@ -310,7 +316,7 @@
               </div>
               <p class="note live" id="brain-idle-note">No policy in the loop.</p>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="spine" open>
               <summary>Spine</summary>
               <p class="note">The reflexes, under whatever the brain is doing. A muscle pulled
               past its set point excites itself in proportion to how far and how fast -- the
@@ -347,7 +353,7 @@
               </div>
             </details>
 
-            <details class="panel" open>
+            <details class="panel" data-memory="training" open>
               <summary>Training</summary>
               <div class="control">
                 <label for="train-name">Checkpoint name</label>
@@ -396,7 +402,7 @@
               with the time it spends waiting for its own afferents. Every unit costs a row and a
               column of weights, and the search's cost grows with the vector it searches.</p>
               <p class="note">A silent body trains a brain with nothing to answer: it picks a posture, holds it, and every episode runs the same, so two candidates score the same and the search cannot rank them. The tremor is a slow random wander on every muscle group, the grain is the error on every sense. Both are drawn from the episode's seed, so a mirrored pair meets the same disturbance and the difference in their scores is the difference in their brains. Zero on both makes a run repeatable.</p>
-              <label class="checkbox"><input type="checkbox" id="train-resume" /> Resume the named checkpoint where it stopped</label>
+              <label for="train-resume" class="checkbox"><input type="checkbox" id="train-resume" /> Resume the named checkpoint where it stopped</label>
               <div class="buttons">
                 <button type="button" id="train-start" disabled title="Start a training run on this machine and follow it here">Start training</button>
                 <button type="button" id="train-stop" disabled>Stop training</button>
@@ -411,7 +417,7 @@
 
           <!-- Align -->
           <section data-panel="align" hidden>
-            <details class="panel" open>
+            <details class="panel" data-memory="reference-model" open>
               <summary>Reference model</summary>
               <p class="note">The muscles of the model our parameters came from, drawn as paths.
               Their bones are the models' own meshes, vendored beside the XML. It is a reference
@@ -423,8 +429,8 @@
                   <option value="">None</option>
                 </select>
               </div>
-              <label class="checkbox"><input type="checkbox" id="align-show" /> Show their muscles</label>
-              <label class="checkbox"><input type="checkbox" id="align-show-bones" /> Show their bones</label>
+              <label for="align-show" class="checkbox"><input type="checkbox" id="align-show" /> Show their muscles</label>
+              <label for="align-show-bones" class="checkbox"><input type="checkbox" id="align-show-bones" /> Show their bones</label>
               <p class="note live" id="align-model-note"></p>
               <div class="control grid2">
                 <label for="align-x">Across <output id="align-x-value">0.00</output></label>
@@ -457,13 +463,13 @@
                 <button type="button" id="align-gizmo-move" aria-pressed="false" title="Move the whole model with the gizmo's arrows (W)">Move</button>
                 <button type="button" id="align-gizmo-rotate" aria-pressed="false" title="Turn the whole model with the gizmo's rings (E)">Rotate</button>
               </div>
-              <label class="checkbox"><input type="checkbox" id="align-snap" /> Snap the gizmo to 5 mm and 5&deg; steps</label>
+              <label for="align-snap" class="checkbox"><input type="checkbox" id="align-snap" /> Snap the gizmo to 5 mm and 5&deg; steps</label>
               <div class="buttons">
                 <button type="button" id="align-reset">Reset placement</button>
               </div>
             </details>
 
-            <details class="panel" open>
+            <details class="panel" data-memory="bone-pairing" open>
               <summary>Bone pairing</summary>
               <p class="note">Which of their bones is which of ours. This is what a retarget is
               built from: a body pair fixes an origin and an orientation, and the joints on that
@@ -501,12 +507,13 @@
               </div>
             </details>
 
-            <details class="panel" open>
+            <details class="panel" data-memory="correspondence" open>
               <summary>Correspondence</summary>
               <p class="note">Which of their muscles is which of ours. Many of theirs may map to
               one of ours -- their six external oblique strips are our one external oblique -- so
-              pair as many as belong together. This is what unblocks measuring the hundred and six
-              units that have never been compared against anything.</p>
+              pair as many as belong together. This is what unblocks measuring the trunk, neck and
+              girdle units, which no source model has and which have never been compared against
+              anything.</p>
               <div class="control grid2">
                 <label for="align-theirs">Theirs <output id="align-theirs-count"></output></label>
                 <label for="align-ours">Ours <output id="align-ours-count"></output></label>
@@ -529,7 +536,7 @@
               </div>
             </details>
 
-            <details class="panel" open>
+            <details class="panel" data-memory="our-points" open>
               <summary>Our points</summary>
               <p class="note">Joint centres and attachment sites on our own skeleton, as handles.
               The truth here is our mesh, not their model: a point is moved because it is wrong
@@ -562,12 +569,13 @@
           </section>
           <!-- Export -->
           <section data-panel="export" hidden>
-            <details class="panel" open>
+            <details class="panel" data-memory="export.recording" open>
               <summary>Recording</summary>
               <div class="buttons">
-                <button type="button" id="export" disabled>Export recording</button>
-                <button type="button" id="export-blender" disabled title="Three files: the glTF, the muscle vertex cache, and the script that imports them">Export for Blender</button>
+                <button type="button" id="export" disabled title="Export needs a run: press Start sim">Export recording</button>
+                <button type="button" id="export-blender" disabled title="Export needs a run: press Start sim">Export for Blender</button>
               </div>
+              <p class="note live" id="export-why">Export needs a run: press Start sim.</p>
               <p class="note">Export for Blender writes three files that belong together: the glTF with
               the bones and the belly mesh, a <code>.pc2</code> vertex cache the muscles stream from,
               and the Python script that imports the pair. Keep them in one folder. The muscles are a
@@ -575,41 +583,39 @@
               for six tenths of a second of simulation; as a cache the same import is under 600 MB and
               a longer run costs disk instead of memory.</p>
             </details>
-            <details class="panel" open>
-              <summary>Session</summary>
-              <p class="note">Save and Load live in the top bar. A session holds the settings that
-              define a run &mdash; the body, the profile, the scenario and its values, the joints,
-              gravity and the floor, the grab strength, the muscles and their drive, the cord, the
-              step and output rates, the capture budget, and the Brain panel's authority and chosen
-              checkpoint, by name &mdash; and, when a run is going, its state, so Load carries on from
-              the tick it was saved at. It does not hold the recording, the camera or the overlays.</p>
-            </details>
           </section>
 
           <!-- Health -->
           <section data-panel="health" hidden>
-            <details class="panel" open>
+            <details class="panel" data-memory="compile-report" open>
               <summary>Compile report <span id="sim-report-summary"></span></summary>
+              <p class="note live" id="sim-report-empty">Compiled when a run starts.</p>
               <dl class="readout" id="capabilities"></dl>
               <ul id="sim-report" class="limitations"></ul>
             </details>
-            <details class="panel" id="body-validity-panel" open hidden>
+            <details class="panel" data-memory="body-validity" id="body-validity-panel" open hidden>
               <summary>Body validity</summary>
               <p class="note">The resolved body failed the physical checks of spec section 6.4. It
               still renders and still runs; it is simply wrong in the ways listed.</p>
               <ul id="body-validity" class="limitations"></ul>
             </details>
-            <details class="panel">
+            <details class="panel" data-memory="inertia-audit">
               <summary>Inertia audit</summary>
-              <p class="note">Compiled segment masses against the body mass, and the whole-body centre of mass at rest.</p>
+              <p class="note live" id="validation-note"></p>
+              <p class="note">Each compiled segment's mass, how many bones it owns, the height of its centre
+              of mass at rest and the diagonal of its inertia tensor about that centre in the segment's own
+              frame; the total is set against the body mass the morphology asked for. The segment masses
+              are de Leva's parts by construction (the compiler's mass mapping), so this checks how they
+              were shared out among the profile's segments rather than measuring them against a second
+              source.</p>
               <div class="table-wrap"><table id="inertia-audit"></table></div>
             </details>
-            <details class="panel">
+            <details class="panel" data-memory="joint-sweep">
               <summary>Joint sweep</summary>
               <p class="note">Passive moment at each stop, per degree of freedom, from the curve the passive module applies.</p>
               <div class="table-wrap"><table id="joint-sweep"></table></div>
             </details>
-            <details class="panel" open>
+            <details class="panel" data-memory="cost" open>
               <summary>Cost</summary>
               <dl class="readout">
                 <dt>Mesh</dt><dd id="stat-mesh">—</dd>
@@ -620,7 +626,7 @@
                 <dt>Draw calls</dt><dd id="stat-draws">—</dd>
               </dl>
             </details>
-            <details class="panel">
+            <details class="panel" data-memory="known-limitations">
               <summary>Known limitations</summary>
               <ul id="limitations" class="limitations"></ul>
             </details>
@@ -654,10 +660,10 @@
 
       <!-- The status bar. ------------------------------------------------------------------------- -->
       <footer id="statusbar">
-        <p class="note live" id="sim-status" aria-live="off">At rest.</p>
+        <p class="note live" id="sim-status" aria-live="off">At rest. Press Start sim to see the muscles work.</p>
         <p id="sim-event" role="status" aria-live="polite" hidden></p>
         <div id="hint">drag to orbit · right- or Shift-drag to pan · scroll to zoom · click a bone · Ctrl-drag a bone to pull it · Space start/pause · F to frame</div>
-        <label class="checkbox inline" title="Show the paragraphs that say why a control does what it does"><input type="checkbox" id="showNotes" /> Explain</label>
+        <label for="showNotes" class="checkbox inline" title="Show the paragraphs that say why a control does what it does"><input type="checkbox" id="showNotes" /> Explain</label>
         <div id="attribution" hidden></div>
       </footer>
     </div>

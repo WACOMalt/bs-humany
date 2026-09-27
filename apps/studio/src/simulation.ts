@@ -988,8 +988,9 @@ export class Simulation {
    * How many bytes each capture may hold, changeable while a run is going.
    *
    * Both get the same number rather than a split, because which of them binds depends on what is
-   * loaded -- a muscle frame is twenty times a bone frame with the full set running and nothing
-   * at all without it -- and a fixed split would waste whichever side was idle.
+   * loaded -- with the full muscle set running a muscle frame is many times a bone frame, and
+   * without muscles there is none at all; the Recording panel works out the two a tick for the
+   * run in hand -- and a fixed split would waste whichever side was idle.
    *
    * Raising it on a capture that has already stopped keeps what is held, and that is the whole of
    * what it can promise. The capture is contiguous in tick number, and by the time anybody reads
