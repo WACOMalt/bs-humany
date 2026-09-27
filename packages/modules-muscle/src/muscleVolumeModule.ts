@@ -165,6 +165,20 @@ export class MuscleVolumeModule implements SimModule {
   /** Triangle indices, the same for every unit and never rewritten after `init`. */
   readonly index: Uint32Array;
 
+  /**
+   * How many times the mesh has been swept since this module was made.
+   *
+   * For a caller that keeps a history of the mesh and wants to add to it only when there is
+   * something new: on a divisor the sweep skips most ticks, and a copy of the mesh taken on one of
+   * those is the previous sweep again. Compare it before and after a kernel step. A plain count
+   * rather than a channel, because it is not simulation state -- nothing reads it back, a snapshot
+   * does not restore it, and all it answers is whether it moved.
+   */
+  get sweeps(): number {
+    return this.sweepCount;
+  }
+  private sweepCount = 0;
+
   constructor(
     readonly articulation: CompiledArticulation,
     readonly muscles: CompiledMuscleSet,
@@ -249,6 +263,7 @@ export class MuscleVolumeModule implements SimModule {
     const outNormal = this.outNormal;
     if (!point || !start || !count || !tendonForce || !fiberVelocity || !activation) return;
     if (!outPosition || !outNormal) return;
+    this.sweepCount += 1;
 
     const stride = this.mesh.vertexCount;
     for (let i = 0; i < this.units; i++) {

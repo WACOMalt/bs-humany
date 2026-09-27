@@ -48,6 +48,7 @@ describe('raising a full capture budget', () => {
     for (let t = 0; t < 50 && simulation.capturesStoppedBy === undefined; t++) simulation.tick();
     expect(simulation.capturesStoppedBy).toBe('muscles');
     const held = simulation.capture.frameCount;
+    const ringsHeld = simulation.muscleCapture.frameCount;
     expect(held).toBeGreaterThan(0);
 
     // The run goes on, somebody pauses and gives the capture room.
@@ -57,14 +58,14 @@ describe('raising a full capture budget', () => {
     for (let t = 0; t < 5; t++) simulation.tick();
 
     expect(simulation.capture.frameCount).toBe(held);
-    expect(simulation.muscleCapture.frameCount).toBe(held);
+    expect(simulation.muscleCapture.frameCount).toBe(ringsHeld);
     expect(simulation.captureBehindRun).toBe(true);
 
     // A new run -- Reset and Start -- is what captures more, at the budget it was given.
     simulation.reset();
     for (let t = 0; t < held + 5; t++) simulation.tick();
     expect(simulation.capture.frameCount).toBeGreaterThan(held);
-    expect(simulation.muscleCapture.frameCount).toBe(simulation.capture.frameCount);
+    expect(simulation.muscleCapture.frameCount).toBeGreaterThan(ringsHeld);
     expect(simulation.captureBehindRun).toBe(false);
     simulation.dispose();
   }, 60_000);

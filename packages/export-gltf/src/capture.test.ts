@@ -4,8 +4,10 @@ import {
   CAPTURE_BUDGET_BYTES,
   EXPORT_PEAK_MULTIPLE,
   MIN_CAPTURE_BUDGET_BYTES,
+  MuscleRingCapture,
   captureCeilingBytes,
   defaultCaptureBudgetBytes,
+  newestAtOrBefore,
 } from './capture.js';
 
 import { buildAnimatedGlb, readGlb } from './glb.js';
@@ -198,5 +200,90 @@ describe('BoneCapture', () => {
     for (let i = 1; i < written.length; i++) {
       expect(written[i]).toBeGreaterThan(written[i - 1] ?? 0);
     }
+  });
+});
+
+const RINGS = 2;
+
+/** A ring frame whose radius is the tick it was swept at, so which frame came back is visible. */
+function rings(tick: number) {
+  return {
+    position: new Float32Array(RINGS * 3).fill(tick),
+    orientation: new Float32Array(RINGS * 4).fill(0.5),
+    radius: new Float32Array(RINGS).fill(tick),
+  };
+}
+
+function sweep(capture: MuscleRingCapture, tick: number): void {
+  const r = rings(tick);
+  capture.append(tick, r.position, r.orientation, r.radius);
+}
+
+/** The radius of the frame `indexForTick` finds for `tick`, which is the tick it was swept at. */
+function sweptAt(capture: MuscleRingCapture, tick: number): number {
+  const r = rings(0);
+  if (!capture.frameInto(capture.indexForTick(tick), r.position, r.orientation, r.radius)) {
+    return Number.NaN;
+  }
+  return r.radius[0] ?? Number.NaN;
+}
+
+describe('MuscleRingCapture', () => {
+  it('finds, for any tick, the rings that were showing at it', () => {
+    // Swept at ticks 1, 5, 9, ... as the belly sweep's divisor of four runs them at 500 Hz, over
+    // more than one chunk so the search crosses a chunk boundary.
+    const capture = new MuscleRingCapture();
+    for (let tick = 1; tick <= 2001; tick += 4) sweep(capture, tick);
+    expect(capture.frameCount).toBe(501);
+    expect(capture.firstTick).toBe(1);
+    expect(capture.lastTick).toBe(2001);
+    expect(capture.tickAt(300)).toBe(1201);
+    // A tick on a sweep gets that sweep, a tick between two gets the older, and a tick before
+    // the first or after the last is clamped into the capture.
+    expect(sweptAt(capture, 1)).toBe(1);
+    expect(sweptAt(capture, 4)).toBe(1);
+    expect(sweptAt(capture, 5)).toBe(5);
+    expect(sweptAt(capture, 1023)).toBe(1021);
+    expect(sweptAt(capture, 1025)).toBe(1025);
+    expect(sweptAt(capture, 0)).toBe(1);
+    expect(sweptAt(capture, 9999)).toBe(2001);
+    expect(new MuscleRingCapture().indexForTick(10)).toBe(-1);
+    // The same answers from the flat view the export holds.
+    const view = capture.view();
+    expect(Array.from(view.ticks.subarray(0, 3))).toEqual([1, 5, 9]);
+    for (const tick of [0, 1, 4, 5, 1023, 9999]) {
+      expect(newestAtOrBefore(view.frames, (i) => view.ticks[i] ?? -1, tick)).toBe(
+        capture.indexForTick(tick),
+      );
+    }
+  });
+
+  it('keeps the gap between sweeps, truncates by tick, and starts over on a passed tick', () => {
+    const capture = new MuscleRingCapture();
+    for (const tick of [1, 5, 9, 13]) sweep(capture, tick);
+    // A rewind to tick 11 keeps the sweeps at or before it.
+    capture.truncate(11);
+    expect(capture.frameCount).toBe(3);
+    expect(capture.lastTick).toBe(9);
+    // Re-stepping after it appends, gap and all.
+    sweep(capture, 13);
+    expect(capture.frameCount).toBe(4);
+    capture.truncate(0);
+    expect(capture.frameCount).toBe(0);
+    for (const tick of [1, 5, 9]) sweep(capture, tick);
+    // A tick at or before the newest is not a continuation of this capture.
+    sweep(capture, 5);
+    expect(capture.frameCount).toBe(1);
+    expect(capture.firstTick).toBe(5);
+  });
+
+  it('counts each frame’s tick against the budget, and stops there', () => {
+    const perFrame = RINGS * 8 * 4 + 4;
+    const capture = new MuscleRingCapture(perFrame * 3);
+    for (let tick = 1; tick <= 40; tick += 4) sweep(capture, tick);
+    expect(capture.full).toBe(true);
+    expect(capture.frameCount).toBe(3);
+    expect(capture.bytes).toBe(perFrame * 3);
+    expect(capture.lastTick).toBe(9);
   });
 });

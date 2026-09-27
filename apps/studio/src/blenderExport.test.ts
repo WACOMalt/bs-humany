@@ -3,23 +3,25 @@
  *
  * The bones are the easy half: they are rigid, so a node with a mesh and two keyframe channels
  * says everything about them, and the writer's own tests cover that. The muscles are the half
- * worth a test here, because nothing about them is rigid -- a belly is swept anew every tick --
- * and what makes them exportable at all is the claim that a belly is rigid *ring by ring*.
+ * worth a test here, because nothing about them is rigid -- a belly is swept anew along its path
+ * -- and what makes them exportable at all is the claim that a belly is rigid *ring by ring*: the
+ * ring capture holds each ring's frame at every sweep, and every vertex is rebuilt from those.
  *
- * So the test evaluates glTF's own skinning rule on the file that was written, using the inverse
- * bind matrices it contains, and compares the result against the mesh the simulation actually had
- * at that tick. If the ring frames, the bind pose, the matrices or the keyframes disagreed
- * anywhere, the vertices would land somewhere else.
+ * They leave as one mesh and a PC2 vertex cache beside the file, one sample per output frame. So
+ * the tests read the cache that was written and compare its vertices against the mesh the
+ * simulation actually had on each sample's tick. If the ring frames, the tick each was taken at,
+ * the axis conversion or the sampling disagreed anywhere, the vertices would land somewhere else.
  */
 
 import { fileURLToPath } from 'node:url';
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { loadSkeletonAssetsFromDisk } from '@bs-humany/assets-anatomical';
 import { PC2_HEADER_BYTES, readGlb } from '@bs-humany/export-gltf';
+import { DEFAULT_UPDATE_HZ } from '@bs-humany/modules-muscle';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { buildBlenderExport, exportStride, sampleCount } from './blenderExport.js';
-import { Simulation } from './simulation.js';
+import { MAX_TICKS_PER_ADVANCE, Simulation } from './simulation.js';
 
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(
@@ -119,6 +121,26 @@ describe('the Blender export, with muscles', () => {
     jittery.dispose();
   }, 60_000);
 
+  it('spreads an output frame worth more than the cap over several advances', async () => {
+    // 2000 steps a second into 1 frame a second is two thousand ticks in one output frame: at L3
+    // with the muscles, seconds in which the page answers nothing. The cap is a count of ticks,
+    // never of milliseconds, so how far each call gets is still independent of the clock -- and
+    // the output frame is still all there, only over more rendered frames.
+    const simulation = await running(0, undefined, { stepsPerSecond: 2000, outputFramerate: 1 });
+    expect(MAX_TICKS_PER_ADVANCE).toBe(60);
+    expect(simulation.advance(5).ticks).toBe(MAX_TICKS_PER_ADVANCE);
+    expect(simulation.ticks).toBe(MAX_TICKS_PER_ADVANCE);
+    for (let call = 1; call < Math.ceil(2000 / MAX_TICKS_PER_ADVANCE); call++) {
+      simulation.advance(0.001);
+    }
+    expect(simulation.ticks).toBe(2000);
+    expect(simulation.capture.frameCount).toBe(simulation.ticks);
+    // And the next output frame begins only once this one is paid off.
+    expect(simulation.advance(1).ticks).toBe(MAX_TICKS_PER_ADVANCE);
+    expect(simulation.ticks).toBe(2000 + MAX_TICKS_PER_ADVANCE);
+    simulation.dispose();
+  }, 120_000);
+
   it('gives the timeline a second for every simulated second, at either rate', async () => {
     // The timing contract, from the capture through to the scene the script sets up. Sixty steps
     // and 30 fps out: half a second of run, half a second of timeline, and sixty keyframes still
@@ -182,6 +204,10 @@ describe('the Blender export, with muscles', () => {
     // And the animation is now the bones alone, which is what made it affordable.
     const channels = json.animations[0]?.channels.length ?? 0;
     expect(channels).toBeLessThan(600);
+    // The provenance says so too, rather than describing the skinned bellies that went.
+    const scene = (json as unknown as { scenes: { extras?: { hierarchy?: string } }[] }).scenes[0];
+    expect(scene?.extras?.hierarchy).toContain('.pc2');
+    expect(scene?.extras?.hierarchy).not.toContain('ring at a time');
     simulation.dispose();
   }, 60_000);
 
@@ -218,7 +244,7 @@ describe('the Blender export, with muscles', () => {
     // with nothing anywhere saying why: what came out was a file whose Muscles collection was
     // empty.
     //
-    // A budget of one frame's worth of rings, so the limit is reached on the second tick.
+    // A budget of one frame's worth of rings, so the limit is reached on the second sweep.
     const simulation = await running(1);
     const perFrame = simulation.muscleCapture.bytes;
     simulation.dispose();
@@ -226,9 +252,17 @@ describe('the Blender export, with muscles', () => {
 
     const short = await running(40, perFrame + 1);
     expect(short.muscleCapture.full).toBe(true);
-    // Both stopped, and at the same frame: that is the invariant the exporter reads.
-    expect(short.capture.frameCount).toBe(short.muscleCapture.frameCount);
+    expect(short.muscleCapture.frameCount).toBe(1);
+    // Both stopped, over the same span of ticks: that is the invariant the exporter reads. The
+    // bones run on to the tick before the sweep the rings refused, and not one tick past it.
+    const lastBoneTick = short.capture.firstTick + short.capture.frameCount - 1;
+    const refused = lastBoneTick + 1;
+    expect(short.capture.frameCount).toBeGreaterThan(1);
     expect(short.capture.frameCount).toBeLessThan(40);
+    expect(short.muscleCapture.indexForTick(lastBoneTick)).toBe(0);
+    expect(refused - short.muscleCapture.lastTick).toBe(
+      Math.floor(short.stepsPerSecond / DEFAULT_UPDATE_HZ),
+    );
     expect(short.capturesStoppedBy).toBe('muscles');
 
     const exported = buildBlenderExport(short, document, assets);
@@ -276,6 +310,52 @@ describe('the Blender export, with muscles', () => {
       }
     }
     // The cache is single precision, which over a belly centimetres across is microns.
+    expect(worst).toBeLessThan(1e-4);
+    simulation.dispose();
+  }, 60_000);
+
+  it('samples the bellies each output frame had, from a capture taken once a sweep', async () => {
+    // The ring capture holds a frame a sweep -- one tick in eight at 1000 Hz -- and the cache has
+    // one sample an output frame, on whatever tick that frame lands. Most land between sweeps, so
+    // each sample has to find the newest sweep at or before its tick; the belly on screen at that
+    // tick is exactly that sweep, which is what this compares against, vertex by vertex.
+    const simulation = await running(0);
+    const tickOf = (sample: number) =>
+      1 + Math.round((sample * simulation.stepsPerSecond) / simulation.outputFramerate);
+    const wanted = new Map<number, Float64Array>();
+    for (let t = 1; t <= 120; t++) {
+      simulation.tick();
+      const live = simulation.muscleMesh();
+      if (!live) throw new Error('the simulation has no muscle mesh');
+      wanted.set(t, Float64Array.from(live.position));
+    }
+    expect(simulation.muscleCapture.frameCount).toBeLessThan(simulation.capture.frameCount / 4);
+    const exported = buildBlenderExport(simulation, document, assets);
+    if (!exported.pointCache) throw new Error('no vertex cache');
+    const bytes = exported.pointCache.bytes;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const points = view.getInt32(16, true);
+    const samples = view.getInt32(28, true);
+    expect(samples).toBeGreaterThan(4);
+    let worst = 0;
+    for (let sample = 0; sample < samples; sample++) {
+      const live = wanted.get(tickOf(sample));
+      if (!live) throw new Error(`no live mesh for sample ${sample}`);
+      for (let v = 0; v < points; v++) {
+        const at = PC2_HEADER_BYTES + (sample * points + v) * 12;
+        const blender = [
+          live[v * 3] as number,
+          -(live[v * 3 + 2] as number),
+          live[v * 3 + 1] as number,
+        ];
+        for (let k = 0; k < 3; k++) {
+          worst = Math.max(
+            worst,
+            Math.abs(view.getFloat32(at + k * 4, true) - (blender[k] as number)),
+          );
+        }
+      }
+    }
     expect(worst).toBeLessThan(1e-4);
     simulation.dispose();
   }, 60_000);

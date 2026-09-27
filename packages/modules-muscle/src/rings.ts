@@ -92,7 +92,18 @@ export function extractMuscleRings(
   }
 }
 
-/** A rotation matrix, given by its three columns, as an xyzw quaternion at `out[at..]`. */
+/**
+ * A rotation matrix, given by its three columns, as an xyzw quaternion at `out[at..]`.
+ *
+ * Shepperd's method: pick the largest of the four possible divisors so the square root is never
+ * taken of something near zero, which is where the naive form loses its precision -- and a ring
+ * whose orientation is out by a degree shows as a twist in the belly drawn from it.
+ *
+ * The arguments are the basis vectors, which are the *columns* of the rotation matrix: `xy` is the
+ * X axis's y component, or m10. Getting that the wrong way round gives the conjugate -- a rotation
+ * by the same angle the other way -- which is exactly what it did first, and what moved the
+ * exported vertices 27 mm from where the sweep had put them.
+ */
 function writeQuaternion(
   out: Float32Array,
   at: number,

@@ -196,6 +196,15 @@ async function build() {
         : settings.muscles || chosen.muscles === true,
     ...(settings.stepsPerSecond !== null ? { stepsPerSecond: settings.stepsPerSecond } : {}),
     outputFramerate: settings.fps,
+    // Nothing here exports, so nothing is captured or recorded: a publisher left running for an
+    // hour used to hold the whole hour of both. `muscleRings()`, which is what is published, is
+    // filled whatever the budget. The panel's scrub and step back re-simulate from the nearest
+    // restore point, so a minute of them is kept -- one each half second -- and a scrub further
+    // back than that re-simulates from the start.
+    recordEveryTicks: 0,
+    captureBudgetBytes: 0,
+    restorePoints: 120,
+    snapshotEverySeconds: 0.5,
   });
   await simulation.start();
   if (!settings.gravity) simulation.setGravity(false);
