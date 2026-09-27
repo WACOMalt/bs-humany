@@ -421,6 +421,9 @@
 
           <!-- Align -->
           <section data-panel="align" hidden>
+            <p class="note">Save downloads a proposal for you to review and then move somewhere
+            deliberate: no build step picks up these files. Open reads one back in, and until you
+            save, the lists are kept in this browser as a draft.</p>
             <details class="panel" data-memory="reference-model" open>
               <summary>Reference model</summary>
               <p class="note">The muscles of the model our parameters came from, drawn as paths.
@@ -452,16 +455,17 @@
                 <label for="align-scale">Scale <output id="align-scale-value">1.00</output></label>
                 <input type="range" id="align-scale" min="0.5" max="1.6" step="0.005" value="1" />
               </div>
-              <p class="note">A model starts at our origin, turned by its own change of axes: the
-              legs and the torso are Z-up with the right side on negative X, and the arm is already
-              Y-up and needs only a quarter turn about the vertical. That turn is measured from each
-              model, and Reset placement puts it back. Where along the body it sits, and the scale,
-              are yours to set; nothing seats it on our body, so it may start part-way through the
-              floor. Each model keeps its own placement. This places the whole model at once, which
-              can never put their shoulder and their hip on ours at the same time -- the
-              proportions differ, and that difference is what is being measured. Use it to get the
-              model roughly on screen; the bone pairing below is what actually registers the
-              two.</p>
+              <p class="note">A model starts seated on our body: turned by its own change of axes
+              (the legs and the torso are Z-up with the right side on negative X, and the arm is
+              already Y-up and needs only a quarter turn about the vertical), sized by a length both
+              bodies have, and moved so that its anchor joint sits on ours -- the legs by their hip
+              centres, the torso by L5/S1, the arm by the humeral head on our right shoulder. Before
+              a run has started there is no body to sit on, and it waits at our origin. Reset
+              placement goes back to that seat; a placement you have changed is never replaced by
+              it. Each model keeps its own placement. This places the whole model at once, which can
+              never put their shoulder and their hip on ours at the same time -- the proportions
+              differ, and that difference is what is being measured. Use it to get the model
+              roughly on screen; the bone pairing below is what actually registers the two.</p>
               <div class="buttons" role="group" aria-label="Gizmo on their model">
                 <button type="button" id="align-gizmo-off" class="active" aria-pressed="true" title="No gizmo in the viewport (Esc)">Off</button>
                 <button type="button" id="align-gizmo-move" aria-pressed="false" title="Move the whole model with the gizmo's arrows (W)">Move</button>
@@ -508,6 +512,7 @@
               <p class="note live" id="align-fit-note"></p>
               <div class="buttons">
                 <button type="button" id="align-save-bones">Save bone pairing</button>
+                <button type="button" id="align-open-bones" disabled title="Open a saved Align file; it goes into whichever list it belongs to">Open…</button>
               </div>
             </details>
 
@@ -515,9 +520,9 @@
               <summary>Correspondence</summary>
               <p class="note">Which of their muscles is which of ours. Many of theirs may map to
               one of ours -- their six external oblique strips are our one external oblique -- so
-              pair as many as belong together. This is what unblocks measuring the trunk, neck and
-              girdle units, which no source model has and which have never been compared against
-              anything.</p>
+              pair as many as belong together. This pairing is the input that measuring the trunk,
+              neck and girdle units against the reference models will need; that measurement is not
+              written yet.</p>
               <div class="control grid2">
                 <label for="align-theirs">Theirs <output id="align-theirs-count"></output></label>
                 <label for="align-ours">Ours <output id="align-ours-count"></output></label>
@@ -537,25 +542,36 @@
               </div>
               <div class="buttons">
                 <button type="button" id="align-save-pairs">Save correspondence</button>
+                <button type="button" id="align-open-pairs" disabled title="Open a saved Align file; it goes into whichever list it belongs to">Open…</button>
               </div>
             </details>
 
             <details class="panel" data-memory="our-points" open>
               <summary>Our points</summary>
-              <p class="note">Joint centres and attachment sites on our own skeleton, as handles.
-              The truth here is our mesh, not their model: a point is moved because it is wrong
-              against the bone it sits on. Every move is recorded with the distance and a note.</p>
+              <p class="note">Joint centres, origins and insertions, and via points on our own
+              skeleton, as handles. Showing points pauses a run and puts the body at rest, because
+              points are defined and recorded at rest; choosing Nothing lets the body go, and the
+              run stays paused until you resume it. The truth here is our mesh, not their model: a
+              point is moved because it is wrong against the bone it sits on. Every move is recorded
+              with the distance, a note and the body it was made on; positions are shown in
+              millimetres.</p>
               <div class="control">
                 <label for="align-points">What to show</label>
                 <select id="align-points">
                   <option value="">Nothing</option>
                   <option value="joints">Joint centres</option>
-                  <option value="sites">Attachment sites</option>
+                  <option value="sites">Origins and insertions</option>
+                  <option value="vias">Via points (read-only)</option>
                 </select>
+              </div>
+              <div class="control">
+                <label for="align-point-list">Points <output id="align-point-count"></output></label>
+                <input type="search" id="align-point-find" placeholder="filter points" aria-label="Filter our points" spellcheck="false" />
+                <select id="align-point-list" size="8"></select>
               </div>
               <p class="note live" id="align-point-note">No point picked.</p>
               <div class="control">
-                <label for="align-reason">Why it moved</label>
+                <label for="align-reason">Why it moved (needed to keep it)</label>
                 <input type="text" id="align-reason" maxlength="140" placeholder="e.g. the marker is a label anchor, not the joint centre" spellcheck="false" />
               </div>
               <div class="buttons">
@@ -568,6 +584,7 @@
               </div>
               <div class="buttons">
                 <button type="button" id="align-save-moves">Save overrides</button>
+                <button type="button" id="align-open-moves" disabled title="Open a saved Align file; it goes into whichever list it belongs to">Open…</button>
               </div>
             </details>
           </section>

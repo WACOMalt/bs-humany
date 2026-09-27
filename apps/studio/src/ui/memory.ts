@@ -1,10 +1,16 @@
 /**
- * What the page remembers between visits: the layout, not the run.
+ * What the page remembers between visits: the layout, not the run -- and one authoring draft.
  *
  * Which tab was open, which overlays were on, whether the grid and the notes were shown, which
  * panels were collapsed. A run's settings belong to a session file; these belong to the page,
  * the way an application remembers its window. Backed by `localStorage` when there is one and
  * silent when there is not -- a private window or a blocked store just forgets.
+ *
+ * The one thing kept here that is not layout is the Align tab's draft (`align.draft`): the
+ * pairings and moves made by eye since they were last saved. It is not a run's state either --
+ * nothing about it is simulated, and a session file does not carry it -- but an afternoon of
+ * pairing is the page's work in progress, and a reload that threw it away would lose what no file
+ * holds yet. The saved files remain the record; the draft only bridges the gap to them.
  */
 
 export interface Memory {
