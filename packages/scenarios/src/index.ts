@@ -426,9 +426,12 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
     description:
       'The rest pose on the ground with the muscles at the tone a quietly standing person holds ' +
       'them at -- mostly calf, a few per cent everywhere else -- with the calf modulated by the ' +
-      'sway, which is the ankle strategy and as much of standing as this can hold. Nothing above ' +
-      'the ankle is in the loop, so it stands for about a second and then goes over. That is ' +
-      'what standing looks like with the tone right and the reflexes missing (OQ-024).',
+      "sway, which is the ankle strategy. That loop is the scenario's own, and it stops at the " +
+      "ankle. Above it there is only the spinal cord's stretch reflex (ADR-014), which belongs " +
+      'to the body rather than to the scenario and is switched on or off outside it. With the ' +
+      'cord off the body goes over inside a second; with the measured cord on it catches one ' +
+      'sag, stays up for about two seconds, and then goes over too. Nothing here yet holds ' +
+      'standing (OQ-024).',
     parameters: [
       param('tone', 'Postural tone', 1, 0, 3, 0.05, '\u00d7'),
       param('reflex', 'Ankle reflex', 1, 0, 3, 0.05, '\u00d7'),
@@ -608,9 +611,17 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       param('clearance', 'Start height', 0.02, 0, 1, 0.02),
     ],
     make: (v) => {
-      // Captured on the first tick: where the head was before anything shook it. Held in the
-      // closure rather than recomputed, so the shake is about a fixed point and not about
-      // wherever the head has drifted to.
+      // Captured at time zero: where the head was before anything shook it. Held in the closure
+      // rather than recomputed, so the shake is about a fixed point and not about wherever the
+      // head has drifted to.
+      //
+      // Captured again, with the grab, every time the script is at time zero, not only the first
+      // time the closure runs. A run that starts over from the top reuses the closure it had: the
+      // studio's Reset restores the body to tick zero and releases the grab, and so does the
+      // headset's. Keyed on the closure alone, the replay found a centre already set, never
+      // grabbed, and moved a grab that held nothing while the head fell. Time zero is the one
+      // tick every run passes through, and the first run through it does exactly what it did
+      // before, so the goldens stand.
       let centre: Vec3 | undefined;
       return {
         profileId: 'l3_anatomical',
@@ -628,7 +639,7 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
         script: (time, api) => {
           const head = api.segment('head');
           if (head < 0) return;
-          if (centre === undefined) {
+          if (time === 0 || centre === undefined) {
             centre = api.segmentPosition(head);
             api.grab(head, vec3(0, 0, 0), centre);
           }
@@ -922,13 +933,31 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
  */
 export const DEFAULT_SCENARIO = 'quiet-standing';
 
-/** The committed scenario set: every definition at its default parameters (spec 13.5). */
+/**
+ * The committed scenario set: every definition at its default parameters (spec 13.5).
+ *
+ * Shared instances for listing only; call `scenario(id)` or `definition.build()` for a run. A
+ * script is a closure and may keep state in it -- the shaken head's centre, the ankle strategy's
+ * last lean -- so two runs through one instance are not two runs of the scenario: the second
+ * starts from wherever the first left that state. The goldens run these, each once.
+ */
 export const SCENARIOS: readonly Scenario[] = SCENARIO_DEFINITIONS.map((d) => d.build());
 
+/**
+ * One run's worth of a scenario at its defaults, built afresh on every call.
+ *
+ * Fresh rather than looked up in `SCENARIOS`, so a caller that builds a second run -- publish-pose
+ * rebuilding when the frame rate or the profile changes, a headset reset -- gets a script with no
+ * history, not the closure the last run went through.
+ */
 export function scenario(id: string): Scenario {
-  const s = SCENARIOS.find((x) => x.id === id);
-  if (!s) throw new Error(`No scenario '${id}'. Known: ${SCENARIOS.map((x) => x.id).join(', ')}.`);
-  return s;
+  const definition = SCENARIO_DEFINITIONS.find((d) => d.id === id);
+  if (!definition) {
+    throw new Error(
+      `No scenario '${id}'. Known: ${SCENARIO_DEFINITIONS.map((d) => d.id).join(', ')}.`,
+    );
+  }
+  return definition.build();
 }
 
 export * from './place.js';
