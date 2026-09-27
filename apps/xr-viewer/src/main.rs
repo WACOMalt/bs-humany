@@ -34,6 +34,7 @@ mod gpu;
 mod math;
 mod pack;
 mod panel;
+mod panel_gpu;
 mod render;
 mod tissue;
 mod xr;
