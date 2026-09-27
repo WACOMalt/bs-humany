@@ -290,9 +290,12 @@
               <summary>Policy in the loop</summary>
               <div class="control">
                 <label for="brain-policy">Checkpoint</label>
-                <select id="brain-policy">
-                  <option value="">None</option>
-                </select>
+                <div class="buttons select-row">
+                  <select id="brain-policy">
+                    <option value="">None</option>
+                  </select>
+                  <button type="button" id="brain-forget" hidden title="Delete this checkpoint from this browser: its record, its search centre and its history">Forget</button>
+                </div>
                 <p class="note live" id="brain-policy-note">No dashboard server: run <code>pnpm train:dashboard</code> to list checkpoints.</p>
               </div>
               <div class="control">
@@ -309,9 +312,10 @@
             <details class="panel" open>
               <summary>Activity</summary>
               <div id="nerves-control" hidden>
-                <canvas id="nerves-activity" width="320" height="64"></canvas>
+                <canvas id="nerves-activity" width="320" height="64" role="img" aria-label="The policy's activity: one row a layer, senses at the top, drives at the bottom; blue is negative, red positive" aria-describedby="nerves-note"></canvas>
+                <p class="note live chart-key">Senses at the top, drives at the bottom; <span class="swatch negative"></span> negative, <span class="swatch positive"></span> positive.</p>
                 <p class="note live" id="nerves-note"></p>
-                <p class="note">One row a layer, senses at the top, drives at the bottom; blue is negative, red positive.</p>
+                <p class="note">One row a layer, each unit a stretch of its row, the colour its value held to between minus one and one: the deeper the colour, the harder the unit is driven.</p>
               </div>
               <p class="note live" id="brain-idle-note">No policy in the loop.</p>
             </details>
@@ -408,7 +412,8 @@
                 <button type="button" id="follow-bridge" title="Show whatever is publishing to the pose bridge -- the training showcase, or pnpm publish:pose -- instead of a run of your own. Needs pnpm train:dashboard serving it.">Follow bridge</button>
               </div>
               <p class="note live" id="train-status"></p>
-              <canvas id="train-chart" width="320" height="90" hidden></canvas>
+              <canvas id="train-chart" width="320" height="90" role="img" aria-label="Training chart" hidden></canvas>
+              <p class="note live chart-key" id="train-chart-key" hidden><span class="swatch" data-series="best"></span> best of generation <span class="swatch" data-series="mean"></span> population mean</p>
             </details>
           </section>
 

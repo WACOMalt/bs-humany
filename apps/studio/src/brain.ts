@@ -28,8 +28,17 @@ import {
   isTask,
 } from '@bs-humany/train/recipe';
 import { brainButtons, policyNote, spineNote, stretchLabel } from './training/buttons.js';
+import {
+  BEST_COLOUR,
+  MEAN_COLOUR,
+  chartDescription,
+  chartScale,
+  chartX,
+  chartY,
+  generationRange,
+} from './training/chart.js';
 import { checkpointKey, checkpointStem, reselect } from './training/checkpointKey.js';
-import { type LocalRun, startLocalTraining, suggestedWorkers } from './training/localTraining.js';
+import { type LocalRun, startLocalTraining, workersHere } from './training/localTraining.js';
 import {
   type Adjusted,
   type NameVerdictResult,
@@ -51,6 +60,7 @@ import {
 } from './training/statusLine.js';
 import {
   createCheckpointStore,
+  forgetBrowserCheckpoint,
   holdsFilesOnDisk,
   listLocalCheckpoints,
   readLocalCheckpoint,
@@ -329,6 +339,7 @@ const must = <T extends Element>(selector: string): T => {
 export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_URL): BrainPanel {
   const ui = {
     policy: must<HTMLSelectElement>('#brain-policy'),
+    forget: must<HTMLButtonElement>('#brain-forget'),
     policyNote: must<HTMLElement>('#brain-policy-note'),
     authority: must<HTMLInputElement>('#brain-authority'),
     authorityValue: must<HTMLOutputElement>('#brain-authority-value'),
@@ -340,6 +351,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     population: must<HTMLInputElement>('#train-population'),
     seconds: must<HTMLInputElement>('#train-seconds'),
     workers: must<HTMLInputElement>('#train-workers'),
+    workersValue: must<HTMLOutputElement>('#train-workers-value'),
     noiseMotor: must<HTMLInputElement>('#train-noise-motor'),
     noiseSense: must<HTMLInputElement>('#train-noise-sense'),
     memory: must<HTMLInputElement>('#train-memory'),
@@ -357,6 +369,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     stop: must<HTMLButtonElement>('#train-stop'),
     status: must<HTMLElement>('#train-status'),
     chart: must<HTMLCanvasElement>('#train-chart'),
+    chartKey: must<HTMLElement>('#train-chart-key'),
   };
   let rows: CheckpointRow[] = [];
   let setup: NervesSetup | undefined;
@@ -397,6 +410,20 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let localRun: LocalRun | undefined;
   let localSeries: [number, number, number, number][] = [];
   let localStatus = '';
+  /**
+   * How far the generation under way has got -- `generation 3: 12 of 32 episodes` -- cleared when
+   * it finishes, so the line says the run is moving in the seconds or minutes a generation takes
+   * rather than repeating the last one's news until the next.
+   */
+  let localProgress = '';
+  /**
+   * Why this run's store would not keep what it was given, from the first write it refused, until
+   * the next run starts. Said on every later line, because a run that is not saving looks exactly
+   * like one that is, and finding out afterwards costs the run.
+   */
+  let localSaveProblem = '';
+  /** The checkpoint the window is training, so it cannot be forgotten from under the run. */
+  let localRunName: string | undefined;
   /** Asked to stop, and not stopped yet: a generation has to finish first. */
   let localStopping = false;
   /**
@@ -427,6 +454,13 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let rowsLoaded = false;
   /** The row whose policy is in the loop, for what the fit note says about where it came from. */
   let handedRow: CheckpointRow | undefined;
+  /** The checkpoints this browser holds of its own, by name: the only ones Forget can forget. */
+  let browserHeld = new Set<string>();
+  /**
+   * Files in the binary's checkpoint folder that are not checkpoints, left out of the list and
+   * named under it; emptied while a server is up, whose list is its own.
+   */
+  let skipped: readonly string[] = [];
   /** When the activity last actually changed: a file nobody is writing any more goes stale. */
   let activityChangedAt = 0;
   /** The last payload seen, whether or not it was shown: what "changed" is measured against. */
@@ -446,7 +480,6 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     [ui.generations, '#train-generations-value'],
     [ui.population, '#train-population-value'],
     [ui.seconds, '#train-seconds-value'],
-    [ui.workers, '#train-workers-value'],
   ];
   for (const [input, selector] of readouts) {
     const out = must<HTMLOutputElement>(selector);
@@ -470,6 +503,28 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     input.addEventListener('input', show);
     show();
   }
+  /**
+   * The Workers readout, which says how many a run would really use. The slider is the terminal
+   * server's as well, where every core is there to use, so it goes to sixty-four; a run in this
+   * window makes no more than the window should hold, and the readout used to say sixteen over a
+   * run of seven. Now it says both, and so does what a screen reader reads of the slider. The value
+   * is left as it is, because a server that comes up takes it as asked.
+   */
+  const showWorkers = (): void => {
+    const wanted = Number(ui.workers.value);
+    const here = workersHere(wanted);
+    const text =
+      (!serverUp || localRun !== undefined) && wanted > here
+        ? `${wanted} (${here} in this window)`
+        : String(wanted);
+    if (ui.workersValue.textContent !== text) ui.workersValue.textContent = text;
+    if (ui.workers.getAttribute('aria-valuetext') !== text) {
+      ui.workers.setAttribute('aria-valuetext', text);
+    }
+  };
+  ui.workers.addEventListener('input', showWorkers);
+  showWorkers();
+
   const showAuthority = () => {
     ui.authorityValue.textContent = Number(ui.authority.value).toFixed(2);
   };
@@ -680,12 +735,73 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     ui.stop.disabled = !b.canStop;
     ui.handover.disabled = !b.canHandOver;
     ui.release.disabled = !b.canRelease;
+    showForget();
+  };
+
+  /**
+   * Forget, for a checkpoint this browser trained and holds. Only in a tab with no server: the
+   * binary's checkpoints are files a terminal reads too, which the studio does not delete, and a
+   * server's list is the server's. Not while the window is training it, whose next write would
+   * bring it straight back, and not while it is the policy in the loop, which would leave the
+   * panel naming a checkpoint that no longer exists as the one in charge.
+   */
+  const showForget = (): void => {
+    const name = ui.policy.value;
+    const offered = !holdsFilesOnDisk() && !serverUp && name !== '' && browserHeld.has(name);
+    if (ui.forget.hidden === offered) ui.forget.hidden = !offered;
+    const inUse =
+      (localRun !== undefined && localRunName === name) ||
+      (setup !== undefined && handedRow?.id === name) ||
+      handingOver;
+    ui.forget.disabled = !offered || inUse;
+  };
+
+  ui.forget.addEventListener('click', () => void forgetChosen());
+  async function forgetChosen(): Promise<void> {
+    const name = ui.policy.value;
+    showForget();
+    if (ui.forget.disabled || ui.forget.hidden) return;
+    if (
+      !window.confirm(
+        `Forget ${name}? Its record, its search centre and its history are deleted from this browser, and a Resume cannot continue it.`,
+      )
+    ) {
+      return;
+    }
+    ui.forget.disabled = true;
+    await forgetBrowserCheckpoint(name);
+    // Nothing is chosen now, rather than a choice the list will say went missing.
+    ui.policy.value = '';
+    chosenKey = '';
+    chosenLost = false;
+    // A poll already under way may have read the list before the delete; the one after it has not.
+    if (polling) await polling;
+    await poll();
+    ui.policyNote.textContent = `Forgot ${name}. ${listNote()}`;
+  }
+
+  /**
+   * The line under the list: where its checkpoints come from, and, in the binary with no server,
+   * which files in the checkpoint folder were left out of it for not being checkpoints -- a file
+   * a person copied in that did not appear used to be simply absent, with no word as to why.
+   */
+  const listNote = (lost = false): string => {
+    const note = policyNote({
+      serverUp,
+      count: rows.length,
+      filesOnDisk: holdsFilesOnDisk(),
+      lost,
+    });
+    if (serverUp || skipped.length === 0) return note;
+    const files = skipped.length === 1 ? '1 file' : `${skipped.length} files`;
+    const are = skipped.length === 1 ? 'is not a checkpoint and is' : 'are not checkpoints and are';
+    return `${note} ${files} in the checkpoint folder ${are} left out: ${skipped.join(', ')}.`;
   };
 
   const showRows = () => {
     // The same list as last time draws nothing. Rebuilding the <select> every poll closed it
     // under a person who had it open to choose from, three seconds at a time.
-    const signature = `${serverUp}\n${rows.map((r) => `${r.id}\0${describe(r)}`).join('\n')}`;
+    const signature = `${serverUp}\n${skipped.join('\0')}\n${rows.map((r) => `${r.id}\0${describe(r)}`).join('\n')}`;
     if (signature === rowsSignature) {
       setButtons();
       return;
@@ -708,12 +824,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     // 'change' is sent, because nothing was chosen -- the tabs are already set up for it.
     ui.policy.value = reselect(rows, chosen, chosenKey);
     chosenLost = chosenKey !== '' && ui.policy.value === '';
-    ui.policyNote.textContent = policyNote({
-      serverUp,
-      count: rows.length,
-      filesOnDisk: holdsFilesOnDisk(),
-      lost: chosenLost,
-    });
+    ui.policyNote.textContent = listNote(chosenLost);
     setButtons();
   };
   /**
@@ -760,12 +871,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
             ? `${set}. Set up for the next run.`
             : `${set}.`) + unscored;
     } else {
-      ui.policyNote.textContent = policyNote({
-        serverUp,
-        count: rows.length,
-        filesOnDisk: holdsFilesOnDisk(),
-        lost: false,
-      });
+      ui.policyNote.textContent = listNote();
     }
     reconsider();
   });
@@ -903,20 +1009,42 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     else setup = next;
   });
 
+  // The key's swatches take the lines' own colours, from the constants the lines are drawn in.
+  for (const swatch of ui.chartKey.querySelectorAll<HTMLElement>('.swatch')) {
+    swatch.style.background = swatch.dataset.series === 'best' ? BEST_COLOUR : MEAN_COLOUR;
+  }
+
+  /**
+   * The run's history: the best of each generation and the population's mean, on an axis that
+   * goes below zero when a line does. Labelled with the top and the bottom of that axis and the
+   * generations it covers, with a key under it that shows whether notes are on or not, because a
+   * chart of two unnamed lines and one number could not be read.
+   * @see chartScale
+   */
   const drawSeries = (series: readonly (readonly [number, number, number, number])[]) => {
     ui.chart.hidden = series.length < 2;
+    ui.chartKey.hidden = ui.chart.hidden;
     if (ui.chart.hidden) return;
+    ui.chart.setAttribute('aria-label', chartDescription(series));
     const context = ui.chart.getContext('2d');
     if (!context) return;
     const { width, height } = ui.chart;
     context.clearRect(0, 0, width, height);
     context.fillStyle = '#14161a';
     context.fillRect(0, 0, width, height);
-    let top = 0;
-    for (const [, mean, best] of series) top = Math.max(top, mean, best);
-    top = Math.max(top, 0.1);
-    const x = (i: number) => (i / Math.max(1, series.length - 1)) * (width - 2) + 1;
-    const y = (v: number) => height - 2 - (v / top) * (height - 4);
+    const scale = chartScale(series);
+    const x = (i: number) => chartX(i, series.length, width);
+    const y = (v: number) => chartY(v, scale, height);
+    if (scale.floor < 0) {
+      // Zero, faintly, once the axis goes under it: above the line is a body scoring for being
+      // up, below it one losing more than it earns.
+      context.strokeStyle = '#2a2f38';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(0, Math.round(y(0)) + 0.5);
+      context.lineTo(width, Math.round(y(0)) + 0.5);
+      context.stroke();
+    }
     const line = (
       pick: (row: readonly [number, number, number, number]) => number,
       colour: string,
@@ -930,15 +1058,42 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       });
       context.stroke();
     };
-    line((row) => row[2], '#e0a44a');
-    line((row) => row[1], '#6aa9ff');
+    line((row) => row[2], BEST_COLOUR);
+    line((row) => row[1], MEAN_COLOUR);
     context.fillStyle = '#6b7280';
     context.font = '10px ui-monospace, monospace';
-    context.fillText(`top ${top.toFixed(2)}`, 4, 11);
+    context.textAlign = 'left';
+    context.fillText(scale.top.toFixed(2), 4, 11);
+    context.fillText(scale.floor.toFixed(2), 4, height - 4);
+    context.textAlign = 'right';
+    context.fillText(generationRange(series), width - 4, height - 4);
+    context.textAlign = 'left';
   };
 
   const drawChart = (status: TrainingStatus) => {
     drawSeries(status.latest?.series ?? []);
+  };
+
+  /**
+   * The one painter of a run in this window: what it last said, how far the generation under way
+   * has got, whether it is saving, and whether it has been asked to stop -- then its chart. Every
+   * callback and the poll come through here, so none of them can write a line that leaves out
+   * what another has said. The Stop acknowledgement in particular: once Stop has been asked for,
+   * it is said and kept said. A generation takes seconds, and a line that replaced the
+   * acknowledgement made the button look like it had done nothing, which is the one thing a Stop
+   * button must never look like.
+   */
+  const paintLocal = (): void => {
+    const saving =
+      localSaveProblem !== '' && !localStatus.includes(localSaveProblem)
+        ? ` — not saving: ${localSaveProblem}`
+        : '';
+    ui.status.textContent =
+      localStatus +
+      (localProgress ? ` — ${localProgress}` : '') +
+      saving +
+      (localStopping ? ' — stopping after this generation.' : '');
+    drawSeries(localSeries);
   };
 
   const showStatus = (status: TrainingStatus | undefined) => {
@@ -958,17 +1113,28 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         ui.status.textContent = refusal;
         return;
       }
-      // Without a server the panel trains here instead, so it says that rather than refusing.
-      ui.status.textContent = serverUp
-        ? ''
-        : localRun
-          ? localStatus
-          : localStatus ||
-            `No dashboard server: Start trains in this window, in ${suggestedWorkers()} workers, ` +
-              (holdsFilesOnDisk()
-                ? 'saving to the data folder. A terminal server uses every core.'
-                : 'saving to this browser. A terminal server is faster and writes real files.');
+      // A run here, or one that has just ended, is the news: the poll every few seconds used to
+      // write the bare status over the progress, the Stop acknowledgement and the chart, which
+      // then flickered away until the next generation drew them back.
+      if (localRun || localStatus !== '' || localSeries.length > 0) {
+        paintLocal();
+        return;
+      }
+      // Without a server the panel trains here instead, so it says that rather than refusing,
+      // with the number of workers a run would really make.
+      ui.status.textContent =
+        `No dashboard server: Start trains in this window, in ${workersHere(Number(ui.workers.value))} workers, ` +
+        (holdsFilesOnDisk()
+          ? 'saving to the data folder. A terminal server uses every core.'
+          : 'saving to this browser. A terminal server is faster and writes real files.');
       ui.chart.hidden = true;
+      ui.chartKey.hidden = true;
+      return;
+    }
+    // A run in this window goes on when a server appears, and it is still the run this window is
+    // training: its line stays, rather than the server's account of a run it knows nothing about.
+    if (localRun) {
+      paintLocal();
       return;
     }
     // A refusal is news about the button just pressed; the run's own status is not, and must
@@ -1106,9 +1272,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     }
     refusal = '';
     localSeries = [];
-    const workers = Math.min(Number(ui.workers.value), suggestedWorkers());
-    localStatus = `Building ${workers} bodies in this window...`;
-    ui.status.textContent = localStatus;
+    localProgress = '';
+    localSaveProblem = '';
+    localRunName = wanted;
+    const workers = workersHere(Number(ui.workers.value));
+    localStatus = `Building bodies: 0 of ${workers} ready`;
+    paintLocal();
     localRun = startLocalTraining({
       recipe,
       generations: Number(ui.generations.value),
@@ -1117,9 +1286,24 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       workers,
       seeds: SEARCH_DEFAULTS.seeds,
       resume: ui.resume.checked,
+      // A body a worker, and each takes seconds to build, so the count is said as it goes.
+      onReady: (ready, total) => {
+        localStatus = `Building bodies: ${ready} of ${total} ready`;
+        paintLocal();
+      },
       onNote: (text) => {
         localStatus = text.trim();
-        ui.status.textContent = localStatus;
+        paintLocal();
+      },
+      onProgress: ({ generation, done, total, centre }) => {
+        localProgress = centre
+          ? `generation ${generation}: scoring the centre`
+          : `generation ${generation}: ${done} of ${total} episodes`;
+        paintLocal();
+      },
+      onSaveFailed: (message) => {
+        localSaveProblem = message;
+        paintLocal();
       },
       onGeneration: (report) => {
         localSeries.push([
@@ -1128,25 +1312,24 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           Number(report.top.toFixed(4)),
           Number(report.topAlive.toFixed(3)),
         ]);
+        localProgress = '';
         localStatus =
-          // How far along, and about how long is left, as the terminal and the dashboard say it.
+          // How far along, and about how long is left, as the terminal and the dashboard say it,
+          // and how long this generation's episodes took, which is what the Population and
+          // Episode seconds sliders cost.
           `Training ${runLabel(recipe.name, recipe.task)} here: ` +
           `${progressPhrase({ ...report, state: 'running' })}, ` +
           `mean ${report.mean.toFixed(3)}, top ${report.top.toFixed(3)} ` +
-          `(${report.topAlive.toFixed(2)} s up)${report.note}`;
-        // Once Stop has been asked for, say so and keep saying it. A generation takes seconds
-        // and the line that replaced the acknowledgement made the button look like it had done
-        // nothing, which is the one thing a Stop button must never look like.
-        ui.status.textContent = localStopping
-          ? `${localStatus} — stopping after this generation.`
-          : localStatus;
-        drawSeries(localSeries);
+          `(${report.topAlive.toFixed(2)} s up)${report.note}, ${report.seconds.toFixed(0)} s`;
+        paintLocal();
       },
       onDone: (summary) => {
         localRun = undefined;
+        localRunName = undefined;
         localStopping = false;
+        localProgress = '';
         localStatus = summary;
-        ui.status.textContent = summary;
+        paintLocal();
         setButtons();
         // The run saved a checkpoint, and the list should have it now rather than at the next
         // poll -- which, with the Brain tab closed and no headset asking, may be never.
@@ -1154,9 +1337,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       },
       onError: (message) => {
         localRun = undefined;
+        localRunName = undefined;
         localStopping = false;
+        localProgress = '';
         localStatus = `Could not train here: ${message}`;
-        ui.status.textContent = localStatus;
+        paintLocal();
         setButtons();
       },
     });
@@ -1169,7 +1354,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     if (localRun) {
       localRun.stop();
       localStopping = true;
-      ui.status.textContent = `${localStatus} — stopping after this generation.`;
+      paintLocal();
       ui.stop.disabled = true;
       return;
     }
@@ -1267,8 +1452,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   async function localRows(): Promise<CheckpointRow[]> {
     // What this studio trained itself, and what it shipped with. A name trained here wins: a
     // person who has retrained `stand` means the one they retrained.
-    const held = await listLocalCheckpoints();
+    const listed = await listLocalCheckpoints();
+    const held = listed.rows;
+    skipped = listed.skipped;
     const mine = new Set(held.map((row) => row.name));
+    // What Forget may delete: this browser's own store, never the binary's folder.
+    browserHeld = holdsFilesOnDisk() ? new Set() : mine;
     const shipped = (await shippedCheckpoints()).filter((row) => !mine.has(row.name));
     const row = (name: string, file: unknown, origin: 'shipped' | 'local'): CheckpointRow => {
       const policy = file as PolicyFile;
@@ -1383,6 +1572,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     if (served) {
       const [policies, status] = served;
       serverUp = true;
+      skipped = [];
+      browserHeld = new Set();
       takeRows(await markShipped(policies.policies));
       showRows();
       showStatus(status);
@@ -1413,6 +1604,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     }
     showFit();
     showRecipe();
+    // Whether the readout says what a run here would do depends on whether there is a server.
+    showWorkers();
   }
 
   return {
