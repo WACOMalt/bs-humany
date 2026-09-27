@@ -38,6 +38,7 @@
  * known at one.
  */
 
+import { type Citation, cite } from '@bs-humany/hsdl';
 import {
   activeForceLength,
   forceVelocity,
@@ -52,8 +53,29 @@ import {
  */
 export const DEFAULT_FIBER_DAMPING = 0.1;
 
-/** Maximum contraction velocity, optimal fiber lengths per second. Zajac (1989). */
+/**
+ * Where `DEFAULT_FIBER_DAMPING` comes from. Beside the value rather than inside
+ * `MusculotendonParameters`, which is the per-muscle record a muscle table fills and cites itself.
+ */
+export const DEFAULT_FIBER_DAMPING_SOURCE: Citation = cite(
+  'millard2013',
+  'Section 2.3, damped equilibrium model: damping coefficient 0.1 by default',
+);
+
+/**
+ * Maximum contraction velocity, optimal fiber lengths per second.
+ *
+ * Measuring velocity in optimal fiber lengths per second is Zajac's (1989) normalisation, and it is
+ * what lets one number serve every muscle. The number itself is cited from Thelen (2003), which
+ * prints it: ten for young adults, eight for older ones.
+ */
 export const DEFAULT_MAX_CONTRACTION_VELOCITY = 10;
+
+/** Where `DEFAULT_MAX_CONTRACTION_VELOCITY` comes from. */
+export const DEFAULT_MAX_CONTRACTION_VELOCITY_SOURCE: Citation = cite(
+  'thelen2003',
+  'Table 1, young adults: maximum contraction velocity 10 optimal fiber lengths per second',
+);
 
 /**
  * How far the normalised fiber length may be driven before the model reports it as out of range.

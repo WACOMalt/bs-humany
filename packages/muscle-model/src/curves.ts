@@ -32,6 +32,8 @@
  * derivative computed by differencing is the thing that turns a stiff system unstable.
  */
 
+import { type Citation, cite } from '@bs-humany/hsdl';
+
 /**
  * Active force-length: how much force the contractile element can make at a given fiber length.
  *
@@ -77,7 +79,8 @@ export function activeForceLengthSlope(fiberLength: number): number {
  * shortened -- and rising steeply once stretched past it, which is the connective tissue in
  * parallel with the fibers taking up load.
  *
- * De Groote et al. (2016), equation 3. `PASSIVE_STRAIN` is the strain at which the passive
+ * De Groote et al. (2016), online supplement, equation S3 and table 1, which in turn take the
+ * form from OpenSim's Thelen2003Muscle. `PASSIVE_STRAIN` is the strain at which the passive
  * element alone carries the muscle's maximum isometric force, and `PASSIVE_SHAPE` sets how
  * sharply it gets there.
  *
@@ -104,6 +107,15 @@ export function activeForceLengthSlope(fiberLength: number): number {
  */
 export const PASSIVE_STRAIN = 0.6;
 export const PASSIVE_SHAPE = 4.0;
+
+/**
+ * Where `PASSIVE_STRAIN` and `PASSIVE_SHAPE` come from. `POSITIVE_PART_WIDTH` below is not cited:
+ * it is this module's numerical choice, and the paragraph above is its justification.
+ */
+export const PASSIVE_FORCE_LENGTH_SOURCE: Citation = cite(
+  'degroote2016',
+  'Online supplement, equation S3 and table 1: passive force-length kpe 4.0, e0 0.6',
+);
 
 export const POSITIVE_PART_WIDTH = 0.04;
 
