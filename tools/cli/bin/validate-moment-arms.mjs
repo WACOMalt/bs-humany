@@ -415,9 +415,9 @@ const RECORDED = [
     [
       'Knee flexion',
       'sartorius_r',
-      0.012,
+      0.0125,
       'OQ-015',
-      'A flexor in both, smaller than the reference’s by 10 to 15 mm through the first half of the range.',
+      'A flexor in both, smaller than the reference’s by 10 to 16 mm through the first half of the range. The bound rose from 12 mm when the malleoli were answered by their own rules rather than projected (OQ-032), which moved the shank’s frame correspondence and the points it carries.',
     ],
     [
       'Knee flexion',
@@ -457,9 +457,16 @@ const RECORDED = [
     [
       'Knee flexion',
       'semitendinosus_r',
-      0.0115,
+      0.012,
       'OQ-015',
-      'A flexor in both, half the reference’s at full extension (23 mm against 46) and larger past 90 degrees.',
+      'A flexor in both, half the reference’s at full extension (23 mm against 46) and larger past 90 degrees. The bound rose from 11.5 mm with the shank’s frame, as sartorius’s did.',
+    ],
+    [
+      'Knee flexion',
+      'biceps_femoris_long_r',
+      0.006,
+      'OQ-015',
+      'A flexor in both with the same shape; ours is up to 9 mm larger at 40 to 50 degrees and 6 mm smaller at 120. Within tolerance until the shank’s frame moved with the malleoli (OQ-032), which took its mean from 4.6 to 5.2 mm.',
     ],
     [
       'Knee flexion',

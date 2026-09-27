@@ -1,6 +1,6 @@
 {
  "format": "bs-humany.ridge-attachments/1",
- "inputsSha256": "42740afa3d1b0fcfdc9b69775805dbb0d92fcebeb4b7b3670ab7922058b394bb",
+ "inputsSha256": "bf423e4a8845e34bf1605895b6b1a5c91fb2cce56732019e9e1661014b5afa85",
  "dataset": {
   "name": "Z-Anatomy SkeletalSystem",
   "version": "LluisV/Z-Anatomy PC-Version, Resources/Models/FBX/SkeletalSystem100.fbx",

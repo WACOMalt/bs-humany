@@ -29,7 +29,7 @@
  *   upper arm 290.7 mm against 278.4, a scale of 0.9575
  *   forearm   258.1 mm against 257.0, a scale of 0.9957
  *   thigh     404.4 mm against 406.9, a scale of 1.0061
- *   shank     388.9 mm against 385.5, a scale of 0.9913
+ *   shank     388.9 mm against 389.7, a scale of 1.0022
  *
  * Positions are a fraction of the subject's stature, as every other point in this package is, so
  * they scale with the morphology.
@@ -808,7 +808,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00888279, 0.0696822, 0.0237772],
+    local: [0.00833412, 0.0696165, 0.0244197],
   },
   {
     id: 'semitendinosus_r__via_1',
@@ -819,7 +819,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0183153, 0.0609463, 0.015726],
+    local: [-0.0187361, 0.0604587, 0.0152725],
   },
   {
     id: 'gluteus_maximus_superior_r__via_1',
@@ -907,7 +907,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0202942, 0.0627797, 0.00750964],
+    local: [-0.0204421, 0.0622706, 0.00689133],
   },
   {
     id: 'sartorius_r__via_1',
@@ -929,7 +929,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0250497, 0.067292, 0.0103074],
+    local: [-0.0254036, 0.0667849, 0.00952409],
   },
   {
     id: 'sartorius_r__via_3',
@@ -940,7 +940,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0182828, 0.055538, 0.00660645],
+    local: [-0.0182946, 0.0549706, 0.00607546],
   },
   {
     id: 'tibialis_anterior_r__via_1',
@@ -951,7 +951,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00804926, -0.0215897, -0.0104581],
+    local: [0.0098231, -0.0227409, -0.0099482],
   },
   {
     id: 'tibialis_anterior_r__via_2',
@@ -962,7 +962,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00913122, -0.123716, -0.0120742],
+    local: [-0.00632484, -0.12618, -0.0119558],
   },
   {
     id: 'tibialis_posterior_r__via_1',
@@ -973,7 +973,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0170967, -0.123101, 0.0098538],
+    local: [-0.0152155, -0.125598, 0.00989173],
   },
   {
     id: 'tibialis_posterior_r__via_2',
@@ -984,7 +984,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0220776, 0.00566567, 0.00149776],
+    local: [-0.0199461, 0.00286722, 0.0015137],
   },
   {
     id: 'fibularis_longus_r__via_1',
@@ -995,7 +995,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0144159, -0.11084, 0.017192],
+    local: [-0.0127128, -0.113226, 0.0182183],
   },
   {
     id: 'fibularis_longus_r__via_2',
@@ -1006,7 +1006,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0137604, -0.117541, 0.0147443],
+    local: [-0.0118819, -0.119999, 0.0157889],
   },
   {
     id: 'fibularis_longus_r__via_3',
@@ -1017,7 +1017,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00685458, -0.00097144, 0.00743468],
+    local: [0.00912906, -0.00350113, 0.00863323],
   },
   {
     id: 'fibularis_longus_r__via_4',
@@ -1028,7 +1028,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0136606, -0.00848865, -0.00540723],
+    local: [0.016579, -0.0110532, -0.00406025],
   },
   {
     id: 'fibularis_longus_r__via_5',
@@ -1039,7 +1039,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00313731, -0.0114952, 0.00722912],
+    local: [0.000190694, -0.014191, 0.00818867],
   },
   {
     id: 'fibularis_brevis_r__via_1',
@@ -1050,7 +1050,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0140328, -0.110425, 0.0186039],
+    local: [-0.0123843, -0.112799, 0.0196581],
   },
   {
     id: 'fibularis_brevis_r__via_2',
@@ -1061,7 +1061,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0130779, -0.116962, 0.0156856],
+    local: [-0.0112349, -0.119404, 0.0167643],
   },
   {
     id: 'fibularis_brevis_r__via_3',
@@ -1072,7 +1072,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00804487, 0.00132488, 0.00570672],
+    local: [0.0103717, -0.00117027, 0.00692663],
   },
   {
     id: 'extensor_digitorum_longus_r__via_1',
@@ -1083,7 +1083,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00362746, -0.12982, -0.00469895],
+    local: [0.00635101, -0.132189, -0.0040015],
   },
   {
     id: 'extensor_digitorum_longus_r__via_2',
@@ -1094,7 +1094,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00442026, -0.00702556, 0.00384594],
+    local: [0.00771624, -0.00960376, 0.00451353],
   },
   {
     id: 'extensor_digitorum_longus_r__via_3',
@@ -1105,7 +1105,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00138092, -0.00640471, -0.0130415],
+    local: [0.00648901, -0.00908877, -0.0120898],
   },
   {
     id: 'extensor_hallucis_longus_r__via_1',
@@ -1116,7 +1116,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00633914, -0.0800771, 0.000824307],
+    local: [0.00832129, -0.0818601, 0.00154532],
   },
   {
     id: 'extensor_hallucis_longus_r__via_2',
@@ -1127,7 +1127,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00373187, -0.125786, -0.00873201],
+    local: [-0.000974746, -0.128204, -0.0083677],
   },
   {
     id: 'extensor_hallucis_longus_r__via_3',
@@ -1138,7 +1138,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00725999, -0.00513963, -0.00211861],
+    local: [-0.00387669, -0.00784326, -0.00196289],
   },
   {
     id: 'extensor_hallucis_longus_r__via_4',
@@ -1149,7 +1149,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00384196, 0.00713783, 0.0107906],
+    local: [0.000336959, 0.00435709, 0.0108338],
   },
   {
     id: 'extensor_hallucis_longus_r__via_5',
@@ -1160,7 +1160,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.000785344, -0.00314183, -0.0144612],
+    local: [0.00609066, -0.00604102, -0.0144725],
   },
   {
     id: 'flexor_digitorum_longus_r__via_1',
@@ -1171,7 +1171,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0143576, -0.122561, 0.0112404],
+    local: [-0.0125074, -0.125018, 0.0113955],
   },
   {
     id: 'flexor_digitorum_longus_r__via_2',
@@ -1182,7 +1182,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.021496, 0.00453314, 0.000513881],
+    local: [-0.0193084, 0.00172662, 0.000545012],
   },
   {
     id: 'flexor_digitorum_longus_r__via_3',
@@ -1193,7 +1193,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0169148, -0.00383564, -0.0146068],
+    local: [-0.0140094, -0.00671676, -0.0145331],
   },
   {
     id: 'flexor_digitorum_longus_r__via_4',
@@ -1204,7 +1204,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00100275, -0.014371, -0.0155436],
+    local: [0.00629189, -0.0171521, -0.0146102],
   },
   {
     id: 'flexor_hallucis_longus_r__via_1',
@@ -1215,7 +1215,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0125856, -0.124076, 0.0156699],
+    local: [-0.0108694, -0.126519, 0.0159422],
   },
   {
     id: 'flexor_hallucis_longus_r__via_2',
@@ -1226,7 +1226,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0201952, 0.00226506, 0.00459824],
+    local: [-0.0181247, -0.00054202, 0.00472712],
   },
   {
     id: 'flexor_hallucis_longus_r__via_3',
@@ -1237,7 +1237,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00675864, -0.0164455, 0.00550574],
+    local: [-0.00302088, -0.0193867, 0.00559232],
   },
   {
     id: 'flexor_hallucis_longus_r__via_4',
@@ -1248,7 +1248,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00105968, -0.0143645, -0.0137456],
+    local: [0.00646643, -0.0173815, -0.0137082],
   },
   {
     id: 'deltoid_anterior_l__via_1',
@@ -1985,7 +1985,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00888276, 0.0696822, 0.0237772],
+    local: [-0.00833409, 0.0696165, 0.0244197],
   },
   {
     id: 'semitendinosus_l__via_1',
@@ -1996,7 +1996,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0183153, 0.0609463, 0.015726],
+    local: [0.0187361, 0.0604587, 0.0152725],
   },
   {
     id: 'gluteus_maximus_superior_l__via_1',
@@ -2084,7 +2084,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0202942, 0.0627797, 0.00750964],
+    local: [0.0204421, 0.0622706, 0.00689133],
   },
   {
     id: 'sartorius_l__via_1',
@@ -2106,7 +2106,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0250497, 0.067292, 0.0103074],
+    local: [0.0254036, 0.0667849, 0.00952409],
   },
   {
     id: 'sartorius_l__via_3',
@@ -2117,7 +2117,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0182828, 0.055538, 0.00660645],
+    local: [0.0182946, 0.0549706, 0.00607546],
   },
   {
     id: 'tibialis_anterior_l__via_1',
@@ -2128,7 +2128,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00804923, -0.0215897, -0.0104581],
+    local: [-0.00982307, -0.0227409, -0.0099482],
   },
   {
     id: 'tibialis_anterior_l__via_2',
@@ -2139,7 +2139,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00913125, -0.123716, -0.0120742],
+    local: [0.00632487, -0.12618, -0.0119558],
   },
   {
     id: 'tibialis_posterior_l__via_1',
@@ -2150,7 +2150,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0170967, -0.123101, 0.0098538],
+    local: [0.0152155, -0.125598, 0.00989173],
   },
   {
     id: 'tibialis_posterior_l__via_2',
@@ -2161,7 +2161,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0220776, 0.00566567, 0.00149776],
+    local: [0.0199461, 0.00286722, 0.0015137],
   },
   {
     id: 'fibularis_longus_l__via_1',
@@ -2172,7 +2172,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0144159, -0.11084, 0.017192],
+    local: [0.0127128, -0.113226, 0.0182183],
   },
   {
     id: 'fibularis_longus_l__via_2',
@@ -2183,7 +2183,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0137604, -0.117541, 0.0147443],
+    local: [0.0118819, -0.119999, 0.0157889],
   },
   {
     id: 'fibularis_longus_l__via_3',
@@ -2194,7 +2194,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00685453, -0.00097144, 0.00743468],
+    local: [-0.00912901, -0.00350113, 0.00863323],
   },
   {
     id: 'fibularis_longus_l__via_4',
@@ -2205,7 +2205,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.0136606, -0.00848865, -0.00540723],
+    local: [-0.016579, -0.0110532, -0.00406025],
   },
   {
     id: 'fibularis_longus_l__via_5',
@@ -2216,7 +2216,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00313735, -0.0114952, 0.00722912],
+    local: [-0.000190652, -0.014191, 0.00818867],
   },
   {
     id: 'fibularis_brevis_l__via_1',
@@ -2227,7 +2227,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0140328, -0.110425, 0.0186039],
+    local: [0.0123843, -0.112799, 0.0196581],
   },
   {
     id: 'fibularis_brevis_l__via_2',
@@ -2238,7 +2238,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0130779, -0.116962, 0.0156856],
+    local: [0.0112349, -0.119404, 0.0167643],
   },
   {
     id: 'fibularis_brevis_l__via_3',
@@ -2249,7 +2249,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00804482, 0.00132488, 0.00570672],
+    local: [-0.0103717, -0.00117027, 0.00692663],
   },
   {
     id: 'extensor_digitorum_longus_l__via_1',
@@ -2260,7 +2260,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00362743, -0.12982, -0.00469895],
+    local: [-0.00635098, -0.132189, -0.0040015],
   },
   {
     id: 'extensor_digitorum_longus_l__via_2',
@@ -2271,7 +2271,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00442021, -0.00702556, 0.00384594],
+    local: [-0.00771619, -0.00960376, 0.00451353],
   },
   {
     id: 'extensor_digitorum_longus_l__via_3',
@@ -2282,7 +2282,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00138088, -0.00640471, -0.0130415],
+    local: [-0.00648897, -0.00908877, -0.0120898],
   },
   {
     id: 'extensor_hallucis_longus_l__via_1',
@@ -2293,7 +2293,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00633911, -0.0800771, 0.000824307],
+    local: [-0.00832126, -0.0818601, 0.00154532],
   },
   {
     id: 'extensor_hallucis_longus_l__via_2',
@@ -2304,7 +2304,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0037319, -0.125786, -0.00873201],
+    local: [0.000974776, -0.128204, -0.0083677],
   },
   {
     id: 'extensor_hallucis_longus_l__via_3',
@@ -2315,7 +2315,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00726004, -0.00513963, -0.00211861],
+    local: [0.00387674, -0.00784326, -0.00196289],
   },
   {
     id: 'extensor_hallucis_longus_l__via_4',
@@ -2326,7 +2326,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.003842, 0.00713783, 0.0107906],
+    local: [-0.000336919, 0.00435709, 0.0108338],
   },
   {
     id: 'extensor_hallucis_longus_l__via_5',
@@ -2337,7 +2337,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.000785304, -0.00314183, -0.0144612],
+    local: [-0.00609062, -0.00604102, -0.0144725],
   },
   {
     id: 'flexor_digitorum_longus_l__via_1',
@@ -2348,7 +2348,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0143576, -0.122561, 0.0112404],
+    local: [0.0125074, -0.125018, 0.0113955],
   },
   {
     id: 'flexor_digitorum_longus_l__via_2',
@@ -2359,7 +2359,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.021496, 0.00453314, 0.000513881],
+    local: [0.0193084, 0.00172662, 0.000545012],
   },
   {
     id: 'flexor_digitorum_longus_l__via_3',
@@ -2370,7 +2370,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0169148, -0.00383564, -0.0146068],
+    local: [0.0140094, -0.00671676, -0.0145331],
   },
   {
     id: 'flexor_digitorum_longus_l__via_4',
@@ -2381,7 +2381,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00100271, -0.014371, -0.0155436],
+    local: [-0.00629185, -0.0171521, -0.0146102],
   },
   {
     id: 'flexor_hallucis_longus_l__via_1',
@@ -2392,7 +2392,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0125856, -0.124076, 0.0156699],
+    local: [0.0108694, -0.126519, 0.0159422],
   },
   {
     id: 'flexor_hallucis_longus_l__via_2',
@@ -2403,7 +2403,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.0201952, 0.00226506, 0.00459824],
+    local: [0.0181247, -0.00054202, 0.00472712],
   },
   {
     id: 'flexor_hallucis_longus_l__via_3',
@@ -2414,7 +2414,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [0.00675869, -0.0164455, 0.00550574],
+    local: [0.00302093, -0.0193867, 0.00559232],
   },
   {
     id: 'flexor_hallucis_longus_l__via_4',
@@ -2425,7 +2425,7 @@ export const MUSCLE_VIA_POINTS: readonly MuscleViaPoint[] = [
     referenceModel: 'myo_sim/models/leg/assets/myolegs_chain.xml',
     frame: 'shank',
     method: 'carried',
-    local: [-0.00105964, -0.0143645, -0.0137456],
+    local: [-0.00646639, -0.0173815, -0.0137082],
   },
 ];
 

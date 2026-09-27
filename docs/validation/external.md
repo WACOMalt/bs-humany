@@ -231,5 +231,5 @@ Not run: set `MYOSKELETON_XML` to a local copy. It is never vendored and no valu
 | ok | acromioclavicular_l_dof3_follows_elevation | 0.00000 0.396000 0.00000 0.00000 0.00000 | 0 0.396 0 0 0 | every coefficient as stated |
 | ok | acromioclavicular_l_dof4_follows_elevation | 0.00000 0.178000 0.00000 0.00000 0.00000 | 0 0.178 0 0 0 | every coefficient as stated |
 | ok | thigh length | 0.4069 m | 0.4044 m | the two models are built at different subjects' sizes, so the absolute lengths differ; what follows compares proportions, which do not depend on that |
-| ok | shank length, as a fraction of the thigh | 0.9474 | 0.9894 | 4.2% apart; the two are different subjects, so a few per cent is expected |
+| ok | shank length, as a fraction of the thigh | 0.9578 | 0.9894 | 3.2% apart; the two are different subjects, so a few per cent is expected |
 | ok | passive moment curves | Riener and Edrich double exponential, per DoF | none | the reference models state damping and armature but no passive moment, so there is nothing to compare |

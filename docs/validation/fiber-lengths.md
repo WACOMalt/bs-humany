@@ -21,34 +21,34 @@ which is a statement about the attachments rather than about the muscle.
 
 | unit | travel here | travel there | ratio | fiber stated | translated | whole path | source's own band |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| extensor_digitorum_longus_l **(capped)** | 109 mm | 42 mm | 2.58 | 69 mm | 139 mm | 350 mm | 0.71 .. 1.32 |
-| extensor_digitorum_longus_r **(capped)** | 109 mm | 42 mm | 2.58 | 69 mm | 139 mm | 350 mm | 0.71 .. 1.32 |
+| extensor_digitorum_longus_l **(capped)** | 108 mm | 42 mm | 2.56 | 69 mm | 139 mm | 350 mm | 0.71 .. 1.32 |
+| extensor_digitorum_longus_r **(capped)** | 108 mm | 42 mm | 2.56 | 69 mm | 139 mm | 350 mm | 0.71 .. 1.32 |
 | coracobrachialis_l **(capped)** | 137 mm | 67 mm | 2.03 | 312 mm | 135 mm | 169 mm | 0.62 .. 0.83 |
 | coracobrachialis_r **(capped)** | 137 mm | 67 mm | 2.03 | 312 mm | 135 mm | 169 mm | 0.62 .. 0.83 |
-| flexor_digitorum_longus_r | 24 mm | 13 mm | 1.84 | 45 mm | 82 mm | 355 mm | 0.84 .. 1.14 |
-| flexor_digitorum_longus_l | 24 mm | 13 mm | 1.84 | 45 mm | 82 mm | 355 mm | 0.84 .. 1.14 |
-| flexor_hallucis_longus_r | 31 mm | 17 mm | 1.79 | 53 mm | 94 mm | 280 mm | 0.73 .. 1.06 |
-| flexor_hallucis_longus_l | 31 mm | 17 mm | 1.79 | 53 mm | 94 mm | 280 mm | 0.73 .. 1.06 |
-| tibialis_posterior_r | 24 mm | 14 mm | 1.69 | 38 mm | 64 mm | 199 mm | 0.82 .. 1.19 |
-| tibialis_posterior_l | 24 mm | 14 mm | 1.69 | 38 mm | 64 mm | 199 mm | 0.82 .. 1.19 |
+| flexor_digitorum_longus_r | 24 mm | 13 mm | 1.84 | 45 mm | 82 mm | 367 mm | 0.84 .. 1.14 |
+| flexor_digitorum_longus_l | 24 mm | 13 mm | 1.84 | 45 mm | 82 mm | 367 mm | 0.84 .. 1.14 |
+| flexor_hallucis_longus_r | 31 mm | 17 mm | 1.79 | 53 mm | 94 mm | 291 mm | 0.73 .. 1.06 |
+| flexor_hallucis_longus_l | 31 mm | 17 mm | 1.79 | 53 mm | 94 mm | 291 mm | 0.73 .. 1.06 |
 | brachialis_l | 61 mm | 36 mm | 1.68 | 58 mm | 97 mm | 125 mm | 0.53 .. 1.16 |
 | brachialis_r | 61 mm | 36 mm | 1.68 | 58 mm | 97 mm | 125 mm | 0.53 .. 1.16 |
-| extensor_hallucis_longus_r | 75 mm | 45 mm | 1.67 | 75 mm | 125 mm | 252 mm | 0.76 .. 1.37 |
-| extensor_hallucis_longus_l | 75 mm | 45 mm | 1.67 | 75 mm | 125 mm | 252 mm | 0.76 .. 1.37 |
+| tibialis_posterior_r | 24 mm | 14 mm | 1.67 | 38 mm | 63 mm | 202 mm | 0.82 .. 1.19 |
+| tibialis_posterior_l | 24 mm | 14 mm | 1.67 | 38 mm | 63 mm | 202 mm | 0.82 .. 1.19 |
 | biceps_brachii_short_r **(capped)** | 199 mm | 120 mm | 1.66 | 177 mm | 281 mm | 351 mm | 0.63 .. 1.30 |
 | biceps_brachii_short_l **(capped)** | 199 mm | 120 mm | 1.66 | 177 mm | 281 mm | 351 mm | 0.63 .. 1.30 |
+| extensor_hallucis_longus_r | 75 mm | 45 mm | 1.66 | 75 mm | 124 mm | 252 mm | 0.76 .. 1.37 |
+| extensor_hallucis_longus_l | 75 mm | 45 mm | 1.66 | 75 mm | 124 mm | 252 mm | 0.76 .. 1.37 |
 | supinator_r | 33 mm | 22 mm | 1.46 | 36 mm | 53 mm | 111 mm | 0.82 .. 1.44 |
 | supinator_l | 33 mm | 22 mm | 1.46 | 36 mm | 53 mm | 111 mm | 0.82 .. 1.44 |
 | sartorius_r **(capped)** | 182 mm | 131 mm | 1.39 | 403 mm | 498 mm | 623 mm | 0.84 .. 1.16 |
 | sartorius_l **(capped)** | 182 mm | 131 mm | 1.39 | 403 mm | 498 mm | 623 mm | 0.84 .. 1.16 |
 | flexor_pollicis_longus_r | 23 mm | 18 mm | 1.32 | 85 mm | 112 mm | 185 mm | 0.96 .. 1.17 |
 | flexor_pollicis_longus_l | 23 mm | 18 mm | 1.32 | 85 mm | 112 mm | 185 mm | 0.96 .. 1.17 |
-| fibularis_longus_l | 22 mm | 17 mm | 1.32 | 51 mm | 67 mm | 415 mm | 0.89 .. 1.22 |
-| fibularis_longus_r | 22 mm | 17 mm | 1.32 | 51 mm | 67 mm | 415 mm | 0.89 .. 1.22 |
 | deltoid_posterior_l **(capped)** | 50 mm | 39 mm | 1.29 | 111 mm | 138 mm | 173 mm | 0.86 .. 1.21 |
 | deltoid_posterior_r **(capped)** | 50 mm | 39 mm | 1.29 | 111 mm | 138 mm | 173 mm | 0.86 .. 1.21 |
 | gluteus_medius_middle_l | 83 mm | 65 mm | 1.27 | 73 mm | 92 mm | 177 mm | 0.31 .. 1.21 |
 | gluteus_medius_middle_r | 82 mm | 65 mm | 1.25 | 73 mm | 92 mm | 177 mm | 0.31 .. 1.21 |
+| fibularis_longus_l | 21 mm | 17 mm | 1.25 | 51 mm | 64 mm | 425 mm | 0.89 .. 1.22 |
+| fibularis_longus_r | 21 mm | 17 mm | 1.25 | 51 mm | 64 mm | 425 mm | 0.89 .. 1.22 |
 | biceps_brachii_long_r | 88 mm | 71 mm | 1.24 | 127 mm | 157 mm | 452 mm | 0.71 .. 1.27 |
 | biceps_brachii_long_l | 88 mm | 71 mm | 1.24 | 127 mm | 157 mm | 452 mm | 0.71 .. 1.27 |
 | gluteus_minimus_anterior_l | 80 mm | 67 mm | 1.20 | 68 mm | 81 mm | 142 mm | 0.30 .. 1.28 |
@@ -56,24 +56,22 @@ which is a statement about the attachments rather than about the muscle.
 | gluteus_medius_anterior_l | 80 mm | 69 mm | 1.16 | 73 mm | 85 mm | 142 mm | 0.28 .. 1.22 |
 | adductor_longus_l | 96 mm | 83 mm | 1.16 | 108 mm | 125 mm | 214 mm | 0.67 .. 1.43 |
 | adductor_longus_r | 96 mm | 83 mm | 1.16 | 108 mm | 125 mm | 214 mm | 0.67 .. 1.43 |
-| tibialis_anterior_l | 57 mm | 49 mm | 1.16 | 68 mm | 79 mm | 249 mm | 0.62 .. 1.34 |
-| tibialis_anterior_r | 57 mm | 49 mm | 1.16 | 68 mm | 79 mm | 249 mm | 0.62 .. 1.34 |
 | adductor_magnus_distal_r | 123 mm | 106 mm | 1.16 | 177 mm | 205 mm | 338 mm | 0.66 .. 1.26 |
 | adductor_magnus_distal_l | 123 mm | 106 mm | 1.16 | 177 mm | 205 mm | 338 mm | 0.66 .. 1.26 |
 | gluteus_medius_anterior_r | 79 mm | 69 mm | 1.15 | 73 mm | 84 mm | 142 mm | 0.28 .. 1.22 |
+| tibialis_anterior_l | 56 mm | 49 mm | 1.13 | 68 mm | 77 mm | 249 mm | 0.62 .. 1.34 |
+| tibialis_anterior_r | 56 mm | 49 mm | 1.13 | 68 mm | 77 mm | 249 mm | 0.62 .. 1.34 |
 | gluteus_minimus_middle_r | 75 mm | 67 mm | 1.12 | 57 mm | 64 mm | 115 mm | 0.23 .. 1.40 |
 | gluteus_minimus_middle_l | 74 mm | 67 mm | 1.11 | 57 mm | 64 mm | 115 mm | 0.23 .. 1.40 |
 | teres_minor_l | 51 mm | 46 mm | 1.11 | 137 mm | 153 mm | 211 mm | 0.65 .. 0.98 |
 | teres_minor_r | 51 mm | 46 mm | 1.11 | 137 mm | 153 mm | 211 mm | 0.65 .. 0.98 |
 | adductor_magnus_middle_l **(capped)** | 96 mm | 87 mm | 1.10 | 138 mm | 132 mm | 166 mm | 0.49 .. 1.12 |
 | adductor_magnus_middle_r **(capped)** | 96 mm | 87 mm | 1.10 | 138 mm | 132 mm | 166 mm | 0.49 .. 1.12 |
-| fibularis_brevis_l | 20 mm | 18 mm | 1.09 | 45 mm | 50 mm | 309 mm | 0.86 .. 1.25 |
-| fibularis_brevis_r | 20 mm | 18 mm | 1.09 | 45 mm | 50 mm | 309 mm | 0.86 .. 1.25 |
 | adductor_magnus_proximal_r **(capped)** | 69 mm | 64 mm | 1.09 | 106 mm | 92 mm | 115 mm | 0.45 .. 1.05 |
+| biceps_femoris_long_l | 194 mm | 180 mm | 1.08 | 122 mm | 131 mm | 451 mm | 0.31 .. 1.78 |
+| biceps_femoris_long_r | 194 mm | 180 mm | 1.08 | 122 mm | 131 mm | 451 mm | 0.31 .. 1.78 |
 | deltoid_anterior_l | 74 mm | 69 mm | 1.08 | 98 mm | 106 mm | 190 mm | 0.61 .. 1.32 |
 | deltoid_anterior_r | 74 mm | 69 mm | 1.08 | 98 mm | 106 mm | 190 mm | 0.61 .. 1.32 |
-| biceps_femoris_long_l | 192 mm | 180 mm | 1.07 | 122 mm | 131 mm | 450 mm | 0.31 .. 1.78 |
-| biceps_femoris_long_r | 192 mm | 180 mm | 1.07 | 122 mm | 131 mm | 450 mm | 0.31 .. 1.78 |
 | teres_major_r | 88 mm | 82 mm | 1.07 | 133 mm | 142 mm | 195 mm | 0.63 .. 1.25 |
 | teres_major_l | 88 mm | 82 mm | 1.07 | 133 mm | 142 mm | 195 mm | 0.63 .. 1.25 |
 | adductor_brevis_r **(capped)** | 73 mm | 68 mm | 1.06 | 103 mm | 88 mm | 110 mm | 0.72 .. 1.38 |
@@ -85,6 +83,8 @@ which is a statement about the attachments rather than about the muscle.
 | adductor_brevis_l **(capped)** | 71 mm | 68 mm | 1.04 | 103 mm | 88 mm | 110 mm | 0.72 .. 1.38 |
 | vastus_medialis_l | 68 mm | 66 mm | 1.03 | 97 mm | 100 mm | 267 mm | 0.73 .. 1.41 |
 | vastus_medialis_r | 68 mm | 66 mm | 1.03 | 97 mm | 100 mm | 267 mm | 0.73 .. 1.41 |
+| fibularis_brevis_l | 18 mm | 18 mm | 1.02 | 45 mm | 46 mm | 313 mm | 0.86 .. 1.25 |
+| fibularis_brevis_r | 18 mm | 18 mm | 1.02 | 45 mm | 46 mm | 313 mm | 0.86 .. 1.25 |
 | vastus_lateralis_l | 67 mm | 67 mm | 1.00 | 173 mm | 173 mm | 329 mm | 0.75 .. 1.14 |
 | vastus_lateralis_r | 67 mm | 67 mm | 1.00 | 173 mm | 173 mm | 329 mm | 0.75 .. 1.14 |
 | vastus_intermedius_l | 68 mm | 69 mm | 0.99 | 173 mm | 173 mm | 284 mm | 0.80 .. 1.20 |
@@ -93,18 +93,18 @@ which is a statement about the attachments rather than about the muscle.
 | tensor_fasciae_latae_r | 164 mm | 167 mm | 0.99 | 158 mm | 158 mm | 593 mm | 0.28 .. 1.33 |
 | gastrocnemius_lateral_l | 60 mm | 61 mm | 0.98 | 70 mm | 70 mm | 464 mm | 0.72 .. 1.59 |
 | gastrocnemius_lateral_r | 60 mm | 61 mm | 0.98 | 70 mm | 70 mm | 464 mm | 0.72 .. 1.59 |
-| gastrocnemius_medial_r | 63 mm | 65 mm | 0.97 | 75 mm | 75 mm | 461 mm | 0.71 .. 1.58 |
-| gastrocnemius_medial_l | 63 mm | 65 mm | 0.97 | 75 mm | 75 mm | 461 mm | 0.71 .. 1.58 |
+| gastrocnemius_medial_l | 63 mm | 65 mm | 0.98 | 75 mm | 75 mm | 461 mm | 0.71 .. 1.58 |
+| gastrocnemius_medial_r | 63 mm | 65 mm | 0.98 | 75 mm | 75 mm | 461 mm | 0.71 .. 1.58 |
 | biceps_femoris_short_l | 73 mm | 76 mm | 0.97 | 110 mm | 110 mm | 260 mm | 0.51 .. 1.20 |
 | biceps_femoris_short_r | 73 mm | 76 mm | 0.97 | 110 mm | 110 mm | 260 mm | 0.51 .. 1.20 |
-| soleus_l | 47 mm | 49 mm | 0.96 | 44 mm | 44 mm | 341 mm | 0.36 .. 1.48 |
-| soleus_r | 47 mm | 49 mm | 0.96 | 44 mm | 44 mm | 341 mm | 0.36 .. 1.48 |
 | infraspinatus_l | 46 mm | 48 mm | 0.96 | 102 mm | 102 mm | 145 mm | 0.64 .. 1.11 |
 | infraspinatus_r | 46 mm | 48 mm | 0.96 | 102 mm | 102 mm | 145 mm | 0.64 .. 1.11 |
+| soleus_l | 46 mm | 49 mm | 0.95 | 44 mm | 44 mm | 341 mm | 0.36 .. 1.48 |
+| soleus_r | 46 mm | 49 mm | 0.95 | 44 mm | 44 mm | 341 mm | 0.36 .. 1.48 |
+| semitendinosus_r | 202 mm | 221 mm | 0.92 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
+| semitendinosus_l | 202 mm | 221 mm | 0.92 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
 | semimembranosus_l | 167 mm | 183 mm | 0.91 | 121 mm | 121 mm | 408 mm | 0.26 .. 1.78 |
 | semimembranosus_r | 167 mm | 183 mm | 0.91 | 121 mm | 121 mm | 408 mm | 0.26 .. 1.78 |
-| semitendinosus_r | 202 mm | 221 mm | 0.91 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
-| semitendinosus_l | 202 mm | 221 mm | 0.91 | 193 mm | 193 mm | 484 mm | 0.51 .. 1.65 |
 | psoas_major_l | 58 mm | 66 mm | 0.87 | 117 mm | 117 mm | 277 mm | 0.59 .. 1.16 |
 | psoas_major_r | 58 mm | 66 mm | 0.87 | 117 mm | 117 mm | 290 mm | 0.59 .. 1.16 |
 | supraspinatus_l **(capped)** | 25 mm | 29 mm | 0.85 | 90 mm | 81 mm | 101 mm | 0.99 .. 1.32 |

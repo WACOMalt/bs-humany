@@ -1061,4 +1061,12 @@ then joins `derive` and `check`, and the 20 derived entries it drops from `landm
 land as their own commit with their golden rebake. The owner decided on 2026-09-26 that the
 anatomy data fixes that move goldens all land, each as its own commit with its rebake, and this
 is one of them.
-**Status:** open; decided, waiting on that change.
+**2026-09-27:** landed. `surfaceLandmarks.ts` reads `landmarks-derived.json` and skips every point
+it records a rule for, so the table holds the 805 markers and nothing else; re-run, those 805 came
+out byte for byte as they were, and the 20 derived entries left: the ten metatarsal heads, both
+malleoli on each side, the posterior calcaneal tuberosity points, the jugular notch and xiphoid
+tip, and the C7 and T8 spinous tips. The stage is a fixed point now and runs in `derive` and
+`check`; `ridge-attachments.json` and `wrap-radii.json` changed only in the hash of what they
+read. The malleoli are the ones that mattered: the shank's frame correspondence is built on them,
+so every via point carried onto the tibia, the fibula and the foot moved a little with them.
+**Status:** closed.
