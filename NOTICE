@@ -50,13 +50,23 @@ Third-party software dependencies:
   - MuJoCo (Google DeepMind) - Apache-2.0
   - three.js - MIT
 
-Skeleton data -- bone geometry, placement, landmarks, joint centres, and everything derived from
-them in packages/skeleton and packages/assets-anatomical -- is licensed CC BY-SA 4.0 and derives
-from:
+The Data tier of ADR-009 is licensed CC BY-SA 4.0. It is:
+
+  - packages/skeleton: bone placement, landmarks, frames, joint centres, and everything derived
+    from them.
+  - packages/assets-anatomical: the bone geometry and measurements under its data/ directory.
+  - packages/muscle-data: the muscle definitions, whose attachments, length ranges and some fibre
+    lengths are measured on that skeleton.
+  - packages/scenarios: the fixtures under its data/ directory. The rest of that package is code
+    and stays Apache-2.0.
+
+Each of the first three packages holds the licence text in its LICENSE and says what it derives
+from in its NOTICE; the scenario fixtures are covered by this file, and the licence text is the
+same one. The geometry and everything measured on it derives from:
 
   - Z-Anatomy (z-anatomy.com, github.com/Z-Anatomy) - CC BY-SA 4.0
   - BodyParts3D, Database Center for Life Science, Japan - CC BY-SA 2.1 JP
 
-Code packages remain Apache-2.0: they are not derivatives of the data they load. See ADR-009 and
-ADR-011. No non-commercially-licensed material enters distributed data, because a non-commercial
+Code packages remain Apache-2.0: they are not derivatives of the data they load. CONTRIBUTING.md
+lists every package with its tier. See ADR-009 and ADR-011. No non-commercially-licensed material enters distributed data, because a non-commercial
 licence cannot be combined with CC BY-SA in one work.

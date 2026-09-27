@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Scenario definitions, activation clips, muscle groups, and the joint-sweep and inertia-audit reports (spec 13.5).",
-  "license": "Apache-2.0",
+  "license": "(Apache-2.0 AND CC-BY-SA-4.0)",
   "type": "module",
   "exports": {
     ".": {
