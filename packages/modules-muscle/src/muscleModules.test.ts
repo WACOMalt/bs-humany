@@ -9,6 +9,7 @@ import {
 } from '@bs-humany/kernel';
 import { ACTUATION_BODY_WRENCH, BODY_POSE, PhysicsModule } from '@bs-humany/modules-mechanics';
 import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
+import { DIFFERENCE_STEP, momentArmByDifference } from '@bs-humany/muscle-path';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import {
@@ -651,6 +652,15 @@ describe('MuscleDynamicsModule', () => {
   });
 });
 
+/** Where `withMoments` holds the arm, radians. The left elbow stays where it started unless told. */
+interface MomentPose {
+  readonly elbow?: number;
+  readonly leftElbow?: number;
+  readonly pronation?: number;
+  /** The whole body turned about the vertical, radians. */
+  readonly turn?: number;
+}
+
 describe('MuscleMomentModule', () => {
   /** A session with the diagnostics module registered alongside the rest. */
   /**
@@ -665,36 +675,62 @@ describe('MuscleMomentModule', () => {
    * down: "a sweep that does not say where the forearm was is not reproducible." So gravity is off
    * and the pose is imposed, as `sweepMomentArms` does it.
    */
-  async function withMoments(pose: { elbow?: number; pronation?: number } = {}) {
+  async function withMoments(pose: MomentPose = {}, { forces = true } = {}) {
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
     const backend = new MujocoBackend();
     kernel.register(new PhysicsModule(backend, articulation, { gravity: { x: 0, y: 0, z: 0 } }));
-    kernel.register(
-      new MuscleTestDriveModule(muscles, [
-        { units: 'all', pattern: { kind: 'constant', level: 0 } },
-      ]),
-    );
+    if (forces) {
+      kernel.register(
+        new MuscleTestDriveModule(muscles, [
+          { units: 'all', pattern: { kind: 'constant', level: 0 } },
+        ]),
+      );
+    }
     kernel.register(new MusclePathModule(articulation, muscles));
-    kernel.register(new MuscleDynamicsModule(articulation, muscles));
+    if (forces) kernel.register(new MuscleDynamicsModule(articulation, muscles));
     const moment = new MuscleMomentModule(articulation, muscles);
     kernel.register(moment);
     await kernel.init();
     const fields = kernel.channels.storage(DIAGNOSTICS_MOMENT_ARM).fields;
+    const length = kernel.channels.storage(MUSCLE_PATH).fields.length as Float64Array;
     const buffers = allocateBuffers(articulation);
     backend.readJointState(buffers.jointState);
     const { q, qdot } = buffers.jointState;
     const elbow = coordinateIndex(articulation, 'elbow_r', 'flexion');
+    const leftElbow = coordinateIndex(articulation, 'elbow_l', 'flexion');
     const pronation = coordinateIndex(articulation, 'radioulnar_r', 'pronation');
-    // The moment module runs at a tenth of the physics rate, so the pose is held for long enough
-    // that it has certainly seen it.
-    for (let tick = 0; tick < 12; tick++) {
+    const leftAtRest = q[ROOT_NQ + leftElbow] as number;
+    // The root's orientation as it started, x y z w, for `turn` to compose onto.
+    const [rx, ry, rz, rw] = [q[3], q[4], q[5], q[6]] as number[];
+
+    /** Impose a pose for one tick: the body starts the tick there, at rest. */
+    const impose = (at: MomentPose) => {
       qdot.fill(0);
-      q[ROOT_NQ + elbow] = pose.elbow ?? 0.5;
-      q[ROOT_NQ + pronation] = pose.pronation ?? 0;
+      q[ROOT_NQ + elbow] = at.elbow ?? 0.5;
+      q[ROOT_NQ + leftElbow] = at.leftElbow ?? leftAtRest;
+      q[ROOT_NQ + pronation] = at.pronation ?? 0;
+      // The whole body turned about the vertical (+Y) through the root, composed onto where it
+      // started: a rigid motion, so it changes where every joint axis points and no moment arm.
+      const sin = Math.sin((at.turn ?? 0) / 2);
+      const cos = Math.cos((at.turn ?? 0) / 2);
+      q[3] = cos * (rx as number) + sin * (rz as number);
+      q[4] = cos * (ry as number) + sin * (rw as number);
+      q[5] = cos * (rz as number) - sin * (rx as number);
+      q[6] = cos * (rw as number) - sin * (ry as number);
       backend.writeJointState(q, qdot);
       kernel.run(1);
-    }
-    return { kernel, moment, arm: fields.arm as Float64Array };
+    };
+    /**
+     * Hold a pose long enough that the moment module has certainly seen it. It runs at a tenth of
+     * the physics rate, and in twelve ticks it fires at least once after the first, which is the
+     * tick that still starts from wherever the body was before.
+     */
+    const hold = (at: MomentPose) => {
+      for (let tick = 0; tick < 12; tick++) impose(at);
+    };
+
+    hold(pose);
+    return { kernel, moment, arm: fields.arm as Float64Array, length, impose, hold };
   }
 
   it('pairs every unit with the elbow coordinate it crosses', () => {
@@ -807,11 +843,126 @@ describe('MuscleMomentModule', () => {
     s.kernel.dispose();
   });
 
+  it('is the derivative of the length the path module publishes, across the elbow’s range', async () => {
+    // The production check that the module's closed form is the derivative of *this* path: the
+    // arm it reports, against the length `muscle.path` publishes with the elbow a hair either side,
+    // differenced. The two share nothing but the path -- one sums sweeps about an axis the module
+    // works out from the joint frames, the other re-solves the whole path, wraps and all, at two
+    // poses and subtracts. Both elbows move together, so every elbow pair is checked in one pass;
+    // each unit crosses only its own side's.
+    //
+    // The muscles make no force here. The pose is imposed at rest before every tick, but the body
+    // still takes one step from it before the next tick's path is solved, and the passive force of
+    // an undriven muscle -- which depends on where its fiber has got to, so on the poses before --
+    // moves it by a different few microradians at each end of the difference. Divided by a step of
+    // 2e-4 rad, that was up to a millimetre of disagreement that had nothing to do with either
+    // side of the comparison.
+    //
+    // For the same reason each end of the range is pulled in a little: at the elbow's limits, the
+    // step past the limit is undone by the limit before the path is solved.
+    //
+    // A unit with nothing but via points differences to round-off. A wrapped one differences to
+    // how far its contact points have converged; measured, every elbow unit wraps and agreed to
+    // within 3e-9 m, so the bound is loose enough for a harder pose and tight enough that an arm
+    // about the wrong axis or from the wrong pose cannot pass.
+    const s = await withMoments({}, { forces: false });
+    const wraps = muscles.paths.map((path) => path.elements.some((e) => e.kind === 'wrap'));
+    const elbowPairs = s.moment.pairs
+      .map((pair, index) => ({ pair, index }))
+      .filter(({ pair }) => pair.jointId.startsWith('elbow_') && pair.dofId === 'flexion');
+    expect(elbowPairs).toHaveLength(14);
+
+    const range = articulation.dofs[coordinateIndex(articulation, 'elbow_r', 'flexion')]
+      ?.range as readonly [number, number];
+    const margin = 10 * DIFFERENCE_STEP;
+    const lengthsAt = (angle: number) => {
+      s.hold({ elbow: angle, leftElbow: angle });
+      return Float64Array.from(s.length);
+    };
+    for (const swept of degreeRange(0, 130, 10)) {
+      const angle = Math.min(Math.max(swept, range[0] + margin), range[1] - margin);
+      const above = lengthsAt(angle + DIFFERENCE_STEP);
+      const below = lengthsAt(angle - DIFFERENCE_STEP);
+      s.hold({ elbow: angle, leftElbow: angle });
+      for (const { pair, index } of elbowPairs) {
+        const differenced = momentArmByDifference((delta) =>
+          delta > 0 ? (above[pair.unit] as number) : (below[pair.unit] as number),
+        );
+        const tolerance = wraps[pair.unit] ? 1e-6 : 1e-8;
+        const label = `${pair.unitId} at ${angle.toFixed(4)} rad`;
+        expect(Math.abs((s.arm[index] as number) - differenced), label).toBeLessThan(tolerance);
+      }
+    }
+    s.kernel.dispose();
+  }, 60_000);
+
+  it('reads the joint axes from the pose the path was solved from', async () => {
+    // The path module solves in `actuate`, from the pose the tick starts in. When this module ran
+    // in `post`, it read the joint axes from the pose the solve had just produced: the polyline was
+    // a step older than the axes it was differentiated about. A held pose hides that, because the
+    // two poses are the same, so here the body is thrown between two poses every other tick and
+    // the arms are read at every tick the module fires. They must be the arms of the pose the path
+    // was solved from -- the one imposed the tick before -- as the module reports them for that
+    // pose held still.
+    //
+    // Three things about the motion are deliberate. The elbow alone would barely show the fault:
+    // an elbow's axis is fixed in the upper arm, and bending the elbow does not move the upper
+    // arm, so the whole body turns as well -- a rigid motion that changes every axis and no arm.
+    // In `post` that put the arms out by 50 mm and more; in `actuate` they match to the last bit.
+    // The poses change every second tick rather than every tick, which lands a change on each tick
+    // the module fires (every tenth, so always even) and still alternates which pose that is. And
+    // the muscles make no force, as in the derivative test above: the reference is a held pose,
+    // and passive force with a different history would move the body by a different few
+    // microradians in the one step it takes before the path is solved.
+    const POSES: readonly MomentPose[] = [
+      { elbow: 0.3, turn: 0 },
+      { elbow: 1.3, turn: 1 },
+    ];
+    const held: Float64Array[] = [];
+    for (const pose of POSES) {
+      const still = await withMoments(pose, { forces: false });
+      held.push(Float64Array.from(still.arm));
+      still.kernel.dispose();
+    }
+
+    const s = await withMoments(POSES[0], { forces: false });
+    const elbowPairs = s.moment.pairs
+      .map((pair, index) => ({ pair, index }))
+      .filter(({ pair }) => pair.jointId === 'elbow_r' && pair.dofId === 'flexion');
+    expect(elbowPairs).toHaveLength(7);
+
+    let previous = 0;
+    const checked = new Set<number>();
+    for (let n = 0; n < 60; n++) {
+      const tick = s.kernel.clock.tick;
+      const which = Math.floor(tick / 2) % 2;
+      const fires = tick % (s.moment.manifest.rateDivisor ?? 1) === 0;
+      s.impose(POSES[which] ?? {});
+      if (!fires) {
+        previous = which;
+        continue;
+      }
+      expect(which, `the pose changes at tick ${tick}`).not.toBe(previous);
+      checked.add(previous);
+      for (const { pair, index } of elbowPairs) {
+        const expected = (held[previous] as Float64Array)[index] as number;
+        const label = `${pair.unitId} at tick ${tick}, solved at ${POSES[previous]?.elbow} rad`;
+        expect(Math.abs((s.arm[index] as number) - expected), label).toBeLessThan(1e-9);
+      }
+      previous = which;
+    }
+    expect(checked.size).toBe(2);
+    s.kernel.dispose();
+  }, 60_000);
+
   it('runs after the path module and writes nothing the simulation reads', async () => {
     // M-ADR-003: the moment arm is a diagnostic. If anything in the force path ever started
     // reading this channel, the comparison against cadaver data would stop being independent.
+    // It runs in `actuate`, after the path module in the same phase, so that the pose it reads the
+    // joint axes from is the pose the path was solved from.
     const moment = new MuscleMomentModule(articulation, muscles);
-    expect(moment.manifest.phase).toBe('post');
+    expect(moment.manifest.phase).toBe('actuate');
+    expect(moment.manifest.dependsOn.map((d) => d.id)).toContain(MUSCLE_PATH_MODULE_ID);
     expect(moment.manifest.accumulates).toEqual([]);
     expect(moment.manifest.writes.map((c) => c.id)).toEqual([DIAGNOSTICS_MOMENT_ARM]);
     expect(moment.manifest.rateDivisor).toBe(10);
