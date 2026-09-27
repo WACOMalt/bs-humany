@@ -9,21 +9,25 @@
  */
 
 import type { DriveOutput, PolicyFile } from '@bs-humany/modules-nerves';
-import { MUSCLE_GROUPS } from './muscleGroups.js';
+import { DRIVE_SIDES, MUSCLE_GROUPS, unitsOnSide } from './muscleGroups.js';
 import { defaultControlDivisor } from './solverRate.js';
 
 /** One-hot: stand, walk, flail. */
 export const GOAL_SIZE = 3;
 export const GOALS = ['stand', 'walk', 'flail'] as const;
 
-/** Thirty-five groups a side, right first then left, each output driving its units evenly. */
+/**
+ * Thirty-five groups a side, right first then left, each output driving its units evenly. A side
+ * is split by `unitsOnSide`, the split the cord's reflex groups use too, so an output and the
+ * reflex group with its id hold the same muscles.
+ */
 export function driveOutputs(): DriveOutput[] {
   const outputs: DriveOutput[] = [];
-  for (const side of ['r', 'l'] as const) {
+  for (const side of DRIVE_SIDES) {
     for (const group of MUSCLE_GROUPS) {
       outputs.push({
         id: `${group.id}:${side}`,
-        units: group.units.filter((u) => u.endsWith(`_${side}`)).map((id) => ({ id, weight: 1 })),
+        units: unitsOnSide(group, side).map((id) => ({ id, weight: 1 })),
       });
     }
   }

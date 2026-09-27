@@ -41,6 +41,25 @@ const muscles = compileMuscleSet(
 
 const plantar = muscles.units.filter((u) => /soleus|gastrocnemius/.test(u.id)).map((u) => u.id);
 const dorsi = muscles.units.filter((u) => /tibialis_anterior/.test(u.id)).map((u) => u.id);
+const onSide = (units: readonly string[], side: 'r' | 'l'): string[] =>
+  units.filter((u) => u.endsWith(`_${side}`));
+
+/**
+ * The ankle's two groups a side, paired on their own side, the way `reflexGroups()` builds the
+ * body's seventy. The right plantarflexors are first, so `lastDrive[0]` is theirs.
+ */
+const ANKLE_GROUPS = (['r', 'l'] as const).flatMap((side) => [
+  {
+    id: `anklePlantarflexorDrive:${side}`,
+    units: onSide(plantar, side),
+    antagonist: `ankleDorsiflexorDrive:${side}`,
+  },
+  {
+    id: `ankleDorsiflexorDrive:${side}`,
+    units: onSide(dorsi, side),
+    antagonist: `anklePlantarflexorDrive:${side}`,
+  },
+]);
 
 /** A body with the cord in it and nothing else driving, so what moves is the reflex. */
 function rig(
@@ -58,10 +77,7 @@ function rig(
   );
   kernel.register(new MusclePathModule(articulation, muscles));
   const spine = new SpinalModule(muscles, {
-    groups: [
-      { id: 'anklePlantarflexorDrive', units: plantar, antagonist: 'ankleDorsiflexorDrive' },
-      { id: 'ankleDorsiflexorDrive', units: dorsi, antagonist: 'anklePlantarflexorDrive' },
-    ],
+    groups: ANKLE_GROUPS,
     gains,
     stepSeconds: 1 / 500,
   });
@@ -220,8 +236,9 @@ describe('SpinalModule', () => {
     const pull = Float64Array.from(state.tendonForce as Float64Array);
     const index = new Map(muscles.units.map((u, i) => [u.id, i]));
     const g = spine.gains;
+    const plantarR = onSide(plantar, 'r');
     let sum = 0;
-    for (const id of plantar) {
+    for (const id of plantarR) {
       const u = index.get(id) as number;
       const unit = muscles.units[u];
       const stretch = (fibre[u] as number) - 1 - g.setPoint;
@@ -232,7 +249,7 @@ describe('SpinalModule', () => {
     }
 
     kernel.run(1);
-    expect(spine.lastDrive[0] as number).toBeCloseTo(sum / plantar.length, 12);
+    expect(spine.lastDrive[0] as number).toBeCloseTo(sum / plantarR.length, 12);
     kernel.dispose();
   });
 
@@ -262,6 +279,93 @@ describe('SpinalModule', () => {
     const loop = [MOTOR_NOISE_MODULE_ID, NERVES_MODULE_ID, SPINAL_MODULE_ID];
     expect(kernel.order().filter((id) => loop.includes(id))).toEqual(loop);
     kernel.dispose();
+  });
+});
+
+describe('a stretched right soleus, one tick of the cord with nothing in the way', () => {
+  // The module on its own, with `muscle.state` and the efferent as plain arrays, no delay, and one
+  // step: what the cord does with one stretched unit, and nothing else to muddy it. Every fibre is
+  // at its optimal length, so on the measured cord's set point of 0 only the right soleus is past
+  // it, and nothing is moving or loaded.
+  const index = new Map(muscles.units.map((u, i) => [u.id, i]));
+  const at = (id: string): number => {
+    const u = index.get(id);
+    if (u === undefined) throw new Error(`no unit ${id}`);
+    return u;
+  };
+  // A tenth past optimal: enough to excite, and little enough that half excitation plus the answer
+  // stays under the ceiling, so what is asserted is the reflex and not the clamp.
+  const STRETCH = 0.1;
+
+  function tick(before: number): { excitation: Float64Array; spine: SpinalModule } {
+    const n = muscles.units.length;
+    const fiberLength = new Float64Array(n).fill(1);
+    fiberLength[at('soleus_r')] = 1 + STRETCH;
+    const excitation = new Float64Array(n).fill(before);
+    const spine = new SpinalModule(muscles, {
+      groups: ANKLE_GROUPS,
+      gains: { ...MEASURED_SPINAL_GAINS, delaySeconds: 0 },
+      stepSeconds: 1 / 500,
+    });
+    const fake = {
+      read: () => ({
+        fields: {
+          fiberLength,
+          fiberVelocity: new Float64Array(n),
+          tendonForce: new Float64Array(n),
+        },
+        spec: {},
+        count: n,
+      }),
+      accumulate: () => ({ fields: { excitation }, spec: {}, count: n }),
+      write: () => {
+        throw new Error('unexpected');
+      },
+      random: undefined as never,
+      dt: 1 / 500,
+      config: {},
+    };
+    spine.init(fake as never);
+    spine.step({} as never);
+    return { excitation, spine };
+  }
+
+  it('excites the right soleus and no other unit, on either side', () => {
+    // Per side: a group holding both legs let the right soleus's stretch excite the left leg. Per
+    // unit: a group's mean applied to all of it let the soleus's stretch excite the gastrocnemii
+    // beside it, which were not stretched at all. A real stretch reflex does neither, and this cord
+    // now does neither: the one stretched spindle drives the one muscle it is in.
+    const { excitation } = tick(0);
+    const soleus = at('soleus_r');
+    expect(excitation[soleus]).toBeCloseTo(MEASURED_SPINAL_GAINS.stretch * STRETCH, 12);
+    for (const unit of muscles.units) {
+      if (unit.id === 'soleus_r') continue;
+      expect(excitation[at(unit.id)], `${unit.id} was not stretched`).toBe(0);
+    }
+    for (const id of muscles.units.map((u) => u.id).filter((u) => u.endsWith('_l'))) {
+      expect(excitation[at(id)], `${id} is on the other leg`).toBe(0);
+    }
+  });
+
+  it('inhibits the right shin through its interneuron, and leaves the left leg alone', () => {
+    // Every unit starts at half excitation, as if the brain were holding the body, so inhibition
+    // has something to take off. The right plantarflexors' drive is the soleus's alone, shared over
+    // the group, and a share of it (`inhibition`) comes off every right dorsiflexor. Nothing on the
+    // left is stretched, and nothing on the left is inhibited by the right: it stays where the
+    // brain put it.
+    const { excitation, spine } = tick(0.5);
+    const g = MEASURED_SPINAL_GAINS;
+    const plantarR = onSide(plantar, 'r');
+    const groupDrive = (g.stretch * STRETCH) / plantarR.length;
+    expect(spine.lastDrive[0]).toBeCloseTo(groupDrive, 12);
+    expect(excitation[at('soleus_r')]).toBeCloseTo(0.5 + g.stretch * STRETCH, 12);
+    for (const id of onSide(dorsi, 'r')) {
+      expect(excitation[at(id)]).toBeLessThan(0.5);
+      expect(excitation[at(id)]).toBeCloseTo(0.5 - g.inhibition * groupDrive, 12);
+    }
+    for (const id of [...onSide(plantar, 'l'), ...onSide(dorsi, 'l')]) {
+      expect(excitation[at(id)], `${id} is on the other leg`).toBe(0.5);
+    }
   });
 });
 
