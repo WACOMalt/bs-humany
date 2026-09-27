@@ -99,6 +99,9 @@ const VIA_CEILING_MM: Readonly<Record<string, number>> = {
   metatarsal_1: 4.8,
   navicular: 4.5,
   patella: 0.1,
+  // The clavicular head of pectoralis major's one point on the clavicle, drawn in to 5 mm: carried,
+  // it arrived 57 mm off the bone on the upper arm's frame.
+  clavicle: 5.1,
 };
 
 const sideless = (bone: string) => bone.replace(/_[rl]$/, '');

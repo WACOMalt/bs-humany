@@ -250,7 +250,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Coracobrachialis, right',
         origin: 'coracobrachialis_origin_r_coracoid_process',
         insertion: 'coracobrachialis_insertion_r_medial_border_of_humerus',
-        path: [],
+        path: [{ kind: 'site', site: 'coracobrachialis_r__via_1' }],
         parameters: {
           maxIsometricForce: 172.994,
           optimalFiberLength: 0.311743,
@@ -457,7 +457,7 @@ export const SHOULDER_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Coracobrachialis, left',
         origin: 'coracobrachialis_origin_l_coracoid_process',
         insertion: 'coracobrachialis_insertion_l_medial_border_of_humerus',
-        path: [],
+        path: [{ kind: 'site', site: 'coracobrachialis_l__via_1' }],
         parameters: {
           maxIsometricForce: 172.994,
           optimalFiberLength: 0.311743,

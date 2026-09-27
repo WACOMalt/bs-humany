@@ -256,6 +256,10 @@ const LIMBS = [
       'ECRB-P2_r': { standoff: 0.005 },
       'ECRL-P2_r': { standoff: 0.005 },
       'BRD_BRD-P2_r': { standoff: 0.005 },
+      // The clavicular head's point on the clavicle, which the upper arm's frame -- fitted at the
+      // humerus, and carrying the whole girdle with it -- left 57 mm off the bone. The head
+      // arises along the clavicle's front, so it is drawn in to that bone like the rest.
+      'PECM1_PECM1-P3_r': { standoff: 0.005 },
     },
     /**
      * Side sites put on our wrap surface rather than where the carry leaves them.
@@ -349,6 +353,9 @@ const LIMBS = [
       { unit: 'triceps_brachii_long_r', tendon: 'TRIlong', from: 'scapula_r' },
       { unit: 'triceps_brachii_lateral_r', tendon: 'TRIlat', from: 'humerus_r' },
       { unit: 'triceps_brachii_medial_r', tendon: 'TRImed', from: 'humerus_r' },
+      // Re-admitted by OQ-023 on 2026-09-16 and left out of this table until now, so it ran
+      // straight from the coracoid to the humerus where the reference holds it on a via point.
+      { unit: 'coracobrachialis_r', tendon: 'CORB', from: 'scapula_r' },
       // The forearm and wrist. `from` is the bone our origin is on; the reference lists most of
       // these from the hand inward, which the direction test reads from whichever end it knows.
       { unit: 'pronator_teres_r', tendon: 'PT', from: 'humerus_r' },
@@ -364,7 +371,11 @@ const LIMBS = [
       // the bone *our* origin is on, which no limb maps, and the direction is read from the far
       // end instead.
       { unit: 'latissimus_dorsi_thoracic_r', tendon: 'LAT1', from: 'vertebra_t8' },
+      // The lumbar part and the clavicular head, like coracobrachialis re-admitted by OQ-023 and
+      // left out of this table until now.
+      { unit: 'latissimus_dorsi_lumbar_r', tendon: 'LAT2', from: 'sacrum' },
       { unit: 'latissimus_dorsi_iliac_r', tendon: 'LAT3', from: 'hip_r' },
+      { unit: 'pectoralis_major_clavicular_r', tendon: 'PECM1', from: 'clavicle_r' },
       { unit: 'pectoralis_major_sternal_r', tendon: 'PECM2', from: 'sternum' },
       { unit: 'pectoralis_major_abdominal_r', tendon: 'PECM3', from: 'rib_6_r' },
     ],
@@ -513,6 +524,9 @@ const LIMBS = [
       // gluteals and the adductors is the pelvis and for the vasti-like ones is the femur.
       { unit: 'gluteus_maximus_superior_r', tendon: 'glmax1_r', from: 'hip_r' },
       { unit: 'gluteus_maximus_middle_r', tendon: 'glmax2_r', from: 'hip_r' },
+      // The inferior part, re-admitted by OQ-023 and left out of this table until now: it ran as
+      // a 63 mm chord from the ischial tuberosity where the reference holds it on its femur.
+      { unit: 'gluteus_maximus_inferior_r', tendon: 'glmax3_r', from: 'hip_r' },
       { unit: 'gluteus_medius_anterior_r', tendon: 'glmed1_r', from: 'hip_r' },
       { unit: 'gluteus_medius_middle_r', tendon: 'glmed2_r', from: 'hip_r' },
       { unit: 'gluteus_medius_posterior_r', tendon: 'glmed3_r', from: 'hip_r' },

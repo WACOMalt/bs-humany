@@ -693,6 +693,13 @@ were never touched by the cap at all.
 The risk that remains is the one this entry named: the width is not always well conditioned
 either. The detailed lumbar model still refuses 146 of 210 fascicles on the width alone, which is
 the check doing its job.
+**2026-09-27:** four of the six came back without their via points: the via-point generator's
+table was never told about coracobrachialis, the inferior gluteus maximus, the lumbar latissimus
+or the clavicular pectoralis, so each ran as a straight chord -- gluteus maximus's third part 63 mm
+from the ischial tuberosity to the femur. They are in the table now and carry their points (one
+for coracobrachialis and gluteus maximus, two for the other two; the clavicular head's point on
+the clavicle is drawn in to the bone, which the upper arm's frame left 57 mm off it). Erector
+spinae and rectus abdominis are the torso's and route through points of their own.
 **Status:** closed.
 
 ### OQ-016 — Geodesics on an ellipsoid, which have no closed form

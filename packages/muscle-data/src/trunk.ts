@@ -73,7 +73,10 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Latissimus dorsi, lumbar part, right',
         origin: 'latissimus_dorsi_origin_r_median_sacral_crest',
         insertion: 'latissimus_dorsi_insertion_r_intertubercular_sulcus',
-        path: [],
+        path: [
+          { kind: 'site', site: 'latissimus_dorsi_lumbar_r__via_1' },
+          { kind: 'site', site: 'latissimus_dorsi_lumbar_r__via_2' },
+        ],
         parameters: {
           maxIsometricForce: 535.42,
           optimalFiberLength: 0.394674,
@@ -115,7 +118,10 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Pectoralis major, clavicular head, right',
         origin: 'pectoralis_major_origin_r_sternal_end',
         insertion: 'pectoralis_major_insertion_r_crest_of_greater_tubercle',
-        path: [],
+        path: [
+          { kind: 'site', site: 'pectoralis_major_clavicular_r__via_1' },
+          { kind: 'site', site: 'pectoralis_major_clavicular_r__via_2' },
+        ],
         parameters: {
           maxIsometricForce: 335.746,
           optimalFiberLength: 0.188893,
@@ -187,7 +193,10 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Latissimus dorsi, lumbar part, left',
         origin: 'latissimus_dorsi_origin_l_median_sacral_crest',
         insertion: 'latissimus_dorsi_insertion_l_intertubercular_sulcus',
-        path: [],
+        path: [
+          { kind: 'site', site: 'latissimus_dorsi_lumbar_l__via_1' },
+          { kind: 'site', site: 'latissimus_dorsi_lumbar_l__via_2' },
+        ],
         parameters: {
           maxIsometricForce: 535.42,
           optimalFiberLength: 0.394674,
@@ -229,7 +238,10 @@ export const TRUNK_MUSCLES: readonly MuscleGroup[] = [
         displayName: 'Pectoralis major, clavicular head, left',
         origin: 'pectoralis_major_origin_l_sternal_end',
         insertion: 'pectoralis_major_insertion_l_crest_of_greater_tubercle',
-        path: [],
+        path: [
+          { kind: 'site', site: 'pectoralis_major_clavicular_l__via_1' },
+          { kind: 'site', site: 'pectoralis_major_clavicular_l__via_2' },
+        ],
         parameters: {
           maxIsometricForce: 335.746,
           optimalFiberLength: 0.188893,
