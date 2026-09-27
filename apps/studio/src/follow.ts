@@ -16,6 +16,23 @@ export interface FollowedPose {
   readonly position: Float64Array;
   readonly orientation: Float64Array;
   readonly tick: number;
+  /** The publisher's simulated seconds at that tick, as its frame says. */
+  readonly simTime: number;
+}
+
+/**
+ * What a followed body is, as against where it is: the bones in order and the rest pose and
+ * scale its frames are relative to. The studio's VR link needs it to publish the followed body
+ * to the headset on a bridge of its own, which has to carry the same rest table the publisher's
+ * does or the headset skins the mesh against the wrong pose.
+ */
+export interface FollowedShape {
+  readonly bones: readonly string[];
+  readonly restPosition: Float32Array;
+  readonly restOrientation: Float32Array;
+  readonly datasetScale: number;
+  /** Bumped whenever any of the above changes, so a reader can tell cheaply. */
+  readonly version: number;
 }
 
 export interface FollowedMuscles {
@@ -41,6 +58,8 @@ export class BridgeFollower {
   private running = false;
   private bones: string[] | null = null;
   private boneCount = 0;
+  private shape: FollowedShape | null = null;
+  private shapeVersion = 0;
 
   constructor(private readonly base: string = DEFAULT_BRIDGE_URL) {}
 
@@ -58,10 +77,25 @@ export class BridgeFollower {
     this.muscles = null;
     this.status = null;
     this.bones = null;
+    this.shape = null;
   }
 
   get active(): boolean {
     return this.running;
+  }
+
+  /** The followed body's bones and rest pose, once a frame of it has been read. */
+  get followedShape(): FollowedShape | null {
+    return this.shape;
+  }
+
+  /**
+   * The publisher's own generation, from its status: it changes when the publisher rebuilds its
+   * bridges or a new publisher takes the path, which a relay has to pass on.
+   */
+  get followedGeneration(): number | undefined {
+    const generation = this.status?.generation;
+    return typeof generation === 'number' ? generation : undefined;
   }
 
   private async loop(step: () => Promise<void>, everyMs: number): Promise<void> {
@@ -93,11 +127,22 @@ export class BridgeFollower {
     }
     const bridge = readBridge(bytes);
     if (bridge.newest === 0xffffffff) return;
-    if (!this.bones || this.boneCount !== bridge.bones) {
+    // A new publisher can bring the same number of bones in another body -- a different stature,
+    // a different rest pose -- so the rest table is compared too, not only the count.
+    const restChanged = !this.shape || !sameRest(this.shape, bridge);
+    if (!this.bones || this.boneCount !== bridge.bones || restChanged) {
       const response = await fetch(`${this.base}/pose.json`, { cache: 'no-store' });
       if (!response.ok) throw new Error('the bridge has no sidecar');
       this.bones = ((await response.json()) as { bones: string[] }).bones;
       this.boneCount = bridge.bones;
+      this.shapeVersion += 1;
+      this.shape = {
+        bones: this.bones,
+        restPosition: bridge.rest.position,
+        restOrientation: bridge.rest.orientation,
+        datasetScale: bridge.datasetScale,
+        version: this.shapeVersion,
+      };
     }
     const frame = bridge.frame(bridge.newest);
     if (frame.seq === 0 || frame.seq % 2 === 1) return;
@@ -106,6 +151,7 @@ export class BridgeFollower {
       position: Float64Array.from(frame.position),
       orientation: Float64Array.from(frame.orientation),
       tick: frame.tick,
+      simTime: frame.simTime,
     };
   }
 
@@ -136,4 +182,24 @@ export class BridgeFollower {
     const tension = this.status?.tension;
     this.tension = Array.isArray(tension) ? (tension as number[]) : null;
   }
+}
+
+/** Whether a bridge carries the rest pose and scale a shape was read from. */
+function sameRest(
+  shape: FollowedShape,
+  bridge: {
+    readonly datasetScale: number;
+    readonly rest: { readonly position: Float32Array; readonly orientation: Float32Array };
+  },
+): boolean {
+  if (shape.datasetScale !== bridge.datasetScale) return false;
+  const { position, orientation } = bridge.rest;
+  if (position.length !== shape.restPosition.length) return false;
+  for (let i = 0; i < position.length; i++) {
+    if (position[i] !== shape.restPosition[i]) return false;
+  }
+  for (let i = 0; i < orientation.length; i++) {
+    if (orientation[i] !== shape.restOrientation[i]) return false;
+  }
+  return true;
 }

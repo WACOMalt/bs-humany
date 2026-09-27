@@ -7,6 +7,12 @@
  * channel and the panel's command log come back the same way. The viewer itself is launched by
  * the Tauri side and stopped on disconnect.
  *
+ * The studio publishes on a bridge path of its own (the Tauri side names it), never on the one
+ * the showcase and `pnpm publish:pose` share, and it claims that path before touching it. A body
+ * the desktop is following -- the training showcase, another publisher -- reaches the headset
+ * because this relays it: the followed frames are published again here, on the studio's path, so
+ * the viewer the studio launched has one publisher to follow whatever is on screen.
+ *
  * Everything that is a decision about the run -- what the panel's buttons do, what the status
  * says -- is the studio's, through `VrHost`; this only carries.
  */
@@ -22,6 +28,8 @@ import {
   readGrabIntents,
 } from '@bs-humany/pose-bridge/codec';
 import { invoke } from '@tauri-apps/api/core';
+import type { BrainAction, BrainState } from './brain.js';
+import type { BridgeFollower, FollowedMuscles, FollowedShape } from './follow.js';
 import { GrabIntents } from './grabIntents.js';
 import type { Simulation } from './simulation.js';
 
@@ -35,25 +43,7 @@ export type VrCommand =
   | { kind: 'drive'; group: number; value: number }
   | { kind: 'set'; key: string; value: unknown }
   /** The brain panel, from the headset: choose, hand over, release, train. */
-  | {
-      kind: 'brain';
-      action:
-        | 'select'
-        | 'handover'
-        | 'release'
-        | 'authority'
-        | 'reflexStretch'
-        | 'reflexVelocity'
-        | 'reflexSetPoint'
-        | 'reflexInhibition'
-        | 'reflexDelay'
-        | 'memory'
-        | 'trainStart'
-        | 'trainStop'
-        | 'follow';
-      id?: string;
-      value?: number;
-    };
+  | { kind: 'brain'; action: BrainAction; id?: string; value?: number };
 
 /** What the studio says about its run, for the panel. The link adds what only it knows. */
 export interface VrStatus {
@@ -110,19 +100,20 @@ export interface VrStatus {
       readonly localB: readonly number[];
     }[];
   };
-  /** The brain panel's state. */
-  readonly brain: {
-    readonly serverUp: boolean;
-    readonly active: boolean;
-    readonly authority: number;
-    readonly selected: string;
-    readonly checkpoints: readonly { readonly id: string; readonly name: string }[];
-    readonly fit: string;
-    readonly training: string;
-    readonly trainingRunning: boolean;
-    readonly trainingStoppable: boolean;
-    readonly following: boolean;
-  };
+  /**
+   * The brain panel's state, the desktop's own: the same type its Brain tab is drawn from, so the
+   * headset gets the button rules and the policy note the desktop shows rather than a copy.
+   */
+  readonly brain: BrainState;
+  /**
+   * The run time of the newest frame recorded, in the same seconds as `simSeconds`. The link
+   * reports the playhead as `simSeconds`, so this is how far the timeline reaches beyond it.
+   */
+  readonly recordedSeconds?: number;
+  /** Whether the desktop is playing a recording back. */
+  readonly playing?: boolean;
+  /** Whether the desktop is on the live edge rather than scrubbed back. */
+  readonly live?: boolean;
 }
 
 export interface VrHost {
@@ -133,6 +124,26 @@ export interface VrHost {
   status(simulation: Simulation | null): VrStatus;
   command(command: VrCommand): void;
   log(message: string): void;
+  /**
+   * The viewer has gone -- closed from the headset, failed to find one, crashed. `code` is its
+   * exit status, or null when a signal ended it, and `tail` is the last it printed.
+   */
+  onViewerExit(code: number | null, signal: number | null, tail: readonly string[]): void;
+}
+
+/** A replayed frame's muscle rings, in the arrays `Playback.ringsAt` keeps. */
+export interface ShownRings {
+  readonly position: Float32Array;
+  readonly orientation: Float32Array;
+  readonly radius: Float32Array;
+}
+
+/** What the Tauri side says of the viewer process. */
+interface ViewerState {
+  readonly running: boolean;
+  readonly code: number | null;
+  readonly signal?: number | null;
+  readonly tail: readonly string[];
 }
 
 /** Writes as the Tauri side takes them: `[u32 offset][u32 length][bytes]...`, little endian. */
@@ -151,25 +162,58 @@ function pack(writes: readonly BridgeWrite[]): Uint8Array {
   return packed;
 }
 
+/**
+ * One ordered line of calls to the Tauri side, shared by everything the link writes.
+ *
+ * Shared, because the order between files is what the viewer depends on. A status naming a new
+ * generation tells the viewer to reopen the rings, so it must never land before the rings of that
+ * generation exist; and a frame queued for the last generation's pose ring must never land in the
+ * new one, which on the Tauri side goes by the same name. With one line for every create, frame
+ * and status, each lands after everything queued before it.
+ */
+class BridgeQueue {
+  private chain: Promise<void> = Promise.resolve();
+
+  constructor(private readonly log: (message: string) => void) {}
+
+  enqueue(task: () => Promise<unknown>): void {
+    this.chain = this.chain.then(task).then(
+      () => undefined,
+      (error) => this.log(`VR bridge: ${error instanceof Error ? error.message : String(error)}`),
+    );
+  }
+
+  /** A text file beside the bridges -- the sidecar, the status -- in its place in the line. */
+  text(suffix: string, text: string): void {
+    this.enqueue(() => invoke('bridge_text', { suffix, text }));
+  }
+
+  /** Settled once everything queued so far has landed. */
+  flush(): Promise<void> {
+    return this.chain;
+  }
+}
+
 /** A bridge file on the Tauri side, written in batches, latest batch winning when it falls behind. */
 class TauriSink implements BridgeSink {
-  private chain: Promise<void> = Promise.resolve();
   private latest: Uint8Array | null = null;
   private queued = false;
 
   constructor(
     private readonly name: string,
-    private readonly log: (message: string) => void,
+    private readonly queue: BridgeQueue,
   ) {}
 
   create(bytes: number, initial: readonly BridgeWrite[]): void {
-    // The header and rest table go in the ordered chain, never coalesced: a frame may be dropped
-    // for a newer frame, but without these the file is not a bridge at all.
+    // The header and rest table travel with the create, in one call, never coalesced: a frame may
+    // be dropped for a newer frame, but without these the file is not a bridge at all, and the
+    // Tauri side renames the new file into place only once they are in it.
     const packed = pack(initial);
-    this.enqueue(async () => {
-      await invoke('bridge_create', { name: this.name, bytes });
-      await invoke('bridge_write', packed, { headers: { 'x-bridge': this.name } });
-    });
+    this.queue.enqueue(() =>
+      invoke('bridge_create', packed, {
+        headers: { 'x-bridge': this.name, 'x-bytes': String(bytes) },
+      }),
+    );
   }
 
   write(writes: readonly BridgeWrite[]): void {
@@ -177,7 +221,7 @@ class TauriSink implements BridgeSink {
     this.latest = pack(writes);
     if (this.queued) return;
     this.queued = true;
-    this.enqueue(async () => {
+    this.queue.enqueue(async () => {
       this.queued = false;
       const batch = this.latest;
       this.latest = null;
@@ -186,32 +230,36 @@ class TauriSink implements BridgeSink {
   }
 
   sidecar(suffix: string, text: string): void {
-    this.enqueue(() => invoke('bridge_text', { suffix, text }));
+    this.queue.text(suffix, text);
   }
 
   close(): void {}
+}
 
-  /** Settled once everything queued so far has landed. */
-  flush(): Promise<void> {
-    return this.chain;
-  }
-
-  private enqueue(task: () => Promise<unknown>): void {
-    this.chain = this.chain.then(task).then(
-      () => undefined,
-      (error) => this.log(`VR bridge: ${error instanceof Error ? error.message : String(error)}`),
-    );
-  }
+/** A status field of the followed publisher's, when it is a number. */
+function numberIn(status: Record<string, unknown> | null, key: string): number | undefined {
+  const value = status?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 export class VrLink {
   private simulation: Simulation | null = null;
   private poses: PoseBridgeWriter | null = null;
   private muscles: MuscleBridgeWriter | null = null;
-  private sinks: TauriSink[] = [];
+  private readonly queue: BridgeQueue;
   private order: readonly string[] = [];
-  private generation = 0;
+  /**
+   * Which run of the bridges this is, as the status tells the viewer. Started from the clock, not
+   * from zero: a reloaded page is a new link, and one counting from zero again told a viewer that
+   * had seen generation 1 from the page before that this was generation 1, so the viewer kept the
+   * old files and the headset froze. The clock only names the run; nothing simulated reads it.
+   */
+  private generation = Date.now();
+  /** The tick last published: the frame on screen, which is not always the newest one. */
   private lastTick = -1;
+  private lastMuscleTick = -1;
+  /** The simulated time of the frame last published, which the status reports as the time. */
+  private shownSeconds = 0;
   private readonly intents = new GrabIntents();
   private grabsInFlight = false;
   private grabsComplained = false;
@@ -221,8 +269,20 @@ export class VrLink {
   private speed = 0;
   private started = performance.now();
   private live = false;
+  /** The once-a-second look at whether the viewer is still there, while the link is live. */
+  private viewerWatch: ReturnType<typeof setInterval> | null = null;
+  private viewerAsked = false;
+  /** Relaying a followed publisher: what its bridges were opened for. */
+  private relaying = false;
+  private relayVersion = -1;
+  private relayGeneration: number | undefined;
+  private relayUnits = 0;
+  private relayRings = 0;
+  private relaySegments = 0;
 
-  constructor(private readonly host: VrHost) {}
+  constructor(private readonly host: VrHost) {
+    this.queue = new BridgeQueue(host.log);
+  }
 
   get connected(): boolean {
     return this.live;
@@ -230,39 +290,72 @@ export class VrLink {
 
   /** Open the bridges for the current run and launch the viewer. Says what was launched. */
   async connect(): Promise<string> {
+    // The claim first: the bridge carries one writer, and a refused claim must leave every file
+    // of whoever holds it exactly as it was. It throws naming the holder, for the status line.
+    await invoke('bridge_claim');
     // Nothing of the last session: a viewer must never open its ring and take it for ours.
     await invoke('bridge_clear');
     this.live = true;
     this.started = performance.now();
-    // The bridges first, and landed, so the viewer never opens a file of zeros. A viewer that is
-    // launched before a run exists waits for one, but there is no reason to make it.
-    const simulation = this.host.simulation();
-    if (simulation) {
-      this.simulation = simulation;
-      this.reopen(simulation);
-      await Promise.all(this.sinks.map((sink) => sink.flush()));
+    try {
+      // The bridges first, and landed, so the viewer never opens a file of zeros. A viewer that
+      // is launched before a run exists waits for one, but there is no reason to make it.
+      const simulation = this.host.simulation();
+      if (simulation) {
+        this.simulation = simulation;
+        this.reopen(simulation);
+        await this.queue.flush();
+      }
+      const launched = await invoke<string>('xr_viewer_launch');
+      this.host.log(`VR viewer: ${launched}`);
+      this.watchViewer();
+      return launched;
+    } catch (error) {
+      // No viewer to publish for, so no claim either: whoever runs next must not find this page
+      // holding a bridge it gave up on.
+      await this.disconnect();
+      throw error;
     }
-    const launched = await invoke<string>('xr_viewer_launch');
-    this.host.log(`VR viewer: ${launched}`);
-    return launched;
   }
 
   async disconnect(): Promise<void> {
     this.live = false;
+    if (this.viewerWatch !== null) clearInterval(this.viewerWatch);
+    this.viewerWatch = null;
     this.intents.letGo(this.simulation);
     this.simulation = null;
     this.poses = null;
     this.muscles = null;
+    this.relaying = false;
+    // Whatever is still queued lands first, rather than failing against files that are gone.
+    await this.queue.flush();
     await invoke('xr_viewer_stop');
     await invoke('bridge_clear');
+    await invoke('bridge_release');
+  }
+
+  /** Settled once every write queued so far has reached the Tauri side. */
+  flush(): Promise<void> {
+    return this.queue.flush();
   }
 
   /**
-   * Once an animation frame, after the run advanced. `position` and `orientation` are what the
-   * studio is showing -- the live bones, or a replayed frame when scrubbed back -- in bone order.
+   * Once an animation frame, after the run advanced, with what the studio is showing: the live
+   * bones, or a recorded frame when the playhead is behind the live edge. `shownTick` is the run
+   * tick of that frame, and it is what a frame is published under, so a replay reaches the
+   * headset frame by frame -- the viewer takes any change of tick as a new frame, earlier ones
+   * included. `shownRings` are the recorded bellies of a replayed frame: `undefined` means live,
+   * where the simulation's own rings are published, and `null` a recorded frame whose rings were
+   * not captured, which publishes no bellies rather than the newest tick's.
    */
-  frame(position: ArrayLike<number>, orientation: ArrayLike<number>): void {
+  frame(
+    position: ArrayLike<number>,
+    orientation: ArrayLike<number>,
+    shownTick: number,
+    shownRings?: ShownRings | null,
+  ): void {
     if (!this.live) return;
+    this.endRelay();
     const simulation = this.host.simulation();
     if (simulation !== this.simulation) {
       this.simulation = simulation;
@@ -286,15 +379,20 @@ export class VrLink {
     }
     const now = performance.now();
 
-    if (simulation.ticks !== this.lastTick || this.lastTick < 0) {
-      this.lastTick = simulation.ticks;
-      this.poses.publish(simulation.ticks, simulation.ticks * simulation.dt, position, orientation);
-      const rings = this.muscles ? simulation.muscleRings() : undefined;
-      if (rings && rings.radius.length === rings.units * rings.rings) {
-        this.muscles?.publish(simulation.ticks, rings.position, rings.orientation, rings.radius);
+    if (shownTick !== this.lastTick) {
+      this.lastTick = shownTick;
+      this.shownSeconds = shownTick * simulation.dt;
+      this.poses.publish(shownTick, this.shownSeconds, position, orientation);
+      const rings =
+        shownRings === undefined && this.muscles ? simulation.muscleRings() : shownRings;
+      const shape = this.muscles?.shape;
+      if (rings && shape && rings.radius.length === shape.units * shape.rings) {
+        this.muscles?.publish(shownTick, rings.position, rings.orientation, rings.radius);
       }
     }
-    this.pollGrabs(simulation);
+    // Only on the live edge: a hand in the headset pulls the body that is simulating, and while a
+    // recording plays back that body is paused and is not the one on screen.
+    if (shownTick === simulation.ticks) this.pollGrabs(simulation);
     if (now - this.lastCommands >= 100) {
       this.lastCommands = now;
       void this.pollCommands();
@@ -307,7 +405,7 @@ export class VrLink {
           : ((simulation.ticks - this.ticksAtStatus) * simulation.dt) / elapsed;
       this.lastStatus = now;
       this.ticksAtStatus = simulation.ticks;
-      void this.writeStatus(simulation);
+      this.writeStatus(simulation, null);
     }
   }
 
@@ -318,6 +416,7 @@ export class VrLink {
    */
   idle(): void {
     if (!this.live) return;
+    this.endRelay();
     const simulation = this.host.simulation();
     if (simulation !== this.simulation) {
       this.simulation = simulation;
@@ -332,36 +431,201 @@ export class VrLink {
     }
     if (now - this.lastStatus >= 100) {
       this.lastStatus = now;
-      void this.writeStatus(null);
+      this.writeStatus(null, null);
     }
+  }
+
+  /**
+   * While the desktop follows a publisher instead of running a body of its own: publish what it
+   * follows, on the studio's bridge, so the headset shows the body the desktop does.
+   *
+   * Pressing Start training in the headset used to replace the headset's body with nothing: the
+   * showcase that training starts publishes on its own path, which the viewer the studio launched
+   * does not follow, and the studio sharing that path instead wiped the showcase's files. So the
+   * followed frames are published again here, each once, under the publisher's own tick; the
+   * bridges are rebuilt whenever the followed body or its generation changes; and the status is
+   * the studio's, with the followed body's ground, scenery, tissue, tension and training in it.
+   * The panel's commands still come to the studio -- Stop training from the headset is the
+   * desktop's Stop. Grabs do not: the followed body is the publisher's to simulate, not this
+   * page's.
+   */
+  relay(follower: BridgeFollower): void {
+    if (!this.live) return;
+    if (this.simulation) {
+      this.simulation = null;
+      this.intents.letGo(null);
+    }
+    const shape = follower.followedShape;
+    const muscles = follower.muscles;
+    if (shape && this.relayChanged(shape, follower.followedGeneration, muscles)) {
+      try {
+        this.openRelay(shape, follower.followedGeneration, muscles);
+      } catch (error) {
+        this.host.log(
+          `VR viewer: could not relay the followed body: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        this.poses = null;
+        this.muscles = null;
+      }
+    }
+    const pose = follower.pose;
+    if (
+      this.poses &&
+      pose &&
+      pose.tick !== this.lastTick &&
+      pose.bones.length === this.order.length
+    ) {
+      this.lastTick = pose.tick;
+      this.shownSeconds = pose.simTime;
+      this.poses.publish(pose.tick, pose.simTime, pose.position, pose.orientation);
+    }
+    if (this.muscles && muscles && muscles.tick !== this.lastMuscleTick) {
+      this.lastMuscleTick = muscles.tick;
+      this.muscles.publish(muscles.tick, muscles.position, muscles.orientation, muscles.radius);
+    }
+    const now = performance.now();
+    if (now - this.lastCommands >= 100) {
+      this.lastCommands = now;
+      void this.pollCommands();
+    }
+    if (now - this.lastStatus >= 100) {
+      this.lastStatus = now;
+      this.writeStatus(null, follower.status);
+    }
+  }
+
+  private relayChanged(
+    shape: FollowedShape,
+    generation: number | undefined,
+    muscles: FollowedMuscles | null,
+  ): boolean {
+    return (
+      !this.relaying ||
+      shape.version !== this.relayVersion ||
+      generation !== this.relayGeneration ||
+      (muscles?.units ?? 0) !== this.relayUnits ||
+      (muscles?.rings ?? 0) !== this.relayRings ||
+      (muscles?.segments ?? 0) !== this.relaySegments
+    );
+  }
+
+  private openRelay(
+    shape: FollowedShape,
+    generation: number | undefined,
+    muscles: FollowedMuscles | null,
+  ): void {
+    this.relaying = true;
+    this.relayVersion = shape.version;
+    this.relayGeneration = generation;
+    this.relayUnits = muscles?.units ?? 0;
+    this.relayRings = muscles?.rings ?? 0;
+    this.relaySegments = muscles?.segments ?? 0;
+    this.generation += 1;
+    this.lastTick = -1;
+    this.lastMuscleTick = -1;
+    this.order = shape.bones;
+    if (!muscles) this.queue.enqueue(() => invoke('bridge_close', { removeMuscles: true }));
+    this.poses = new PoseBridgeWriter(
+      new PoseBridgeCodec(
+        {
+          bones: shape.bones,
+          position: shape.restPosition,
+          orientation: shape.restOrientation,
+          datasetScale: shape.datasetScale,
+        },
+        undefined,
+        () => BigInt(Math.round(performance.now() * 1e6)),
+      ),
+      new TauriSink('', this.queue),
+    );
+    this.muscles = muscles
+      ? new MuscleBridgeWriter(
+          new MuscleBridgeCodec({
+            units: muscles.units,
+            rings: muscles.rings,
+            segments: muscles.segments,
+          }),
+          new TauriSink('-muscles', this.queue),
+        )
+      : null;
+    this.host.log(
+      `VR viewer: relaying the followed body, ${shape.bones.length} bones` +
+        (muscles ? ` and ${muscles.units} muscles` : ''),
+    );
+  }
+
+  /**
+   * Back from relaying to the studio's own run, or to none. The relayed writers are dropped; the
+   * next run of this page's opens bridges of its own under a new generation, as any run does.
+   */
+  private endRelay(): void {
+    if (!this.relaying) return;
+    this.relaying = false;
+    this.poses = null;
+    this.muscles = null;
+    this.lastTick = -1;
+    this.lastMuscleTick = -1;
   }
 
   private reopen(simulation: Simulation): void {
     this.generation += 1;
     this.lastTick = -1;
+    this.shownSeconds = simulation.ticks * simulation.dt;
     this.order = simulation.boneOrder();
     const rest = this.host.restPose(simulation);
-    const poseSink = new TauriSink('', this.host.log);
-    this.sinks = [poseSink];
+    const rings = simulation.muscleRings();
+    if (!rings) {
+      // In the line, ahead of the new pose ring: a run without muscles leaves no belly ring for
+      // the viewer to go on drawing the last run's bellies from.
+      this.queue.enqueue(() => invoke('bridge_close', { removeMuscles: true }));
+    }
     this.poses = new PoseBridgeWriter(
       new PoseBridgeCodec(rest, undefined, () => BigInt(Math.round(performance.now() * 1e6))),
-      poseSink,
+      new TauriSink('', this.queue),
     );
-    const rings = simulation.muscleRings();
-    if (rings) {
-      const muscleSink = new TauriSink('-muscles', this.host.log);
-      this.sinks.push(muscleSink);
-      this.muscles = new MuscleBridgeWriter(
-        new MuscleBridgeCodec({ units: rings.units, rings: rings.rings, segments: rings.segments }),
-        muscleSink,
-      );
-    } else {
-      this.muscles = null;
-      void invoke('bridge_close', { removeMuscles: true }).catch(() => undefined);
-    }
+    this.muscles = rings
+      ? new MuscleBridgeWriter(
+          new MuscleBridgeCodec({
+            units: rings.units,
+            rings: rings.rings,
+            segments: rings.segments,
+          }),
+          new TauriSink('-muscles', this.queue),
+        )
+      : null;
     this.host.log(
       `VR viewer: publishing ${this.order.length} bones${rings ? ` and ${rings.units} muscles` : ''}`,
     );
+  }
+
+  /**
+   * Notice the viewer going, whether the headset closed it, it found no headset, or it crashed.
+   *
+   * From a timer rather than the frame loop, because a hidden or minimised window gets no
+   * animation frames and would otherwise go on saying Disconnect over a viewer that is gone.
+   */
+  private watchViewer(): void {
+    if (this.viewerWatch !== null) clearInterval(this.viewerWatch);
+    this.viewerWatch = setInterval(() => {
+      if (!this.live || this.viewerAsked) return;
+      this.viewerAsked = true;
+      void (async () => {
+        try {
+          const state = await invoke<ViewerState>('xr_viewer_state');
+          if (!state.running && this.live) {
+            if (this.viewerWatch !== null) clearInterval(this.viewerWatch);
+            this.viewerWatch = null;
+            this.host.onViewerExit(state.code, state.signal ?? null, state.tail);
+          }
+        } catch (error) {
+          this.host.log(
+            `VR viewer: could not ask after the viewer: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        } finally {
+          this.viewerAsked = false;
+        }
+      })();
+    }, 1000);
   }
 
   private pollGrabs(simulation: Simulation): void {
@@ -423,23 +687,44 @@ export class VrLink {
     }
   }
 
-  private async writeStatus(simulation: Simulation | null): Promise<void> {
+  /**
+   * The status, in the same line as the bridges it describes, so the generation it names never
+   * reaches the viewer before that generation's rings exist.
+   *
+   * `simSeconds` is the time of the frame on screen -- the playhead when the desktop is scrubbed
+   * back, the followed publisher's time when relaying -- so the headset's timeline follows what
+   * both displays show. `followed` is the followed publisher's own status while relaying, whose
+   * scene the headset needs to draw the body it is sent.
+   */
+  private writeStatus(
+    simulation: Simulation | null,
+    followed: Record<string, unknown> | null,
+  ): void {
     const status = this.host.status(simulation);
+    const relayed = this.relaying ? followed : null;
+    const scene = relayed
+      ? {
+          mode: 'following' as const,
+          groundHeight: numberIn(relayed, 'groundHeight') ?? status.groundHeight,
+          staticBoxes: Array.isArray(relayed.staticBoxes) ? relayed.staticBoxes : [],
+          tissue: relayed.tissue ?? status.tissue,
+          tension: Array.isArray(relayed.tension) ? relayed.tension : [],
+          training: relayed.training,
+          paused: typeof relayed.paused === 'boolean' ? relayed.paused : false,
+        }
+      : {};
     const text = JSON.stringify({
       ...status,
+      ...scene,
       generation: this.generation,
-      simSeconds: simulation ? simulation.ticks * simulation.dt : 0,
+      simSeconds: simulation || this.relaying ? this.shownSeconds : 0,
       wallSeconds: (performance.now() - this.started) / 1000,
-      speed: status.paused ? 0 : this.speed,
-      muscles: simulation !== null && this.muscles !== null,
+      speed: relayed ? (numberIn(relayed, 'speed') ?? 0) : status.paused ? 0 : this.speed,
+      muscles: this.muscles !== null && (simulation !== null || this.relaying),
       holding: this.intents.holding(),
-      stepsPerSecond: simulation?.stepsPerSecond ?? 0,
-      fps: simulation?.outputFramerate ?? 0,
+      stepsPerSecond: simulation?.stepsPerSecond ?? numberIn(relayed, 'stepsPerSecond') ?? 0,
+      fps: simulation?.outputFramerate ?? numberIn(relayed, 'fps') ?? 0,
     });
-    try {
-      await invoke('bridge_text', { suffix: '-status.json', text });
-    } catch (error) {
-      this.host.log(`VR status: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    this.queue.text('-status.json', text);
   }
 }

@@ -69,7 +69,7 @@ import {
 } from 'three';
 import { type AlignPanel, createAlignPanel, loadSourceSites } from './align/alignPanel.js';
 import { buildBlenderExport } from './blenderExport.js';
-import { createBrainPanel } from './brain.js';
+import { IDLE_BRAIN_STATE, createBrainPanel } from './brain.js';
 import { BridgeFollower } from './follow.js';
 import { FollowTissue } from './followTissue.js';
 import { createOrbitControls } from './orbit.js';
@@ -2215,7 +2215,12 @@ function animate(): void {
   if (ui.spin.checked) controls.orbit(0.0032);
   controls.update();
 
-  if (!simulation) vrLink?.idle();
+  if (!simulation) {
+    // Following a publisher, the headset is sent what the desktop follows, relayed on the
+    // studio's own bridge; otherwise it is told there is no run.
+    if (bridgeFollower.active && vrLink) vrLink.relay(bridgeFollower);
+    else vrLink?.idle();
+  }
   // The brain panel's picture: this page's policy, or the training showcase's.
   drawNerves(simulation ?? undefined);
   // Scenery that moves -- a platform tilting under the body -- drawn where the solver has it.
@@ -2244,7 +2249,20 @@ function animate(): void {
     // the playhead the way the bones and bellies do.
     const replayedPose = replay ? segmentPosesFrom(simulation, replay) : undefined;
     skinned.update(simulation.boneOrder(), transforms.position, transforms.orientation);
-    vrLink?.frame(transforms.position, transforms.orientation);
+    if (vrLink) {
+      // The headset is sent the frame on screen, not the newest one: off the live edge that is
+      // the recorded frame under the playhead, bellies included, published under its own tick so
+      // the headset's body and timeline move as the desktop's do when replaying or scrubbing.
+      const shownIndex = replay
+        ? Playback.tickOf(playback.clampedFrame(capturedFrames()), simulation.ticksPerOutputFrame)
+        : -1;
+      vrLink.frame(
+        transforms.position,
+        transforms.orientation,
+        replay ? simulation.capture.firstTick + shownIndex : simulation.ticks,
+        replay ? (playback.ringsAt(simulation.muscleCapture, shownIndex) ?? null) : undefined,
+      );
+    }
     if (overlays) {
       const pose = simulation.channel('body.pose').fields;
       const limits = simulation.channel('diagnostics.limits').fields;
@@ -2692,20 +2710,14 @@ const vrHost = {
           must<HTMLElement>(`#muscle-${key}`).textContent ?? '',
         ]),
       ),
-      tension: sim ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],
+      // Relaxed off the live edge, as the desktop draws a replayed belly: tension is not recorded,
+      // and the newest tick's would tint a frame it does not belong to.
+      tension: sim && following ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],
       tissue: sim ? tissueForBridge(sim) : { discs: [], bars: [] },
-      brain: brain?.state() ?? {
-        serverUp: false,
-        active: false,
-        authority: 0,
-        selected: '',
-        checkpoints: [],
-        fit: '',
-        training: '',
-        trainingRunning: false,
-        trainingStoppable: false,
-        following: bridgeFollower.active,
-      },
+      brain: brain?.state() ?? { ...IDLE_BRAIN_STATE, following: bridgeFollower.active },
+      recordedSeconds: sim ? recordedSeconds(sim) : 0,
+      playing: playback.playing,
+      live: following,
     };
   },
   command(command: VrCommand): void {
@@ -2725,7 +2737,16 @@ const vrHost = {
         (command.frames > 0 ? ui.frameForward : ui.frameBack).click();
         break;
       case 'scrub':
-        if (simulation) scrubTo(Math.round(command.seconds * simulation.outputFramerate));
+        // The headset's timeline is in seconds of the run -- the time the status reports -- so
+        // the frame is found from the tick that time is, counted from where the capture starts.
+        if (simulation) {
+          const frame = Playback.frameOfTick(
+            Math.round(command.seconds / simulation.dt),
+            simulation.capture.firstTick,
+            simulation.ticksPerOutputFrame,
+          );
+          scrubTo(Math.min(Math.max(frame, 0), capturedFrames() - 1));
+        }
         break;
       case 'brain':
         brain?.act(command.action, command.id, command.value);
@@ -2815,7 +2836,28 @@ const vrHost = {
     // And on the terminal, beside the viewer's own lines, where a failure can actually be read.
     void invoke('studio_log', { message }).catch(() => undefined);
   },
+  onViewerExit(code: number | null, signal: number | null, tail: readonly string[]): void {
+    void (async () => {
+      const link = vrLink;
+      vrLink = null;
+      connectVr.textContent = 'Connect VR viewer';
+      // Clears and releases the bridge; the viewer is already gone.
+      await link?.disconnect();
+      const last = tail.at(-1) ?? '';
+      const how = code !== null ? `exit ${code}` : `ended by signal ${signal ?? '?'}`;
+      // In the event line rather than the run's readout, which is rewritten every frame while a
+      // run is going and would take this away before anybody read it.
+      announce(`VR viewer closed (${how})${last ? `: ${last}` : ''}`, { error: code !== 0 });
+    })();
+  },
 };
+
+/** The run time of the newest recorded frame, in the seconds the headset's timeline counts. */
+function recordedSeconds(sim: Simulation): number {
+  const frames = capturedFrames();
+  if (frames <= 0) return 0;
+  return (sim.capture.firstTick + Playback.tickOf(frames - 1, sim.ticksPerOutputFrame)) * sim.dt;
+}
 
 if (isTauri()) {
   connectVr.hidden = false;
@@ -2834,6 +2876,9 @@ if (isTauri()) {
         await link.connect();
         vrLink = link;
         connectVr.textContent = 'Disconnect VR viewer';
+        // At once, rather than at the next three-second tick: the headset's Brain tab is drawn
+        // from what the desktop's panel knows, and it should not open on a stale list.
+        void brain?.poll();
       } catch (error) {
         announce(`The VR viewer did not connect: ${messageOf(error)}`, { error: true });
       } finally {
@@ -2841,6 +2886,15 @@ if (isTauri()) {
       }
     })();
   });
+  // A reload keeps the Tauri side, and the viewer it launched, running: say so, so the button's
+  // "Connect" is not read as "nothing is connected".
+  void invoke<{ running: boolean }>('xr_viewer_state')
+    .then((state) => {
+      if (state.running) {
+        announce('VR viewer still running from before the reload: Connect re-attaches it');
+      }
+    })
+    .catch(() => undefined);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -3222,6 +3276,10 @@ brain = createBrainPanel({
   },
 });
 void brain.poll();
+// Three things read what the poll refreshes: the Brain tab while it is open; the follow mode,
+// whose status names the checkpoint the showcase plays; and the headset while the VR link is
+// live, whose Brain tab is drawn from this panel's state whichever desktop tab is showing. With
+// none of them there is nobody to ask for, and an absent dashboard is not asked every 3 s.
 window.setInterval(() => {
-  if (tabs.active === 'brain' || bridgeFollower.active) void brain?.poll();
+  if (tabs.active === 'brain' || bridgeFollower.active || vrLink?.connected) void brain?.poll();
 }, 3000);
