@@ -118,10 +118,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { MODELS, MYO_SIM, upstreamPath } from '../../validate-external/src/models.mjs';
 import { REFERENCE_FOREARM_AT_OUR_NEUTRAL } from '../../validate-external/src/referenceArm.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
 const OUT = join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts');
 const check = process.argv.includes('--check');
 
@@ -158,8 +158,7 @@ const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) 
 const LIMBS = [
   {
     id: 'arm',
-    chain: 'myoarm_r_chain.xml',
-    tendon: 'myoarm_r_tendon.xml',
+    model: MODELS.arm,
     /**
      * Where each body sits in the root's frame, as offsets accumulated down the chain.
      *
@@ -314,10 +313,6 @@ const LIMBS = [
       { unit: 'triceps_brachii_long_r', tendon: 'TRIlong', from: 'scapula_r' },
       { unit: 'triceps_brachii_lateral_r', tendon: 'TRIlat', from: 'humerus_r' },
       { unit: 'triceps_brachii_medial_r', tendon: 'TRImed', from: 'humerus_r' },
-      // The trunk's two. MyoArm anchors them to its own root rather than to a spine it does not
-      // have, so their trunk-end points sit on the world body and are not carried; `from` names
-      // the bone *our* origin is on, which no limb maps, and the direction is read from the far
-      // end instead.
       // The forearm and wrist. `from` is the bone our origin is on; the reference lists most of
       // these from the hand inward, which the direction test reads from whichever end it knows.
       { unit: 'pronator_teres_r', tendon: 'PT', from: 'humerus_r' },
@@ -328,6 +323,10 @@ const LIMBS = [
       { unit: 'flexor_carpi_ulnaris_r', tendon: 'FCU', from: 'humerus_r' },
       { unit: 'extensor_carpi_radialis_longus_r', tendon: 'ECRL', from: 'humerus_r' },
       { unit: 'extensor_carpi_radialis_brevis_r', tendon: 'ECRB', from: 'humerus_r' },
+      // The trunk's two. MyoArm anchors them to its own root rather than to a spine it does not
+      // have, so their trunk-end points sit on the world body and are not carried; `from` names
+      // the bone *our* origin is on, which no limb maps, and the direction is read from the far
+      // end instead.
       { unit: 'latissimus_dorsi_thoracic_r', tendon: 'LAT1', from: 'vertebra_t8' },
       { unit: 'latissimus_dorsi_iliac_r', tendon: 'LAT3', from: 'hip_r' },
       { unit: 'pectoralis_major_sternal_r', tendon: 'PECM2', from: 'sternum' },
@@ -336,8 +335,7 @@ const LIMBS = [
   },
   {
     id: 'leg',
-    chain: 'myolegs_chain.xml',
-    tendon: 'myolegs_tendon.xml',
+    model: MODELS.legs,
     offsets: (bodyPos) => {
       const shank = bodyPos('tibia_r');
       const ankle = add(shank, bodyPos('talus_r'));
@@ -514,12 +512,12 @@ const LIMBS = [
 
 /** Everything one limb's reference files say, read once. */
 function readLimb(limb) {
-  const xml = readFileSync(join(MYO_SIM, limb.chain), 'utf8');
-  const tendonXml = readFileSync(join(MYO_SIM, limb.tendon), 'utf8');
+  const xml = readFileSync(join(MYO_SIM, limb.model.chain), 'utf8');
+  const tendonXml = readFileSync(join(MYO_SIM, limb.model.tendon), 'utf8');
 
   const bodyBlock = (name) => {
     const start = xml.indexOf(`<body name="${name}"`);
-    if (start < 0) throw new Error(`${limb.chain} has no body '${name}'`);
+    if (start < 0) throw new Error(`${limb.model.chain} has no body '${name}'`);
     // Up to the next nested body, which is where this body's own sites end.
     const next = xml.indexOf('<body ', start + 1);
     return xml.slice(start, next < 0 ? xml.length : next);
@@ -528,12 +526,12 @@ function readLimb(limb) {
     const m = tendonXml.match(
       new RegExp(`<spatial name="${name}_tendon"[^>]*>(.*?)</spatial>`, 's'),
     );
-    if (!m) throw new Error(`${limb.tendon} has no tendon '${name}'`);
+    if (!m) throw new Error(`${limb.model.tendon} has no tendon '${name}'`);
     return m[1];
   };
   const attribute = (block, pattern) => {
     const m = block.match(pattern);
-    if (!m) throw new Error(`${limb.chain}: no match for ${pattern}`);
+    if (!m) throw new Error(`${limb.model.chain}: no match for ${pattern}`);
     return m[1].trim().split(/\s+/).map(Number);
   };
   const bodyPos = (name) =>
@@ -769,12 +767,12 @@ for (const limb of LIMBS) {
   const ctx = {
     offset: (body) => {
       const at = offsets.get(body);
-      if (!at) throw new Error(`${limb.chain}: no offset for body '${body}'`);
+      if (!at) throw new Error(`${limb.model.chain}: no offset for body '${body}'`);
       return at;
     },
     site: (name) => {
       const site = sites.get(name);
-      if (!site) throw new Error(`${limb.chain}: no site '${name}'`);
+      if (!site) throw new Error(`${limb.model.chain}: no site '${name}'`);
       return site.point;
     },
     jointAxis: (joint) => axisOf(joint),
@@ -791,7 +789,7 @@ for (const limb of LIMBS) {
     let orientedAxis = frame.reference.axis(ctx);
     if (frame.probe) {
       const probeSite = sites.get(frame.probe.site);
-      if (!probeSite) throw new Error(`${limb.chain}: no probe site '${frame.probe.site}'`);
+      if (!probeSite) throw new Error(`${limb.model.chain}: no probe site '${frame.probe.site}'`);
       const along = { x: 0, y: 1, z: 2 }[frame.probe.along ?? 'x'];
       const oursProbe = dot(sub(frame.probe.ours(skeleton), ours.origin), ourBasis[along]);
       const oriented = orientAxis(
@@ -824,7 +822,14 @@ for (const limb of LIMBS) {
       `  ${limb.id}/${frame.id}: reference ${(referenceLength * 1000).toFixed(1)} mm, ours ` +
         `${(ourLength * 1000).toFixed(1)} mm, scale ${scale.toFixed(4)}, twist ${twist.toFixed(1)} deg`,
     );
-    const carrier = { referenceBasis, referenceOrigin, scale, ourBasis, ourOrigin: ours.origin };
+    const carrier = {
+      frame: frame.id,
+      referenceBasis,
+      referenceOrigin,
+      scale,
+      ourBasis,
+      ourOrigin: ours.origin,
+    };
     for (const body of frame.bodies) carriers.set(body, carrier);
   }
   /** The frame the thigh is carried on, which is also the one the patella is measured in. */
@@ -844,6 +849,10 @@ for (const limb of LIMBS) {
           order: i + 1,
           bone: measuredFor.bone,
           site: `measured: ${point.pick === 'max' ? 'most' : 'least'} ${point.axis} of ${measuredFor.bone}`,
+          // Taken from our own bone, so no reference model and no frame carried it.
+          referenceModel: null,
+          frame: null,
+          method: 'measured',
           local: [
             round((world[0] - centroid[0]) / stature),
             round((world[1] - centroid[1]) / stature),
@@ -890,7 +899,7 @@ for (const limb of LIMBS) {
     for (const name of names) {
       index++;
       const site = sites.get(name);
-      if (!site) throw new Error(`${limb.chain}: no site '${name}' on any body of this limb`);
+      if (!site) throw new Error(`${limb.model.chain}: no site '${name}' on any body of this limb`);
       // The bone it rides: the reference's, unless this unit's tendon runs on another there.
       // Named by the point when only some of a unit's points move, and by the bone they came
       // from when all of them do.
@@ -914,6 +923,9 @@ for (const limb of LIMBS) {
       const scaled = inReference.map((c) => c * carrier.scale);
       let world = outOfFrame(carrier.ourBasis, carrier.ourOrigin, scaled);
       let provenance = name;
+      // How it was obtained, which is what its site's citation has to say: carried by the frame
+      // correspondence from the reference's file, or not carried at all.
+      let method = 'carried';
       const measuredAt = limb.measuredSites?.[name];
       if (measuredAt) {
         const [a, b] = measuredAt.between.map((f) => skeleton.measuredWorld(measuredAt.bone, f));
@@ -924,6 +936,7 @@ for (const limb of LIMBS) {
         ];
         world = boneNearest(measuredAt.bone, spot);
         provenance = `measured: ${measuredAt.between[0]} to ${measuredAt.between[1]} at ${measuredAt.at}`;
+        method = 'measured';
       }
       const snap = limb.snapSites?.[name];
       if (snap) {
@@ -934,6 +947,7 @@ for (const limb of LIMBS) {
           out.map((c) => c * snap.standoff),
         );
         provenance = `${name}, drawn in to ${(snap.standoff * 1000).toFixed(0)} mm from ${bone}`;
+        method = 'drawn-in';
       }
       rows.push({
         id: `${spec.unit}__via_${index}`,
@@ -941,6 +955,11 @@ for (const limb of LIMBS) {
         order: index,
         bone,
         site: provenance,
+        // A point measured on our bone owes the reference nothing but its name. One drawn in was
+        // carried first, and the carry is where its direction from the bone came from.
+        referenceModel: method === 'measured' ? null : upstreamPath(limb.model, 'chain'),
+        frame: method === 'measured' ? null : carrier.frame,
+        method,
         local: [
           round((world[0] - centroid[0]) / stature),
           round((world[1] - centroid[1]) / stature),
@@ -996,6 +1015,10 @@ for (const r of rows) {
     order: r.order,
     bone: left,
     site: r.site,
+    // The right side's file and frame: the left point is that one reflected, not a second carry.
+    referenceModel: r.referenceModel,
+    frame: r.frame,
+    method: r.method,
     local: [
       round((-world[0] - leftCentroid[0]) / stature),
       round((world[1] - leftCentroid[1]) / stature),
@@ -1006,12 +1029,12 @@ for (const r of rows) {
 if (asymmetry.length > 0) {
   throw new Error(
     `The dataset's two sides do not mirror to within ${SYMMETRY_TOLERANCE * 1000} mm, so the ` +
-      `left arm cannot be taken as this one reflected:\n  ${asymmetry.join('\n  ')}`,
+      `left side cannot be taken as the right reflected:\n  ${asymmetry.join('\n  ')}`,
   );
 }
 rows.push(...mirrored);
 console.error(
-  `  mirrored ${mirrored.length} point(s) onto the left arm; the two sides' bone centroids ` +
+  `  mirrored ${mirrored.length} point(s) onto the left side; the two sides' bone centroids ` +
     'agree to a reflection',
 );
 
@@ -1028,13 +1051,16 @@ const body = rows
     order: ${r.order},
     bone: '${r.bone}',
     referenceSite: '${r.site}',
+    referenceModel: ${r.referenceModel === null ? 'null' : `'${r.referenceModel}'`},
+    frame: ${r.frame === null ? 'null' : `'${r.frame}'`},
+    method: '${r.method}',
     local: [${r.local.join(', ')}],
   },`,
   )
   .join('\n');
 
 const rendered = `/**
- * Muscle via points, carried over from the reference model's frames into ours.
+ * Muscle via points, carried over from the reference models' frames into ours.
  *
  * **Generated by \`pnpm generate:via-points\`. Do not edit.**
  *
@@ -1045,13 +1071,20 @@ const rendered = `/**
  *
  * ## Why these are not simply transcribed
  *
- * The reference model states them in its own body frames, and a coordinate lifted from one frame
- * into another means nothing where it lands. So both models are asked for the same *anatomical*
- * construction instead -- the glenohumeral centre, the bone's long axis, the elbow's flexion axis,
- * which is the humerus frame the ISB defines (Wu 2005, 2.3.4) -- and the rotation between the two
- * answers is the disagreement between two conventions and nothing else. Lengths are scaled by the
- * ratio of the two bones, so a point a third of the way down one lands a third of the way down
- * the other.
+ * The reference models state them in their own body frames, and a coordinate lifted from one
+ * frame into another means nothing where it lands. So both models are asked for the same
+ * *anatomical* construction instead, one per bone group -- the joint at the bone's proximal end,
+ * its long axis, the axis of the joint at its far end, which for the upper arm is the humerus frame
+ * the ISB defines (Wu 2005, 2.3.4) -- and the rotation between the two answers is the disagreement
+ * between two conventions and nothing else. Lengths are scaled by the ratio of the two bones, so a
+ * point a third of the way down one lands a third of the way down the other.
+ *
+ * Not every point is carried. \`method\` says which: \`carried\` by the frame of the bone group
+ * \`frame\` names, from the file \`referenceModel\` names; \`measured\` on this skeleton's own
+ * bone where no carry can reach, with no reference file behind it; or \`drawn-in\`, carried and
+ * then moved along the same line to a set distance from our bone's surface. A site built from a
+ * point cites it by that, so a number taken from the reference says which file it came from and
+ * one that was not says so.
  *
  * The transforms were measured, not assumed. Bone for bone, reference against ours:
 ${measurements}
@@ -1059,9 +1092,9 @@ ${measurements}
  * Positions are a fraction of the subject's stature, as every other point in this package is, so
  * they scale with the morphology.
  *
- * ## The left arm
+ * ## The left side
  *
- * The reference model is a right arm, so the left side is this side reflected in the sagittal
+ * The reference models are right-sided, so the left side is the right reflected in the sagittal
  * plane. The generator checks the assumption that makes that valid -- every left bone's centroid
  * against its right one's reflection -- and refuses rather than mirroring onto a bone that is not
  * where its mirror would be.
@@ -1076,8 +1109,23 @@ export interface MuscleViaPoint {
   readonly order: number;
   /** The bone it is fixed to, and moves with. */
   readonly bone: string;
-  /** The reference model's own name for it, so the number can be traced back. */
+  /**
+   * The reference model's own name for it, so the number can be traced back -- or, for a point
+   * measured on our bone, the rule that measured it.
+   */
   readonly referenceSite: string;
+  /**
+   * The reference file it was carried from, as its path upstream; null for a point measured on our
+   * own bone. A left point names the right side's file, because it is that point reflected.
+   */
+  readonly referenceModel: string | null;
+  /** The bone group whose frame correspondence carried it; null for one measured on our bone. */
+  readonly frame: 'upper arm' | 'forearm' | 'thigh' | 'shank' | null;
+  /**
+   * How it was obtained: carried by a frame correspondence, measured on our own bone, or carried
+   * and then drawn in to a set distance from our bone's surface.
+   */
+  readonly method: 'carried' | 'measured' | 'drawn-in';
   /** Bone-local, as a fraction of stature. */
   readonly local: readonly [number, number, number];
 }
@@ -1123,11 +1171,11 @@ if (check) {
     process.exit(1);
   }
   console.log(
-    `generate-via-points: ok. ${rows.length} points match ${LIMBS.map((l) => l.chain).join(' and ')}.`,
+    `generate-via-points: ok. ${rows.length} points match ${LIMBS.map((l) => l.model.chain).join(' and ')}.`,
   );
 } else {
   writeFileSync(OUT, rendered);
   console.log(
-    `generate-via-points: wrote ${relative(ROOT, OUT)} -- ${rows.length} points from ${LIMBS.map((l) => l.chain).join(' and ')}.`,
+    `generate-via-points: wrote ${relative(ROOT, OUT)} -- ${rows.length} points from ${LIMBS.map((l) => l.model.chain).join(' and ')}.`,
   );
 }

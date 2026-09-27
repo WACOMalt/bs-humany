@@ -84,6 +84,12 @@ const UNITS = [
     name: 'Gluteus maximus, inferior part',
     origin: 'gluteus_maximus_origin_$_ischial_tuberosity',
     insertion: 'gluteus_maximus_insertion_$_gluteal_tuberosity',
+    // Not carried, and not on purpose: OQ-023 re-admitted this unit on 2026-09-16 without adding
+    // it to the via-point table, so it runs straight where the reference holds it with two via
+    // points and a wrap. Carrying them moves the goldens, which makes that a data change of its
+    // own rather than part of the guard that now makes the omission visible.
+    carried: false,
+    because: 'an omission: OQ-023 re-admitted it without adding glmax3 to the via-point table',
   },
   {
     actuator: 'glmed1_r',

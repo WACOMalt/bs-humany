@@ -48,6 +48,20 @@ const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts'),
 );
 
+/**
+ * Why none of the torso takes a carried via point.
+ *
+ * `generate:via-points` carries the arm's and the leg's, through frames built at their long bones,
+ * and the torso has no limb there: its reference points sit on vertebrae and ribs this skeleton
+ * holds as separate bones, which no one frame could carry. So what path a torso unit has is its
+ * own -- erector spinae's two points up the back, in `via` -- and each unit says so, which is what
+ * lets `renderGroups` refuse a unit that the via-point table has simply missed.
+ */
+const NOT_CARRIED = Object.freeze({
+  carried: false,
+  because: 'generate:via-points carries the limbs, and has no frame for the trunk',
+});
+
 /** Which actuator becomes which unit, and which of our attachment sites it binds to. */
 const UNITS = [
   {
@@ -66,6 +80,7 @@ const UNITS = [
       'erector_spinae_insertion_$_spinous_process_tip',
     ],
     insertion: 'erector_spinae_insertion_$_angle_of_rib',
+    ...NOT_CARRIED,
   },
   {
     actuator: 'rect_abd_$',
@@ -78,6 +93,7 @@ const UNITS = [
     name: 'Rectus abdominis',
     origin: 'rectus_abdominis_origin_$_pubic_crest',
     insertion: 'rectus_abdominis_insertion_$_xiphoid_tip',
+    ...NOT_CARRIED,
   },
   {
     actuator: 'extobl_$',
@@ -89,6 +105,7 @@ const UNITS = [
     name: 'External oblique',
     origin: 'external_oblique_origin_$_body_of_rib',
     insertion: 'external_oblique_insertion_$_pubic_tubercle',
+    ...NOT_CARRIED,
   },
   {
     actuator: 'intobl_$',
@@ -100,6 +117,7 @@ const UNITS = [
     name: 'Internal oblique',
     origin: 'internal_oblique_origin_$_anterior_superior_iliac_spine',
     insertion: 'internal_oblique_insertion_$_body_of_rib',
+    ...NOT_CARRIED,
   },
 ];
 

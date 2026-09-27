@@ -18,7 +18,14 @@
  * jaw's -- and why.
  */
 
-import { type AttachmentSiteDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
+import {
+  type AttachmentSiteDef,
+  type Citation,
+  cite,
+  mul,
+  param,
+  writeExtension,
+} from '@bs-humany/hsdl';
 import {
   type AttachmentRole,
   CARPAL_TUNNEL,
@@ -28,8 +35,9 @@ import {
   attachmentSiteId,
 } from './attachmentSiteId.js';
 import { DATASET_MANIFEST } from './dataset.js';
+import { ARM, LEG, dataset } from './jointHelpers.js';
 import { PROVENANCE_NS, locateFeature } from './landmarks.js';
-import { MUSCLE_VIA_POINTS } from './muscleViaPoints.js';
+import { MUSCLE_VIA_POINTS, type MuscleViaPoint } from './muscleViaPoints.js';
 
 /**
  * Where an attachment goes, and the provenance line that says how it was found.
@@ -1511,16 +1519,82 @@ export function buildAttachmentSites(): AttachmentSiteDef[] {
 }
 
 /**
+ * The reference files a carried via point may come from: the same two paths the joint tables cite,
+ * so a site and the joint it crosses name the model the same way.
+ */
+const CARRIED_FROM: ReadonlySet<string> = new Set([ARM, LEG]);
+
+/**
+ * What a via point's site cites, and how it says the point was located.
+ *
+ * It follows how the point was obtained, which the generator records rather than this guessing it.
+ * The citation used to say every point was carried from the arm's file into the humerus frame, and
+ * that was false for most of them: the leg's came from the leg's file by the thigh's and the
+ * shank's frames, and the patella's poles were never carried at all -- they are measured on our
+ * own patella, and the reference owes them nothing.
+ *
+ *   - `carried`: the reference model's file and site, and the bone group whose frame carried it.
+ *   - `measured`: the dataset, because the number is our bone's; `referenceSite` holds the rule.
+ *   - `drawn-in`: carried as above, then moved to a set distance from our bone's surface, which is
+ *     said, with the bone it is measured from.
+ */
+function viaPointProvenance(point: MuscleViaPoint): {
+  readonly source: Citation;
+  readonly locatedBy: string;
+} {
+  if (point.method === 'measured') {
+    return { source: dataset(point.referenceSite), locatedBy: point.referenceSite };
+  }
+  if (point.referenceModel === null || !CARRIED_FROM.has(point.referenceModel)) {
+    throw new Error(
+      `Via point '${point.id}' is ${point.method} but names '${point.referenceModel}', which is ` +
+        `not a reference file this package cites (${[...CARRIED_FROM].join(', ')}).`,
+    );
+  }
+  if (point.frame === null) {
+    throw new Error(
+      `Via point '${point.id}' is ${point.method} but names no frame that carried it.`,
+    );
+  }
+  const carried = `carried by the ${point.frame} frame correspondence in muscleViaPoints.ts`;
+  if (point.method === 'carried') {
+    return {
+      source: cite(
+        'caggiano2022',
+        `${point.referenceModel}, site ${point.referenceSite}, ${carried}`,
+      ),
+      locatedBy: `reference site ${point.referenceSite}, through the ${point.frame} frame`,
+    };
+  }
+  // The generator writes the reference's own site name and then how far it was drawn in, and names
+  // the right bone for both sides; the bone it is measured from here is the point's own.
+  const drawn = /^(.+), drawn in to (\d+(?:\.\d+)?) mm from \S+$/.exec(point.referenceSite);
+  if (!drawn) {
+    throw new Error(
+      `Via point '${point.id}' is drawn in, but its reference site '${point.referenceSite}' does ` +
+        'not say how far.',
+    );
+  }
+  const [, site, millimetres] = drawn;
+  const inTo = `drawn in to ${millimetres} mm from ${point.bone}`;
+  return {
+    source: cite('caggiano2022', `${point.referenceModel}, site ${site}, ${carried}, then ${inTo}`),
+    locatedBy: `reference site ${site}, through the ${point.frame} frame, then ${inTo}`,
+  };
+}
+
+/**
  * Via points, as attachment sites the muscle data can name.
  *
  * A muscle lies along the bones it passes rather than running straight between its attachments.
- * These are where it touches, carried over from the reference model by the frame construction in
- * `muscleViaPoints.ts` -- which is generated, so the numbers here are never typed by hand.
+ * These are where it touches, carried over from the reference models by the frame construction in
+ * `muscleViaPoints.ts`, or measured on our own bone where no carry reaches -- which is generated,
+ * so the numbers here are never typed by hand.
  *
- * Cited to the reference model rather than to Gray, because that is where they come from: Gray
- * says which bony features a muscle attaches to, and says nothing about where along a shaft a
- * tendon happens to lie. The sites this sits beside are the other way round -- Gray's anatomical
- * statement, located on this subject's markers.
+ * Cited to the reference model rather than to Gray where they come from it: Gray says which bony
+ * features a muscle attaches to, and says nothing about where along a shaft a tendon happens to
+ * lie. The sites this sits beside are the other way round -- Gray's anatomical statement, located
+ * on this subject's markers. `viaPointProvenance` says which citation each point gets.
  */
 export function buildMuscleViaPointSites(): AttachmentSiteDef[] {
   const centroids = new Map(DATASET_MANIFEST.bones.map((b) => [b.id, b.centroid]));
@@ -1529,27 +1603,26 @@ export function buildMuscleViaPointSites(): AttachmentSiteDef[] {
       throw new Error(`Via point '${point.id}' is on '${point.bone}', which is not packed.`);
     }
   }
-  return MUSCLE_VIA_POINTS.map((point) => ({
-    id: point.id,
-    bone: point.bone,
-    kind: 'tendon_via_point' as const,
-    displayName: `${point.unit}, via point ${point.order}`,
-    position: {
-      x: mul(point.local[0], param('stature')),
-      y: mul(point.local[1], param('stature')),
-      z: mul(point.local[2], param('stature')),
-    },
-    structure: point.unit,
-    source: cite(
-      'caggiano2022',
-      `myoarm_r_chain.xml, site ${point.referenceSite}, carried into this skeleton's humerus ` +
-        'frame by the construction in muscleViaPoints.ts',
-    ),
-    ext: writeExtension(undefined, PROVENANCE_NS, {
-      dataset: DATASET_MANIFEST.dataset.name,
-      datasetVersion: DATASET_MANIFEST.dataset.version,
-      sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
-      locatedBy: `reference site ${point.referenceSite}, through the humerus ISB frame`,
-    }),
-  }));
+  return MUSCLE_VIA_POINTS.map((point) => {
+    const { source, locatedBy } = viaPointProvenance(point);
+    return {
+      id: point.id,
+      bone: point.bone,
+      kind: 'tendon_via_point' as const,
+      displayName: `${point.unit}, via point ${point.order}`,
+      position: {
+        x: mul(point.local[0], param('stature')),
+        y: mul(point.local[1], param('stature')),
+        z: mul(point.local[2], param('stature')),
+      },
+      structure: point.unit,
+      source,
+      ext: writeExtension(undefined, PROVENANCE_NS, {
+        dataset: DATASET_MANIFEST.dataset.name,
+        datasetVersion: DATASET_MANIFEST.dataset.version,
+        sourceSha256: DATASET_MANIFEST.dataset.sourceSha256,
+        locatedBy,
+      }),
+    };
+  });
 }

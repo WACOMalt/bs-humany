@@ -37,15 +37,6 @@ const STAGES = ['generate:', 'measure:', 'validate:', 'audit:'];
 const FIRST = ['generate:via-points', 'measure:muscle-ranges', 'measure:source-travel'];
 
 /**
- * Generators whose script name predates the prefix convention. `extract:source-sites` writes
- * apps/studio/public/sourceSites.json from the vendored MyoSuite models and takes `--check` like
- * the rest; it is listed by name until it is renamed `generate:source-sites`, at which point the
- * prefix finds it and this entry goes -- orderedTargets refuses a name package.json does not
- * have, so the rename cannot silently drop it from the check.
- */
-const EXTRA = { 'extract:source-sites': 'generate:' };
-
-/**
  * The scripts to run, in dependency order.
  *
  * @param {Record<string, string>} scripts the root package.json `scripts` block
@@ -53,7 +44,7 @@ const EXTRA = { 'extract:source-sites': 'generate:' };
  */
 export function orderedTargets(scripts) {
   const names = Object.keys(scripts);
-  for (const name of [...FIRST, ...Object.keys(EXTRA)]) {
+  for (const name of FIRST) {
     if (!(name in scripts)) {
       throw new Error(
         `tools/cli/lib/targets.mjs names '${name}', which the root package.json has no script ` +
@@ -63,7 +54,7 @@ export function orderedTargets(scripts) {
   }
   const ordered = [];
   for (const stage of STAGES) {
-    const inStage = names.filter((name) => name.startsWith(stage) || EXTRA[name] === stage);
+    const inStage = names.filter((name) => name.startsWith(stage));
     const first = FIRST.filter((name) => inStage.includes(name));
     const rest = inStage.filter((name) => !first.includes(name)).sort();
     ordered.push(...first, ...rest);

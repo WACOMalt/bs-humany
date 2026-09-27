@@ -34,20 +34,18 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { MODELS, MYO_SIM } from '../../validate-external/src/models.mjs';
 
-const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-export const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
-export const ARM = {
-  muscle: 'myoarm_r_muscle.xml',
-  tendon: 'myoarm_r_tendon.xml',
-  chain: 'myoarm_r_chain.xml',
-};
-export const LEGS = {
-  muscle: 'myolegs_muscle.xml',
-  tendon: 'myolegs_tendon.xml',
-  chain: 'myolegs_chain.xml',
-};
+export { MYO_SIM };
+
+/**
+ * The models the generators read, under the names they have always used here. The file names are
+ * declared once, in `tools/validate-external/src/models.mjs`; these are those same entries, so a
+ * comparison by identity -- `renderGroups` asks `model === LEGS` -- still holds for a caller that
+ * imported either.
+ */
+export const ARM = MODELS.arm;
+export const LEGS = MODELS.legs;
 
 /**
  * The torso, which the reference splits in two.
@@ -58,16 +56,8 @@ export const LEGS = {
  * attaching to individual lumbar vertebrae -- far finer than anything here, and read only for the
  * two actuators the abdomen model leaves out.
  */
-export const TORSO = {
-  muscle: 'myotorso_abdomen_muscle.xml',
-  tendon: 'myotorso_abdomen_tendon.xml',
-  chain: 'myotorso_chain.xml',
-};
-export const TORSO_LUMBAR = {
-  muscle: 'myotorso_muscle.xml',
-  tendon: 'myotorso_tendon.xml',
-  chain: 'myotorso_chain.xml',
-};
+export const TORSO = MODELS.torso;
+export const TORSO_LUMBAR = MODELS.torso_lumbar;
 
 /**
  * How much of its own optimal fiber length a muscle typically travels over its joints' range.
@@ -216,6 +206,39 @@ export function referencePath(actuator, model = ARM) {
 }
 
 /**
+ * The via points `generate:via-points` carried for one unit, or none for a unit that says why.
+ *
+ * The two tables are joined by unit id and nothing else, and a join that misses used to be
+ * silent: a unit renamed in a region generator but not in the via-point table, or the other way
+ * round, found no points, took a straight chord from origin to insertion, and every check still
+ * passed. `VIA_PATH_DIRECTION` has an entry for every unit the via-point generator handled,
+ * including the ones it found no points for, so a unit missing from it is a unit the join missed.
+ *
+ * Some units take no carried points on purpose -- the reference has none for them, or has ones
+ * this skeleton does not trust. Each of those declares `carried: false` with the reason in
+ * `because`, which is what lets this tell a decision from a miss.
+ */
+function carriedPoints(unit, viaPointsFor, direction) {
+  if (unit.carried === false) {
+    if (typeof unit.because !== 'string' || unit.because.trim() === '') {
+      throw new Error(
+        `${unit.id} declares carried: false without saying why. Put the reason in 'because'.`,
+      );
+    }
+    return [];
+  }
+  if (direction?.[unit.id] === undefined) {
+    throw new Error(
+      `${unit.id} has no entry in VIA_PATH_DIRECTION, so generate:via-points carried nothing for ` +
+        'it and its path would silently lose every via point. If the unit was renamed, rename it ' +
+        'in generate-muscle-via-points.mjs too; if it deliberately takes none, say so with ' +
+        "carried: false and a reason in 'because'.",
+    );
+  }
+  return viaPointsFor(unit.id);
+}
+
+/**
  * The path elements for one unit: its via points, with the wrap where the reference puts it.
  *
  * A via point knows which reference site it came from, so its place in the reference path is a
@@ -224,7 +247,7 @@ export function referencePath(actuator, model = ARM) {
 export function pathElements(unit, viaPointsFor, direction, model = ARM) {
   const { elements, lastGeom } = referencePath(unit.actuator, model);
   const indexOf = (site) => elements.findIndex((e) => e.kind === 'site' && e.name === site);
-  const via = viaPointsFor(unit.id).map((p) => ({
+  const via = carriedPoints(unit, viaPointsFor, direction).map((p) => ({
     kind: 'site',
     id: p.id,
     at: indexOf(p.referenceSite),
