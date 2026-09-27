@@ -2,7 +2,7 @@
   "name": "bs-humany",
   "version": "0.2.0",
   "private": true,
-  "description": "Modular simulation framework for the human body. Phase 1: parametric articulated skeleton.",
+  "description": "Modular, anatomically grounded simulation framework for the human body",
   "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@9.15.2",
@@ -43,6 +43,7 @@
     "measure:source-travel": "node tools/cli/bin/measure-source-travel.mjs",
     "module:lint": "node tools/cli/bin/module-lint.mjs",
     "publish:pose": "node tools/cli/bin/publish-pose.mjs",
+    "regenerate": "node tools/cli/bin/regenerate.mjs",
     "sync:ref-meshes": "mkdir -p apps/studio/public/refMeshes && cp tools/validate-external/myo_sim/meshes/*.stl apps/studio/public/refMeshes/",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -52,7 +53,8 @@
     "train:where": "node tools/train/bin/where.mjs",
     "typecheck": "tsc --build --force",
     "validate:external": "node tools/cli/bin/external-validate.mjs",
-    "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs"
+    "validate:moment-arms": "node tools/cli/bin/validate-moment-arms.mjs",
+    "verify": "pnpm lint && pnpm typecheck && pnpm cite:lint && pnpm module:lint && pnpm check:generated && pnpm test && pnpm build:studio"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

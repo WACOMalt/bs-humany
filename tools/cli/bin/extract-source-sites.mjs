@@ -2,7 +2,8 @@
 /**
  * Where every muscle of the reference models runs, in that model's own world.
  *
- *   pnpm extract:source-sites        # rewrite apps/studio/public/sourceSites.json
+ *   pnpm extract:source-sites          # rewrite apps/studio/public/sourceSites.json
+ *   pnpm extract:source-sites --check  # fail if the file is not what this would write
  *
  * ## What this is for
  *
@@ -22,10 +23,21 @@
  *
  * Positions are read from the loaded model rather than composed out of the XML by hand, because
  * the body tree nests and MuJoCo already knows how. The pose is the model's own neutral.
+ *
+ * ## Checked like every other generated file
+ *
+ * The file is committed, so it can fall behind the vendored models the same way generated muscle
+ * data can fall behind its source; `pnpm check:generated` runs this with `--check` to catch it.
+ * The output goes through Biome before it is written or compared: the committed file is held to
+ * `pnpm lint`, and Biome lays JSON out differently from JSON.stringify, so formatting here makes a
+ * write lint-clean as it stands and lets the check compare the exact bytes a write would produce.
+ * A model that will not load fails the check outright rather than being left out of the
+ * comparison, since a check that skipped it would pass on a file it never reproduced.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
 import { MODELS, referenceArmXml } from '../../validate-external/src/referenceArm.mjs';
@@ -34,6 +46,7 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
 // Served rather than bundled: only the Align tab reads it, and it is a hundred kilobytes.
 const OUT = join(ROOT, 'apps/studio/public/sourceSites.json');
+const check = process.argv.includes('--check');
 
 /**
  * The torso, which `referenceArm.mjs` does not list because nothing needed it until now. It is
@@ -143,6 +156,7 @@ function meshesOf(spec) {
 
 const models = {};
 let total = 0;
+const unloaded = [];
 for (const [key, spec] of Object.entries(ALL)) {
   const wearing = meshesOf(spec);
   const stated = tendonsOf(spec.tendon);
@@ -166,6 +180,7 @@ for (const [key, spec] of Object.entries(ALL)) {
   } catch (error) {
     // A model that will not load standalone says so and is skipped rather than guessed at.
     console.log(`  ${key}: will not load on its own -- ${String(error).slice(0, 140)}`);
+    unloaded.push(key);
     continue;
   }
   const data = new mujoco.MjData(model);
@@ -266,5 +281,34 @@ for (const [key, spec] of Object.entries(ALL)) {
   );
 }
 
-writeFileSync(OUT, `${JSON.stringify({ format: 'bs-humany.source-sites/1', models }, null, 1)}\n`);
-console.log(`\n${total} muscles written to ${OUT.replace(ROOT, '')}`);
+const name = relative(ROOT, OUT);
+const formatted = spawnSync(
+  join(ROOT, 'node_modules/.bin/biome'),
+  ['format', `--stdin-file-path=${name}`],
+  {
+    cwd: ROOT,
+    input: `${JSON.stringify({ format: 'bs-humany.source-sites/1', models }, null, 1)}\n`,
+    encoding: 'utf8',
+    maxBuffer: 1 << 26,
+  },
+);
+if (formatted.status !== 0) {
+  console.error(`extract-source-sites: biome could not format the output:\n${formatted.stderr}`);
+  process.exit(1);
+}
+
+if (check) {
+  const committed = existsSync(OUT) ? readFileSync(OUT, 'utf8') : null;
+  if (unloaded.length > 0 || committed !== formatted.stdout) {
+    console.error(
+      `extract-source-sites: ${name} is not what the extraction would write` +
+        (unloaded.length > 0 ? ` (${unloaded.join(', ')} would not load)` : '') +
+        '.\n  Run `pnpm extract:source-sites`. If the vendored models changed, say so in the commit.',
+    );
+    process.exit(1);
+  }
+  console.log(`\nextract-source-sites: ok. ${total} muscles match the vendored models.`);
+} else {
+  writeFileSync(OUT, formatted.stdout);
+  console.log(`\n${total} muscles written to ${name}`);
+}
