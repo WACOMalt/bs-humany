@@ -113,12 +113,6 @@ function makeReport(notes: CompileNote[], segments: number, joints: number, nv: 
   } satisfies CompileReport;
 }
 
-/**
- * Compile one profile of a document at one morphology.
- *
- * The document is assumed valid (`assertValidDocument`); this function does not re-run the
- * validator, so cross-reference errors surface as exceptions with less helpful messages.
- */
 /** Hull vertices scaled by the proxy's expression, so a measured hull follows stature. */
 function convexHullShape(
   vertices: readonly Vec3[],
@@ -129,6 +123,12 @@ function convexHullShape(
   return { kind: 'convexHull', vertices: vertices.map((v) => vec3(v.x * s, v.y * s, v.z * s)) };
 }
 
+/**
+ * Compile one profile of a document at one morphology.
+ *
+ * The document is assumed valid (`assertValidDocument`); this function does not re-run the
+ * validator, so cross-reference errors surface as exceptions with less helpful messages.
+ */
 export function compileArticulation(
   document: HsdlDocument,
   profileId: string,
