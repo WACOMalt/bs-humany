@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_NOISE, StandRig, defaultRecipe, rigOptionsFor } from './rig.js';
+import { DEFAULT_NOISE, StandRig, defaultRecipe, rigOptionsFor, twitchSchedule } from './rig.js';
 
 describe('a training recipe', () => {
   it('turns into rig options, and the old flags into the reference recipe', () => {
@@ -266,4 +266,66 @@ describe('the rig, pinned', () => {
       }
     }, 180_000);
   }
+});
+
+describe('the feet the rig stands on', () => {
+  it('are found at L2, so an L2 body starts on the ground and stays up past the airborne grace', async () => {
+    // L2's root foot segment is `hindfoot_`, which the rig did not recognise as a foot: every
+    // L2 episode read as airborne from the first control step and ended at the 0.05 s grace
+    // with nothing scored, so no L2 policy could ever be trained.
+    const rig = await StandRig.build({
+      profileId: 'l2_biomechanical',
+      hidden: [8],
+      seconds: 1,
+      authority: 0.3,
+      feedforward: { kind: 'none' },
+    });
+    try {
+      const zero = new Float32Array(rig.parameterCount);
+      rig.begin(zero, 1);
+      rig.tick();
+      // Called with no time elapsed, so it advances neither clock: a look, not a step.
+      const look = rig as unknown as { standing(sinceLast: number): { grounded: boolean } };
+      expect(look.standing(0).grounded).toBe(true);
+      const result = rig.episode(zero, 1);
+      // Well past AIRBORNE_GRACE, and scored: time is only counted while a foot is down.
+      expect(result.aliveSeconds).toBeGreaterThan(0.2);
+      expect(result.fitness).toBeGreaterThan(0);
+    } finally {
+      rig.dispose();
+    }
+  }, 180_000);
+});
+
+describe('a task the rig does not score', () => {
+  it('is refused before anything is built, rather than scored as a stand', async () => {
+    await expect(
+      StandRig.build({
+        profileId: 'l1_standard',
+        hidden: [8],
+        seconds: 1,
+        authority: 0.3,
+        feedforward: { kind: 'none' },
+        task: 'stnad',
+      }),
+    ).rejects.toThrow('unknown task "stnad"; known tasks: stand, balance');
+  });
+});
+
+describe('the twitch', () => {
+  it('lands with time left to answer it, and the same seed gives the same twitch', () => {
+    for (const seed of [1, 2, 3, 17, 1000, 123456, 0xffffffff]) {
+      const { output, at } = twitchSchedule(seed, 70, 6);
+      expect(at).toBeGreaterThanOrEqual(0.5);
+      expect(at).toBeLessThan(5);
+      expect(Number.isInteger(output)).toBe(true);
+      expect(output).toBeGreaterThanOrEqual(0);
+      expect(output).toBeLessThan(70);
+      expect(twitchSchedule(seed, 70, 6)).toEqual({ output, at });
+    }
+    // An episode too short for the margin still gets its twitch after the first half second.
+    const short = twitchSchedule(5, 70, 1);
+    expect(short.at).toBeGreaterThanOrEqual(0.5);
+    expect(short.at).toBeLessThan(0.6);
+  });
 });

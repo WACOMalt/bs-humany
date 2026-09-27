@@ -12,9 +12,11 @@
  * init and restored at the start of every episode, so an episode costs its ticks and nothing
  * else.
  *
- * The reward is standing, on the feet: a point for every hundredth of a second the head is near
- * its resting height with a foot on the ground, a little for the pelvis staying level and where
- * it was, a little off for moving and for effort, and more off for moving up or down. The
+ * The reward is standing, on the feet: a point a second, counted each control step, while the
+ * head is near its resting height with a foot on the ground; a little for the whole body's
+ * centre of mass sitting over the midpoint of the two feet, a little for the pelvis staying
+ * level and where it was, a little off for moving and for effort, and more off for moving up or
+ * down (`standReward`; the balance task scores the head instead, in `balanceReward`). The
  * episode ends when the head leaves its band -- a fall, a crouch, or a jump -- or when the feet
  * have been off the ground for more than a moment, and nothing is scored while they are, so
  * leaving the ground can never be the way to stay up.
@@ -81,7 +83,7 @@ import {
   unitsNamedByClips,
 } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
-import { DEFAULT_NOISE, NO_REFLEX, type RigOptions } from './recipe.js';
+import { DEFAULT_NOISE, NO_REFLEX, type RigOptions, TASKS, type Task, isTask } from './recipe.js';
 
 // The recipe -- its types, its defaults, its limits and the rig options it turns into -- lives
 // in a module of its own that loads nothing that runs, so the dashboard and the studio's main
@@ -114,6 +116,59 @@ export interface EpisodeResult {
   readonly aliveSeconds: number;
 }
 
+/**
+ * This episode's twitch, from its seed: which output is pushed, and when, in seconds.
+ *
+ * Two draws from the seed's own stream, the output first and then the moment, which is the
+ * order `arm` has always drawn them in -- the same seed must give the same twitch as it did, or
+ * every recorded score stops being reproducible. The moment lands between half a second in and
+ * a second and a half before the end, so there is time to answer it; in an episode too short
+ * for that, it lands in the tenth of a second after the first half second.
+ */
+export function twitchSchedule(
+  seed: number,
+  outputs: number,
+  seconds: number,
+): { output: number; at: number } {
+  const random = seeded(seed);
+  const output = Math.floor(random() * outputs);
+  const at = 0.5 + random() * Math.max(0.1, seconds - 1.5);
+  return { output, at };
+}
+
+/**
+ * Everything `build` makes that the rig keeps, by name. One object rather than a long list of
+ * positional arguments, so that two of the same type -- the head and the pelvis, say -- cannot
+ * be passed in each other's places.
+ */
+interface StandRigParts {
+  readonly options: RigOptions;
+  readonly task: Task;
+  readonly kernel: Kernel;
+  readonly physics: PhysicsModule;
+  readonly articulation: CompiledArticulation;
+  readonly spine: SpinalModule;
+  readonly nerves: NervesModule;
+  readonly tremor: MotorNoiseModule;
+  readonly drive: MuscleTestDriveModule;
+  readonly clip: CompiledClip | undefined;
+  readonly scenario: Scenario | undefined;
+  readonly definition: ScenarioDefinition | undefined;
+  readonly scenery: StaticBox[];
+  readonly groundHeight: number;
+  readonly units: readonly string[];
+  readonly head: number;
+  readonly pelvis: number;
+  readonly rate: number;
+  readonly boneOrder: readonly string[];
+  readonly restContext: unknown;
+  readonly parents: readonly number[];
+  readonly segmentIds: readonly string[];
+  readonly volume: MuscleVolumeModule | undefined;
+  readonly maxForce: Float64Array;
+  readonly feet: { readonly left: Int32Array; readonly right: Int32Array };
+}
+
 export class StandRig {
   sizes: readonly number[] = [];
   inputNames: readonly string[] = [];
@@ -134,7 +189,7 @@ export class StandRig {
   /** The scenario's definition, to rebuild it with an episode's seed when it takes one. */
   private readonly definition: ScenarioDefinition | undefined;
   /** What the task scores: standing still and cheaply, or keeping the head still and level. */
-  private readonly task: string;
+  private readonly task: Task;
   private readonly units: readonly string[];
   private readonly snapshot: KernelSnapshot;
   private readonly dt: number;
@@ -166,6 +221,10 @@ export class StandRig {
   private readonly restHead: number;
   private readonly leftFeet: Int32Array;
   private readonly rightFeet: Int32Array;
+  /** The support base as `addFoot` sums it: the feet's origins along the floor, and how many. */
+  private baseX = 0;
+  private baseZ = 0;
+  private baseCount = 0;
   private readonly contacts: { count: number; pair: Int32Array; impulse: Float64Array };
   /** The body's mass distribution, for the centre of mass the support reward is measured from. */
   private readonly segmentMass: Float64Array;
@@ -176,54 +235,36 @@ export class StandRig {
   private linear: Float64Array;
   private activation: Float64Array;
 
-  private constructor(
-    options: RigOptions,
-    kernel: Kernel,
-    physics: PhysicsModule,
-    articulation: CompiledArticulation,
-    nerves: NervesModule,
-    drive: MuscleTestDriveModule,
-    clip: CompiledClip | undefined,
-    scenario: Scenario | undefined,
-    definition: ScenarioDefinition | undefined,
-    units: readonly string[],
-    head: number,
-    pelvis: number,
-    rate: number,
-    boneOrder: readonly string[],
-    restContext: unknown,
-    parents: readonly number[],
-    segmentIds: readonly string[],
-    volume: MuscleVolumeModule | undefined,
-    maxForce: Float64Array,
-    feet: { left: Int32Array; right: Int32Array },
-    tremor: MotorNoiseModule,
-  ) {
-    this.tremor = tremor;
-    this.leftFeet = feet.left;
-    this.rightFeet = feet.right;
-    this.volume = volume;
-    this.maxForce = maxForce;
-    this.boneOrder = boneOrder;
-    this.restContext = restContext;
-    this.parents = parents;
+  private constructor(parts: StandRigParts) {
+    const { options, kernel, nerves, segmentIds } = parts;
+    this.tremor = parts.tremor;
+    this.leftFeet = parts.feet.left;
+    this.rightFeet = parts.feet.right;
+    this.volume = parts.volume;
+    this.maxForce = parts.maxForce;
+    this.boneOrder = parts.boneOrder;
+    this.restContext = parts.restContext;
+    this.parents = parts.parents;
     this.segmentIds = segmentIds;
     this.options = options;
     this.kernel = kernel;
-    this.physics = physics;
-    this.articulation = articulation;
+    this.physics = parts.physics;
+    this.articulation = parts.articulation;
     this.angular = kernel.channels.storage(BODY_VELOCITY).fields.angular as Float64Array;
+    this.spine = parts.spine;
     this.nerves = nerves;
-    this.drive = drive;
-    this.clip = clip;
-    this.clipUnits = clip?.units ?? [];
-    this.scenario = scenario;
-    this.definition = definition;
-    this.task = options.task ?? 'stand';
-    this.units = units;
-    this.head = head;
-    this.pelvis = pelvis;
-    this.dt = 1 / rate;
+    this.drive = parts.drive;
+    this.clip = parts.clip;
+    this.clipUnits = parts.clip?.units ?? [];
+    this.scenario = parts.scenario;
+    this.definition = parts.definition;
+    this.scenery = parts.scenery;
+    this.groundHeight = parts.groundHeight;
+    this.task = parts.task;
+    this.units = parts.units;
+    this.head = parts.head;
+    this.pelvis = parts.pelvis;
+    this.dt = 1 / parts.rate;
     this.sizes = nerves.policy.sizes;
     // The policy's own names, not the body's: with memory these carry the context units too,
     // and a checkpoint saved without them would not fit back onto the body that made it.
@@ -245,6 +286,7 @@ export class StandRig {
     // Segment masses and their local centres, for the whole body's centre of mass: the quantity
     // balance is actually about, and the one the reward needs if it is to tell a body leaning
     // from a body already gone.
+    const articulation = parts.articulation;
     this.segmentMass = Float64Array.from(articulation.segments, (seg) => seg.mass);
     this.segmentCom = new Float64Array(3 * articulation.segments.length);
     for (const seg of articulation.segments) {
@@ -287,6 +329,12 @@ export class StandRig {
   }
 
   static async build(options: RigOptions): Promise<StandRig> {
+    // Refused before anything is built. The rig used to score anything that was not 'balance'
+    // as a stand, so a typo in a task trained a stand under another name.
+    const task = options.task ?? 'stand';
+    if (!isTask(task)) {
+      throw new Error(`unknown task "${task}"; known tasks: ${TASKS.join(', ')}`);
+    }
     const document = buildDocument();
     const profile = document.segmentation.find((p) => p.id === options.profileId);
     if (!profile) throw new Error(`No profile '${options.profileId}'.`);
@@ -309,6 +357,21 @@ export class StandRig {
       scenario?.clearance ?? 0,
       groundHeight,
     );
+    const soles = feetOf(articulation);
+    // A body with no foot found cannot be scored: `standing` would read it as airborne from the
+    // first control step, and every episode would end at the grace with nothing learned. That
+    // is what L2 did before the feet were found by their bone; it is refused now, and before
+    // the kernel is built, rather than trained.
+    for (const [side, list] of [
+      ['left', soles.left],
+      ['right', soles.right],
+    ] as const) {
+      if (list.length === 0) {
+        throw new Error(
+          `profile ${options.profileId} has no ${side} foot: the stand/balance tasks cannot be scored`,
+        );
+      }
+    }
     const rate = profile.solver?.rate ?? 500;
     const kernel = new Kernel({ rateHz: rate, seed: 1, preferShared: false });
     const backend = new MujocoBackend();
@@ -388,44 +451,39 @@ export class StandRig {
       if (!clip) throw new Error(`No activation clip '${options.feedforward.clip}'.`);
     }
     const index = new Map(articulation.segments.map((s) => [s.id, s.index]));
-    const soles = feetOf(articulation);
     const feet = {
       left: Int32Array.from(soles.left, (id) => index.get(id) ?? -1).filter((i) => i >= 0),
       right: Int32Array.from(soles.right, (id) => index.get(id) ?? -1).filter((i) => i >= 0),
     };
-    const built = new StandRig(
+    return new StandRig({
       options,
+      task,
       kernel,
       physics,
       articulation,
+      spine,
       nerves,
+      tremor,
       drive,
       clip,
       scenario,
       definition,
-      muscles.units.map((u) => u.id),
-      index.get('head') ?? 0,
-      index.get('pelvis') ?? 0,
+      scenery: [...(scenario?.staticBoxes ?? [])],
+      groundHeight,
+      units: muscles.units.map((u) => u.id),
+      head: index.get('head') ?? 0,
+      pelvis: index.get('pelvis') ?? 0,
       rate,
       boneOrder,
-      morphology.context,
-      articulation.segments.map((seg) => seg.parent),
-      articulation.segments.map((seg) => seg.id),
+      restContext: morphology.context,
+      parents: articulation.segments.map((seg) => seg.parent),
+      segmentIds: articulation.segments.map((seg) => seg.id),
       volume,
-      Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce),
+      maxForce: Float64Array.from(muscles.units, (u) => u.parameters.maxIsometricForce),
       feet,
-      tremor,
-    );
-    built.spine = spine;
-    built.scenery = [...(scenario?.staticBoxes ?? [])];
-    built.groundHeight = groundHeight;
-    return built;
+    });
   }
 
-  /**
-   * Whether the body is standing as of now: the head within its band of the resting height,
-   * and a foot on the ground -- or the feet only just off it.
-   */
   /**
    * How well the body is over its own feet, from 0 to 1.
    *
@@ -436,10 +494,12 @@ export class StandRig {
    * rank transform is ranking noise -- there is nothing in the score that says one of them
    * nearly stood and the other went straight over.
    *
-   * The support point is the mean of whichever foot segments are actually carrying load, so a
-   * body up on one foot is measured against that foot rather than against the pair. The margin
-   * is scaled by a quarter of a metre, which is about a foot's length: at the edge of the base
-   * the term is near zero, and well inside it is near one.
+   * The support point is the unweighted mean of every foot segment's origin, both feet, loaded
+   * or not. Contact does not enter into it, so a body standing on one leg, or with all its
+   * weight shifted onto one foot, is scored against the midpoint of the two feet rather than
+   * against the foot it is actually on. The margin is scaled by a quarter of a metre, which is
+   * about a foot's length: at the edge of the base the term is near zero, and well inside it is
+   * near one.
    */
   private overFeet(): number {
     let mx = 0;
@@ -467,25 +527,38 @@ export class StandRig {
     const comX = mx / this.totalMass;
     const comZ = mz / this.totalMass;
 
-    // The base: the feet that are bearing something, or both feet when nothing reads as loaded.
-    let sx = 0;
-    let sz = 0;
-    let count = 0;
-    const loaded = (list: Int32Array): void => {
-      for (let k = 0; k < list.length; k++) {
-        const i = list[k] as number;
-        sx += this.position[3 * i] as number;
-        sz += this.position[3 * i + 2] as number;
-        count += 1;
-      }
-    };
-    loaded(this.leftFeet);
-    loaded(this.rightFeet);
-    if (count === 0) return 0;
-    const dx = comX - sx / count;
-    const dz = comZ - sz / count;
+    // The base: every segment of both feet, left then right, whether it is on the ground or not.
+    this.baseX = 0;
+    this.baseZ = 0;
+    this.baseCount = 0;
+    this.addFoot(this.leftFeet);
+    this.addFoot(this.rightFeet);
+    if (this.baseCount === 0) return 0;
+    const dx = comX - this.baseX / this.baseCount;
+    const dz = comZ - this.baseZ / this.baseCount;
     return 1 - Math.min(1, Math.sqrt(dx * dx + dz * dz) / 0.25);
   }
+
+  /**
+   * Add one foot's segment origins, along the floor, to the support base `overFeet` is summing.
+   * A method writing into fields rather than a closure over locals, so a control step makes no
+   * function object.
+   */
+  private addFoot(list: Int32Array): void {
+    for (let k = 0; k < list.length; k++) {
+      const i = list[k] as number;
+      this.baseX += this.position[3 * i] as number;
+      this.baseZ += this.position[3 * i + 2] as number;
+      this.baseCount += 1;
+    }
+  }
+
+  /**
+   * Whether the body is standing as of now: the head within its band of the resting height,
+   * and a foot on the ground -- or the feet only just off it -- with the head allowed out of
+   * its band for the recovery grace. `sinceLast` is the time since the last call, which the
+   * airborne and out-of-band clocks advance by.
+   */
 
   private standing(sinceLast: number): {
     headHeight: number;
@@ -539,15 +612,16 @@ export class StandRig {
   }
 
   /** The cord in this rig, for a probe or a panel that wants to see what the reflexes do. */
-  spine: SpinalModule | undefined;
+  readonly spine: SpinalModule;
 
   /**
    * The scenario's scenery, where the solver has it now: what a showcase publishes so a viewer
-   * following this run draws the floor the body is actually standing on.
+   * following this run draws the floor the body is actually standing on. The array is fixed;
+   * its boxes are replaced as the scenario moves them.
    */
-  scenery: StaticBox[] = [];
+  readonly scenery: StaticBox[];
   /** Where the ground plane sits, which a scenario may lower or raise. */
-  groundHeight = 0;
+  readonly groundHeight: number;
 
   /** The excitation on every muscle as it stands, for measuring what the cord contributes. */
   get excitation(): Float64Array {
@@ -614,6 +688,10 @@ export class StandRig {
    * Run one episode step by step under a caller's pacing: `begin` restores the start with the
    * weights, `tick` advances one tick with the clip playing, and says whether the body is
    * still up.
+   *
+   * It is also the one reset: `episode` begins through it too, so the tick-by-tick run a
+   * showcase plays and the scored run the trainer makes start from the same state, with the
+   * same disturbance armed and the same clocks at zero.
    */
   begin(weights: Float32Array, seed = 0): void {
     this.nerves.policy.weights.set(weights);
@@ -623,6 +701,7 @@ export class StandRig {
     this.arm(seed);
     this.live = 0;
     this.airborne = 0;
+    this.outOfBand = 0;
   }
 
   /**
@@ -639,10 +718,10 @@ export class StandRig {
    * lying senses, and the difference in their scores is the difference in their weights.
    */
   private arm(seed: number): void {
-    const random = seeded(seed);
     this.reseedScenario(seed);
-    this.twitchOutput = Math.floor(random() * this.nerves.outputs.length);
-    this.twitchAt = 0.5 + random() * Math.max(0.1, this.options.seconds - 1.5);
+    const twitch = twitchSchedule(seed, this.nerves.outputs.length, this.options.seconds);
+    this.twitchOutput = twitch.output;
+    this.twitchAt = twitch.at;
     // Distinct constants, so the tremor and the senses are never the same stream as each other
     // or as the twitch, and never the same stream twice for two different seeds.
     this.tremor.reseed(0x9e3779b9 ^ (seed >>> 0));
@@ -694,18 +773,10 @@ export class StandRig {
 
   /** Run one episode with these weights, from the start, and score it. */
   episode(weights: Float32Array, seed: number): EpisodeResult {
-    const policy = this.nerves.policy;
-    policy.weights.set(weights);
-    this.kernel.restore(this.snapshot);
-    this.nerves.forget();
-    for (const unit of this.units) this.drive.setOverride(unit, null, 'script');
-    this.arm(seed);
-
-    const ticks = Math.round(this.options.seconds / this.dt);
+    this.begin(weights, seed);
     this.startX = this.position[3 * this.pelvis] as number;
     this.startZ = this.position[3 * this.pelvis + 2] as number;
-    this.airborne = 0;
-    this.outOfBand = 0;
+    const ticks = Math.round(this.options.seconds / this.dt);
     const every = this.nerves.divisor;
     const stepSeconds = every * this.dt;
     let fitness = 0;
@@ -722,69 +793,90 @@ export class StandRig {
         // Off the ground, within the grace: still up, but there is nothing to score.
         if (!grounded || !inBand) continue;
         alive = time;
-        const p = this.pelvis;
-        // Level: the pelvis's up axis against the world's, from its quaternion.
-        const qx = this.orientation[4 * p] as number;
-        const qz = this.orientation[4 * p + 2] as number;
-        const upY = 1 - 2 * (qx * qx + qz * qz);
-        const vx = this.linear[3 * p] as number;
-        const vy = this.linear[3 * p + 1] as number;
-        const vz = this.linear[3 * p + 2] as number;
-        // Along the floor, capped: a sway. Up or down, uncapped: a jump or a drop, which is
-        // never standing however long the head stays in its band.
-        const speed = Math.sqrt(vx * vx + vz * vz);
-        const vertical = Math.abs(vy);
-        let effort = 0;
-        for (let u = 0; u < this.activation.length; u++) effort += this.activation[u] as number;
-        effort /= this.activation.length;
-        // Where the pelvis has gone from where it started, along the floor: standing still is
-        // standing here, and drifting off is the start of a fall the head has not shown yet.
-        const px = this.position[3 * p] as number;
-        const pz = this.position[3 * p + 2] as number;
-        const drift = Math.sqrt((px - this.startX) ** 2 + (pz - this.startZ) ** 2);
         // Where the mass sits over the feet. Added to both tasks, because both are standing.
         const support = this.overFeet();
-        if (this.task === 'balance') {
-          // The head: how fast it moves and turns, and how level it is. A point a step for
-          // being up, most of it lost to a head that is thrown about, a little to effort, so a
-          // body that rides the floor out with its head still scores and one that holds a
-          // posture and topples does not.
-          const h = this.head;
-          const hv = Math.sqrt(
-            (this.linear[3 * h] as number) ** 2 +
-              (this.linear[3 * h + 1] as number) ** 2 +
-              (this.linear[3 * h + 2] as number) ** 2,
-          );
-          const hw = Math.sqrt(
-            (this.angular[3 * h] as number) ** 2 +
-              (this.angular[3 * h + 1] as number) ** 2 +
-              (this.angular[3 * h + 2] as number) ** 2,
-          );
-          const hx = this.orientation[4 * h] as number;
-          const hz = this.orientation[4 * h + 2] as number;
-          const headUp = 1 - 2 * (hx * hx + hz * hz);
-          fitness +=
-            stepSeconds *
-            (1 +
-              0.5 * Math.max(0, headUp) +
-              0.5 * support -
-              Math.min(1, hv / 0.5) -
-              Math.min(1, hw / 2) -
-              0.25 * effort);
-        } else {
-          fitness +=
-            stepSeconds *
-            (1 +
-              0.5 * Math.max(0, upY) +
-              0.5 * support +
-              0.5 * (1 - Math.min(1, drift / 0.25)) -
-              0.5 * Math.min(1, speed) -
-              vertical -
-              0.5 * effort);
-        }
+        fitness +=
+          this.task === 'balance'
+            ? this.balanceReward(stepSeconds, this.effort(), support)
+            : this.standReward(stepSeconds, this.effort(), support);
       }
     }
     return { fitness, aliveSeconds: alive };
+  }
+
+  /** The mean activation over every muscle unit, 0 to 1: what standing is costing. */
+  private effort(): number {
+    let effort = 0;
+    for (let u = 0; u < this.activation.length; u++) effort += this.activation[u] as number;
+    effort /= this.activation.length;
+    return effort;
+  }
+
+  /**
+   * One control step of standing, scored: a point a second for being up, more for the pelvis
+   * level, the mass over the feet and the pelvis where it started; less for swaying, for
+   * effort, and above all for moving up or down.
+   */
+  private standReward(stepSeconds: number, effort: number, support: number): number {
+    const p = this.pelvis;
+    // Level: the pelvis's up axis against the world's, from its quaternion.
+    const qx = this.orientation[4 * p] as number;
+    const qz = this.orientation[4 * p + 2] as number;
+    const upY = 1 - 2 * (qx * qx + qz * qz);
+    const vx = this.linear[3 * p] as number;
+    const vy = this.linear[3 * p + 1] as number;
+    const vz = this.linear[3 * p + 2] as number;
+    // Along the floor, capped: a sway. Up or down, uncapped: a jump or a drop, which is never
+    // standing however long the head stays in its band.
+    const speed = Math.sqrt(vx * vx + vz * vz);
+    const vertical = Math.abs(vy);
+    // Where the pelvis has gone from where it started, along the floor: standing still is
+    // standing here, and drifting off is the start of a fall the head has not shown yet.
+    const px = this.position[3 * p] as number;
+    const pz = this.position[3 * p + 2] as number;
+    const drift = Math.sqrt((px - this.startX) ** 2 + (pz - this.startZ) ** 2);
+    return (
+      stepSeconds *
+      (1 +
+        0.5 * Math.max(0, upY) +
+        0.5 * support +
+        0.5 * (1 - Math.min(1, drift / 0.25)) -
+        0.5 * Math.min(1, speed) -
+        vertical -
+        0.5 * effort)
+    );
+  }
+
+  /**
+   * One control step of balancing, scored on the head: how fast it moves and turns, and how
+   * level it is. A point a second for being up, most of it lost to a head that is thrown about,
+   * a little to effort, so a body that rides the floor out with its head still scores and one
+   * that holds a posture and topples does not.
+   */
+  private balanceReward(stepSeconds: number, effort: number, support: number): number {
+    const h = this.head;
+    const hv = Math.sqrt(
+      (this.linear[3 * h] as number) ** 2 +
+        (this.linear[3 * h + 1] as number) ** 2 +
+        (this.linear[3 * h + 2] as number) ** 2,
+    );
+    const hw = Math.sqrt(
+      (this.angular[3 * h] as number) ** 2 +
+        (this.angular[3 * h + 1] as number) ** 2 +
+        (this.angular[3 * h + 2] as number) ** 2,
+    );
+    const hx = this.orientation[4 * h] as number;
+    const hz = this.orientation[4 * h + 2] as number;
+    const headUp = 1 - 2 * (hx * hx + hz * hz);
+    return (
+      stepSeconds *
+      (1 +
+        0.5 * Math.max(0, headUp) +
+        0.5 * support -
+        Math.min(1, hv / 0.5) -
+        Math.min(1, hw / 2) -
+        0.25 * effort)
+    );
   }
 
   dispose(): void {
