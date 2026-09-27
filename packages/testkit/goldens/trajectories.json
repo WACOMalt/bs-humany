@@ -1,71 +1,71 @@
 {
   "arm-flail/l3_anatomical/mujoco": {
-    "hash": "d26950ee94018ef3",
+    "hash": "f10bd88c9b943bce",
     "ticks": 8000,
     "platform": "linux-x64"
   },
   "clip-flail-arms/l3_anatomical/mujoco": {
-    "hash": "0592abac85a3222d",
+    "hash": "211b8e7fe5c0775a",
     "ticks": 8000,
     "platform": "linux-x64"
   },
   "clip-quiet-standing/l3_anatomical/mujoco": {
-    "hash": "e2f2099e3c7a070a",
+    "hash": "05d91e067c969302",
     "ticks": 6000,
     "platform": "linux-x64"
   },
   "clip-walk-normal/l3_anatomical/mujoco": {
-    "hash": "a9afff85429458d0",
+    "hash": "5c893e6d8552d980",
     "ticks": 6000,
     "platform": "linux-x64"
   },
   "drop-prone/l1_standard/mujoco": {
-    "hash": "e13bc1ea8ecc7f22",
+    "hash": "81896c1e7be48c37",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-standing-collapse/l1_standard/mujoco": {
-    "hash": "d5857f186affb6e7",
+    "hash": "bf5570bce1a3e19b",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "drop-supine/l1_standard/mujoco": {
-    "hash": "86b22a0d45836af8",
+    "hash": "f2c0e6fc974d66e9",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "grab-and-swing/l1_standard/mujoco": {
-    "hash": "e46e31ae447acdb6",
+    "hash": "8628af31a52f28e1",
     "ticks": 2000,
     "platform": "linux-x64"
   },
   "hang-from-wrist/l1_standard/mujoco": {
-    "hash": "c68f2caa047b3250",
+    "hash": "2d97dc7b87704a4b",
     "ticks": 3000,
     "platform": "linux-x64"
   },
   "muscle-range-of-motion/l3_anatomical/mujoco": {
-    "hash": "18f58071a7aacb8e",
+    "hash": "936d4019045114fb",
     "ticks": 14000,
     "platform": "linux-x64"
   },
   "quiet-standing/l3_anatomical/mujoco": {
-    "hash": "56cdbe69c0821a4a",
+    "hash": "37ec62ef0fb370ca",
     "ticks": 3000,
     "platform": "linux-x64"
   },
   "seated-on-box/l1_standard/mujoco": {
-    "hash": "763f522ac220636f",
+    "hash": "877d39d1de583bb0",
     "ticks": 1500,
     "platform": "linux-x64"
   },
   "skull-wiggle/l3_anatomical/mujoco": {
-    "hash": "a4bbd5d74a67e8e8",
+    "hash": "20860abbacca09c3",
     "ticks": 4000,
     "platform": "linux-x64"
   },
   "stairs-tumble/l1_standard/mujoco": {
-    "hash": "15de3f489f0ab733",
+    "hash": "273ad994558d0240",
     "ticks": 2000,
     "platform": "linux-x64"
   }
