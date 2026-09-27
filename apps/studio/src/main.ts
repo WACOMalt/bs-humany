@@ -749,7 +749,7 @@ function aimAtBody(out: Vector3): number {
   }
   const sim = simulation;
   if (sim && !heldAtRest()) {
-    const replay = following ? undefined : replayFrame(sim);
+    const replay = atLiveEdge ? undefined : replayFrame(sim);
     const live = sim.channel('body.pose').fields;
     const pose = replay
       ? segmentPosesFrom(sim, replay)
@@ -1285,7 +1285,7 @@ function setPlaybackControls(running: boolean): void {
   const frames = capturedFrames();
   ui.playToggle.disabled = frames <= 1;
   ui.playToggle.textContent = playback.playing ? 'Pause' : 'Play';
-  ui.frameBack.disabled = frames <= 0 || (following ? frames <= 1 : playback.frame < 1);
+  ui.frameBack.disabled = frames <= 0 || (atLiveEdge ? frames <= 1 : playback.frame < 1);
   ui.frameForward.disabled = !running;
   // What ▶ does at the end of the recording depends on whether the recording is still being
   // taken, and its title is where somebody hovering to find out would look.
@@ -1295,7 +1295,7 @@ function setPlaybackControls(running: boolean): void {
         'without computing (Right)'
       : 'One output frame on; at the end of the recording, computes one (Right)';
   if (ui.frameForward.title !== title) ui.frameForward.title = title;
-  ui.goLive.disabled = !running || following;
+  ui.goLive.disabled = !running || atLiveEdge;
 }
 
 /**
@@ -1788,7 +1788,7 @@ function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], ca
       console.warn('DoFs without a counterpart, left at neutral:', unmatched);
   }
   simulation = sim;
-  following = true;
+  atLiveEdge = true;
   playback.rewind();
   overlays = createOverlays(sim.articulation, {
     musclePolylineCapacity: sim.musclePath?.compileReport.polylineCapacity,
@@ -1824,15 +1824,18 @@ function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], ca
 }
 
 /**
- * The playhead, and whether it is following the newest frame or sitting somewhere behind it.
+ * The playhead, and whether it is at the live edge -- on the newest frame, moving with it -- or
+ * sitting somewhere behind it.
  *
- * `following` is the whole of the mode: true and the picture is the live simulation, false and it
+ * `atLiveEdge` is the whole of the mode: true and the picture is the live simulation, false and it
  * is a frame read back out of the recording. Scrubbing, stepping and playing all set it false and
  * pause the simulation, because the playhead being somewhere the run has already been is exactly
- * what "not live" means.
+ * what "not live" means. It was called `following`, the word the page also uses for following the
+ * bridge, which is another thing altogether: the headset's status still says `following` for that
+ * one, and `live` for this.
  */
 const playback = new Playback();
-let following = true;
+let atLiveEdge = true;
 
 /** Output frames the recording holds, which is what the playhead counts in. */
 function capturedFrames(): number {
@@ -1842,11 +1845,11 @@ function capturedFrames(): number {
 
 /**
  * The frame on screen, which every control that moves relative to it starts from: the newest
- * while following, the playhead otherwise. See `Playback.at` for why `playback.frame` alone is
+ * at the live edge, the playhead otherwise. See `Playback.at` for why `playback.frame` alone is
  * not it.
  */
 function playheadFrame(): number {
-  return playback.at(capturedFrames(), following);
+  return playback.at(capturedFrames(), atLiveEdge);
 }
 
 /**
@@ -1879,7 +1882,7 @@ function scrubTo(frame: number): void {
   const frames = capturedFrames();
   if (frames <= 0) return;
   releaseMouseGrab(simulation);
-  following = false;
+  atLiveEdge = false;
   playback.playing = false;
   simulation.paused = true;
   playback.frame = Math.min(Math.max(frame, 0), frames - 1);
@@ -1968,10 +1971,10 @@ function stoppedHere(sim: Simulation): string | undefined {
   return undefined;
 }
 
-/** Back to the newest frame, and following it again. */
+/** Back to the newest frame, and moving with it again. */
 function goLive(): void {
   if (!simulation) return;
-  following = true;
+  atLiveEdge = true;
   playback.playing = false;
   playback.frame = Math.max(0, capturedFrames() - 1);
   applyOverlayVisibility();
@@ -2000,7 +2003,7 @@ function updateTimeline(sim: Simulation): void {
   const fps = Math.max(1, sim.outputFramerate);
   const seconds =
     Playback.runTickOf(frame, sim.capture.firstTick, sim.ticksPerOutputFrame) * sim.dt;
-  const edge = !following
+  const edge = !atLiveEdge
     ? ''
     : captureAtLiveEdge(sim)
       ? ' · live'
@@ -2014,7 +2017,7 @@ function updateTimeline(sim: Simulation): void {
     frames === 0
       ? ''
       : `${frames} frames recorded at ${fps} fps, ${(frames / fps).toFixed(2)} s` +
-          (following ? '.' : ' — the simulation is paused while the playhead is behind it.'),
+          (atLiveEdge ? '.' : ' — the simulation is paused while the playhead is behind it.'),
   );
   setPlaybackControls(true);
 }
@@ -2041,7 +2044,7 @@ ui.playToggle.addEventListener('click', (event) => {
     // was last left, which after going live and running on was nowhere in particular.
     const from = playheadFrame();
     releaseMouseGrab(simulation);
-    following = false;
+    atLiveEdge = false;
     simulation.paused = true;
     playback.frame = from >= capturedFrames() - 1 ? 0 : from;
     playback.playing = true;
@@ -2106,7 +2109,7 @@ function applyOverlayVisibility(): void {
   // Held at rest for the Align tab, the bones are drawn at rest and every overlay drawn from the
   // run's pose would stand somewhere else, so all of those go too.
   const held = heldAtRest();
-  const live = following && !held;
+  const live = atLiveEdge && !held;
   overlays.proxies.visible = ui.showProxies.checked && !held;
   overlays.axes.visible = ui.showAxes.checked && live;
   overlays.com.visible = ui.showCom.checked && live;
@@ -2927,7 +2930,7 @@ function pause(): void {
  * is of the run going again rather than half of it from before the pause.
  */
 function resume(): void {
-  if (!simulation || (!simulation.paused && following)) return;
+  if (!simulation || (!simulation.paused && atLiveEdge)) return;
   simulation.paused = false;
   simulation.resetRateWindow();
   goLive();
@@ -2958,7 +2961,7 @@ ui.simStart.addEventListener('click', (event) => {
   blurAfterMouse(event);
   // Paused mid-run, or scrubbed back into it: carry on from the newest frame rather than
   // throwing the run away. Anything else starts a fresh one with the settings as they stand.
-  if (simulation && (simulation.paused || !following)) {
+  if (simulation && (simulation.paused || !atLiveEdge)) {
     resume();
     return;
   }
@@ -2997,7 +3000,7 @@ renderer.domElement.addEventListener('contextmenu', (event) => {
  * then all at once; scrubbed back, it would pull the live body from a pose that is not on screen.
  */
 function canReach(): boolean {
-  return simulation !== null && !simulation.paused && following && !bridgeFollower.active;
+  return simulation !== null && !simulation.paused && atLiveEdge && !bridgeFollower.active;
 }
 // The cursor says whether a press will reach into the scene or move around it.
 const setReachCursor = (reaching: boolean) => {
@@ -3582,9 +3585,9 @@ function beginGrab(event: PointerEvent): boolean {
   // Claimed, so the camera does not take the drag either, and said why: a Ctrl-drag that did
   // nothing at all read as grabbing being broken. Not resumed on the person's behalf -- they
   // paused or scrubbed for a reason, and a pull is not a request to throw that away.
-  if (simulation.paused || !following) {
+  if (simulation.paused || !atLiveEdge) {
     announce(
-      following
+      atLiveEdge
         ? 'Paused: resume (Space) to pull the body.'
         : 'Scrubbed back: go live and resume to pull the body.',
     );
@@ -3672,7 +3675,7 @@ function animate(): void {
   drawNerves(simulation ?? undefined);
   // The cord under it, for a run of this page's own at the live edge only: its drive is a tick
   // wide and nothing records it.
-  drawSpine(simulation ?? undefined, following && !bridgeFollower.active);
+  drawSpine(simulation ?? undefined, atLiveEdge && !bridgeFollower.active);
   // Scenery that moves -- a platform tilting under the body -- drawn where the solver has it.
   if (simulation) followFurniture(simulation);
   if (bridgeFollower.active) followFrame();
@@ -3719,7 +3722,7 @@ function frameFailed(sim: Simulation, error: unknown): void {
 /** One frame of a run: advance or replay it, draw it, and update everything that reads it. */
 function runFrame(simulation: Simulation, skinned: SkinnedSkeleton, elapsed: number): void {
   const frameSeconds = Math.min(elapsed, 250) / 1000;
-  if (following) {
+  if (atLiveEdge) {
     // The elapsed time is measurement only: what the frame advances is one output frame's worth
     // of simulated time, whatever the clock says.
     try {
@@ -3735,7 +3738,7 @@ function runFrame(simulation: Simulation, skinned: SkinnedSkeleton, elapsed: num
     playback.advance(frameSeconds, simulation.outputFramerate, capturedFrames());
     if (!playback.playing) setRunControls(true);
   }
-  const replay = following ? undefined : replayFrame(simulation);
+  const replay = atLiveEdge ? undefined : replayFrame(simulation);
   const transforms = replay ?? simulation.boneTransforms();
   // Off the live edge, the segment poses the overlays draw from are the replayed bones': a
   // segment's frame is its anchor bone's, so the discs, the cartilage and the proxies follow
@@ -3791,7 +3794,7 @@ function runFrame(simulation: Simulation, skinned: SkinnedSkeleton, elapsed: num
       muscles: replay ? replayedMuscles(simulation) : muscleOverlay(simulation),
     });
   }
-  updateDiagnostics(simulation, following);
+  updateDiagnostics(simulation, atLiveEdge);
   updateTimeline(simulation);
   must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
   const capture = simulation.capture;
@@ -4208,7 +4211,7 @@ const vrHost = {
       grabStrength: Number(ui.grabStrength.value),
       diagnostics: sim ? diagnosticsOf(sim) : {},
       // No run at all reads as paused: the panel's Resume is then Start Sim.
-      paused: !sim || sim.paused || !following,
+      paused: !sim || sim.paused || !atLiveEdge,
       mode: bridgeFollower.active ? 'following' : !sim ? 'rest' : sim.paused ? 'paused' : 'running',
       overlays: {
         muscles: ui.showMuscles.checked,
@@ -4241,12 +4244,12 @@ const vrHost = {
       controls: CONTROL_RANGES,
       // Relaxed off the live edge, as the desktop draws a replayed belly: tension is not recorded,
       // and the newest tick's would tint a frame it does not belong to.
-      tension: sim && following ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],
+      tension: sim && atLiveEdge ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],
       tissue: sim ? tissueForBridge(sim) : { discs: [], bars: [] },
       brain: brain.state(),
       recordedSeconds: sim ? recordedSeconds(sim) : 0,
       playing: playback.playing,
-      live: following,
+      live: atLiveEdge,
     };
   },
   command(command: VrCommand): void {
