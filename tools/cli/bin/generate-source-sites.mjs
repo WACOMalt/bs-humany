@@ -32,26 +32,28 @@
  * would write by deep equality. Biome lays JSON out differently from JSON.stringify, and a check
  * of the exact bytes made the check hostage to the formatter's version -- a Biome upgrade that
  * moved one bracket would have failed CI on a file whose every number was right. A write still
- * leaves the file as Biome would, because the committed file is held to `pnpm lint`: it is written
- * as JSON and then formatted in place.
+ * leaves the file as Biome would, because the committed file is held to `pnpm lint`: the JSON is
+ * put through Biome on its way to the file.
  *
  * A model that will not load fails the check outright rather than being left out of the
  * comparison, since a check that skipped it would pass on a file it never reproduced.
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { createJiti } from 'jiti';
 import { MODELS, MYO_SIM } from '../../validate-external/src/models.mjs';
 import { referenceArmXml } from '../../validate-external/src/referenceArm.mjs';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 // Served rather than bundled: only the Align tab reads it, and it is a hundred kilobytes.
 const OUT = join(ROOT, 'apps/studio/public/sourceSites.json');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-source-sites');
 
 /**
  * The models the Align tab offers, under the names it shows them by.
@@ -257,35 +259,53 @@ for (const [key, spec] of Object.entries(ALL)) {
 }
 
 const name = relative(ROOT, OUT);
-const fresh = { format: 'bs-humany.source-sites/1', models };
+const json = `${JSON.stringify({ format: 'bs-humany.source-sites/1', models }, null, 1)}\n`;
 
-if (check) {
-  // By value: a model that loaded writes numbers, and the committed file is those numbers laid out
-  // however the formatter last left them. The round trip through JSON is what a write does to the
-  // fresh object -- an undefined field dropped, a -0 written as 0 -- so the two are compared as the
-  // same kind of thing.
-  const committed = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
-  const expected = JSON.parse(JSON.stringify(fresh));
-  if (unloaded.length > 0 || !isDeepStrictEqual(committed, expected)) {
-    console.error(
-      `generate-source-sites: ${name} is not what the extraction would write` +
-        (unloaded.length > 0 ? ` (${unloaded.join(', ')} would not load)` : '') +
-        '.\n  Run `pnpm generate:source-sites`. If the vendored models changed, say so in the commit.',
-    );
-    process.exit(1);
-  }
-  console.log(`\ngenerate-source-sites: ok. ${total} muscles match the vendored models.`);
-} else {
-  writeFileSync(OUT, `${JSON.stringify(fresh, null, 1)}\n`);
-  // Laid out as `pnpm lint` wants it, in place. The formatter is the repository's own, so the
-  // committed file stays whatever Biome would leave, and a failure here is a failure of the write.
-  const formatted = spawnSync(join(ROOT, 'node_modules/.bin/biome'), ['format', '--write', name], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  });
-  if (formatted.status !== 0) {
-    console.error(`generate-source-sites: biome could not format ${name}:\n${formatted.stderr}`);
-    process.exit(1);
-  }
-  console.log(`\n${total} muscles written to ${name}`);
+if (check && unloaded.length > 0) {
+  console.error(
+    `generate-source-sites: ${unloaded.join(', ')} would not load, so ${name} cannot be what ` +
+      'the extraction would write. Run `pnpm generate:source-sites` once they load.',
+  );
+  process.exit(1);
 }
+
+/** The JSON laid out as `pnpm lint` wants it, by the repository's own formatter. */
+function formatted(text) {
+  const run = spawnSync(
+    join(ROOT, 'node_modules/.bin/biome'),
+    ['format', `--stdin-file-path=${name}`],
+    { cwd: ROOT, encoding: 'utf8', input: text },
+  );
+  if (run.status !== 0) {
+    console.error(`generate-source-sites: biome could not format ${name}:\n${run.stderr}`);
+    process.exit(1);
+  }
+  return run.stdout;
+}
+
+/**
+ * By value: a model that loaded writes numbers, and the committed file is those numbers laid out
+ * however the formatter last left them. Parsing the fresh text too is what a write does to the
+ * object -- an undefined field dropped, a -0 written as 0 -- so the two are compared as the same
+ * kind of thing. A committed file that is not JSON at all is simply not current.
+ */
+function sameData(committed, text) {
+  if (committed === undefined) return false;
+  try {
+    return isDeepStrictEqual(JSON.parse(committed), JSON.parse(text));
+  } catch {
+    return false;
+  }
+}
+
+emitOrCheck({
+  name: 'generate-source-sites',
+  script: 'generate:source-sites',
+  out: OUT,
+  // Formatted only when it is written: the check compares data, so it has no need of the layout,
+  // and a write leaves the file as Biome would because the committed file is held to `pnpm lint`.
+  text: check ? json : formatted(json),
+  check,
+  summary: `${total} muscles from the vendored models`,
+  same: sameData,
+});

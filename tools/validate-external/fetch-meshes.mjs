@@ -21,10 +21,11 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { cliFlags } from '../cli/lib/args.mjs';
 import { MYO_SIM_COMMIT as COMMIT, MODELS, MYO_SIM } from './src/models.mjs';
 
 const MESHES = join(MYO_SIM, 'meshes');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('fetch-meshes');
 
 /** Git's blob id for these bytes: `sha1("blob <length>\0" + content)`. */
 const blobId = (bytes) =>

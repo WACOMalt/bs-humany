@@ -70,10 +70,11 @@ import {
   REFERENCE_FOREARM_AT_OUR_NEUTRAL,
   loadReference,
 } from '../../validate-external/src/referenceArm.mjs';
+import { cliFlags } from '../lib/args.mjs';
 import { reportIsCurrent } from '../lib/report.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const check = process.argv.includes('--check');
+const { check } = cliFlags('validate-moment-arms');
 
 /**
  * How far our model may sit from the reference's before it has to be explained, metres.

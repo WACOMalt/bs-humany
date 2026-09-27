@@ -79,13 +79,15 @@
  * bottom. `ridgeAttachments.ts` measures both portions off the mesh: 14 mm above the elbow and 65.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 import {
   ARM,
   TYPICAL_NORMALISED_TRAVEL,
+  actuatorFor,
   readActuators,
   renderGroups,
   requirePhysical,
@@ -94,7 +96,7 @@ import {
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/forearm.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-forearm-muscles');
 
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
@@ -196,13 +198,7 @@ const UNITS = [
 function render() {
   const actuators = readActuators(ARM);
   const units = sided(UNITS).map((unit) => {
-    const parameters = actuators.get(unit.actuator);
-    if (parameters === undefined) {
-      throw new Error(
-        `${ARM.muscle} has no actuator named '${unit.actuator}'. The vendored commit may have ` +
-          'moved; check tools/validate-external/README.md before changing this mapping.',
-      );
-    }
+    const parameters = actuatorFor(actuators, unit.actuator, ARM);
     // Only the ones that state an operating range can have their two lengths checked against each
     // other; for the rest there is no second statement to disagree with the first.
     if (parameters.architecture === 'stated') requirePhysical(unit.actuator, parameters, ARM);
@@ -297,27 +293,11 @@ export const FOREARM_UNITS = FOREARM_MUSCLES.flatMap((group) => group.units);
 `;
 }
 
-const rendered = render();
-const existing = (() => {
-  try {
-    return readFileSync(OUT, 'utf8');
-  } catch {
-    return undefined;
-  }
-})();
-
-if (check) {
-  if (existing !== rendered) {
-    console.error(
-      `generate-forearm-muscles: ${relative(ROOT, OUT)} is not what the generator would write.\n` +
-        '  Run `pnpm generate:forearm-muscles`. If the vendored model changed, say so in the commit.',
-    );
-    process.exit(1);
-  }
-  console.log(`generate-forearm-muscles: ok. ${sided(UNITS).length} units match ${ARM.muscle}.`);
-} else {
-  writeFileSync(OUT, rendered);
-  console.log(
-    `generate-forearm-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${ARM.muscle}.`,
-  );
-}
+emitOrCheck({
+  name: 'generate-forearm-muscles',
+  script: 'generate:forearm-muscles',
+  out: OUT,
+  text: render(),
+  check,
+  summary: `${sided(UNITS).length} units from ${ARM.muscle}`,
+});

@@ -36,7 +36,16 @@ import { hullGroupKey } from '../../../packages/skeleton/src/hullKey.js';
 import { SEGMENTATION_PROFILES } from '../../../packages/skeleton/src/segmentation.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const dataDir = resolve(process.argv[2] ?? join(HERE, '../../../packages/assets-anatomical/data'));
+// The one argument is a data directory, and nothing that looks like a flag is one: `hulls --check`
+// used to resolve `--check` as a directory and die with ENOENT reading a manifest from it. A
+// leading `--` is pnpm's, passed through.
+const args = process.argv.slice(2).filter((a) => a !== '--');
+const stray = args.find((a) => a.startsWith('-'));
+if (stray !== undefined) {
+  console.error(`hulls: no such option ${stray}; usage: hulls [dataDir]`);
+  process.exit(2);
+}
+const dataDir = resolve(args[0] ?? join(HERE, '../../../packages/assets-anatomical/data'));
 const python = process.env.COACD_PYTHON ?? 'python3';
 
 /** Pieces allowed per large and per small bone in a group, and the cap for a group. */

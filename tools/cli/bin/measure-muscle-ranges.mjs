@@ -54,10 +54,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/ranges.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('measure-muscle-ranges');
 
 /** Angles sampled across each coordinate's range, ends included. */
 const SAMPLES = 9;

@@ -43,13 +43,15 @@
  * set reached for the three muscles whose carried points were worse than none.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 import {
   ARM,
   TYPICAL_NORMALISED_TRAVEL,
+  actuatorFor,
   readActuators,
   renderGroups,
   sided,
@@ -57,7 +59,7 @@ import {
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/hand.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-hand-muscles');
 
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION } = await jiti.import(
@@ -251,13 +253,7 @@ function render() {
   const units = sided(UNITS).map((unit) => {
     // The reference model's arm is a right arm and names its actuators for it, so both of ours
     // read the same one.
-    const parameters = actuators.get(unit.actuator);
-    if (parameters === undefined) {
-      throw new Error(
-        `${ARM.muscle} has no actuator named '${unit.actuator}'. The vendored commit may have ` +
-          'moved; check tools/validate-external/README.md before changing this mapping.',
-      );
-    }
+    const parameters = actuatorFor(actuators, unit.actuator, ARM);
     // The file emits one citation, the stand-in's, and it would be false on an actuator that
     // states its operating range. None does at the vendored commit; if one ever does, it gets the
     // forearm's treatment -- `requirePhysical` and a citation of its own -- rather than this one.
@@ -361,27 +357,11 @@ export const HAND_UNITS = HAND_MUSCLES.flatMap((group) => group.units);
 `;
 }
 
-const rendered = render();
-const existing = (() => {
-  try {
-    return readFileSync(OUT, 'utf8');
-  } catch {
-    return undefined;
-  }
-})();
-
-if (check) {
-  if (existing !== rendered) {
-    console.error(
-      `generate-hand-muscles: ${relative(ROOT, OUT)} is not what the generator would write.\n` +
-        '  Run `pnpm generate:hand-muscles`. If the vendored model changed, say so in the commit.',
-    );
-    process.exit(1);
-  }
-  console.log(`generate-hand-muscles: ok. ${sided(UNITS).length} units match ${ARM.muscle}.`);
-} else {
-  writeFileSync(OUT, rendered);
-  console.log(
-    `generate-hand-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${ARM.muscle}.`,
-  );
-}
+emitOrCheck({
+  name: 'generate-hand-muscles',
+  script: 'generate:hand-muscles',
+  out: OUT,
+  text: render(),
+  check,
+  summary: `${sided(UNITS).length} units from ${ARM.muscle}`,
+});

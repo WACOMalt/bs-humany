@@ -26,6 +26,16 @@
 import { DERIVED_RULES, RIB_RULES, ribArc } from './derived.js';
 import { DataDir, emit, loadPack, stageArgs } from './packData.js';
 
+// `--check` is the only flag. Anything else that looks like one used to fall through to a write:
+// `derived-from-pack --chek` was not a check but a re-measure that rewrote the committed file, and a
+// single-dash typo was taken for the data directory. A leading `--` is pnpm's, passed through.
+const stray = process.argv.slice(2).find((a) => a.startsWith('-') && a !== '--' && a !== '--check');
+if (stray !== undefined) {
+  console.error(
+    `derived-from-pack: no such option ${stray}; usage: derived-from-pack [dataDir] [--check]`,
+  );
+  process.exit(2);
+}
 const { dataDir, check } = stageArgs();
 const data = new DataDir(dataDir);
 const { meshOf, landmarks } = loadPack(data);

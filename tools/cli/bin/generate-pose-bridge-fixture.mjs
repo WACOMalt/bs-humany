@@ -22,15 +22,17 @@
  * a silent default.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT_DIR = join(ROOT, 'apps/xr-viewer/fixtures');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-pose-bridge-fixture');
 
 const jiti = createJiti(import.meta.url);
 const { openPoseBridge, openMuscleBridge } = await jiti.import(
@@ -106,30 +108,26 @@ function writeRings(path) {
   muscles.close();
 }
 
-if (check) {
-  const dir = mkdtempSync(join(tmpdir(), 'pose-bridge-fixture-'));
-  try {
-    writeAll(dir);
-    for (const name of FILES) {
-      const fresh = readFileSync(join(dir, name));
-      const committed = readFileSync(join(OUT_DIR, name));
-      if (!fresh.equals(committed)) {
-        console.error(
-          `generate-pose-bridge-fixture: ${relative(ROOT, join(OUT_DIR, name))} is not what the ` +
-            'generator would write.\n  Run `pnpm generate:pose-bridge-fixture`. If the layout ' +
-            'or the status changed, the Rust reader and its test change with it.',
-        );
-        process.exit(1);
-      }
-    }
-    console.log('generate-pose-bridge-fixture: ok.');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-} else {
-  mkdirSync(OUT_DIR, { recursive: true });
-  writeAll(OUT_DIR);
-  console.log(
-    `generate-pose-bridge-fixture: wrote ${FILES.join(', ')} in ${relative(ROOT, OUT_DIR)}.`,
-  );
+// The bridge writers write to a path rather than return bytes, so everything is written into a
+// scratch directory first and read back; the fixtures then go through the same emit or check as
+// every other generated file. The scratch directory is gone before anything is compared, because a
+// failed check exits on the spot.
+const scratch = mkdtempSync(join(tmpdir(), 'pose-bridge-fixture-'));
+let fresh;
+try {
+  writeAll(scratch);
+  fresh = FILES.map((name) => [name, readFileSync(join(scratch, name))]);
+} finally {
+  rmSync(scratch, { recursive: true, force: true });
+}
+// A fixture that has moved means the layout or the status changed, and the Rust reader and its
+// test change with it.
+for (const [name, bytes] of fresh) {
+  emitOrCheck({
+    name: 'generate-pose-bridge-fixture',
+    script: 'generate:pose-bridge-fixture',
+    out: join(OUT_DIR, name),
+    text: bytes,
+    check,
+  });
 }

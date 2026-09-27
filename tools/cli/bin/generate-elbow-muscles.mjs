@@ -28,15 +28,23 @@
  * missing value. What it costs is recorded as OQ-014.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { ARM, readActuators, renderGroups, requirePhysical, sided } from '../lib/myoSuite.mjs';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
+import {
+  ARM,
+  actuatorFor,
+  readActuators,
+  renderGroups,
+  requirePhysical,
+  sided,
+} from '../lib/myoSuite.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/elbow.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-elbow-muscles');
 
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
@@ -132,13 +140,7 @@ const UNITS = [
 function render() {
   const actuators = readActuators();
   const units = sided(UNITS).map((unit) => {
-    const parameters = actuators.get(unit.actuator);
-    if (parameters === undefined) {
-      throw new Error(
-        `${ARM.muscle} has no actuator named '${unit.actuator}'. The vendored commit may have ` +
-          'moved; check tools/validate-external/README.md before changing this mapping.',
-      );
-    }
+    const parameters = actuatorFor(actuators, unit.actuator, ARM);
     requirePhysical(unit.actuator, parameters);
     return {
       ...unit,
@@ -234,27 +236,11 @@ export const ELBOW_UNITS = ELBOW_MUSCLES.flatMap((group) => group.units);
 `;
 }
 
-const rendered = render();
-const existing = (() => {
-  try {
-    return readFileSync(OUT, 'utf8');
-  } catch {
-    return undefined;
-  }
-})();
-
-if (check) {
-  if (existing !== rendered) {
-    console.error(
-      `generate-elbow-muscles: ${relative(ROOT, OUT)} is not what the generator would write.\n` +
-        '  Run `pnpm generate:elbow-muscles`. If the vendored model changed, say so in the commit.',
-    );
-    process.exit(1);
-  }
-  console.log(`generate-elbow-muscles: ok. ${sided(UNITS).length} units match ${ARM.muscle}.`);
-} else {
-  writeFileSync(OUT, rendered);
-  console.log(
-    `generate-elbow-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${ARM.muscle}.`,
-  );
-}
+emitOrCheck({
+  name: 'generate-elbow-muscles',
+  script: 'generate:elbow-muscles',
+  out: OUT,
+  text: render(),
+  check,
+  summary: `${sided(UNITS).length} units from ${ARM.muscle}`,
+});
