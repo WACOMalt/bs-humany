@@ -867,6 +867,9 @@ standing. Until then the scenario stands for a second and says so in its own des
 **Status:** open — a cord now exists (ADR-014) but is off by default in the studio and does not by
 itself hold standing; the joint-state route through `ScenarioApi` is untried. The muscle loads are
 right.
+**Status, 2026-09-27:** `SpinalModule` and the `nerves-stand` scenario (the quiet-standing clip
+under the trained standing policy) now exist, but `quiet-standing`'s own script still has only
+the ankle loop. The cord's delay and gains are themselves chosen, not sourced: OQ-031.
 
 ### OQ-025 — The intercostals have no source for what they can pull with
 **Needed for:** muscles between the ribs, which the rib cage has none of
@@ -981,4 +984,27 @@ is second at 1.82.
 operating range (the same want as OQ-022), or the foot gets a frame correspondence of its own so
 the travel these muscles are measured over is the travel they really have (OQ-021). Either would
 be checked the same way: a silent body's toes should rest near neutral, not on a stop.
+**Status:** open.
+
+### OQ-031 — The cord's delay and gains are chosen, not sourced
+**Needed for:** `packages/modules-nerves/src/spinalModule.ts` (`SPINAL_CONDUCTION_DELAY_S`,
+`MEASURED_SPINAL_GAINS`), and every recipe that trains over the cord
+**Provisional value:** a conduction delay of 0.03 s, the same for every reflex group, and the
+other six numbers of `SpinalGains` as `docs/validation/reflex-gains.md` measured or left them,
+by time upright in the trainer's rig.
+
+None of the seven comes from a source. The delay is the order of a short-latency
+stretch reflex in the leg, and it is what every table in reflex-gains.md was measured at, but no
+primary source for that latency is in the bibliography, and a real cord's delay grows with the
+length of the pathway where this one is the same for a calf and a neck. The gains are not
+physiological quantities at all: they are measured for what they do to this body, under this
+policy, at this delay, on a cord that averages each group over both sides (ADR-014, noted
+2026-09-27). So they are defensible as measurements of this simulation and not as claims about a
+person, and the Golgi pair, which no measurement exercises, is not even that.
+
+**Closes when:** the delay cites a primary measurement of short-latency stretch-reflex latency
+in the human leg -- and, once the cord is per side and per unit, a latency per pathway from
+conduction velocity and path length, as spec section 14.1 describes -- and the gains are
+remeasured on that cord. The citation goes beside `SPINAL_CONDUCTION_DELAY_S`, never inside
+`SpinalGains`, which every checkpoint saves.
 **Status:** open.

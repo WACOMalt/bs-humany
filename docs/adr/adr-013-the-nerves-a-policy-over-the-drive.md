@@ -79,6 +79,8 @@ head-mounted vestibular sense or an efference copy, and when evolution strategie
 enough and a gradient method on a learned model takes over. Each is a training run away, and
 none changes the module's contract.
 
+The vestibular sense and the spinal layer were decided in ADR-014 (see the note below).
+
 ## Note, 2026-09-26 — what has since been decided and built
 
 This note points forward and changes nothing above.

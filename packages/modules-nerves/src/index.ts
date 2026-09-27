@@ -36,8 +36,11 @@ export {
 } from './nervesModule.js';
 export {
   DEFAULT_SPINAL_GAINS,
+  MEASURED_SPINAL_GAINS,
   type ReflexGroup,
+  SPINAL_CONDUCTION_DELAY_S,
   SPINAL_MODULE_ID,
+  SPINAL_OFF,
   SpinalModule,
   type SpinalGains,
   type SpinalOptions,

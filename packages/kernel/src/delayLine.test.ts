@@ -7,8 +7,7 @@ describe('DelayLine', () => {
     for (let t = 0; t < 20; t++) line.push([t, t * 10]);
     const out = new Float64Array(2);
     for (let k = 0; k <= 5; k++) {
-      const r = line.read(k, out);
-      expect(r.available).toBe(k);
+      expect(line.read(k, out)).toBe(k);
       expect(Array.from(out)).toEqual([19 - k, (19 - k) * 10]);
     }
   });
@@ -27,15 +26,15 @@ describe('DelayLine', () => {
 
   it('delivers the oldest available value before it has filled, and says so', () => {
     // A reflex at t = 0 has nothing to react to. The earliest known value avoids a transient from
-    // zeros, and `available` lets the caller know the delay is not yet the one it asked for.
+    // zeros, and the delay the read returns lets the caller know it is not yet the one it asked
+    // for.
     const line = new DelayLine(1, 10);
-    const out = new Float64Array(1);
-    expect(line.read(4, out).available).toBe(-1);
+    const out = new Float64Array([3]);
+    expect(line.read(4, out)).toBe(-1);
+    expect(out[0], 'a line nothing has been pushed into reads as zeros').toBe(0);
     line.push([7]);
     line.push([8]);
-    const r = line.read(4, out);
-    expect(r.requested).toBe(4);
-    expect(r.available).toBe(1);
+    expect(line.read(4, out)).toBe(1);
     expect(out[0]).toBe(7);
   });
 
@@ -97,6 +96,6 @@ describe('DelayLine', () => {
     line.reset();
     expect(line.filled).toBe(0);
     const out = new Float64Array(1);
-    expect(line.read(0, out).available).toBe(-1);
+    expect(line.read(0, out)).toBe(-1);
   });
 });

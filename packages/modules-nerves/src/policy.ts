@@ -12,6 +12,7 @@
  */
 
 import type { BodyFingerprint } from './bodyFingerprint.js';
+import type { SpinalGains } from './spinalModule.js';
 
 export interface PolicyFile {
   readonly format: 'bs-humany.policy/1';
@@ -82,16 +83,12 @@ export interface PolicyFile {
     /**
      * The cord it was trained over. A policy brought up on a body that answered its own stretch
      * is not the same controller on a body that does not, so the gains travel with it.
+     *
+     * The spinal module's own gains by name, where this used to spell the same seven fields out
+     * again: a copy that agrees today is one that can stop agreeing without anything saying so.
+     * The JSON is the same shape either way, so every checkpoint already written still loads.
      */
-    readonly reflex?: {
-      readonly stretch: number;
-      readonly velocity: number;
-      readonly setPoint: number;
-      readonly inhibition: number;
-      readonly forceCeiling: number;
-      readonly forceInhibition: number;
-      readonly delaySeconds: number;
-    };
+    readonly reflex?: SpinalGains;
     /** Context units it carried between control steps; also readable from its drive names. */
     readonly memory?: number;
   };
