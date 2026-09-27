@@ -101,6 +101,11 @@ export function bellyProfile(t: number): number {
  * So a belly that fits in no clear stretch keeps the middle. That is honest rather than a failure:
  * brachialis is nine tenths of its own path, and a muscle that long against its bones does lie
  * over the elbow.
+ *
+ * It runs for every muscle on every sweep, so it walks the crossings where they lie rather than
+ * building a list of bounds or a closure to test them with (CONTRIBUTING rule 9).
+ *
+ * @stepPath
  */
 export function bellyPlacement(
   total: number,
@@ -109,19 +114,28 @@ export function bellyPlacement(
 ): number {
   const centred = (total - belly) / 2;
   if (!crossings || crossings.length === 0 || belly >= total) return centred;
-  const straddles = (start: number) =>
-    crossings.some((f) => f * total > start && f * total < start + belly);
-  if (!straddles(centred)) return centred;
+  // Does the centred belly lie across a joint? If not, it stays exactly where it is.
+  let straddles = false;
+  for (let i = 0; i < crossings.length; i++) {
+    const f = crossings[i] as number;
+    if (f * total > centred && f * total < centred + belly) {
+      straddles = true;
+      break;
+    }
+  }
+  if (!straddles) return centred;
 
   // The stretches of path between one joint and the next, with the path's own ends as the outer
-  // bounds. A belly goes in whichever of them it fits in with the least moving; if it fits in none
-  // it stays where it was, which is the honest answer for a muscle that is most of its own path.
-  const bounds = [0, ...crossings.map((f) => f * total), total];
+  // bounds: stretch `i` runs from crossing `i - 1` to crossing `i`, and the first and last start
+  // and end at the path's ends. A belly goes in whichever of them it fits in with the least
+  // moving; if it fits in none it stays where it was, which is the honest answer for a muscle that
+  // is most of its own path.
+  const n = crossings.length;
   let best = centred;
   let move = Number.POSITIVE_INFINITY;
-  for (let i = 1; i < bounds.length; i++) {
-    const low = bounds[i - 1] as number;
-    const high = bounds[i] as number;
+  for (let i = 0; i <= n; i++) {
+    const low = i === 0 ? 0 : (crossings[i - 1] as number) * total;
+    const high = i === n ? total : (crossings[i] as number) * total;
     if (high - low < belly) continue;
     const start = Math.min(Math.max(centred, low), high - belly);
     if (Math.abs(start - centred) < move) {
@@ -203,13 +217,20 @@ export function lengthForAspect(volume: number, aspect = MAX_WIDTH_OVER_LENGTH):
  *
  * What a belly may grow into. A muscle lies along a bone and stops at the joints either end of it,
  * so this is how much bone there is to lie along.
+ *
+ * Walked by index, the way `bellyPlacement` walks the same stretches, because it too runs for
+ * every muscle on every sweep.
+ *
+ * @stepPath
  */
 export function clearStretch(total: number, crossings: readonly number[] | undefined): number {
   if (!crossings || crossings.length === 0) return total;
-  const bounds = [0, ...crossings.map((f) => f * total), total];
+  const n = crossings.length;
   let widest = 0;
-  for (let i = 1; i < bounds.length; i++) {
-    const span = (bounds[i] as number) - (bounds[i - 1] as number);
+  for (let i = 0; i <= n; i++) {
+    const low = i === 0 ? 0 : (crossings[i - 1] as number) * total;
+    const high = i === n ? total : (crossings[i] as number) * total;
+    const span = high - low;
     if (span > widest) widest = span;
   }
   return widest;
@@ -422,6 +443,8 @@ const EPSILON = 1e-12;
  * previous ring's, projected back square to the new tangent. Rebuilding a frame from a fixed
  * world axis instead would make the mesh spin about its own centre wherever the path turned
  * through vertical, which reads as the muscle twisting when only the camera moved.
+ *
+ * @stepPath
  */
 export function sweepMuscle(request: SweepRequest, scratch: SweepScratch, out: SweptMesh): void {
   const { points, from, pointCount, volume, tendonRadius } = request;

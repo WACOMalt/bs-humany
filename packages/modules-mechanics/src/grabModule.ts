@@ -211,17 +211,24 @@ export class GrabModule implements SimModule {
   }
 
   private publish(): void {
-    if (!this.active || !this.segmentOut || !this.pointOut || !this.targetOut) return;
-    this.slots.forEach((s, i) => {
-      (this.active as Uint8Array)[i] = s.handle ? 1 : 0;
-      (this.segmentOut as Int32Array)[i] = s.segment;
-      (this.pointOut as Float64Array)[3 * i] = s.point.x;
-      (this.pointOut as Float64Array)[3 * i + 1] = s.point.y;
-      (this.pointOut as Float64Array)[3 * i + 2] = s.point.z;
-      (this.targetOut as Float64Array)[3 * i] = s.target.x;
-      (this.targetOut as Float64Array)[3 * i + 1] = s.target.y;
-      (this.targetOut as Float64Array)[3 * i + 2] = s.target.z;
-    });
+    const active = this.active;
+    const segmentOut = this.segmentOut;
+    const pointOut = this.pointOut;
+    const targetOut = this.targetOut;
+    if (!active || !segmentOut || !pointOut || !targetOut) return;
+    // A counted loop rather than `forEach`, whose callback would be a new closure on every tick:
+    // `step` publishes every tick, held or not.
+    for (let i = 0; i < this.slots.length; i++) {
+      const s = this.slots[i] as Slot;
+      active[i] = s.handle ? 1 : 0;
+      segmentOut[i] = s.segment;
+      pointOut[3 * i] = s.point.x;
+      pointOut[3 * i + 1] = s.point.y;
+      pointOut[3 * i + 2] = s.point.z;
+      targetOut[3 * i] = s.target.x;
+      targetOut[3 * i + 1] = s.target.y;
+      targetOut[3 * i + 2] = s.target.z;
+    }
   }
 
   dispose(): void {

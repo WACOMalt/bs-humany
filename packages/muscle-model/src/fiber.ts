@@ -133,6 +133,27 @@ export interface FiberSolution {
   readonly failed: boolean;
 }
 
+/**
+ * A `FiberSolution` the solver may write into.
+ *
+ * The caller that solves every unit every tick holds one of these and passes it back each time,
+ * because a result object per solve is an allocation per unit per tick (CONTRIBUTING rule 9). What
+ * the solver hands back is the same object, read-only to whoever reads it.
+ */
+export type MutableFiberSolution = { -readonly [K in keyof FiberSolution]: FiberSolution[K] };
+
+/** A zeroed solution to pass `solveEquilibrium` as its `out`. Allocates; make it once, up front. */
+export function createFiberSolution(): MutableFiberSolution {
+  return {
+    fiberVelocity: 0,
+    tendonForce: 0,
+    fiberForce: 0,
+    tendonLength: 0,
+    pennation: 0,
+    failed: false,
+  };
+}
+
 /** Iterations the equilibrium solve may take before it gives up and reports failure. */
 export const EQUILIBRIUM_ITERATIONS = 24;
 
@@ -163,11 +184,18 @@ export const VELOCITY_BRACKET = 10;
  * find it. Newton's method does the work, and a bracket catches it when the curvature sends a
  * step somewhere useless. That safeguarded pairing is what makes this solve reportable rather
  * than hopeful: a failure here is a diagnostic, not a NaN travelling into the solver.
+ *
+ * The answer is written into `out` and `out` is returned. Left out, a new object is made, which is
+ * what a test or a one-off call wants; the muscle module passes one it holds, so a tick allocates
+ * nothing.
+ *
+ * @stepPath
  */
 export function solveEquilibrium(
   state: FiberState,
   musculotendonLength: number,
   parameters: MusculotendonParameters,
+  out: MutableFiberSolution = createFiberSolution(),
 ): FiberSolution {
   const width = fiberWidth(parameters.pennationAngle);
   const cosine = pennationCosine(state.fiberLength, width);
@@ -182,17 +210,12 @@ export function solveEquilibrium(
   const active = state.activation * activeForceLength(state.fiberLength);
   const passive = passiveForceLength(state.fiberLength);
 
-  /** Tendon force the fibers would produce at this velocity, less the force it must match. */
-  const residual = (velocity: number) =>
-    cosine * (active * forceVelocity(velocity) + passive + parameters.damping * velocity) -
-    tendonForce;
-  const slope = (velocity: number) =>
-    cosine * (active * forceVelocitySlope(velocity) + parameters.damping);
+  const damping = parameters.damping;
 
   let low = -VELOCITY_BRACKET;
   let high = VELOCITY_BRACKET;
-  const residualLow = residual(low);
-  const residualHigh = residual(high);
+  const residualLow = residual(low, cosine, active, passive, damping, tendonForce);
+  const residualHigh = residual(high, cosine, active, passive, damping, tendonForce);
   let failed = false;
   let velocity: number;
   if (residualLow > 0) {
@@ -206,27 +229,49 @@ export function solveEquilibrium(
   } else {
     velocity = 0;
     for (let i = 0; i < EQUILIBRIUM_ITERATIONS; i++) {
-      const value = residual(velocity);
+      const value = residual(velocity, cosine, active, passive, damping, tendonForce);
       if (Math.abs(value) < EQUILIBRIUM_TOLERANCE) break;
       if (value > 0) high = velocity;
       else low = velocity;
-      const derivative = slope(velocity);
+      const derivative = slope(velocity, cosine, active, damping);
       const newton = derivative > 0 ? velocity - value / derivative : Number.NaN;
       velocity =
         Number.isFinite(newton) && newton > low && newton < high ? newton : (low + high) / 2;
     }
-    failed = Math.abs(residual(velocity)) > 1e-6;
+    failed = Math.abs(residual(velocity, cosine, active, passive, damping, tendonForce)) > 1e-6;
   }
 
-  const fiberForce = active * forceVelocity(velocity) + passive + parameters.damping * velocity;
-  return {
-    fiberVelocity: velocity,
-    tendonForce,
-    fiberForce,
-    tendonLength,
-    pennation,
-    failed,
-  };
+  out.fiberVelocity = velocity;
+  out.tendonForce = tendonForce;
+  out.fiberForce = active * forceVelocity(velocity) + passive + damping * velocity;
+  out.tendonLength = tendonLength;
+  out.pennation = pennation;
+  out.failed = failed;
+  return out;
+}
+
+/**
+ * Tendon force the fibers would produce at this velocity, less the force it must match.
+ *
+ * At module scope rather than a closure inside `solveEquilibrium`, because a closure is an object
+ * made on every call and that call is made for every unit every tick. The expression is the one
+ * the closure held, term for term and in the same order, so the root it finds is the same to the
+ * last bit.
+ */
+function residual(
+  velocity: number,
+  cosine: number,
+  active: number,
+  passive: number,
+  damping: number,
+  tendonForce: number,
+): number {
+  return cosine * (active * forceVelocity(velocity) + passive + damping * velocity) - tendonForce;
+}
+
+/** How fast `residual` rises with velocity. Module scope for the same reason. */
+function slope(velocity: number, cosine: number, active: number, damping: number): number {
+  return cosine * (active * forceVelocitySlope(velocity) + damping);
 }
 
 export interface FiberStep {
@@ -295,6 +340,11 @@ export function stepFiber(
  * of the step. This is not implicit integration -- it does not make the step more accurate where
  * nothing is crossed -- it only refuses to end a tick on the far side of a crossing, which is the
  * one place an explicit step is not merely inaccurate but wrong in sign.
+ *
+ * Only the fiber length comes back; the solves it makes on the way are written into `solution`,
+ * which must not be the one the caller is still reading its own answer from.
+ *
+ * @stepPath
  */
 export function withoutOvershoot(
   from: number,
@@ -304,11 +354,12 @@ export function withoutOvershoot(
   parameters: MusculotendonParameters,
   velocity: number,
   scratch: { activation: number; fiberLength: number } = overshootScratch,
+  solution: MutableFiberSolution = overshootSolution,
 ): number {
   if (to === from) return to;
   scratch.activation = activation;
   scratch.fiberLength = to;
-  const after = solveEquilibrium(scratch, musculotendonLength, parameters);
+  const after = solveEquilibrium(scratch, musculotendonLength, parameters, solution);
   // Same sign at both ends: the step stayed on one side of the balance point.
   if (after.fiberVelocity === 0 || after.fiberVelocity > 0 === velocity > 0) return to;
   let low = from;
@@ -316,7 +367,7 @@ export function withoutOvershoot(
   for (let i = 0; i < OVERSHOOT_HALVINGS; i++) {
     const middle = (low + high) / 2;
     scratch.fiberLength = middle;
-    const here = solveEquilibrium(scratch, musculotendonLength, parameters);
+    const here = solveEquilibrium(scratch, musculotendonLength, parameters, solution);
     if (here.fiberVelocity > 0 === velocity > 0) low = middle;
     else high = middle;
   }
@@ -324,13 +375,15 @@ export function withoutOvershoot(
 }
 
 /**
- * The state this reuses when the caller does not pass one.
+ * The state and the solution this reuses when the caller does not pass them.
  *
  * Positional arguments and a shared scratch rather than an options object, because this runs once
  * per unit per tick and CONTRIBUTING rule 9 forbids allocating there. A caller that needs its own
- * (a test running two units interleaved, say) passes one in.
+ * (a test running two units interleaved, say) passes them in. Nothing here calls itself, so one
+ * shared pair is never written twice at once.
  */
 const overshootScratch = { activation: 0, fiberLength: 1 };
+const overshootSolution = createFiberSolution();
 
 /**
  * A fiber length that balances the forces at a given activation and unit length, for starting a
@@ -339,6 +392,12 @@ const overshootScratch = { activation: 0, fiberLength: 1 };
  * Bisection on the velocity the equilibrium would need: too short a fiber leaves the tendon
  * slack and the fibers shortening, too long and the tendon drags them out. The length where the
  * balance needs no velocity at all is the static one.
+ *
+ * The muscle module calls this from its step, for every unit on the first tick after an init or a
+ * restore, so its sixty solves write into a shared state and solution rather than making a pair
+ * each.
+ *
+ * @stepPath
  */
 export function equilibriumFiberLength(
   activation: number,
@@ -348,16 +407,19 @@ export function equilibriumFiberLength(
 ): number {
   let low = FIBER_LENGTH_MINIMUM;
   let high = FIBER_LENGTH_MAXIMUM;
+  const state = primingState;
+  state.activation = activation;
   for (let i = 0; i < iterations; i++) {
     const middle = (low + high) / 2;
-    const solution = solveEquilibrium(
-      { activation, fiberLength: middle },
-      musculotendonLength,
-      parameters,
-    );
+    state.fiberLength = middle;
+    const solution = solveEquilibrium(state, musculotendonLength, parameters, primingSolution);
     // A positive velocity here means the tendon is pulling the fibers longer than this guess.
     if (solution.fiberVelocity > 0) low = middle;
     else high = middle;
   }
   return (low + high) / 2;
 }
+
+/** What `equilibriumFiberLength` solves with: its own pair, apart from the overshoot's. */
+const primingState = { activation: 0, fiberLength: 1 };
+const primingSolution = createFiberSolution();

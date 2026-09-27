@@ -445,6 +445,7 @@ export class Kernel {
     for (let i = 0; i < s.audited.length; i++) {
       const at = s.audited[i] as number;
       if (!sameWords(live[at] as Int32Array, kept[at] as Int32Array)) {
+        // allocation-ok: error path; an undeclared write ends the run.
         throw new Error(
           `Module '${s.module.manifest.id}' changed channel '${this.#auditIds[at]}' during step ` +
             `at tick ${this.clock.tick} without declaring a write or accumulation. Declared ` +

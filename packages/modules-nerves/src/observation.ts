@@ -104,8 +104,9 @@ const ROOT_NV = 6;
  * local into world), and not bit-identical.
  *
  * A function at module scope writing into the caller's array, rather than a closure returning
- * a tuple, because `fill` runs at every control step and module-lint (rule 9) only inspects
- * methods named `step`, so it would not see an allocation made here.
+ * a tuple, because `fill` runs at every control step and must not allocate (rule 9). module-lint
+ * holds `fill` to that, through its `@stepPath` tag, but it does not follow a call out of it into
+ * a function like this one, so this one keeps to the rule by construction.
  */
 function rotateIntoFrame(
   out: Float64Array,
@@ -208,9 +209,14 @@ export class ObservationBuilder {
     this.size = names.length;
   }
 
-  /** Fill `out` (of `size`) from the channels as they stand, with `goal` appended. */
+  /**
+   * Fill `out` (of `size`) from the channels as they stand, with `goal` appended.
+   *
+   * @stepPath
+   */
   fill(out: Float64Array, goal: ArrayLike<number>): void {
     const c = this.channels;
+    // allocation-ok: error path; filling before binding is a wiring fault, not a tick.
     if (!c) throw new Error('ObservationBuilder.fill before bind.');
     let at = 0;
     const q = c.joints.fields.q as Float64Array;

@@ -55,6 +55,7 @@ import type {
 } from '@bs-humany/kernel';
 import { inverseTendonForceLength } from '@bs-humany/muscle-model';
 import {
+  type SweepRequest,
   type SweepScratch,
   type SweptMesh,
   bellySpread,
@@ -152,6 +153,13 @@ export class MuscleVolumeModule implements SimModule {
   /** One mesh, swept for each unit in turn into the channel. */
   private readonly mesh: SweptMesh;
   private readonly scratch: SweepScratch;
+  /**
+   * The one request every unit is swept from, its fields rewritten per unit.
+   *
+   * A request built per unit would be an object per muscle per sweep, which is exactly what the
+   * mesh and the scratch are held here to avoid. `sweepMuscle` reads it and keeps nothing.
+   */
+  private readonly request: { -readonly [K in keyof SweepRequest]: SweepRequest[K] };
 
   private point: Float64Array | undefined;
   private pointStart: Int32Array | undefined;
@@ -210,6 +218,16 @@ export class MuscleVolumeModule implements SimModule {
 
     // Sized to the longest path any unit can produce, so one scratch serves them all.
     this.scratch = createSweepScratch(4096);
+    this.request = {
+      points: new Float64Array(0),
+      from: 0,
+      pointCount: 0,
+      crossings: undefined,
+      spread: 1,
+      volume: 0,
+      tendonLength: 0,
+      tendonRadius: this.tendonRadius,
+    };
 
     this.manifest = {
       id: MUSCLE_VOLUME_MODULE_ID,
@@ -306,24 +324,19 @@ export class MuscleVolumeModule implements SimModule {
 
   /** Sweep one unit into the shared mesh. Split out so `step` reads as what it does. */
   private sweepInto(unit: number, tendonLength: number, volume: number): void {
-    const point = this.point as Float64Array;
     const start = this.pointStart as Int32Array;
     const count = this.pointCount as Int32Array;
-    // Allocation-free: every buffer this touches was made in the constructor.
-    sweepMuscle(
-      {
-        points: point,
-        from: start[unit] as number,
-        pointCount: count[unit] as number,
-        crossings: this.crossings[unit],
-        spread: this.spread[unit] as number,
-        volume,
-        tendonLength,
-        tendonRadius: this.tendonRadius,
-      },
-      this.scratch,
-      this.mesh,
-    );
+    // Allocation-free: the request, the scratch and the mesh were all made in the constructor,
+    // and the sweep writes into the mesh rather than returning one.
+    const request = this.request;
+    request.points = this.point as Float64Array;
+    request.from = start[unit] as number;
+    request.pointCount = count[unit] as number;
+    request.crossings = this.crossings[unit];
+    request.spread = this.spread[unit] as number;
+    request.volume = volume;
+    request.tendonLength = tendonLength;
+    sweepMuscle(request, this.scratch, this.mesh);
   }
 
   /** Vertices per unit, so a renderer can find where each muscle's mesh begins. */

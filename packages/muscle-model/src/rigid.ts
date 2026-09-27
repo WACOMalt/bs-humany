@@ -55,18 +55,41 @@ export interface RigidTendonSolution {
   readonly outOfRange: boolean;
 }
 
+/** A `RigidTendonSolution` the solver may write into, for the reason `MutableFiberSolution` has. */
+export type MutableRigidTendonSolution = {
+  -readonly [K in keyof RigidTendonSolution]: RigidTendonSolution[K];
+};
+
+/** A zeroed solution to pass `solveRigidTendon` as its `out`. Allocates; make it once, up front. */
+export function createRigidTendonSolution(): MutableRigidTendonSolution {
+  return {
+    fiberLength: 0,
+    fiberVelocity: 0,
+    fiberForce: 0,
+    tendonForce: 0,
+    pennation: 0,
+    outOfRange: false,
+  };
+}
+
 /**
  * Force in a rigid-tendon unit, in one pass.
  *
  * `pathVelocity` is the rate of change of the whole unit's length, in metres per second. It comes
  * from the path solver analytically rather than from differencing successive lengths, because a
  * differenced velocity would feed the force-velocity curve a step's worth of noise.
+ *
+ * The answer is written into `out` and `out` is returned; left out, a new object is made. The
+ * muscle module passes one it holds, because it calls this for every rigid unit every tick.
+ *
+ * @stepPath
  */
 export function solveRigidTendon(
   activation: number,
   musculotendonLength: number,
   pathVelocity: number,
   parameters: MusculotendonParameters,
+  out: MutableRigidTendonSolution = createRigidTendonSolution(),
 ): RigidTendonSolution {
   const height = parameters.optimalFiberLength * Math.sin(parameters.pennationAngle);
   const base = musculotendonLength - parameters.tendonSlackLength;
@@ -92,14 +115,13 @@ export function solveRigidTendon(
   // is no tendon state left to absorb it.
   const tendonForce = Math.max(cosine * fiberForce, 0);
 
-  return {
-    fiberLength,
-    fiberVelocity,
-    fiberForce,
-    tendonForce,
-    pennation: pennationAt(fiberLength, Math.sin(parameters.pennationAngle)),
-    outOfRange,
-  };
+  out.fiberLength = fiberLength;
+  out.fiberVelocity = fiberVelocity;
+  out.fiberForce = fiberForce;
+  out.tendonForce = tendonForce;
+  out.pennation = pennationAt(fiberLength, Math.sin(parameters.pennationAngle));
+  out.outOfRange = outOfRange;
+  return out;
 }
 
 /**

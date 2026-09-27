@@ -255,6 +255,7 @@ export class MujocoBackend implements IPhysicsBackend {
     if (!d) return;
     // Each property access builds a fresh view over the WASM heap; hold one set and refresh it
     // only when the heap may have moved.
+    // allocation-ok: runs only when the WASM heap has grown and detached the old views.
     this.views = {
       qpos: d.qpos as Float64Array,
       qvel: d.qvel as Float64Array,
@@ -276,6 +277,7 @@ export class MujocoBackend implements IPhysicsBackend {
     const v = this.views;
     if (!v || v.qpos.buffer.byteLength === 0) {
       this.refreshViews();
+      // allocation-ok: error path; stepping with no compiled model is a wiring fault.
       if (!this.views) throw new Error('MujocoBackend has no compiled model.');
       return this.views;
     }
