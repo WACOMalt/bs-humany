@@ -37,6 +37,87 @@ pub const MARKERS: usize = 2;
 pub const MARKER_EDGE: f32 = 0.012;
 /// After the grid, the scenery: the scenario's static boxes, in the simulation's frame.
 pub const SCENE_SLOTS: usize = 1;
+/// After the scenery, one slot a hand for the aim ray: a thin box from the controller to where
+/// it points.
+pub const RAYS: usize = 2;
+/// How thick an aim ray is drawn, in metres: a line to follow, not a beam to look at.
+pub const RAY_WIDTH: f32 = 0.002;
+/// How long an aim ray is drawn when it meets no panel, in metres: past arm's length, well short
+/// of the far side of the room.
+pub const RAY_REACH: f32 = 1.5;
+
+/// Where everything that is not a bone sits in the transform slots, worked out once from the
+/// number of bones.
+///
+/// The bones take slots `0..bones`, and after them, in this order: a controller cube a hand, the
+/// world slot, a pointer mark a hand, the stage (the grid), the scenery, and an aim ray a hand.
+/// The order is not free. The shaders are handed the controller, world, stage and scene slots as
+/// push constants and colour by them -- everything from the first controller up that is none of
+/// the named slots is drawn in the controllers' blue, the marks and the rays included -- so a
+/// new kind of slot goes on the end, where it moves nothing already there and needs no shader
+/// rebuilt. Every place that needs a slot asks this rather than adding the counts up itself, as
+/// the renderer's capacity check, its geometry and the frame loop each once did -- three sums that
+/// had to agree, and a new kind of slot would have had to be added to all of them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Slots {
+    pub first_controller: usize,
+    pub world: usize,
+    pub first_marker: usize,
+    pub stage: usize,
+    pub scene: usize,
+    pub first_ray: usize,
+    /// How many slots there are altogether: one past the last.
+    pub total: usize,
+}
+
+impl Slots {
+    pub const fn for_bones(bones: usize) -> Self {
+        let first_controller = bones;
+        let world = first_controller + CONTROLLERS;
+        let first_marker = world + 1;
+        let stage = first_marker + MARKERS;
+        let scene = stage + 1;
+        let first_ray = scene + SCENE_SLOTS;
+        Self {
+            first_controller,
+            world,
+            first_marker,
+            stage,
+            scene,
+            first_ray,
+            total: first_ray + RAYS,
+        }
+    }
+
+    /// The slot a controller's cube is drawn by; `hand` is 0 left, 1 right.
+    pub const fn controller(&self, hand: usize) -> usize {
+        self.first_controller + hand
+    }
+
+    /// The slot a hand's pointer mark is drawn by.
+    pub const fn marker(&self, hand: usize) -> usize {
+        self.first_marker + hand
+    }
+
+    /// The slot a hand's aim ray is drawn by.
+    pub const fn ray(&self, hand: usize) -> usize {
+        self.first_ray + hand
+    }
+
+    /// Whether a slot belongs to the hands -- a cube, a mark or a ray -- which live in the stage
+    /// and are drawn where the runtime puts them, rather than in the world, which moves under
+    /// the stage as the viewer walks and turns.
+    pub const fn is_hand(&self, slot: usize) -> bool {
+        (slot >= self.first_controller && slot < self.first_controller + CONTROLLERS)
+            || (slot >= self.first_marker && slot < self.first_marker + MARKERS)
+            || (slot >= self.first_ray && slot < self.first_ray + RAYS)
+    }
+
+    /// Whether the shader's uniform array holds every slot.
+    pub const fn fits(&self) -> bool {
+        self.total <= MAX_BONES
+    }
+}
 /// The floor grid: lines this far apart, out to this far, this wide, all in metres.
 const GRID_SPACING: f32 = 0.5;
 const GRID_REACH: f32 = 5.0;
@@ -73,8 +154,8 @@ pub struct Renderer {
     vertex: Buffer,
     index: Buffer,
     index_count: u32,
-    /// `pack.bones.len()`: the controllers' slots begin here, and the world slot is after them.
-    first_controller: usize,
+    /// Where everything that is not a bone sits in the transform slots.
+    slots: Slots,
     memory_properties: vk::PhysicalDeviceMemoryProperties,
     /// The muscle tubes, once a bridge has said how many rings there are.
     muscles: Option<Muscles>,
@@ -235,13 +316,17 @@ impl Renderer {
             unsafe { instance.get_physical_device_memory_properties(physical) };
 
         // --- geometry, flattened into one pair of buffers -------------------------------------
-        let (vertices, indices) = flatten(pack);
-        if pack.bones.len() + CONTROLLERS + 1 + MARKERS + 1 + SCENE_SLOTS > MAX_BONES {
+        let slots = Slots::for_bones(pack.bones.len());
+        if !slots.fits() {
             bail!(
-                "the pack has {} bones, and with the controllers, markers and world slot the shader holds {MAX_BONES}.",
-                pack.bones.len()
+                "the pack has {} bones, and with {CONTROLLERS} controller cubes, the world slot, \
+                 {MARKERS} pointer marks, the grid, {SCENE_SLOTS} scenery slot and {RAYS} aim rays that \
+                 is {} transform slots, where the shader holds {MAX_BONES}.",
+                pack.bones.len(),
+                slots.total
             );
         }
+        let (vertices, indices) = flatten(pack, &slots);
         let index_count = indices.len() as u32;
         let vertex = Buffer::new(
             &device,
@@ -453,7 +538,7 @@ impl Renderer {
             vertex,
             index,
             index_count,
-            first_controller: pack.bones.len(),
+            slots,
             memory_properties,
             muscles: None,
             tissue: None,
@@ -597,10 +682,10 @@ impl Renderer {
                 vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
                 0,
                 bytes_of(&[
-                    self.first_controller as u32,
-                    self.world_slot() as u32,
-                    self.stage_slot() as u32,
-                    self.scene_slot() as u32,
+                    self.slots.first_controller as u32,
+                    self.slots.world as u32,
+                    self.slots.stage as u32,
+                    self.slots.scene as u32,
                     TINT_BASE,
                 ]),
             );
@@ -733,25 +818,10 @@ impl Renderer {
         Ok(())
     }
 
-    /// The transform slot a controller's cube is drawn by; `hand` is 0 left, 1 right.
-    pub fn controller_slot(&self, hand: usize) -> usize {
-        self.first_controller + hand
-    }
-
-    /// The slot whose matrix is the placement alone: what vertices already in the simulation's
-    /// world frame are drawn by.
-    pub fn world_slot(&self) -> usize {
-        self.first_controller + CONTROLLERS
-    }
-
-    /// The slot the floor grid is drawn by: its matrix is the identity, the stage itself.
-    pub fn stage_slot(&self) -> usize {
-        self.world_slot() + 1 + MARKERS
-    }
-
-    /// The slot the scenery is drawn by; its matrix is the placement, like the world slot's.
-    pub fn scene_slot(&self) -> usize {
-        self.stage_slot() + 1
+    /// Where the controllers, the world, the marks, the grid, the scenery and the rays sit in the
+    /// transform slots, for the frame loop to write their matrices.
+    pub fn slots(&self) -> Slots {
+        self.slots
     }
 
     /// Replace the scenery with these boxes. Waits for the device, which is fine for something
@@ -770,7 +840,7 @@ impl Renderer {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         for b in boxes {
-            posed_box(self.scene_slot() as u32, b, &mut vertices, &mut indices);
+            posed_box(self.slots.scene as u32, b, &mut vertices, &mut indices);
         }
         let vertex = Buffer::new(
             &self.device,
@@ -788,11 +858,6 @@ impl Renderer {
         index.write(bytes_of(&indices));
         self.scene = Some((vertex, index, indices.len() as u32));
         Ok(())
-    }
-
-    /// The slot a hand's pointer mark is drawn by.
-    pub fn marker_slot(&self, hand: usize) -> usize {
-        self.world_slot() + 1 + hand
     }
 
     /// Apply egui's texture changes: new textures, patches to existing ones, and frees. Called
@@ -1139,8 +1204,9 @@ impl Drop for Renderer {
 }
 
 /// Every bone's vertices and indices in one pair of buffers, indices rebased as they are copied,
-/// and a cube for each controller after them in slots `bones.len()` and up.
-fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
+/// and after them the things that are not bones, each in the slot `slots` gives it: a cube for
+/// each controller, a mark for each hand's pointer, the floor grid, and an aim ray a hand.
+fn flatten(pack: &Pack, slots: &Slots) -> (Vec<f32>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     for (bone, mesh) in pack.bones.iter().enumerate() {
@@ -1154,19 +1220,42 @@ fn flatten(pack: &Pack) -> (Vec<f32>, Vec<u32>) {
         indices.extend(mesh.indices.iter().map(|i| i + base));
     }
     for hand in 0..CONTROLLERS {
-        cube((pack.bones.len() + hand) as u32, CONTROLLER_EDGE, &mut vertices, &mut indices);
+        cube(slots.controller(hand) as u32, CONTROLLER_EDGE, &mut vertices, &mut indices);
     }
-    // Past the world slot, a mark for each hand's pointer, and after those the floor grid.
     for hand in 0..MARKERS {
-        cube(
-            (pack.bones.len() + CONTROLLERS + 1 + hand) as u32,
-            MARKER_EDGE,
-            &mut vertices,
-            &mut indices,
-        );
+        cube(slots.marker(hand) as u32, MARKER_EDGE, &mut vertices, &mut indices);
     }
-    grid((pack.bones.len() + CONTROLLERS + 1 + MARKERS) as u32, &mut vertices, &mut indices);
+    grid(slots.stage as u32, &mut vertices, &mut indices);
+    for hand in 0..RAYS {
+        ray(slots.ray(hand) as u32, &mut vertices, &mut indices);
+    }
     (vertices, indices)
+}
+
+/// An aim ray's shape: a box one unit across and one long, running from its slot's origin down
+/// -Z, the way OpenXR's aim pose points. The frame loop scales it by the ray's width across and
+/// its length along, so one box serves every length, and a ray with nowhere to go is scaled to
+/// nothing rather than drawn.
+fn ray(slot: u32, vertices: &mut Vec<f32>, indices: &mut Vec<u32>) {
+    let first = vertices.len();
+    cube(slot, 1.0, vertices, indices);
+    // The unit cube is centred on the origin; half a unit down -Z puts its near face there.
+    for vertex in vertices[first..].chunks_exact_mut(7) {
+        vertex[2] -= 0.5;
+    }
+}
+
+/// The matrix an aim ray is drawn by: the aim pose, then the unit ray stretched to `length` and
+/// thinned to `RAY_WIDTH`. Scaling a unit box unevenly is safe for its lighting: every face's
+/// normal lies along an axis of the scale, so the shader's normalize restores it exactly.
+pub(crate) fn ray_matrix(position: [f32; 3], orientation: [f32; 4], length: f32) -> [f32; 16] {
+    let thin: [f32; 16] = [
+        RAY_WIDTH, 0.0, 0.0, 0.0, //
+        0.0, RAY_WIDTH, 0.0, 0.0, //
+        0.0, 0.0, length, 0.0, //
+        0.0, 0.0, 0.0, 1.0,
+    ];
+    multiply(&pose_matrix(position, orientation), &thin)
 }
 
 /// A static box as six flat faces, its half extents turned by its rotation and carried to its
@@ -2422,5 +2511,92 @@ mod tests {
         assert!(can_mipmap(all));
         assert!(!can_mipmap(all & !vk::FormatFeatureFlags::BLIT_DST));
         assert!(!can_mipmap(all & !vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR));
+    }
+
+    #[test]
+    fn the_slots_after_the_bones_keep_the_places_they_had_and_the_rays_go_on_the_end() {
+        // A body of 206 bones. The slots up to the scenery are pinned where they were before the
+        // layout had a name -- the shaders colour by them -- and the rays come after.
+        let slots = Slots::for_bones(206);
+        assert_eq!((slots.controller(0), slots.controller(1)), (206, 207));
+        assert_eq!(slots.world, 208);
+        assert_eq!((slots.marker(0), slots.marker(1)), (209, 210));
+        assert_eq!(slots.stage, 211);
+        assert_eq!(slots.scene, 212);
+        assert_eq!((slots.ray(0), slots.ray(1)), (213, 214));
+        assert_eq!(slots.total, 215);
+        assert!(slots.fits());
+
+        // Every slot is its own, and all of them lie below the total.
+        let named = [
+            slots.controller(0),
+            slots.controller(1),
+            slots.world,
+            slots.marker(0),
+            slots.marker(1),
+            slots.stage,
+            slots.scene,
+            slots.ray(0),
+            slots.ray(1),
+        ];
+        let mut distinct = named.to_vec();
+        distinct.sort_unstable();
+        distinct.dedup();
+        assert_eq!(distinct.len(), named.len());
+        assert!(named.iter().all(|&s| s >= 206 && s < slots.total));
+        assert_eq!(named.len(), slots.total - 206, "a slot past the bones that nothing names");
+
+        // The hands' slots are the cubes, the marks and the rays, and nothing else: not a bone,
+        // not the world, the grid or the scenery.
+        let hands = [
+            slots.controller(0),
+            slots.controller(1),
+            slots.marker(0),
+            slots.marker(1),
+            slots.ray(0),
+            slots.ray(1),
+        ];
+        for slot in 0..MAX_BONES {
+            assert_eq!(slots.is_hand(slot), hands.contains(&slot), "slot {slot}");
+        }
+    }
+
+    #[test]
+    fn a_body_with_too_many_bones_for_the_shader_does_not_fit() {
+        // 256 slots in the uniform, nine past the bones: 247 bones is the most there is room for.
+        assert!(Slots::for_bones(247).fits());
+        assert!(!Slots::for_bones(248).fits());
+    }
+
+    #[test]
+    fn a_ray_runs_from_the_hand_down_its_aim_to_the_length_asked_for() {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        ray(213, &mut vertices, &mut indices);
+        assert_eq!(indices.len(), 36);
+        let mut z = (f32::MAX, f32::MIN);
+        for v in vertices.chunks_exact(7) {
+            assert_eq!(v[6].to_bits(), 213);
+            assert!(v[0].abs() <= 0.5 + 1e-6 && v[1].abs() <= 0.5 + 1e-6);
+            z = (z.0.min(v[2]), z.1.max(v[2]));
+        }
+        assert_eq!(z, (-1.0, 0.0), "the unit ray spans z in [-1, 0]");
+
+        // Aimed straight ahead from a hand at (0.1, 1.2, -0.3): the ray ends 0.8 m down -Z, and
+        // is RAY_WIDTH thick about the aim axis.
+        let identity = [0.0, 0.0, 0.0, 1.0];
+        let m = ray_matrix([0.1, 1.2, -0.3], identity, 0.8);
+        let near = apply(&m, [0.0, 0.0, 0.0, 1.0]);
+        let far = apply(&m, [0.0, 0.0, -1.0, 1.0]);
+        let edge = apply(&m, [0.5, 0.0, -1.0, 1.0]);
+        let close = |a: [f32; 4], b: [f32; 3]| (0..3).all(|i| (a[i] - b[i]).abs() < 1e-5);
+        assert!(close(near, [0.1, 1.2, -0.3]), "{near:?}");
+        assert!(close(far, [0.1, 1.2, -1.1]), "{far:?}");
+        assert!(close(edge, [0.1 + RAY_WIDTH / 2.0, 1.2, -1.1]), "{edge:?}");
+
+        // Turned a quarter to the left about Y, the aim points down -X, and the ray with it.
+        let s = std::f32::consts::FRAC_1_SQRT_2;
+        let far = apply(&ray_matrix([0.0, 0.0, 0.0], [0.0, s, 0.0, s], 2.0), [0.0, 0.0, -1.0, 1.0]);
+        assert!(close(far, [-2.0, 0.0, 0.0]), "{far:?}");
     }
 }
