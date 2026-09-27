@@ -370,6 +370,8 @@ describe('MuscleDynamicsModule', () => {
     t.kernel.dispose();
   });
 
+  // Three whole-body muscle sets, 200 audited ticks each: about 5.5 s on a quiet machine and 8 s
+  // under a parallel run, so vitest's 5 s default made it fail on load rather than on tendons.
   it('never lets the tendon push', async () => {
     for (const level of [0, 0.3, 1]) {
       const s = await driven(level);
@@ -379,7 +381,7 @@ describe('MuscleDynamicsModule', () => {
       }
       s.kernel.dispose();
     }
-  });
+  }, 60_000);
 
   it('solves every unit every tick, with no fiber leaving its range', async () => {
     // A sine sweep rather than a hold, so every muscle passes through its whole drive range and
