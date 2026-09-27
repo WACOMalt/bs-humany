@@ -167,7 +167,8 @@ export class NervesModule implements SimModule, Stateful {
   carried: Carried | undefined;
   private policyInUse: MlpPolicy | undefined;
   private authority: number;
-  private readonly controlDivisor: number;
+  /** Ticks between evaluations. Not readonly: `adopt` sets it to the period a new policy keeps. */
+  private controlDivisor: number;
   private readonly goal: (() => ArrayLike<number>) | undefined;
   private obs = new Float64Array(0);
   private readonly command: Float64Array;
@@ -382,8 +383,19 @@ export class NervesModule implements SimModule, Stateful {
    * nothing restarted. What the body could use of it is returned; that, and how the body it was
    * trained in differs from this one, are kept in `carried`. A different body is said, never
    * refused.
+   *
+   * `divisor` is how often to evaluate the new policy, when the caller knows better than the
+   * divisor this body was built with. It does, whenever the policy was trained at another rate: a
+   * checkpoint that ran every ten ticks at 1000 Hz is the same controller every five at 500, and
+   * the body it is handed to has the step it has -- the timestep cannot change live. Set once the
+   * file has fitted, so a file that does not fit leaves the policy in charge running as it was,
+   * and before the body is compared and the held command dropped, so the comparison is of the body
+   * the policy will actually run in and the first evaluation comes on the very next tick.
    */
-  adopt(file: PolicyFile): { inputs: number; outputs: number } {
+  adopt(
+    file: PolicyFile,
+    options?: { readonly divisor?: number },
+  ): { inputs: number; outputs: number } {
     const inUse = this.policyInUse;
     if (!inUse) throw new Error('NervesModule.adopt before init.');
     // A policy file says how much memory it has, in its own drive names: a checkpoint trained
@@ -397,6 +409,9 @@ export class NervesModule implements SimModule, Stateful {
       this.obs = new Float64Array(names.inputs.length);
     }
     const fitted = MlpPolicy.fit(file, names.inputs, names.outputs);
+    if (options?.divisor !== undefined) {
+      this.controlDivisor = Math.max(1, Math.round(options.divisor));
+    }
     this.policyInUse = fitted.policy;
     this.carried = { ...fitted.carried, body: this.trainedIn(file) };
     this.forget();

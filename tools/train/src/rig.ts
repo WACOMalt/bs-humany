@@ -77,9 +77,11 @@ import {
   type Scenario,
   type ScenarioApi,
   type ScenarioDefinition,
+  defaultControlDivisor,
   driveOutputs,
   loadActivationClips,
   placeArticulation,
+  profileRateHz,
   reflexGroups,
   unitsNamedByClips,
 } from '@bs-humany/scenarios';
@@ -373,7 +375,7 @@ export class StandRig {
         );
       }
     }
-    const rate = profile.solver?.rate ?? 500;
+    const rate = profileRateHz(profile);
     const kernel = new Kernel({ rateHz: rate, seed: 1, preferShared: false });
     const backend = new MujocoBackend();
     const physics = new PhysicsModule(backend, articulation, {
@@ -415,7 +417,7 @@ export class StandRig {
     goal[0] = 1;
     const noise = options.noise ?? DEFAULT_NOISE;
     const reflex = options.reflex ?? NO_REFLEX;
-    const divisor = options.controlDivisor ?? Math.max(1, Math.round(rate / 100));
+    const divisor = options.controlDivisor ?? defaultControlDivisor(rate);
     // The cord first: it is the layer the brain corrects, so it goes into the accumulator
     // before the brain does. Its gains at zero leave the excitation exactly as it was.
     const spine = new SpinalModule(muscles, {

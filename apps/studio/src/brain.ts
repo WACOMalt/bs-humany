@@ -183,16 +183,23 @@ export interface BrainHost {
    * own comparison of the body the checkpoint was trained in with this one (`NervesModule.carried`),
    * which travels with the counts; a host that does not pass it along leaves the panel silent
    * about the body rather than guessing.
+   *
+   * `trainedRate` is the step rate the policy in the loop was trained at, when its file says, and
+   * `rate` the one the running body steps at; `scriptDrives` is whether the scenario's script is
+   * feeding muscles under it (`Simulation.scriptDrivingMuscles`). All three are about the policy
+   * actually in the loop, not the one chosen in the list, and a host that leaves any of them out
+   * leaves the panel silent about it.
    */
   fit():
     | {
         carried: { inputs: number; outputs: number; body?: TrainedBody };
         inputs: number;
         outputs: number;
+        trainedRate?: number | undefined;
+        rate?: number | undefined;
+        scriptDrives?: boolean | undefined;
       }
     | undefined;
-  /** Ticks between evaluations for the body about to run: a hundred hertz at its rate. */
-  controlDivisor(): number;
   /** Whether the run is currently following the bridge rather than its own. */
   following(): boolean;
   /**
@@ -306,8 +313,6 @@ export interface BrainPanel {
   remoteActivity(): RemoteActivity | undefined;
   /** What the panel would put in the loop for a new run, if a policy is chosen. */
   readonly setup: NervesSetup | undefined;
-  /** What the chosen checkpoint was trained in, when its file says: the run should match it. */
-  chosenRecipe(): TrainingRecipe | undefined;
   /** The panel as the headset sees it. */
   state(): BrainState;
   /** The headset's hands on the panel: what the mouse would do, without going through a click. */
@@ -945,10 +950,27 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         ? ` It shipped with the studio, trained before ${handedRow.trainedBefore}; its fitness was scored in that body.`
         : '';
     const body = trainedBodyLine(fit.carried.body);
+    // A checkpoint trained with nothing under the brain runs with nothing under it: the host has
+    // stopped the scenario's tone, and the body standing less well than it did a moment ago is
+    // that rather than the policy failing.
+    const tone =
+      fit.scriptDrives === false
+        ? " The scenario's muscle tone is off: this checkpoint learnt with nothing under it."
+        : '';
+    // The control period follows the policy on a hand-over; the timestep cannot, so a policy
+    // handed into a run at another rate is evaluated as often as it was trained to be, on contacts
+    // and muscle dynamics stepped differently from the ones it learnt on.
+    const rate =
+      fit.trainedRate !== undefined && fit.rate !== undefined && fit.trainedRate !== fit.rate
+        ? ` Trained at ${fit.trainedRate} steps a second; this run is at ${fit.rate}, and the ` +
+          `timestep cannot change live, so restart the run at ${fit.trainedRate} to match.`
+        : '';
     ui.fitNote.textContent =
       `In the loop: ${fit.carried.inputs} of ${fit.inputs} senses and ` +
       `${fit.carried.outputs} of ${fit.outputs} drives carried from the checkpoint.${shipped}` +
-      (body ? ` ${body.line}` : '');
+      (body ? ` ${body.line}` : '') +
+      tone +
+      rate;
     ui.fitNote.title = body?.title ?? '';
   };
 
@@ -1011,10 +1033,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         policy,
         authority: Number(ui.authority.value),
         goal: 0,
-        // The checkpoint's own, when it recorded one: a policy evaluated at another rate is not
-        // the controller that was trained, however right the body around it is.
-        controlDivisor:
-          rows.find((r) => r.id === id)?.recipe?.controlDivisor ?? host.controlDivisor(),
+        // No divisor: the run works it out from the rate it steps at and the one the checkpoint
+        // was trained at (`controlDivisorFor`), live or at the next start, so the policy keeps its
+        // trained control period. A tick count copied from the recipe would be the wrong period
+        // at any other rate, and the panel does not know the rate a run will step at.
       };
       const why = handOverRefused(next);
       if (why !== undefined) {
@@ -1663,9 +1685,6 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     },
     remoteActivity() {
       return activity;
-    },
-    chosenRecipe() {
-      return rows.find((r) => r.id === ui.policy.value)?.recipe ?? undefined;
     },
     state() {
       return {
