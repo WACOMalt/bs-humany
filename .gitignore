@@ -14,8 +14,9 @@ apps/studio/src-tauri/binaries/
 # Training logs, one line a generation; the policy that results is committed, the log is not.
 tools/train/runs/
 
-# Copied from tools/validate-external/myo_sim/meshes by `pnpm sync:ref-meshes`; the vendored
-# originals are the ones under version control, and one copy of 7.5 MB is enough.
+# Obsolete local copies of the Align tab's reference meshes, from the manual sync step there used
+# to be. The vite refMeshes plugin serves and ships them now, from the tracked originals under
+# tools/validate-external/myo_sim, and passes over a copy left here; git should too.
 apps/studio/public/refMeshes/
 
 # The Align tab's saved proposals land in the working directory, because a browser download has

@@ -7,8 +7,10 @@ Licensed under the Apache License, Version 2.0. See LICENSE.
 
 ---
 
-Parameter data used by the core packages is drawn from published sources with no redistribution
-restrictions. Values are transcribed with citations recorded in docs/sources/bibliography.md:
+Parameter data used by the core packages is drawn from published sources, and every value carries
+a citation at the point of use. docs/sources/bibliography.md is the complete list of those
+sources. The four below supply the segment parameters, the body dimensions, the joint coordinate
+conventions and the lower-limb reference model, and none of them restricts redistribution:
 
   - de Leva, P. (1996). Adjustments to Zatsiorsky-Seluyanov's segment inertia parameters.
     Journal of Biomechanics 29(9), 1223-1230.
@@ -19,11 +21,29 @@ restrictions. Values are transcribed with citations recorded in docs/sources/bib
   - Rajagopal, A., et al. (2016). Full-body musculoskeletal model for muscle-driven simulation of
     human gait. IEEE TBME 63(10), 2068-2079. Model freely distributed via SimTK.
 
-Reference models, vendored under tools/validate-external/ for the validation of spec section
-13.6 and not compiled into any package:
+Two more sources of muscle parameters carry a licence of their own. Their values are used under
+it, with this attribution and a citation at each value:
 
-  - MyoSuite myo_sim (MyoHub) - Apache-2.0, with its licence alongside it. Pinned to a commit;
-    see that directory for the pin and how to verify it.
+  - caggiano2022: Caggiano, V., et al. (2022). MyoSuite -- A contact-rich simulation suite for
+    musculoskeletal motor control. PMLR (L4DC). The models are Apache-2.0; see below.
+  - seth2019: Seth, A., et al. (2019). Muscle contributions to upper-extremity movement and work
+    from a musculoskeletal model of the human shoulder. Frontiers in Neurorobotics 13, 90. CC BY.
+
+Reference models, vendored under tools/validate-external/ for the validation of spec section
+13.6. Parts of them are also distributed, as stated here:
+
+  - MyoSuite myo_sim (MyoHub) - Apache-2.0. The copy is pinned at commit eb327acb (the 0.2.2
+    release), and its licence is at tools/validate-external/myo_sim/LICENSE. That directory's
+    README says how to verify the pin. Four things from it are distributed:
+      - Its scalar muscle parameters: peak isometric force, optimal fibre length and tendon
+        slack length. The tools/cli/bin/generate-*-muscles.mjs generators that read it extract
+        them into packages/muscle-data, cited caggiano2022.
+      - Its muscle via points, carried into this skeleton's bone frames by
+        tools/cli/bin/generate-muscle-via-points.mjs as packages/skeleton/src/muscleViaPoints.ts.
+      - The muscle paths extracted from it, apps/studio/public/sourceSites.json, which the
+        studio serves for the Align tab.
+      - Its bone meshes, which every studio build ships in refMeshes/ for the Align tab. The
+        licence file ships beside them, as refMeshes/LICENSE.
 
 Third-party software dependencies:
 
