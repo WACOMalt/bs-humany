@@ -54,8 +54,9 @@ export function bodyVelocitySpec(model: CompiledArticulation): ChannelSpec {
 }
 
 /**
- * Joint state is one element per generalized velocity; `q` has one extra scalar for the root
- * quaternion, carried as a separate `nq`-long field on the same channel.
+ * Joint state is one element holding the whole articulation. `q` is an `nq`-long field (the root
+ * quaternion makes `nq = nv + 1`), and `qdot` and `force` are `nv`-long. One element rather than
+ * one per coordinate because the two lengths differ, and a channel has one element count.
  */
 export function bodyJointStateSpec(model: CompiledArticulation): ChannelSpec {
   return {

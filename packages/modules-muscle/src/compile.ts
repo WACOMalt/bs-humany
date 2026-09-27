@@ -374,6 +374,12 @@ export const REST_SLACK = 0.01;
  * and moves the tendon only as far as it must to keep the fibers inside this band. A muscle whose
  * travel already fits keeps the rest-pose fit exactly; nothing in the arm moves.
  *
+ * Named for the tendon fit because it is not the muscle model's own limit. `FIBER_LENGTH_MINIMUM`
+ * and `FIBER_LENGTH_MAXIMUM` in the muscle model, 0.1 and 2.0, are where a running fiber is held so
+ * it cannot diverge; this narrower band is where the fit aims to keep a fiber across its joints'
+ * whole travel, so that it is never near those limits in the first place. The two once shared a
+ * name, and a reader of either could not tell which was meant.
+ *
  * Below 0.6 the active curve is under a third of peak and falling steeply, which is the muscle
  * that feels dead at one end of its range.
  *
@@ -399,9 +405,9 @@ export const REST_SLACK = 0.01;
  * short of optimal a fiber makes less force, past it a *relaxed* fiber makes force nobody asked
  * for, and only the second can stop a joint.
  */
-export const FIBER_FLOOR = 0.6;
-/** @see FIBER_FLOOR */
-export const FIBER_CEILING = 1.2;
+export const TENDON_FIT_FIBER_FLOOR = 0.6;
+/** @see TENDON_FIT_FIBER_FLOOR */
+export const TENDON_FIT_FIBER_CEILING = 1.2;
 
 /**
  * The tendon slack length this skeleton implies, rather than the one the source model states.
@@ -451,8 +457,9 @@ export const FIBER_CEILING = 1.2;
  * the knee's travel, so the vasti and the hamstrings both start at an extreme and go one way
  * only. `range` is how far the unit's path actually travels, as fractions of its own rest length,
  * and with it the tendon is moved as far as it must be -- and no further -- to keep the fibers
- * between `FIBER_FLOOR` and `FIBER_CEILING` over that travel. A unit whose travel already fits
- * inside the band keeps the rest-pose fit unchanged, so this costs the arm nothing.
+ * between `TENDON_FIT_FIBER_FLOOR` and `TENDON_FIT_FIBER_CEILING` over that travel. A unit whose
+ * travel already fits inside the band keeps the rest-pose fit unchanged, so this costs the arm
+ * nothing.
  *
  * Passing no range asks for the rest-pose fit alone, which is what a unit nothing has measured
  * gets.
@@ -471,8 +478,8 @@ export function fittedTendonSlack(
   if (range !== undefined) {
     // A longer tendon leaves a shorter fiber, so the short end of the travel is what caps the
     // tendon and the long end is what floors it.
-    const mostSlack = range.shortest * restLength - FIBER_FLOOR * fiberAlongTendon;
-    const leastSlack = range.longest * restLength - FIBER_CEILING * fiberAlongTendon;
+    const mostSlack = range.shortest * restLength - TENDON_FIT_FIBER_FLOOR * fiberAlongTendon;
+    const leastSlack = range.longest * restLength - TENDON_FIT_FIBER_CEILING * fiberAlongTendon;
     const banded =
       leastSlack > mostSlack
         ? // Travels further than the band is wide: no tendon satisfies both ends, and the midpoint

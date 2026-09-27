@@ -157,7 +157,11 @@ export interface PathContactBuffer {
   readonly body: Int32Array;
   /** `3 * capacity`, world metres. */
   readonly point: Float64Array;
-  /** `3 * capacity`, the resultant direction the reaction acts along, unit length. */
+  /**
+   * `3 * capacity`, world. The sum of the two unit tangents at the wrap, pointing into the bone:
+   * `-(u_A + u_B)`, with a magnitude from 0 to 2 by how sharply the tendon turns there. Not unit
+   * length: multiply by the tendon force to get the reaction on `body` (muscle spec 8.2 step 4).
+   */
   readonly direction: Float64Array;
 }
 

@@ -1,7 +1,12 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { ROOT_NQ, allocateBuffers, compileArticulation } from '@bs-humany/compiler';
-import { Kernel } from '@bs-humany/kernel';
+import {
+  Kernel,
+  type ModuleInitContext,
+  type ModuleManifest,
+  type SimModule,
+} from '@bs-humany/kernel';
 import { ACTUATION_BODY_WRENCH, BODY_POSE, PhysicsModule } from '@bs-humany/modules-mechanics';
 import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -9,16 +14,21 @@ import { describe, expect, it } from 'vitest';
 import {
   DIAGNOSTICS_MOMENT_ARM,
   EFFERENT_ALPHA_MOTOR,
+  MUSCLE_CHANNEL_VERSION,
   MUSCLE_CONTACT,
+  MUSCLE_EQUILIBRIUM_FAILED,
   MUSCLE_FIBER_OUT_OF_RANGE,
   MUSCLE_PATH,
+  MUSCLE_POLYLINE,
   MUSCLE_STATE,
+  musclePathSpec,
+  musclePolylineSpec,
 } from './channels.js';
-import { compileMuscleSet } from './compile.js';
+import { type CompiledMuscleSet, compileMuscleSet } from './compile.js';
 import { coordinateIndex, degreeRange, sweepMomentArms } from './momentArmSweep.js';
 import { MuscleDynamicsModule } from './muscleDynamicsModule.js';
 import { MuscleMomentModule } from './muscleMomentModule.js';
-import { MusclePathModule } from './musclePathModule.js';
+import { MUSCLE_PATH_MODULE_ID, MusclePathModule } from './musclePathModule.js';
 import { type DrivePattern, MuscleTestDriveModule } from './muscleTestDriveModule.js';
 import { DEFAULT_UPDATE_HZ, MuscleVolumeModule, rateDivisorFor } from './muscleVolumeModule.js';
 
@@ -113,6 +123,70 @@ async function session(pattern: DrivePattern = { kind: 'constant', level: 0 }) {
 /** A session driven at one level throughout, which is what most of these tests want. */
 async function driven(level: number) {
   return session({ kind: 'constant', level });
+}
+
+/**
+ * Stands in for `MusclePathModule`, publishing whatever length each unit is told to have.
+ *
+ * The real path module cannot be made to publish a length the skeleton does not allow, and a
+ * fiber pushed past its range is exactly what a diagnostic test needs. This takes the path
+ * module's id, so the dynamics module's dependency on it resolves, and gives and writes the same
+ * two channels. It publishes no polyline points, so the dynamics module computes its force and
+ * then has nowhere to push -- the body stays where it is, and only the muscle state is under test.
+ */
+class HeldLengthPath implements SimModule {
+  readonly manifest: ModuleManifest;
+  private length: Float64Array | undefined;
+
+  constructor(
+    units: number,
+    private readonly lengthOf: (unit: number) => number,
+  ) {
+    this.manifest = {
+      id: MUSCLE_PATH_MODULE_ID,
+      version: '1.0.0',
+      phase: 'actuate',
+      dependsOn: [],
+      reads: [],
+      writes: [
+        { id: MUSCLE_PATH, version: MUSCLE_CHANNEL_VERSION },
+        { id: MUSCLE_POLYLINE, version: MUSCLE_CHANNEL_VERSION },
+      ],
+      accumulates: [],
+      gives: [musclePathSpec(units), musclePolylineSpec(1)],
+    };
+  }
+
+  init(ctx: ModuleInitContext): void {
+    this.length = ctx.write(MUSCLE_PATH).fields.length as Float64Array;
+    ctx.write(MUSCLE_POLYLINE);
+  }
+
+  step(): void {
+    const length = this.length;
+    if (!length) return;
+    for (let i = 0; i < length.length; i++) length[i] = this.lengthOf(i);
+  }
+}
+
+/** The dynamics module alone, on a path held at whatever length each unit is given. */
+async function heldAt(set: CompiledMuscleSet, lengthOf: (unit: number) => number, level = 0) {
+  const kernel = new Kernel({ rateHz: 500, seed: 1 });
+  kernel.register(new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }));
+  const dynamics = new MuscleDynamicsModule(articulation, set);
+  kernel.register(
+    new MuscleTestDriveModule(set, [{ units: 'all', pattern: { kind: 'constant', level } }]),
+  );
+  kernel.register(new HeldLengthPath(set.units.length, lengthOf));
+  kernel.register(dynamics);
+  await kernel.init();
+  const state = kernel.channels.storage(MUSCLE_STATE).fields;
+  return {
+    kernel,
+    dynamics,
+    diagnostic: state.diagnostic as Int32Array,
+    fiberLength: state.fiberLength as Float64Array,
+  };
 }
 
 describe('MusclePathModule', () => {
@@ -227,7 +301,7 @@ describe('MuscleDynamicsModule', () => {
     for (let i = 0; i < UNITS; i++) {
       expect(s.fiberLength[i], muscles.units[i]?.id).toBeGreaterThan(0.1);
       expect(s.fiberLength[i], muscles.units[i]?.id).toBeLessThan(2);
-      expect(s.diagnostic[i] as number, muscles.units[i]?.id).not.toBe(MUSCLE_FIBER_OUT_OF_RANGE);
+      expect((s.diagnostic[i] as number) & MUSCLE_FIBER_OUT_OF_RANGE, muscles.units[i]?.id).toBe(0);
     }
     s.kernel.dispose();
   });
@@ -316,6 +390,74 @@ describe('MuscleDynamicsModule', () => {
       }
     }
     s.kernel.dispose();
+  });
+
+  it('flags a fiber it had to hold at the edge of its range', async () => {
+    // A third of its rest length is shorter than any joint can fold a muscle, and too short for
+    // its fibers: once the tendon has gone slack there is nothing to stop a driven fiber
+    // shortening, the integration asks for one under the muscle model's minimum, and the module
+    // holds it there. The flag has to say so. It used to be tested on the length after the hold,
+    // which sits on the edge and never past it, so it could not fire at all.
+    //
+    // The short end rather than the long one because only the short end can be reached: stretched
+    // far past its range, a unit's equilibrium settles its fiber a little under the maximum and
+    // lets the tendon take the rest.
+    const s = await heldAt(muscles, (i) => 0.3 * (muscles.units[i]?.restLength ?? 0), 0.5);
+    const flagged = new Set<number>();
+    for (let tick = 0; tick < 20; tick++) {
+      s.kernel.step();
+      for (let u = 0; u < UNITS; u++) {
+        if (s.dynamics.isRigid(u)) continue;
+        if ((s.diagnostic[u] as number) & MUSCLE_FIBER_OUT_OF_RANGE) flagged.add(u);
+        // What is published is still the held length, inside the range.
+        expect(s.fiberLength[u], muscles.units[u]?.id).toBeGreaterThanOrEqual(0.1);
+      }
+    }
+    const elastic = muscles.units.filter((_, u) => !s.dynamics.isRigid(u)).length;
+    expect(elastic).toBeGreaterThan(0);
+    expect(flagged.size).toBe(elastic);
+    s.kernel.dispose();
+  });
+
+  it('never reports an equilibrium failure for a rigid unit, which has none to find', async () => {
+    // Every elbow unit made rigid, by giving it a tendon too short to be worth modelling. Then
+    // held at three lengths: its own rest length, one shorter than its tendon, and one far too
+    // long. A rigid unit has no equilibrium to search for, so the failure bit is never its to
+    // set; a path shorter than its tendon is the fiber out of range, and goes on that bit.
+    const rigidSet: CompiledMuscleSet = {
+      ...muscles,
+      units: muscles.units.map((u) => ({
+        ...u,
+        parameters: { ...u.parameters, tendonSlackLength: 0.05 * u.parameters.optimalFiberLength },
+      })),
+    };
+    type Unit = CompiledMuscleSet['units'][number];
+    const lengths = [
+      (u: Unit) => u.restLength,
+      (u: Unit) => 0.5 * u.parameters.tendonSlackLength,
+      (u: Unit) => 3 * u.restLength,
+    ];
+    for (const [which, lengthOf] of lengths.entries()) {
+      const s = await heldAt(rigidSet, (i) => lengthOf(rigidSet.units[i] as Unit), 0.5);
+      for (let u = 0; u < UNITS; u++) expect(s.dynamics.isRigid(u)).toBe(true);
+      for (let tick = 0; tick < 20; tick++) {
+        s.kernel.step();
+        for (let u = 0; u < UNITS; u++) {
+          const bits = s.diagnostic[u] as number;
+          expect(
+            bits & MUSCLE_EQUILIBRIUM_FAILED,
+            `${rigidSet.units[u]?.id}, length ${which}`,
+          ).toBe(0);
+          // Shorter than its tendon: out of range on every tick.
+          if (which === 1) {
+            expect(bits & MUSCLE_FIBER_OUT_OF_RANGE, `${rigidSet.units[u]?.id}`).toBe(
+              MUSCLE_FIBER_OUT_OF_RANGE,
+            );
+          }
+        }
+      }
+      s.kernel.dispose();
+    }
   });
 
   it('applies forces that sum to zero over the whole system', async () => {

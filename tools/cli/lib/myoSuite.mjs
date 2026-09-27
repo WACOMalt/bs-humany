@@ -71,9 +71,9 @@ export const TORSO_LUMBAR = MODELS.torso_lumbar;
  * unbiased, median ratio 1.010, with 32 of 54 within a factor of 1.5 and 47 within 2: a stand-in
  * good to about half, which is what it is described as everywhere it is used.
  *
- * It sits just above the band this model calls usable -- `FIBER_CEILING - FIBER_FLOOR` is 0.6 --
- * which is corroboration rather than coincidence: both are saying a muscle works over roughly two
- * thirds of its optimal length.
+ * It sits just above the band this model fits tendons to -- `TENDON_FIT_FIBER_CEILING -
+ * TENDON_FIT_FIBER_FLOOR` in modules-muscle's compile.ts is 0.6 -- which is corroboration rather
+ * than coincidence: both are saying a muscle works over roughly two thirds of its optimal length.
  */
 export const TYPICAL_NORMALISED_TRAVEL = 0.667;
 

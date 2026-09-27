@@ -10,9 +10,12 @@
  *
  * Section 10.2's table puts "length[N], velocity[N], contact list" on one row. A channel has one
  * element count, and wrap contacts are not one-per-unit -- a unit may wrap twice or not at all --
- * so they cannot share a buffer with the per-unit fields. They go in `muscle.contact`, sized by
- * capacity with a live count, which is the same split the base spec already makes between
- * `body.pose` and `contact.manifolds`.
+ * so they cannot share a buffer with the per-unit fields. They go in `muscle.contact`, which has a
+ * fixed capacity (`DEFAULT_MUSCLE_CONTACT_CAPACITY` unless the module is built with another) and
+ * no count field: it is filled from index 0, and every slot past the last contact is marked with
+ * `unit = -1`, so a reader walks from the start and stops at the first -1. Contacts that do not
+ * fit are not dropped silently -- `MusclePathModule.contactOverflow` counts them. This is the same
+ * split the base spec already makes between `body.pose` and `contact.manifolds`.
  *
  * ## Why the path channel carries more than length and velocity
  *
@@ -81,7 +84,12 @@ export function muscleContactSpec(capacity = DEFAULT_MUSCLE_CONTACT_CAPACITY): C
       { name: 'body', dtype: 'i32', components: 1 },
       /** World metres. */
       { name: 'point', dtype: 'f64', components: 3 },
-      /** Unit, world: the resultant of the two adjacent segment directions. */
+      /**
+       * World. The sum of the two unit tangents at the wrap, pointing into the bone:
+       * `-(u_A + u_B)`, with a magnitude from 0 to 2 by how sharply the tendon turns there. Not
+       * normalised: multiply by the tendon force to get the reaction on `body` (muscle spec 8.2
+       * step 4).
+       */
       { name: 'direction', dtype: 'f64', components: 3 },
     ],
     elementCount: capacity,
@@ -140,9 +148,12 @@ export function muscleStateSpec(units: number): ChannelSpec {
       /**
        * Nonzero when this unit did not solve cleanly this tick.
        *
-       * 1 the equilibrium hit its bracket, 2 the fiber left its valid range, 3 both. A muscle
-       * that failed still publishes a force, because stopping the simulation is worse; this is
-       * how a reader finds out that the force it is reading is the fallback.
+       * A bit field, `MUSCLE_EQUILIBRIUM_FAILED | MUSCLE_FIBER_OUT_OF_RANGE`. Bit 1: the
+       * elastic-tendon equilibrium hit its bracket, which a rigid unit never does because it
+       * has no equilibrium to search for. Bit 2: the fiber was held at `FIBER_LENGTH_MINIMUM` or
+       * `FIBER_LENGTH_MAXIMUM` this tick, or a rigid unit's path is shorter than its tendon. A
+       * muscle that failed still publishes a force, because stopping the simulation is worse;
+       * this is how a reader finds out that the force it is reading is the fallback.
        */
       { name: 'diagnostic', dtype: 'i32', components: 1 },
     ],
@@ -154,7 +165,12 @@ export function muscleStateSpec(units: number): ChannelSpec {
 
 /** Diagnostic bits on `muscle.state`. */
 export const MUSCLE_OK = 0;
+/** The elastic-tendon equilibrium hit its bracket this tick. Never set for a rigid unit. */
 export const MUSCLE_EQUILIBRIUM_FAILED = 1;
+/**
+ * The fiber was held at `FIBER_LENGTH_MINIMUM` or `FIBER_LENGTH_MAXIMUM` this tick rather than
+ * left to go past it, or a rigid unit's path is shorter than its tendon.
+ */
 export const MUSCLE_FIBER_OUT_OF_RANGE = 2;
 
 /**
@@ -219,10 +235,13 @@ export function diagnosticsMomentArmSpec(pairs: number): ChannelSpec {
 /**
  * Motor drive, 0 to 1 per unit.
  *
- * An accumulator, and declared as one now even though nothing writes it yet. Section 14 asks for
- * a channel several writers can share, because a real muscle receives drive from more than one
- * descending pathway and a reflex arc on top; making it single-writer now would mean changing the
- * ABI the first time a second source of drive existed.
+ * An accumulator shared by every source of drive. MuscleTestDriveModule writes the feedforward
+ * layer -- a scenario's scripted tone and the panel's sliders -- and SpinalModule, NervesModule
+ * and MotorNoiseModule each add their own term on top in the same tick. MuscleDynamicsModule is
+ * the one reader, and clamps the sum to 0 to 1 as it turns it into activation. It is multi-writer because section 14 asks for a
+ * channel several writers can share: a real muscle receives drive from more than one descending
+ * pathway and a reflex arc on top, and a single-writer channel would have meant changing the ABI
+ * the first time a second source of drive existed.
  */
 export function efferentAlphaMotorSpec(units: number): ChannelSpec {
   return {
@@ -237,10 +256,13 @@ export function efferentAlphaMotorSpec(units: number): ChannelSpec {
 }
 
 /**
- * Spindle sensitivity, per unit. Declared now, unused until there are spindles to be sensitive.
+ * Spindle sensitivity, per unit. Declared, and read or written by nothing yet.
  *
- * Section 14 requires it to exist from the start. It costs one buffer and it means the nerve
- * module arrives to a channel that is already there rather than to a schema change.
+ * SpinalModule does model spindle afferents -- its stretch reflex is the group II length response
+ * -- but it takes their sensitivity as a fixed gain rather than reading gamma drive here, and
+ * nothing writes gamma drive either. Section 14 requires the channel to exist from the start. It
+ * costs one buffer and it means the module that finally drives the spindles arrives to a channel
+ * that is already there rather than to a schema change.
  */
 export function efferentGammaMotorSpec(units: number): ChannelSpec {
   return {

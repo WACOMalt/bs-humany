@@ -12,11 +12,11 @@ import type { MuscleGroup } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import {
-  FIBER_CEILING,
-  FIBER_FLOOR,
   FIBER_SHARE_LIMIT,
   MINIMUM_TENDON_SLACK,
   REST_SLACK,
+  TENDON_FIT_FIBER_CEILING,
+  TENDON_FIT_FIBER_FLOOR,
   TRANSLATION_LIMIT,
   articulationBoneResolver,
   compileMuscleSet,
@@ -180,14 +180,15 @@ describe('compiling a muscle set', () => {
       // Wider than the band itself: no tendon puts both ends inside it, and the fit centers the
       // travel instead. Every other unit has its long end at or under the ceiling.
       const widerThanTheBand =
-        longest - shortest > (FIBER_CEILING - FIBER_FLOOR) * alongTendon + 1e-9;
+        longest - shortest >
+        (TENDON_FIT_FIBER_CEILING - TENDON_FIT_FIBER_FLOOR) * alongTendon + 1e-9;
       if (!widerThanTheBand) {
         expect((longest - tendonSlackLength) / alongTendon, unit.id).toBeLessThanOrEqual(
-          FIBER_CEILING + 1e-9,
+          TENDON_FIT_FIBER_CEILING + 1e-9,
         );
       }
       // A unit whose travel already sits inside the band is fitted at rest and nowhere else.
-      if (longest - atRest <= FIBER_CEILING * alongTendon) {
+      if (longest - atRest <= TENDON_FIT_FIBER_CEILING * alongTendon) {
         expect(tendonSlackLength, unit.id).toBeCloseTo(atRest, 9);
       }
       expect(tendonSlackLength, unit.id).toBeGreaterThanOrEqual(MINIMUM_TENDON_SLACK);

@@ -179,10 +179,11 @@ describe('MuscleTestDriveModule', () => {
     ).toThrow(/breakpoint/);
   });
 
-  it('lets a slider and a scenario script drive the same unit, the larger winning', async () => {
+  it('lets a slider and a scenario script drive the same unit, the slider adding to the tone', async () => {
     // What a person found in the studio: the standing scenario set its postural tone on the
     // ankle every tick through the same override the sliders used, so those sliders did nothing
-    // while every other group worked. Two layers now, and the unit gets the larger.
+    // while every other group worked. Two layers now, and the slider adds to the tone: taking the
+    // larger instead left the slider dead until it passed the tone, which looked just as broken.
     const kernel = new Kernel({ rateHz: 500, seed: 1 });
     const driver = new MuscleTestDriveModule(muscles, [
       { units: 'all', pattern: { kind: 'constant', level: 0 } },
@@ -203,13 +204,21 @@ describe('MuscleTestDriveModule', () => {
     }
     expect(activation[BICEPS]).toBeCloseTo(0.3, 2);
     expect(driver.overrideFor('biceps_brachii_long_r')).toBeCloseTo(0.3, 6);
-    // The slider raised above the tone takes over; the script keeps writing and does not win.
-    driver.setOverride('biceps_brachii_long_r', 0.8, 'user');
+    // A slider raised below the tone still counts: 0.3 of tone and 0.5 of slider is 0.8.
+    driver.setOverride('biceps_brachii_long_r', 0.5, 'user');
     for (let i = 0; i < 200; i++) {
       driver.setOverride('biceps_brachii_long_r', 0.3, 'script');
       kernel.step();
     }
     expect(activation[BICEPS]).toBeCloseTo(0.8, 2);
+    expect(driver.overrideFor('biceps_brachii_long_r')).toBeCloseTo(0.8, 6);
+    // Raised far enough that the sum passes full drive, it is held there rather than beyond.
+    driver.setOverride('biceps_brachii_long_r', 0.8, 'user');
+    for (let i = 0; i < 200; i++) {
+      driver.setOverride('biceps_brachii_long_r', 0.3, 'script');
+      kernel.step();
+    }
+    expect(activation[BICEPS]).toBeCloseTo(1, 2);
     // Cleared, the tone is what is left.
     driver.setOverride('biceps_brachii_long_r', null, 'user');
     for (let i = 0; i < 200; i++) {
