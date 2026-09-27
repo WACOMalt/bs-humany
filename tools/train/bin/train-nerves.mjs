@@ -4,126 +4,285 @@
  *
  *   pnpm train:nerves                              # defaults below; Ctrl-C keeps the best so far
  *   pnpm train:nerves --generations 400 --population 32 --workers 16 --seconds 6
- *   pnpm train:nerves --resume                     # continue from the saved policy
+ *   pnpm train:nerves --resume                     # continue the saved checkpoint of this name
+ *   pnpm train:nerves --force                      # start a checkpoint that exists afresh
  *   pnpm train:nerves --profile l1_standard        # a coarser body; L3, the reference, is the default
- *   pnpm train:nerves --recipe tools/train/runs/my-stand-recipe.json   # the studio's way
+ *   pnpm train:nerves --reflex none                # no cord; `--reflex default` the measured one
+ *   pnpm train:nerves --recipe <data>/runs/<name>-recipe.json  # the studio's way
+ *   pnpm train:nerves --help                       # every flag, and its default
  *
  * A recipe names the checkpoint and says what it is trained in: the scenario and its parameter
  * values, the body, whether the joints resist, and what plays under the brain -- nothing, the
  * scenario's own muscle script, or an activation clip. The dashboard writes one from the
- * studio's Brain tab; without one, the flags describe the reference body standing on the ground
- * with the quiet-standing clip under it, saved as `<task>.json`. The recipe is written into the
- * policy file, so a checkpoint says how to set the studio up before it is handed the body.
+ * studio's Brain tab, as `<data>/runs/<name>-recipe.json`; without one, the flags describe the
+ * reference body standing on the ground with the quiet-standing clip under it, saved as
+ * `<task>.json`. To make a run of your own, `--print-recipe > mine.json`, change its "name", and
+ * train it with `--recipe mine.json`. The recipe is written into the policy file, so a
+ * checkpoint says how to set the studio up before it is handed the body.
  *
- * A resumed policy is fitted to the body by the names of its senses and drives, so a search
- * begun on a coarser profile carries on at a finer one: what it learned stays, the senses the
- * finer body adds start from nothing.
+ * A plain run refuses to start under the name of a checkpoint that exists: `--resume` continues
+ * it, `--force` starts it afresh. A resume without a recipe carries on under the recipe the
+ * checkpoint was saved with, so it continues what it was; with one, under that recipe, and the
+ * trainer lists every field that differs before it starts. A resumed policy is fitted to the body
+ * by the names of its senses and drives, so a search begun on a coarser profile carries on at a
+ * finer one (`--resume --profile l3_anatomical`): what it learned stays, the senses the finer
+ * body adds start from nothing.
  *
  * Evolution strategies over the policy's weights, every candidate scored on its own copy of the
  * simulation in a worker thread. The best policy so far is written to
  * the data directory -- `~/.local/share/bs-humany/policies/<name>.json` on Linux, and the
  * equivalent elsewhere -- whenever it improves, and a line a generation goes to
- * `<data>/runs/<name>-<started>.jsonl`. `pnpm train:where` prints the paths.
+ * `<data>/runs/<name>-<started>.jsonl`. `pnpm train:where` prints the paths and the recipes.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { createJiti } from 'jiti';
-import { runsDir as runsHome, seedFromRepository } from './home.mjs';
+import { TRAIN_FLAGS, formatHelp, parse } from './flags.mjs';
+import { dataHome, runsDir as runsHome, seedFromRepository } from './home.mjs';
+
+// When the dashboard pipes this process and exits first, a write to the closed pipe raises
+// EPIPE on the stream, and an unhandled stream error kills the trainer -- before it writes the
+// centre of the generation it is in, which is the one thing a stop is supposed to keep. What
+// cannot be printed any more is simply not printed.
+process.stdout.on('error', () => {});
+process.stderr.on('error', () => {});
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const jiti = createJiti(import.meta.url);
-const { OpenAiEs } = await jiti.import(join(ROOT, 'tools/train/src/es.ts'));
-const { rigOptionsFor, defaultRecipe, DEFAULT_REFLEX } = await jiti.import(
-  join(ROOT, 'tools/train/src/rig.ts'),
-);
-const { train } = await jiti.import(join(ROOT, 'tools/train/src/trainer.ts'));
+/** Refuse the run with a sentence, before anything has been written or started. */
+const refuse = (text) => {
+  console.error(`train-nerves: ${text}`);
+  process.exit(1);
+};
 
-const args = process.argv.slice(2);
 /**
- * Every flag this run asked for, so an unknown one can be refused rather than ignored.
+ * Every flag, read once, before anything else happens.
  *
  * A flag nobody reads used to pass silently, and the run went ahead on the default recipe -- which
  * is named `stand` and writes `stand.json`. `--name something-else` therefore looked like it was
  * naming the run and was in fact overwriting the policy of that name with three generations of a
- * fresh one. Recipes are named in their files; the flags cannot rename a run, and now say so.
+ * fresh one. Recipes are named in their files; the flags cannot rename a run, and say so.
  */
-const asked = new Set(args.filter((a) => a.startsWith('--')).map((a) => a.slice(2)));
-const known = new Set();
-const flag = (name, fallback) => {
-  known.add(name);
-  const at = args.indexOf(`--${name}`);
-  return at >= 0 && args[at + 1] !== undefined ? args[at + 1] : fallback;
-};
-const recipePath = flag('recipe', undefined);
-/** What is trained, in what: from the recipe file, or the reference stand the flags describe. */
-const recipe = recipePath
-  ? JSON.parse(readFileSync(recipePath, 'utf8'))
-  : defaultRecipe(
-      flag('task', 'stand'),
-      flag('profile', 'l3_anatomical'),
-      Number(flag('authority', 0.3)),
-    );
+const { values: flags, given, errors, unknown } = parse(process.argv.slice(2), TRAIN_FLAGS);
+
+/** The recipes the dashboard has written, by name; read without making the directory. */
+function recipesHere() {
+  const dir = join(dataHome(), 'runs');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('-recipe.json'))
+    .map((f) => f.slice(0, -'-recipe.json'.length))
+    .sort();
+}
+
+if (unknown.length > 0) {
+  const hints = unknown.map((name) =>
+    name === 'out'
+      ? '  --out is gone: name the run in its recipe (--recipe), or set BS_HUMANY_HOME for a separate data directory'
+      : undefined,
+  );
+  const recipes = recipesHere();
+  console.error(
+    [
+      `train-nerves: no such option${unknown.length > 1 ? 's' : ''}: ${unknown.map((a) => `--${a}`).join(', ')}`,
+      ...hints.filter(Boolean),
+      `  known options: ${TRAIN_FLAGS.map((f) => `--${f.name}`).join(' ')}`,
+      '  a run is named by its recipe, not by a flag; `--recipe <file>` chooses one.',
+      recipes.length
+        ? `  recipes in ${join(dataHome(), 'runs')}: ${recipes.join(', ')}`
+        : '  no recipes written yet; the studio writes them, or make one:',
+      '  to name a run of your own: `--print-recipe > mine.json`, change "name" in it, then `--recipe mine.json`',
+    ].join('\n'),
+  );
+  process.exit(1);
+}
+if (errors.length > 0) refuse(errors.join('\n  '));
+if (flags.help) {
+  console.log(
+    formatHelp(
+      TRAIN_FLAGS,
+      'train-nerves: evolve a policy for the body, in the recipe given or the reference stand.\n' +
+        'A run is named by its recipe; a plain run will not replace a checkpoint that exists.',
+    ),
+  );
+  process.exit(0);
+}
+if (flags.recipe !== undefined) {
+  // A recipe says these; a flag beside it would be one or the other, silently.
+  for (const name of ['profile', 'task']) {
+    if (given.has(name)) refuse(`--${name} is set by the recipe (${flags.recipe}); edit it there`);
+  }
+}
+
+const jiti = createJiti(import.meta.url);
+const { rigOptionsFor, defaultRecipe, DEFAULT_NOISE, DEFAULT_REFLEX, NO_REFLEX } =
+  await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
+const { train, describeResult, formatRemaining } = await jiti.import(
+  join(ROOT, 'tools/train/src/trainer.ts'),
+);
+
+/** The fields this script reads from a recipe, which a hand-edited one may have lost. */
+function recipeProblems(r) {
+  if (r === null || typeof r !== 'object' || Array.isArray(r)) return ['it is not an object'];
+  const wrong = [];
+  if (typeof r.name !== 'string' || !/^[\w.-]+$/.test(r.name)) wrong.push('name');
+  if (typeof r.task !== 'string' || r.task === '') wrong.push('task');
+  if (typeof r.profile !== 'string' || r.profile === '') wrong.push('profile');
+  if (typeof r.feedforward?.kind !== 'string') wrong.push('feedforward');
+  if (typeof r.authority !== 'number') wrong.push('authority');
+  return wrong.length ? [`${wrong.join(', ')} missing or not what a recipe holds`] : [];
+}
+
+/** The reference stand the flags describe, refused in a sentence if the task is not one. */
+function reference(task, profile, authority) {
+  try {
+    return defaultRecipe(task, profile, authority);
+  } catch (error) {
+    return refuse(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** A policy or centre file's own recipe, when it has one, without the timescale it was run at. */
+function savedRecipe(path) {
+  if (!existsSync(path)) return { found: false };
+  try {
+    const { recipe } = JSON.parse(readFileSync(path, 'utf8'));
+    if (!recipe) return { found: true };
+    const { stepsPerSecond: _s, controlDivisor: _c, ...rest } = recipe;
+    return { found: true, recipe: rest };
+  } catch {
+    return { found: false };
+  }
+}
+
+/** Notes said while the recipe is settled, kept off stdout when stdout is the recipe. */
+const say = (text) => (flags['print-recipe'] ? console.error(text) : console.log(text));
+
+/**
+ * What is trained, in what: the recipe file; or, resuming without one, the recipe the checkpoint
+ * was saved with, so a resume continues what it was rather than whatever the flags default to;
+ * or the reference stand the flags describe.
+ */
+let recipe;
+let cordSource;
+if (flags.recipe !== undefined) {
+  let text;
+  try {
+    text = readFileSync(flags.recipe, 'utf8');
+  } catch {
+    refuse(`no recipe at ${flags.recipe}`);
+  }
+  try {
+    recipe = JSON.parse(text);
+  } catch (error) {
+    refuse(`${flags.recipe} is not JSON: ${error instanceof Error ? error.message : error}`);
+  }
+  const wrong = recipeProblems(recipe);
+  if (wrong.length) refuse(`${flags.recipe} is not a recipe: ${wrong.join('; ')}`);
+  cordSource = 'recipe';
+} else if (flags.resume) {
+  const name = flags.task;
+  const fromPolicy = savedRecipe(join(dataHome(), 'policies', `${name}.json`));
+  const fromCentre = fromPolicy.recipe
+    ? fromPolicy
+    : savedRecipe(join(dataHome(), 'runs', `${name}-centre.json`));
+  const saved = fromPolicy.recipe ?? fromCentre.recipe;
+  if (saved) {
+    recipe = { ...saved };
+    // The documented carry-on: a checkpoint begun on a coarser body, continued on a finer one.
+    if (given.has('profile')) recipe.profile = flags.profile;
+    cordSource = 'checkpoint';
+  } else {
+    recipe = reference(flags.task, flags.profile, flags.authority);
+    if (fromPolicy.found || fromCentre.found) {
+      say('  the saved checkpoint records no recipe; resuming under the reference stand');
+    }
+    cordSource = 'default';
+  }
+} else {
+  recipe = reference(flags.task, flags.profile, flags.authority);
+  cordSource = 'default';
+}
+
 // The noise, overridable from the command line whichever way the recipe arrived: a run that
-// wants a silent body for a comparison says `--noise 0 --sense-noise 0`.
-if (flag('noise', undefined) !== undefined || flag('sense-noise', undefined) !== undefined) {
+// wants a silent body for a comparison says `--noise 0 --sense-noise 0`. Any one of the three
+// opens the block, and the other two keep the recipe's.
+if (given.has('noise') || given.has('sense-noise') || given.has('noise-tau')) {
+  const base = recipe.noise ?? DEFAULT_NOISE;
   recipe.noise = {
-    motor: Number(flag('noise', recipe.noise?.motor ?? 0.05)),
-    sense: Number(flag('sense-noise', recipe.noise?.sense ?? 0.01)),
-    tau: Number(flag('noise-tau', recipe.noise?.tau ?? 0.25)),
+    motor: given.has('noise') ? flags.noise : base.motor,
+    sense: given.has('sense-noise') ? flags['sense-noise'] : base.sense,
+    tau: given.has('noise-tau') ? flags['noise-tau'] : base.tau,
   };
 }
-// The cord under the brain and the memory in it, overridable the same way. `--reflex 0` is the
-// body every checkpoint before the spinal module was trained in: no stretch reflex at all.
-// Every one of the cord's own settings, so that `--reflex-ceiling 1.5` on its own reaches the
-// cord. Two of them used to be read only inside this block without appearing in the test that
-// opens it, so passing either alone changed nothing and said nothing.
-const REFLEX_FLAGS = [
-  'reflex',
-  'reflex-velocity',
-  'reflex-delay',
-  'reflex-inhibition',
-  'reflex-setpoint',
-  'reflex-ceiling',
-  'reflex-force-inhibition',
-];
-if (REFLEX_FLAGS.some((f) => flag(f, undefined) !== undefined)) {
-  const base = recipe.reflex ?? DEFAULT_REFLEX;
-  recipe.reflex = {
-    stretch: Number(flag('reflex', base.stretch)),
-    velocity: Number(flag('reflex-velocity', base.velocity)),
-    setPoint: Number(flag('reflex-setpoint', base.setPoint)),
-    inhibition: Number(flag('reflex-inhibition', base.inhibition)),
-    forceCeiling: Number(flag('reflex-ceiling', base.forceCeiling)),
-    forceInhibition: Number(flag('reflex-force-inhibition', base.forceInhibition)),
-    delaySeconds: Number(flag('reflex-delay', base.delaySeconds)),
-  };
+
+/**
+ * The cord under the brain, overridable the same way, one flag to one number of it.
+ *
+ * `--reflex` sets the stretch gain, or names a whole cord: `default` is the measured one, `none`
+ * is the body every checkpoint before the spinal module was trained in. Any other cord flag
+ * changes that one number of the recipe's cord -- and a recipe without a cord has none, so
+ * `--reflex-delay 0.04` on its own used to switch on the measured cord at full gain, which is not
+ * what anybody changing a delay asked for.
+ */
+const REFLEX_FLAGS = {
+  'reflex-velocity': 'velocity',
+  'reflex-delay': 'delaySeconds',
+  'reflex-inhibition': 'inhibition',
+  'reflex-setpoint': 'setPoint',
+  'reflex-ceiling': 'forceCeiling',
+  'reflex-force-inhibition': 'forceInhibition',
+};
+if (given.has('reflex') || Object.keys(REFLEX_FLAGS).some((f) => given.has(f))) {
+  const named =
+    flags.reflex === 'default' ? DEFAULT_REFLEX : flags.reflex === 'none' ? NO_REFLEX : undefined;
+  const cord = { ...(named ?? recipe.reflex ?? NO_REFLEX) };
+  if (typeof flags.reflex === 'number') cord.stretch = flags.reflex;
+  for (const [flag, field] of Object.entries(REFLEX_FLAGS)) {
+    if (given.has(flag)) cord[field] = flags[flag];
+  }
+  recipe.reflex = cord;
+  cordSource = named ? `${flags.reflex}, with flags` : `${cordSource}, with flags`;
 }
-if (flag('memory', undefined) !== undefined) recipe.memory = Number(flag('memory', 0));
-if (flag('authority', undefined) !== undefined) {
-  recipe.authority = Number(flag('authority', recipe.authority));
+if (given.has('memory')) recipe.memory = flags.memory;
+if (given.has('authority')) recipe.authority = flags.authority;
+
+if (flags['print-recipe']) {
+  // Nothing else goes to stdout on this path, so it can be redirected into a file and edited.
+  const { stepsPerSecond: _s, controlDivisor: _c, ...printable } = recipe;
+  process.stdout.write(`${JSON.stringify(printable, null, 2)}\n`);
+  process.exit(0);
 }
 
 const task = recipe.task;
 const name = recipe.name;
-const generations = Number(flag('generations', 300));
-const population = Number(flag('population', 32));
-const workers = Number(flag('workers', Math.max(1, Math.min(cpus().length, 16))));
-const seconds = Number(flag('seconds', 6));
-const seedsPerCandidate = Number(flag('seeds', 2));
-const sigma = Number(flag('sigma', 0.03));
-const learningRate = Number(flag('lr', 0.005));
-const hidden = flag('hidden', '32,32').split(',').map(Number);
+const generations = flags.generations;
+const population = flags.population;
+const workers = given.has('workers') ? flags.workers : Math.max(1, Math.min(cpus().length, 16));
+const seconds = flags.seconds;
+const seedsPerCandidate = flags.seeds;
+const sigma = flags.sigma;
+const learningRate = flags.lr;
+const hidden = flags.hidden;
 const profileId = recipe.profile;
-const resume = args.includes('--resume');
+const resume = flags.resume === true;
+const force = flags.force === true;
 // The data directory the operating system means for this, shared with the studio binary, so a
 // checkpoint trained here is one the studio can hand over and the other way about. The ones
-// that ship with the repository are copied in once, on a machine that has none of its own.
+// that ship with the repository are copied in once, on a machine that has none of its own --
+// and only now, after every refusal, so a run that was refused has touched no files.
 const POLICIES = seedFromRepository(join(ROOT, 'packages/modules-nerves/policies'));
-const out = flag('out', join(POLICIES, `${name}.json`));
+const out = join(POLICIES, `${name}.json`);
+// A name is a checkpoint, and a plain run under one that exists would begin from random weights
+// and overwrite it with the first centre that scored anything. The same rule the dashboard keeps.
+if (existsSync(out) && !resume && !force) {
+  refuse(
+    `a checkpoint named ${name} exists at ${out}; pass --resume to continue it, --force to start it afresh, or give a recipe with another name (--recipe <file>).`,
+  );
+}
 const runsDir = runsHome();
 const started = new Date();
 const log = join(runsDir, `${name}-${started.toISOString().replace(/[:.]/g, '-')}.jsonl`);
@@ -140,24 +299,10 @@ const under =
     : recipe.feedforward.kind === 'script'
       ? "the scenario's script"
       : 'nothing';
-// Every flag has been read by now, so anything left over is one this script does not have.
-const unknown = [...asked].filter((a) => !known.has(a));
-if (unknown.length > 0) {
-  console.error(
-    `train-nerves: no such option${unknown.length > 1 ? 's' : ''}: ` +
-      `${unknown.map((a) => `--${a}`).join(', ')}\n` +
-      `  known options: ${[...known]
-        .sort()
-        .map((a) => `--${a}`)
-        .join(' ')}\n` +
-      '  a run is named by its recipe, not by a flag; `--recipe <file>` chooses one.',
-  );
-  process.exit(1);
-}
 
 console.log(
   `training ${name} (${task}): ${generations} generations, population ${population} x ${seedsPerCandidate} seeds, ` +
-    `${seconds} s episodes on ${profileId}, ${workers} workers`,
+    `${seconds} s episodes on ${profileId}, ${workers} workers${resume ? ', resuming' : force && existsSync(out) ? ', replacing the checkpoint' : ''}`,
 );
 console.log(
   `  in ${recipe.scenario || 'the reference stand'}${
@@ -165,16 +310,16 @@ console.log(
   }, ${under} under the brain, authority ${recipe.authority}`,
 );
 console.log(
-  `  noise: tremor ${(recipe.noise?.motor ?? 0.05).toFixed(3)} over ${(recipe.noise?.tau ?? 0.25).toFixed(2)}s, ` +
-    `senses ${(recipe.noise?.sense ?? 0.01).toFixed(3)}`,
+  `  noise: tremor ${(recipe.noise?.motor ?? DEFAULT_NOISE.motor).toFixed(3)} over ${(recipe.noise?.tau ?? DEFAULT_NOISE.tau).toFixed(2)}s, ` +
+    `senses ${(recipe.noise?.sense ?? DEFAULT_NOISE.sense).toFixed(3)}`,
 );
-const cord = recipe.reflex;
+const cord = recipe.reflex ?? NO_REFLEX;
 console.log(
-  cord && cord.stretch > 0
-    ? `  cord: stretch ${cord.stretch.toFixed(3)}, damping ${cord.velocity.toFixed(2)}, ` +
+  cord.stretch > 0 || cord.velocity > 0
+    ? `  cord (${cordSource}): stretch ${cord.stretch.toFixed(3)}, damping ${cord.velocity.toFixed(2)}, ` +
         `set point ${cord.setPoint.toFixed(2)}, inhibition ${cord.inhibition.toFixed(2)}, ` +
         `${(cord.delaySeconds * 1000).toFixed(0)} ms down and back`
-    : '  cord: no reflexes; the brain is the only thing holding the body up',
+    : `  cord (${cordSource}): no reflexes; the brain is the only thing holding the body up`,
 );
 console.log(
   recipe.memory
@@ -286,34 +431,43 @@ process.on('SIGINT', () => {
   console.log('\nstopping at the end of this generation; interrupt again to stop now');
 });
 
-const result = await train({
-  recipe,
-  pool,
-  store,
-  generations,
-  population,
-  seedsPerCandidate,
-  seconds,
-  workers,
-  sigma,
-  learningRate,
-  hidden,
-  resume,
-  now: () => performance.now(),
-  rss: () => Math.round(process.memoryUsage().rss / 1048576),
-  stopped: () => stopping,
-  onNote: (text) => console.log(text),
-  onGeneration: (r) => {
-    console.log(
-      `  gen ${String(r.generation).padStart(4)}  mean ${r.mean.toFixed(3)}  ` +
-        `top ${r.top.toFixed(3)} (${r.topAlive.toFixed(2)} s up)  ` +
-        `${r.seconds.toFixed(1)} s  ${r.rssMb} MB${r.note}`,
-    );
-  },
-});
+let result;
+try {
+  result = await train({
+    recipe,
+    pool,
+    store,
+    generations,
+    population,
+    seedsPerCandidate,
+    seconds,
+    workers,
+    sigma,
+    learningRate,
+    hidden,
+    resume,
+    now: () => performance.now(),
+    rss: () => Math.round(process.memoryUsage().rss / 1048576),
+    stopped: () => stopping,
+    onNote: (text) => console.log(text),
+    onGeneration: (r) => {
+      console.log(
+        `  gen ${String(r.generation).padStart(4)}  mean ${r.mean.toFixed(3)}  ` +
+          `top ${r.top.toFixed(3)} (${r.topAlive.toFixed(2)} s up)  ` +
+          `${r.seconds.toFixed(1)} s  ${r.rssMb} MB${r.note}` +
+          `  ${r.generation}/${r.target}, ~${formatRemaining((r.target - r.generation) * r.secondsPerGeneration)} left`,
+      );
+    },
+  });
+} catch (error) {
+  // A resume that cannot continue what is saved throws before it writes anything; so does
+  // anything else the search cannot go on from. Either way the workers are let go.
+  console.error(`train-nerves: training failed: ${error instanceof Error ? error.message : error}`);
+  pool.dispose();
+  process.exit(1);
+}
 console.log(
-  `\nstopping; best fitness ${result.fitness.toFixed(3)} (${result.alive.toFixed(2)} s up) ` +
-    `from generation ${result.generation}, saved to ${out}`,
+  `\nstopping; ${describeResult(result)}${result.generation > 0 ? `, saved to ${out}` : ''}`,
 );
 pool.dispose();
 process.exit(0);

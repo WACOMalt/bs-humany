@@ -8,9 +8,9 @@
  *
  * So the loop moved here and everything that touches a machine became an interface. A pool
  * scores candidates and says nothing about how -- worker threads in Node, web workers in a
- * window, both satisfy it. A store reads and writes four named things and says nothing about
- * where -- a directory, or a Tauri command, or a browser's own storage. A reporter takes the
- * line a generation would have printed and does what it likes with it.
+ * window, both satisfy it. A store reads and writes three named things, and appends a log, and
+ * says nothing about where -- a directory, or a Tauri command, or a browser's own storage. A
+ * reporter takes the line a generation would have printed and does what it likes with it.
  *
  * What is left is the search, and it is the same search it was: mirrored sampling, rank-shaped
  * fitness, Adam, the centre scored on fresh seeds every fifth generation, and the restart when
@@ -19,6 +19,7 @@
 
 import { MlpPolicy, type PolicyFile } from '@bs-humany/modules-nerves';
 import { OpenAiEs } from './es.js';
+import { describeDifferences, recipeDifferences } from './recipeDiff.js';
 import type { TrainingRecipe } from './rig.js';
 
 /** What a rig reports about itself once it is built: the shape of the policy it wants. */
@@ -55,13 +56,21 @@ export interface EpisodePool {
   dispose(): void;
 }
 
-/** The four things a run keeps. `policy` is the record; `centre` is where the search is now. */
+/**
+ * The three things a run keeps. `policy` is the record; `centre` is where the search is now;
+ * `latest` is the progress a dashboard draws.
+ */
 export type Keep = 'policy' | 'centre' | 'latest';
 
 export interface CheckpointStore {
   read(kind: Keep): Promise<unknown | undefined>;
   write(kind: Keep, value: unknown): Promise<void>;
-  /** One line a generation, for whoever wants the history; may do nothing. */
+  /**
+   * The run's history, for whoever wants it; may do nothing. The first line a run appends is a
+   * header, `{ kind: 'header', ... }`, saying what the run was: the recipe, the search's own
+   * settings, and where it started and means to stop. Every line without a `kind` is one
+   * generation's `GenerationReport`.
+   */
   appendLog(line: unknown): Promise<void>;
 }
 
@@ -76,6 +85,13 @@ export interface GenerationReport {
   readonly rssMb: number;
   /** What happened to the record this generation, in words; empty when nothing did. */
   readonly note: string;
+  /** The generation the run means to stop at, counting the ones a resume carried over. */
+  readonly target: number;
+  /**
+   * Wall seconds a generation, the mean of the last ten, from the end of one to the end of the
+   * next -- so the centre's evaluation and the writes are in it, which `seconds` leaves out.
+   */
+  readonly secondsPerGeneration: number;
 }
 
 export interface TrainOptions {
@@ -118,6 +134,93 @@ function seeded(seed: number): () => number {
   };
 }
 
+/** A saved file fitted to the body a run is training, or the reason it cannot be. */
+type Fit =
+  | {
+      readonly weights: Float32Array;
+      /** Whether it was this very body's, sense for sense and layer for layer. */
+      readonly sameBody: boolean;
+      readonly carried: { readonly inputs: number; readonly outputs: number };
+      /** Where it stood when it was saved: the generation and the episodes run to get there. */
+      readonly generations: number;
+      readonly episodes: number;
+    }
+  | { readonly mismatch: 'task' | 'hidden'; readonly message: string };
+
+/** What a saved file has to be fitted to: this run's name, task, hidden widths and body. */
+interface FitTarget {
+  readonly name: string;
+  readonly task: string;
+  readonly hidden: readonly number[];
+  readonly shape: RigShape;
+}
+
+/**
+ * Fit a saved file to this run's body, or say why it cannot be.
+ *
+ * Pure, and silent: the caller decides what to say about it. It used to be a closure that wrote
+ * a shared `sameBody` as it went and said "starting afresh" on the way out, which meant the
+ * answer for the centre and the answer for the policy were one variable, whichever was asked
+ * last -- and that a checkpoint for another task or of another width was quietly replaced by a
+ * random start, the very thing a resume is asked for to avoid.
+ */
+function fit(file: PolicyFile, want: FitTarget): Fit {
+  if (file.task !== want.task) {
+    return {
+      mismatch: 'task',
+      message:
+        `cannot resume ${want.name}: it was trained on ${file.task}, and this run scores ` +
+        `${want.task}. Resume continues only the same task; choose another name to start afresh`,
+    };
+  }
+  const saved = file.sizes.slice(1, -1).join('x');
+  if (saved !== want.hidden.join('x')) {
+    return {
+      mismatch: 'hidden',
+      message:
+        `cannot resume ${want.name}: it has hidden layers ${saved || 'none'}, and this run asks ` +
+        `for ${want.hidden.join('x') || 'none'}. Resume continues only the same widths; choose ` +
+        'another name to start afresh',
+    };
+  }
+  const { policy, carried } = MlpPolicy.fit(file, want.shape.inputNames, want.shape.outputNames);
+  return {
+    weights: policy.weights,
+    sameBody:
+      carried.inputs === want.shape.inputNames.length &&
+      file.sizes.join('x') === want.shape.sizes.join('x'),
+    carried,
+    generations: file.trained?.generations ?? 0,
+    episodes: file.trained?.episodes ?? 0,
+  };
+}
+
+/** How long is left, as a person says it: `3 h 10 m`, `4 m`, `< 1 m`. */
+export function formatRemaining(seconds: number): string {
+  if (!(seconds >= 60)) return '< 1 m';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} m`;
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} m`;
+}
+
+/**
+ * What a run came to, in one line, for the terminal and the studio alike. A run in which nothing
+ * beat the record has no best to report -- its fitness is minus infinity -- and says so, rather
+ * than printing that infinity as a score.
+ */
+export function describeResult(r: TrainResult): string {
+  if (r.generation === 0 || !Number.isFinite(r.fitness)) {
+    return `nothing beat the record after ${r.episodes} episodes; nothing saved`;
+  }
+  return (
+    `best ${r.fitness.toFixed(3)} (${r.alive.toFixed(2)} s up) from generation ${r.generation}, ` +
+    `${r.episodes} episodes`
+  );
+}
+
+/** How many generations the rolling estimate of a generation's wall time is taken over. */
+const PACE_WINDOW = 10;
+
 export async function train(options: TrainOptions): Promise<TrainResult> {
   const {
     recipe,
@@ -139,7 +242,7 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
   const shape = pool.shape;
   const task = recipe.task;
   const profileId = recipe.profile;
-  const names = { inputs: shape.inputNames, outputs: shape.outputNames };
+  const want: FitTarget = { name: recipe.name, task, hidden, shape };
 
   // The timescale the rig settled on, into the recipe the checkpoint carries: a run that plays
   // it at another step rate or evaluates it at another divisor is not what it was trained in.
@@ -151,45 +254,79 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
 
   let initial: Float32Array | undefined;
   let startGeneration = 0;
-  /** Whether the resumed file was this very body's, so its record still stands. */
-  let sameBody = false;
-  const fitted = (file: PolicyFile, from: string): Float32Array | undefined => {
-    if (file.task !== task) return undefined;
-    if (file.sizes.slice(1, -1).join('x') !== hidden.join('x')) {
-      note(
-        `  ${from} has hidden layers ${file.sizes.slice(1, -1).join('x')}, not ${hidden.join('x')}; starting afresh`,
-      );
-      return undefined;
-    }
-    const { policy, carried } = MlpPolicy.fit(file, names.inputs, names.outputs);
-    sameBody =
-      carried.inputs === names.inputs.length && file.sizes.join('x') === shape.sizes.join('x');
-    note(
-      `  resuming from ${from} at generation ${file.trained?.generations ?? 0}` +
-        (sameBody
-          ? ''
-          : `, fitted from ${file.profile ?? 'another body'}: ${carried.inputs} of ${names.inputs.length} senses and ${carried.outputs} of ${names.outputs.length} drives carried`),
-    );
-    return policy.weights;
-  };
+  let startEpisodes = 0;
+  /**
+   * The saved record, when it was set on this very body in this very world: its weights from
+   * the policy file (null when there is none that fits), and its score where that file says.
+   */
+  let record:
+    | {
+        readonly weights: Float32Array | null;
+        readonly fitness?: number;
+        readonly generation?: number;
+      }
+    | undefined;
 
   if (resume) {
-    const centre = (await store.read('centre')) as PolicyFile | undefined;
-    if (centre) {
-      initial = fitted(centre, 'the saved centre');
-      if (initial) startGeneration = centre.trained?.generations ?? 0;
+    // Both, before anything is written. A resume that cannot continue what is saved refuses
+    // outright: the old behaviour was to start from random weights under the same name, and the
+    // first centre that scored anything at all then overwrote a checkpoint that may have taken
+    // days -- which is what a person ticking Resume was asking not to happen.
+    const centreFile = (await store.read('centre')) as PolicyFile | undefined;
+    const policyFile = (await store.read('policy')) as PolicyFile | undefined;
+    const centreFit = centreFile ? fit(centreFile, want) : undefined;
+    const policyFit = policyFile ? fit(policyFile, want) : undefined;
+    for (const f of [centreFit, policyFit]) {
+      if (f && 'mismatch' in f) throw new Error(f.message);
     }
-    if (!initial) {
-      const saved = (await store.read('policy')) as PolicyFile | undefined;
-      if (saved) {
-        initial = fitted(saved, 'the saved policy');
-        if (initial) startGeneration = saved.trained?.generations ?? 0;
+    const usable = (f: Fit | undefined) => (f && !('mismatch' in f) ? f : undefined);
+    const centre = usable(centreFit);
+    const policy = usable(policyFit);
+    // The search resumes from its own centre, where it was; the policy is only the fallback,
+    // because it is the best the search has been, which may be generations behind it.
+    const from = centre ?? policy;
+    const fromFile = centre ? centreFile : policyFile;
+    if (!from || !fromFile) {
+      note(`  nothing saved under ${recipe.name}; starting afresh`);
+    } else {
+      initial = from.weights;
+      startGeneration = from.generations;
+      startEpisodes = from.episodes;
+      note(
+        `  resuming from ${centre ? 'the saved centre' : 'the saved policy'} at generation ${startGeneration}` +
+          (from.sameBody
+            ? ''
+            : `, fitted from ${fromFile.profile ?? 'another body'}: ${from.carried.inputs} of ${shape.inputNames.length} senses and ${from.carried.outputs} of ${shape.outputNames.length} drives carried`),
+      );
+      // Said before a single episode is spent, field by field: a resume trains in what the
+      // recipe says now, and the person resuming should know what that is not.
+      const changes = recipeDifferences(fromFile.recipe, recipe);
+      if (changes.length > 0) {
+        note(
+          `  resuming under a changed recipe: ${describeDifferences(changes)}; the checkpoint will record the new one`,
+        );
+      }
+      // The record is a score, and a score means something only in the world it was earned in
+      // and on the body that earned it. Its weights come from the policy file -- the record
+      // itself -- and not from the centre the search resumes from: restarting "from the record"
+      // to the centre is restarting from exactly where the search slumped.
+      const recordChanges = recipeDifferences((policyFile ?? fromFile).recipe, recipe);
+      if (recordChanges.length > 0) {
+        note(
+          `  the record was set in a different world (${recordChanges.map((c) => c.field).join(', ')}), so the record starts afresh`,
+        );
+      } else if (from.sameBody) {
+        const trained = policy?.sameBody ? policyFile?.trained : undefined;
+        record = {
+          weights: policy?.sameBody ? policy.weights : null,
+          ...(trained ? { fitness: trained.fitness, generation: trained.generations } : {}),
+        };
       }
     }
   }
   if (!initial) initial = MlpPolicy.random(shape.sizes, seeded(12345)).weights;
 
-  const search = (from: Float32Array, seed: number): OpenAiEs =>
+  const search = (start: Float32Array, seed: number): OpenAiEs =>
     new OpenAiEs(
       {
         dimension: shape.parameterCount,
@@ -199,7 +336,7 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
         weightDecay: 0.001,
         seed,
       },
-      from,
+      start,
     );
   let es = search(initial, 42 + startGeneration);
   /** Centre scores in a row below half the record: a search that has walked off a cliff. */
@@ -250,25 +387,59 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
     const previous = (await store.read('latest')) as
       | { task?: string; series?: [number, number, number, number][]; best?: typeof best }
       | undefined;
-    if (previous?.task === task && Array.isArray(previous.series)) series.push(...previous.series);
-    // The record carries over only on the same body; a fitted policy starts a new one.
-    if (previous?.best && initial && sameBody) {
-      best = { ...previous.best, weights: Float32Array.from(initial) };
+    // Up to where the search resumes and no further: a run stopped hard after its progress was
+    // published and before its centre was written would otherwise chart its last generation
+    // twice, once from each side of the resume.
+    if (previous?.task === task && Array.isArray(previous.series)) {
+      series.push(...previous.series.filter((row) => row[0] <= startGeneration));
+    }
+    // The score and the generation from the policy file where it says, so the record's weights
+    // and its score come from one file; the progress file's, which says the same thing, where it
+    // does not. The weights may be null -- a score that stands with nothing to restart to, which
+    // every restart already checks for.
+    const fitness = record?.fitness ?? previous?.best?.fitness;
+    if (record && typeof fitness === 'number') {
+      best = {
+        fitness,
+        weights: record.weights,
+        generation: record.generation ?? previous?.best?.generation ?? startGeneration,
+        alive: previous?.best?.alive ?? 0,
+      };
     }
   }
 
-  const fileFor = (weights: Float32Array, generation: number, fitness: number, episodes: number) =>
+  const fileFor = (
+    weights: Float32Array,
+    generation: number,
+    fitness: number,
+    count: number,
+    scored: { readonly scoredAt: number; readonly populationMean: number },
+  ) =>
     new MlpPolicy(shape.sizes, weights).toFile({
       task,
       profile: profileId,
       inputs: shape.inputNames,
       outputs: shape.outputNames,
-      trained: { generations: generation, fitness, episodes, at: new Date().toISOString() },
+      trained: {
+        generations: generation,
+        fitness,
+        episodes: count,
+        at: new Date().toISOString(),
+        seconds,
+        ...scored,
+      },
       recipe: carriedRecipe,
     });
 
-  let episodes = 0;
-  const publishLatest = async (): Promise<void> => {
+  let episodes = startEpisodes;
+  const target = startGeneration + generations;
+  const startedAt = new Date().toISOString();
+  /** Wall seconds of the last few generations, for the pace and what is left. */
+  const laps: number[] = [];
+  let secondsPerGeneration = 0;
+  /** The last generation finished, so the final progress can say whether the run got there. */
+  let reached = startGeneration;
+  const publishLatest = async (state: 'running' | 'finished' | 'stopped'): Promise<void> => {
     await store.write('latest', {
       task,
       name: recipe.name,
@@ -284,10 +455,38 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
       episodes,
       best: { fitness: best.fitness, alive: best.alive, generation: best.generation },
       series,
+      startGeneration,
+      target,
+      startedAt,
+      secondsPerGeneration,
+      state,
     });
   };
 
-  for (let g = startGeneration + 1; g <= startGeneration + generations; g++) {
+  // What this run was, before its first generation: a history file read on its own a month
+  // later should say what produced the rows under it.
+  await store.appendLog({
+    kind: 'header',
+    recipe: carriedRecipe,
+    population,
+    seeds: seedsPerCandidate,
+    seconds,
+    sigma,
+    learningRate,
+    hidden,
+    startGeneration,
+    target,
+    startedAt,
+  });
+
+  /**
+   * The centre's last score, which is what the centre file says it is worth. It used to write
+   * the population's mean there, which is the score of nobody: the centre is not scored by the
+   * mean of its perturbations, and a dashboard that read it as the centre's was misled.
+   */
+  let lastCentre = { fitness: Number.NaN, alive: 0, generation: 0 };
+  let lap = now();
+  for (let g = startGeneration + 1; g <= target; g++) {
     if (options.stopped?.()) break;
     const t0 = now();
     const candidates = es.ask();
@@ -304,15 +503,24 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
     if (g % 5 === 0 || g === startGeneration + 1) {
       const centre = await evaluate([Float32Array.from(es.theta)], -g);
       const centreFitness = centre.fitness[0] as number;
+      lastCentre = { fitness: centreFitness, alive: centre.alive[0] as number, generation: g };
       // The step is Adam-normalised, so a noisy estimate still moves at full speed, and a run of
       // them can carry the centre somewhere it cannot stand at all while the record sits behind
       // it. Two checks in a row at less than half the record, and the search restarts from the
-      // record with fresh momentum and fresh noise.
-      slumped = best.weights && centreFitness < 0.5 * best.fitness ? slumped + 1 : 0;
+      // record with fresh momentum and fresh noise. "Half" is half the record's size below it,
+      // so a negative record -- a task scored as a penalty -- slumps downwards as a positive one
+      // does; `0.5 * best` put the threshold above a negative record, and every centre that
+      // improved on it by less than half counted as a slump.
+      slumped =
+        best.weights && centreFitness < best.fitness - 0.5 * Math.abs(best.fitness)
+          ? slumped + 1
+          : 0;
       if (slumped >= 2 && best.weights) {
         es = search(best.weights, 42 + g);
         slumped = 0;
         noteText = `  restarted from the record (centre ${centreFitness.toFixed(3)} against ${best.fitness.toFixed(3)})`;
+        // The centre is the record now, and is worth what the record is.
+        lastCentre = { fitness: best.fitness, alive: best.alive, generation: best.generation };
       } else if (centreFitness > best.fitness) {
         best = {
           fitness: centreFitness,
@@ -322,11 +530,21 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
         };
         await store.write(
           'policy',
-          fileFor(best.weights as Float32Array, g, centreFitness, episodes),
+          fileFor(best.weights as Float32Array, g, centreFitness, episodes, {
+            scoredAt: g,
+            populationMean: mean,
+          }),
         );
         noteText = `  saved (centre ${centreFitness.toFixed(3)}, ${(centre.alive[0] as number).toFixed(2)} s up)`;
       }
     }
+    // A lap runs from this point in one generation to this point in the next, so it holds the
+    // previous generation's writes as well as this one's episodes: what a generation costs.
+    const at = now();
+    laps.push((at - lap) / 1000);
+    lap = at;
+    if (laps.length > PACE_WINDOW) laps.shift();
+    secondsPerGeneration = laps.reduce((a, b) => a + b, 0) / laps.length;
     const report: GenerationReport = {
       generation: g,
       mean,
@@ -335,12 +553,22 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
       seconds: elapsed,
       rssMb: rss(),
       note: noteText,
+      target,
+      secondsPerGeneration,
     };
     await store.appendLog(report);
     options.onGeneration?.(report);
-    await publishLatest();
-    await store.write('centre', fileFor(Float32Array.from(es.theta), g, mean, episodes));
+    await publishLatest('running');
+    await store.write(
+      'centre',
+      fileFor(Float32Array.from(es.theta), g, lastCentre.fitness, episodes, {
+        scoredAt: lastCentre.generation,
+        populationMean: mean,
+      }),
+    );
+    reached = g;
   }
+  await publishLatest(reached === target ? 'finished' : 'stopped');
   return {
     fitness: best.fitness,
     alive: best.alive,

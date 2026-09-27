@@ -26,9 +26,23 @@ export interface PolicyFile {
   readonly weights: string;
   readonly trained?: {
     readonly generations: number;
+    /**
+     * What it scored. For a record, the score that made it the record; for a search's centre,
+     * the centre's own last score, taken at `scoredAt` -- files written before that field was
+     * kept hold the population's mean here instead.
+     */
     readonly fitness: number;
     readonly episodes: number;
     readonly at: string;
+    /**
+     * The generation `fitness` was measured at. A centre is scored every few generations, so the
+     * score a centre file carries can be older than the weights beside it.
+     */
+    readonly scoredAt?: number;
+    /** The mean score of the population around it in the generation it was written. */
+    readonly populationMean?: number;
+    /** Seconds an episode lasted while it was scored, which bounds how much a score can be. */
+    readonly seconds?: number;
   };
   /**
    * What it was trained in -- the scenario and its parameters, the body, what played under the
