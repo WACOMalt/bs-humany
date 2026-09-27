@@ -11,8 +11,20 @@
  */
 
 import { z } from 'zod';
+import { DofRefSchema } from './constraints.js';
 import { HsdlDocumentSchema } from './document.js';
 import { HSDL_VERSION, SCHEMA_BASE_URI } from './namespace.js';
+
+/**
+ * The degree-of-freedom reference is shared -- a coupling's dependent and drivers name one, and so
+ * does a joint hold -- so the generator lifts it into a definition, and an unnamed definition gets
+ * a counter for a name. `__schema33` changes whenever a schema is added ahead of it, which puts
+ * every reference to it in the diff of an unrelated change and gives a consumer of the published
+ * schema nothing stable to point at. The other named definitions are registered beside their Zod
+ * schemas; this one is registered where the published schema is made, and moving it beside
+ * `DofRefSchema` would change nothing in the output.
+ */
+z.globalRegistry.add(DofRefSchema, { id: 'DofRef' });
 
 /**
  * Emit the JSON Schema for an HSDL document.
@@ -37,7 +49,7 @@ export function generateJsonSchema(): Record<string, unknown> {
     description:
       'HumanSim Description Language: the canonical body model for bs-humany. Generated from ' +
       'the Zod schemas in @bs-humany/hsdl. Do not edit by hand -- regenerate with ' +
-      '`pnpm --filter @bs-humany/hsdl generate:schema`.',
+      '`pnpm generate:hsdl-schema`.',
     ...schema,
   };
 }

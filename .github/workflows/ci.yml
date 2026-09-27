@@ -1,11 +1,15 @@
 name: CI
 
+# experience-pass is a long-running branch that is never merged or opened as a pull request into
+# main, so without its own trigger nothing it carries would ever be checked by CI.
 on:
   push:
-    branches: [main]
+    branches: [main, experience-pass]
   pull_request:
+  workflow_dispatch:
 
 jobs:
+  # The same steps, in the same order, as `pnpm verify`.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -34,56 +38,32 @@ jobs:
       - name: Module lint
         run: pnpm module:lint
 
-      - name: Generated muscle data matches its source
-        run: pnpm generate:elbow-muscles --check
-
-      - name: Generated shoulder data matches its source
-        run: pnpm generate:shoulder-muscles --check
-
-      - name: Generated knee data matches its source
-        run: pnpm generate:knee-muscles --check
-
-      - name: Generated hip data matches its source
-        run: pnpm generate:hip-muscles --check
-
-      - name: Generated ankle data matches its source
-        run: pnpm generate:ankle-muscles --check
-
-      - name: Generated trunk data matches its source
-        run: pnpm generate:trunk-muscles --check
-
-      - name: Generated forearm data matches its source
-        run: pnpm generate:forearm-muscles --check
-
-      - name: Generated torso data matches its source
-        run: pnpm generate:torso-muscles --check
-      - name: Generated neck data matches its source
-        run: pnpm generate:neck-muscles --check
-      - name: Generated girdle data matches its source
-        run: pnpm generate:girdle-muscles --check
-      - name: Generated thorax data matches its source
-        run: pnpm generate:thorax-muscles --check
-
-      - name: Generated via points match their source
-        run: pnpm generate:via-points --check
-
-      - name: Pose-bridge fixture matches its writer
-        run: pnpm generate:pose-bridge-fixture --check
-
-      - name: Measured muscle travel matches this skeleton
-        run: pnpm measure:muscle-ranges --check
-
-      - name: Measured source travel matches the vendored models
-        run: pnpm measure:source-travel --check
-
-      - name: External validation
-        run: pnpm validate:external --check
-
-      - name: Moment arm validation
-        run: pnpm validate:moment-arms --check
-
-      - name: Section 14.5 audit
-        run: pnpm audit:obligations --check
+      # Every generator, measurement, validation report and the section 14.5 audit, with --check,
+      # in dependency order. The list is read from package.json (tools/cli/lib/targets.mjs), so a
+      # new generator is checked here without editing this file.
+      - name: Generated files and reports match their sources
+        run: pnpm check:generated
 
       - name: Test
         run: pnpm test
+
+      # The same build the container image makes, so a type-only import or a Vite config change
+      # that breaks the bundle fails here rather than at release.
+      - name: Studio builds
+        run: pnpm build:studio
+
+  # The headset viewer's own tests. It needs no shader toolchain: shaderc sits behind the
+  # compile-shaders feature and the committed SPIR-V is what the viewer embeds.
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/xr-viewer
+
+      - name: Viewer tests
+        run: cargo test --locked --manifest-path apps/xr-viewer/Cargo.toml

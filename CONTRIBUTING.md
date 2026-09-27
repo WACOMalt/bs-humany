@@ -144,13 +144,22 @@ on by the next person, and then turned off again.
 
 ```bash
 pnpm install
-pnpm test          # vitest, all packages
-pnpm typecheck     # tsc --build across project references
-pnpm lint          # biome
-pnpm cite:lint     # citation coverage
-pnpm module:lint   # banned globals and allocation in step()
-pnpm dev           # studio app
+pnpm test              # vitest, all packages
+pnpm typecheck         # tsc --build across project references
+pnpm lint              # biome
+pnpm cite:lint         # citation coverage
+pnpm module:lint       # banned globals and allocation in step()
+pnpm check:generated   # every generator, measurement, validation report and audit, as CI runs them
+pnpm regenerate        # rewrite generated data in dependency order, then check
+pnpm build:studio      # the production bundle the container image serves
+pnpm verify            # everything the CI check job runs, in its order
+pnpm dev               # studio app
+cargo test --manifest-path apps/xr-viewer/Cargo.toml   # the CI rust job: the headset viewer
 ```
+
+The muscle-data region sets, `skeleton/src/muscleViaPoints.ts`, `muscle-data/src/ranges.ts`,
+`muscle-data/src/sourceTravel.ts` and the reports those scripts write under `docs/validation`
+change only through these scripts, never by hand.
 
 `pnpm module:lint` scans `kernel`, `compiler`, `muscle-model`, `muscle-path`, `muscle-volume`,
 `scenarios`, and every `modules-*` and `backend-*` package, which it finds by name so a new one is
@@ -158,3 +167,32 @@ covered without anyone remembering to list it. Banned globals are checked in eve
 those packages. The allocation check is narrower than rule 9: it reads only the bodies of
 functions named `step` and does not follow what they call, so a helper called every tick is held
 to rule 9 by review until the check that follows callees lands (sim-core/tick-path-allocations).
+
+## Generated files
+
+A lot of what is committed here is written by a script from a source: the muscle-data region
+files from the vendored MyoSuite models, the via points, the measured ranges and source travel, the
+pose-bridge fixture, the published HSDL JSON Schema, the Align tab's `sourceSites.json`, and the
+validation reports and the §14.5 audit under `docs/validation`. Each is committed so that a reader,
+a test and a build see it without running anything, and each can fall behind its source without a
+test noticing, because the tests read the committed output.
+
+`pnpm check:generated` is the guard. It runs every root script named `generate:*`, `measure:*`,
+`validate:*` and `audit:*` (plus `extract:source-sites`, until it takes the `generate:` prefix)
+with `--check`, in dependency order, names every file that is not what its script would write, and
+fails if there is one. CI runs exactly this. The list and its order live in `tools/cli/lib/targets.mjs`, which
+reads the names off `package.json`, so adding a generator is adding the script.
+
+A script under one of those prefixes must honour `--check`: compare, exit non-zero on a
+difference, and write nothing. `check:generated` fingerprints the working tree around each target
+and fails one that changes it, so a script that ignores the flag is caught rather than trusted.
+Format generated JSON and TypeScript the way `pnpm lint` will (the schema and source-sites
+generators pipe theirs through Biome), so that a fresh write and the committed file are the same
+bytes.
+
+When a source changes, run `pnpm regenerate`. It writes every target in the same order, stops at
+the first failure, and finishes with the check pass, because a validation report records a new
+discrepancy and exits 0 while writing; only the check fails on it. Commit the regenerated files
+with the change that caused them, and say in the message why they moved. It never touches golden
+trajectories: those record what the simulation did rather than derive from a source, and move only
+on purpose.

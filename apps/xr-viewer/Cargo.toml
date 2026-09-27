@@ -25,12 +25,20 @@ serde_json = "1"
 # with no copy and no syscall.
 memmap2 = "0.9"
 egui = "0.29.1"
+# Only for `cargo run --example compile-shaders --features compile-shaders`, which regenerates the
+# committed SPIR-V. Optional behind a feature rather than a dev-dependency, because cargo builds
+# every dev-dependency for `cargo test` as well, and shaderc's build script wants an installed
+# libshaderc or a C++ toolchain to compile one: a test run, and CI with it, would need a shader
+# toolchain to check code that never compiles a shader. Neither a build nor a test touches it now.
+shaderc = { version = "0.9", optional = true }
+
+[features]
+compile-shaders = ["dep:shaderc"]
+
+[[example]]
+name = "compile-shaders"
+required-features = ["compile-shaders"]
 
 [profile.release]
 opt-level = 3
 lto = true
-
-[dev-dependencies]
-# Only for `cargo run --example compile-shaders`, which regenerates the committed SPIR-V. A normal
-# build never touches it, so nobody needs a shader toolchain to build the viewer.
-shaderc = "0.9"

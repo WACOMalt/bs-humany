@@ -303,10 +303,11 @@ GLSL in `shaders/`, compiled to the `.spv` beside it and committed, which the vi
 `include_bytes!`. An ordinary build therefore needs no shader toolchain. To change a shader:
 
 ```bash
-SHADERC_LIB_DIR=/usr/lib64 cargo run --example compile-shaders
+SHADERC_LIB_DIR=/usr/lib64 cargo run --example compile-shaders --features compile-shaders
 ```
 
-An example rather than a binary so `shaderc` stays a dev-dependency. Same bargain as the generated
+An example rather than a binary, with `shaderc` behind the `compile-shaders` feature, so
+`cargo test` needs no shader toolchain. Same bargain as the generated
 data elsewhere in the repository: a generator, its output committed, and the two expected to agree.
 
 ## Why ash and not wgpu

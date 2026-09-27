@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://bsums.xyz/bs-humany/schema/hsdl-0.1.json",
   "title": "HSDL 0.1",
-  "description": "HumanSim Description Language: the canonical body model for bs-humany. Generated from the Zod schemas in @bs-humany/hsdl. Do not edit by hand -- regenerate with `pnpm --filter @bs-humany/hsdl generate:schema`.",
+  "description": "HumanSim Description Language: the canonical body model for bs-humany. Generated from the Zod schemas in @bs-humany/hsdl. Do not edit by hand -- regenerate with `pnpm generate:hsdl-schema`.",
   "type": "object",
   "properties": {
     "hsdlVersion": {
@@ -133,10 +133,24 @@
             "minLength": 1
           },
           "transform": {
-            "$ref": "#/$defs/Transform"
+            "$ref": "#/$defs/TransformExpr"
           },
           "shape": {
             "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "sphere"
+                  },
+                  "radius": {
+                    "$ref": "#/$defs/ScalarExpr"
+                  }
+                },
+                "required": ["kind", "radius"],
+                "additionalProperties": false
+              },
               {
                 "type": "object",
                 "properties": {
@@ -1390,6 +1404,9 @@
                   "items": {
                     "$ref": "#/$defs/Vec3"
                   }
+                },
+                "scale": {
+                  "$ref": "#/$defs/ScalarExpr"
                 }
               },
               "required": ["kind", "vertices"],
@@ -1519,13 +1536,13 @@
                   "const": "jointCoupling"
                 },
                 "dependent": {
-                  "$ref": "#/$defs/__schema33"
+                  "$ref": "#/$defs/DofRef"
                 },
                 "drivers": {
                   "minItems": 1,
                   "type": "array",
                   "items": {
-                    "$ref": "#/$defs/__schema34"
+                    "$ref": "#/$defs/__schema33"
                   }
                 },
                 "offset": {
@@ -1551,6 +1568,31 @@
               },
               "required": ["type", "bodyA", "bodyB"],
               "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "jointHold"
+                },
+                "dof": {
+                  "$ref": "#/$defs/DofRef"
+                },
+                "angle": {
+                  "type": "number"
+                },
+                "timeConstant": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "dampingRatio": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": ["type", "dof", "timeConstant"],
+              "additionalProperties": false
             }
           ]
         },
@@ -1567,7 +1609,7 @@
       "required": ["id", "kind"],
       "additionalProperties": false
     },
-    "__schema33": {
+    "DofRef": {
       "type": "object",
       "properties": {
         "joint": {
@@ -1582,11 +1624,11 @@
       "required": ["joint", "dof"],
       "additionalProperties": false
     },
-    "__schema34": {
+    "__schema33": {
       "type": "object",
       "properties": {
         "dof": {
-          "$ref": "#/$defs/__schema33"
+          "$ref": "#/$defs/DofRef"
         },
         "coefficient": {
           "type": "number"
@@ -1619,13 +1661,13 @@
           "$ref": "#/$defs/Morphology"
         },
         "statureRange": {
-          "$ref": "#/$defs/__schema35"
+          "$ref": "#/$defs/__schema34"
         },
         "massRange": {
-          "$ref": "#/$defs/__schema36"
+          "$ref": "#/$defs/__schema35"
         },
         "populations": {
-          "$ref": "#/$defs/__schema37"
+          "$ref": "#/$defs/__schema36"
         },
         "ext": {
           "$ref": "#/$defs/__schema10"
@@ -1690,6 +1732,22 @@
       "required": ["sex", "stature", "mass"],
       "additionalProperties": false
     },
+    "__schema34": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
     "__schema35": {
       "type": "array",
       "prefixItems": [
@@ -1707,29 +1765,13 @@
       "maxItems": 2
     },
     "__schema36": {
-      "type": "array",
-      "prefixItems": [
-        {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        {
-          "type": "number",
-          "exclusiveMinimum": 0
-        }
-      ],
-      "items": false,
-      "minItems": 2,
-      "maxItems": 2
-    },
-    "__schema37": {
       "minItems": 1,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema38"
+        "$ref": "#/$defs/__schema37"
       }
     },
-    "__schema38": {
+    "__schema37": {
       "type": "object",
       "properties": {
         "describes": {
@@ -1792,19 +1834,6 @@
         }
       },
       "required": ["id", "bone", "kind", "displayName", "position", "source"],
-      "additionalProperties": false
-    },
-    "Transform": {
-      "type": "object",
-      "properties": {
-        "translation": {
-          "$ref": "#/$defs/Vec3"
-        },
-        "rotation": {
-          "$ref": "#/$defs/Quat"
-        }
-      },
-      "required": ["translation", "rotation"],
       "additionalProperties": false
     }
   }
