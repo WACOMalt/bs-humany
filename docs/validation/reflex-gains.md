@@ -102,7 +102,18 @@ where it is because nothing here exercises it, not because it has been shown to 
 
 ## Reproducing all of it
 
-Build a `StandRig` per setting with `reflex: { ...DEFAULT_REFLEX, ... }`, run `episode` over
+`pnpm measure:reflex-gains` (`tools/train/bin/measure-reflex-gains.mjs`) prints these tables and
+writes nothing; `--tables stretch` or `--seeds 2` makes a shorter run of it, and the whole of it
+takes about half an hour. Run on 2026-09-27 it gave every time-upright number on this page to the
+third decimal, with two exceptions in the last place: fitness at stretch 3 is 1.711 and the
+trained body with no damper 0.875. The silent column of its stretch table runs from 0.579 at 2 to
+0.569 at 4. What it does not reproduce is the collapse: the standing row and the standing column
+agree, but the falling row, the falling column and the Golgi's tendon forces were measured in a
+collapse whose recipe was not written down. The script's collapse -- the reference stand, silent,
+no cord, seed 1 -- gives -0.414, -0.136, 0.148 and 0.323 for the row, 114, 97, 57 and 35 for the
+column, and 0.084 and 0.362 for the tendon force, still far below the ceiling of 1.2.
+
+It does what follows. Build a `StandRig` per setting with `reflex: { ...DEFAULT_REFLEX, ... }`, run `episode` over
 several seeds, and read `aliveSeconds`. For a trained body, `MlpPolicy.fit` the checkpoint against
 `rig.inputNames` and `rig.outputNames` first. The flags do the same for a real run: `--reflex`,
 `--reflex-velocity`, `--reflex-setpoint`, `--reflex-inhibition`, `--reflex-ceiling`,
