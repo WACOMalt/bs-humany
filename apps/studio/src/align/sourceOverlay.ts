@@ -208,6 +208,20 @@ export function changeOfAxes(model: string): Placement {
   return { ...(CHANGE_OF_AXES[model] ?? CHANGE_OF_AXES.legs ?? NEUTRAL) };
 }
 
+/**
+ * Where the Align tab puts a model when it is picked, and again on Reset placement.
+ *
+ * Nothing but its change of axes: `place` applies no change of axes of its own, so the placement
+ * *is* the change of axes, and a model placed this way stands up in ours with its long axis down
+ * our -Y. The panel used the legs' axes for every model, which laid the arm, whose axes are
+ * already Y-up, flat along the floor. It does not seat the model on our body -- it may well hang
+ * below the floor -- because where along the body it belongs is a person's to set.
+ */
+export function defaultPlacement(model: string): Placement {
+  return changeOfAxes(model);
+}
+
+/** The legs' change of axes, MuJoCo's usual Z-up to our Y-up; `defaultPlacement` is per model. */
 export const Z_UP_TO_Y_UP: Placement = changeOfAxes('legs');
 
 /** What a mesh is: the geom it draws, the body wearing it, and its place in the declaration. */
