@@ -3,6 +3,7 @@
   "compilerOptions": { "outDir": "./dist", "rootDir": "./src", "lib": ["ES2022", "DOM"] },
   "include": ["src/**/*"],
   "references": [
+    { "path": "../../packages/assets-anatomical" },
     { "path": "../../packages/frames" },
     { "path": "../../packages/hsdl" },
     { "path": "../../packages/skeleton" }

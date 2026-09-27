@@ -10,7 +10,7 @@
  * Directions are in the canonical world frame: +X right, +Y superior, +Z posterior.
  */
 
-import type { WorldMesh } from './geometry.js';
+import { type WorldMesh, nearestVertex, vertexAt } from './geometry.js';
 
 export interface DerivedRule {
   readonly bone: string;
@@ -27,23 +27,9 @@ export interface DerivedContext {
   readonly landmark: (bone: string, feature: string) => Vec3 | undefined;
 }
 
-/** The vertex of the mesh nearest a point. */
+/** The vertex of the mesh nearest a point (`nearestVertex`, shared with the other stages). */
 function nearest(mesh: WorldMesh, to: Vec3): Vec3 {
-  const p = mesh.positions;
-  let best = Number.POSITIVE_INFINITY;
-  let at = 0;
-  for (let i = 0; i < mesh.vertexCount; i++) {
-    const d = Math.hypot(
-      (p[i * 3] ?? 0) - to[0],
-      (p[i * 3 + 1] ?? 0) - to[1],
-      (p[i * 3 + 2] ?? 0) - to[2],
-    );
-    if (d < best) {
-      best = d;
-      at = i;
-    }
-  }
-  return [p[at * 3] ?? 0, p[at * 3 + 1] ?? 0, p[at * 3 + 2] ?? 0];
+  return vertexAt(mesh.positions, nearestVertex(mesh.positions, 0, mesh.vertexCount, to).index);
 }
 
 type Axis = 0 | 1 | 2;
@@ -934,7 +920,19 @@ export const DERIVED_RULES: readonly DerivedRule[] = [
         feature: `${line}_${s}`,
         rule: `the occipital vertex nearest the '${line}' marker${s === 'l' ? '' : ' mirrored across the midline (X negated)'}`,
         pick: (m, { landmark }) => {
-          const marker = landmark('occipital', line) ?? [0, 0, 0];
+          // Without the marker there is nothing to measure from, and the origin is no stand-in:
+          // it lies on the floor between the feet, so the vertex nearest it is the bottom of the
+          // occipital, which would be written as a nuchal line with this rule beside it, and the
+          // muscles that attach there would follow it without complaint. The export carries both nuchal-line markers, so
+          // a missing one means the export or the mapping has changed, and that wants a person.
+          const marker = landmark('occipital', line);
+          if (!marker) {
+            throw new Error(
+              `derived.ts: the occipital has no '${line}' marker, which the ${line}_${s} rule ` +
+                'is measured from. The export or the mapping has changed; find the marker ' +
+                'before re-running.',
+            );
+          }
           const flip = marker[0] < 0 === (s === 'l') ? 1 : -1;
           return nearest(m, [marker[0] * flip, marker[1], marker[2]]);
         },

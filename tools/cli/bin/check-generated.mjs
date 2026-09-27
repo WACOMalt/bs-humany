@@ -13,7 +13,9 @@
  *
  * The list comes from tools/cli/lib/targets.mjs, which reads it off the root package.json by
  * prefix (`generate:`, `measure:`, `validate:`, `audit:`), so a script added under one of those is
- * checked without touching this file. `pnpm regenerate` runs the same list in write mode.
+ * checked without touching this file. The few checks that live in a workspace package instead --
+ * the anatomical data's ingest stages -- are listed there too, and run first. `pnpm regenerate`
+ * runs the root list in write mode.
  *
  * A check must not write. A script that took `--check` for a request to rewrite its file would
  * pass here and leave the tree changed, and in CI -- where nothing looks at the tree afterwards --
@@ -27,11 +29,11 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { orderedTargets } from '../lib/targets.mjs';
+import { checkTargets } from '../lib/targets.mjs';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
 const scripts = JSON.parse(readFileSync(new URL('package.json', `file://${root}`), 'utf8')).scripts;
-const targets = orderedTargets(scripts);
+const targets = checkTargets(scripts);
 
 /** A hash of everything git can see changed in the working tree, tracked or not. */
 function treeFingerprint() {
@@ -50,9 +52,9 @@ function treeFingerprint() {
 }
 
 let failed = 0;
-for (const target of targets) {
+for (const { label: target, args } of targets) {
   const before = treeFingerprint();
-  const run = spawnSync('pnpm', [target, '--check'], { cwd: root, encoding: 'utf8' });
+  const run = spawnSync('pnpm', args, { cwd: root, encoding: 'utf8' });
   const wrote = treeFingerprint() !== before;
   const ok = run.status === 0 && !wrote;
   if (!ok) failed += 1;

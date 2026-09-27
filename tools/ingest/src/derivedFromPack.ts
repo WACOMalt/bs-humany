@@ -1,7 +1,7 @@
 /**
  * Derived landmarks, measured from the packed meshes.
  *
- *   pnpm --filter @bs-humany/ingest derived-from-pack [dataDir]
+ *   pnpm --filter @bs-humany/ingest derived-from-pack [dataDir] [--check]
  *
  * `ingest.ts` derives its landmarks while it has the FBX open. The rules in `derived.ts` need only
  * a bone's vertices, and the pack holds every bone's vertices at the dataset's stature in the same
@@ -16,44 +16,20 @@
  *
  * The rib rules also measure each rib's length along its arc, which `rib-arcs.json` records for
  * the intercostals' cross-sections (Bruno 2015 sizes them by rib length).
+ *
+ * With `--check` it measures everything in memory and compares the three files with what is
+ * committed, writing nothing, as `pnpm --filter @bs-humany/ingest check` and so
+ * `pnpm check:generated` run it. It is the first of the re-measuring stages; the order is in
+ * packages/assets-anatomical/README.md.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { DERIVED_RULES, RIB_RULES, ribArc } from './derived.js';
-import type { WorldMesh } from './geometry.js';
-import type { Manifest } from './pack.js';
+import { DataDir, emit, loadPack, stageArgs } from './packData.js';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const dataDir = resolve(process.argv[2] ?? join(HERE, '../../../packages/assets-anatomical/data'));
-
-const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')) as Manifest;
-const bin = readFileSync(join(dataDir, 'skeleton.bin'));
-const positions = new Float32Array(bin.buffer, bin.byteOffset, bin.byteLength / 4);
-const landmarks = JSON.parse(readFileSync(join(dataDir, 'landmarks.json'), 'utf8')) as Record<
-  string,
-  Record<string, [number, number, number]>
->;
-const derived = JSON.parse(readFileSync(join(dataDir, 'landmarks-derived.json'), 'utf8')) as Record<
-  string,
-  Record<string, string>
->;
-
-function meshOf(bone: string): WorldMesh | undefined {
-  const packed = manifest.bones.find((b) => b.id === bone);
-  if (!packed) return undefined;
-  const from = packed.vertexOffset * 3;
-  return {
-    positions: positions.subarray(from, from + packed.vertexCount * 3),
-    indices: new Uint32Array(0),
-    vertexCount: packed.vertexCount,
-    triangleCount: packed.indexCount / 3,
-    centroid: [...packed.centroid] as [number, number, number],
-    min: [...packed.min] as [number, number, number],
-    max: [...packed.max] as [number, number, number],
-  };
-}
+const { dataDir, check } = stageArgs();
+const data = new DataDir(dataDir);
+const { meshOf, landmarks } = loadPack(data);
+const derived = data.json<Record<string, Record<string, string>>>('landmarks-derived.json');
 
 const context = {
   meshOf,
@@ -127,15 +103,11 @@ for (let n = 1; n <= 12; n++) {
 
 const sortedKeys = <T>(o: Record<string, T>): Record<string, T> =>
   Object.fromEntries(Object.keys(o).map((k) => [k, o[k] as T]));
-writeFileSync(
-  join(dataDir, 'landmarks.json'),
-  `${JSON.stringify(sortedKeys(landmarks), null, 1)}\n`,
-);
-writeFileSync(
-  join(dataDir, 'landmarks-derived.json'),
-  `${JSON.stringify(sortedKeys(derived), null, 1)}\n`,
-);
-writeFileSync(join(dataDir, 'rib-arcs.json'), `${JSON.stringify({ ribs: arcs }, null, 1)}\n`);
+emit('derived-from-pack', dataDir, check, [
+  ['landmarks.json', `${JSON.stringify(sortedKeys(landmarks), null, 1)}\n`],
+  ['landmarks-derived.json', `${JSON.stringify(sortedKeys(derived), null, 1)}\n`],
+  ['rib-arcs.json', `${JSON.stringify({ ribs: arcs }, null, 1)}\n`],
+]);
 
 console.log(
   `derived from the pack: ${added} new landmarks, ${checked} re-measured, ${pruned} stale dropped ` +

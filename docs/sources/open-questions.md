@@ -1008,3 +1008,29 @@ conduction velocity and path length, as spec section 14.1 describes -- and the g
 remeasured on that cord. The citation goes beside `SPINAL_CONDUCTION_DELAY_S`, never inside
 `SpinalGains`, which every checkpoint saves.
 **Status:** open.
+
+### OQ-032 — The surface landmarks predate the derived points
+**Needed for:** `tools/ingest/src/surfaceLandmarks.ts`,
+`packages/assets-anatomical/data/landmarks-surface.json`, and every landmark lookup in
+`packages/skeleton/src/landmarks.ts`
+**Provisional value:** the committed `landmarks-surface.json`, from the run of 2026-09-16. It
+projects each entry of `landmarks.json` onto the bone that entry names, and at that time the table
+held the export's markers and 20 points `derived.ts` measured. It has since gained 842 more derived
+points, so a re-run today would add 842 surface entries -- each a point already on the bone,
+moved by up to a patch radius to the nearest vertex of a patch centroid -- and because a surface
+point outranks the raw one in every lookup, the muscles attached to those points would move with
+them. That makes the stage the one pack-only stage the ingest's `derive` script leaves out and its
+`check` does not hold: re-running it as it stands moves goldens by a change nobody chose.
+
+The projection exists because the export's markers are label anchors placed beside a feature
+(see the stage's header). A derived point is not one: its rule already put it on the bone. The
+20 that were projected in the last run moved by 0.8 to 9.7 mm for it -- off the extreme point
+their rule chose, onto the middle of the patch around it -- and nothing was gained by the move.
+
+**Closes when:** `surfaceLandmarks.ts` skips every point `landmarks-derived.json` records a rule
+for, so a derived point is answered by its rule and the surface table holds only markers; the stage
+then joins `derive` and `check`, and the 20 derived entries it drops from `landmarks-surface.json`
+land as their own commit with their golden rebake. The owner decided on 2026-09-26 that the
+anatomy data fixes that move goldens all land, each as its own commit with its rebake, and this
+is one of them.
+**Status:** open; decided, waiting on that change.

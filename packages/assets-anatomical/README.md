@@ -4,13 +4,81 @@ Per-bone meshes and named landmarks for the 206-bone skeleton, keyed by HSDL bon
 from the Z-Anatomy skeletal export (itself derived from BodyParts3D). **Data is CC BY-SA 4.0** —
 see `NOTICE` and `LICENSE`.
 
-Regenerate with:
+`data/INGEST-REPORT.txt` records the source hash, counts, every left/right discrepancy found and,
+from the next ingest on, every node name the export repeats.
 
-```bash
-pnpm --filter @bs-humany/ingest run ingest <SkeletalSystem100.fbx>
-```
+## Regenerating the data
 
-`data/INGEST-REPORT.txt` records the source hash, counts and every left/right discrepancy found.
+Everything in `data/` is written by a stage of `tools/ingest`, from the export or from what an
+earlier stage wrote. The stages run in this order, because each reads what the ones before it
+wrote; run out of order, a stage measures against a table that is about to change under it. There
+is one command per phase:
+
+| Phase | Command | When |
+| --- | --- | --- |
+| 1. Ingest | `pnpm --filter @bs-humany/ingest ingest <SkeletalSystem100.fbx>` | the dataset changes |
+| 2. Re-measure | `pnpm --filter @bs-humany/ingest derive` | a rule or the pack changes |
+| 3. Proxies | `hulls` and `lods` (below) | the pack or a segmentation profile changes |
+| 4. Everything built from it | `pnpm regenerate` (repository root) | after any of the above |
+
+`pnpm --filter @bs-humany/ingest ingest:all <SkeletalSystem100.fbx>` runs phases 1 and 2
+together, and `ingest` prints the next command when it finishes.
+
+### The stages
+
+1. **`ingest <fbx>`** reads the export -- the 500 MB `SkeletalSystem100.fbx`, which is not in the
+   repository -- and writes `manifest.json`, `skeleton.bin` (the pack), `landmarks.json` (the
+   export's markers, plus the points `derived.ts` measures), `landmarks-derived.json` (the rule
+   behind each measured point) and `INGEST-REPORT.txt`. It refuses an export in which a name a
+   bone is looked up by belongs to more than one mesh.
+
+   The remaining stages read the pack instead of the export, so they re-run in seconds without it.
+   Each takes the data directory as an optional argument, so a scratch copy can be re-measured
+   without touching this one.
+
+2. **`derived-from-pack`** re-runs every rule of `derived.ts` on the pack. Reads `manifest.json`,
+   `skeleton.bin`, `landmarks.json` and `landmarks-derived.json`; rewrites `landmarks.json` and
+   `landmarks-derived.json` and writes `rib-arcs.json`.
+3. **`surface-landmarks`** puts each marker back on the bone it names. Reads `manifest.json`,
+   `skeleton.bin` and `landmarks.json`; writes `landmarks-surface.json`. See the exception below.
+4. **`ridge-attachments`** measures where along a ridge a muscle starts. Reads `manifest.json`,
+   `skeleton.bin`, `landmarks.json` and `landmarks-surface.json`; writes `ridge-attachments.json`.
+5. **`centres`** fits the articular and contact joint centres. Reads `manifest.json`,
+   `skeleton.bin` and `landmarks.json`; writes `articular-centres.json`.
+6. **`wrap-radii`** measures the surfaces tendons turn over. Reads `manifest.json`,
+   `skeleton.bin`, `landmarks.json`, `landmarks-surface.json` and `ridge-attachments.json`;
+   writes `wrap-radii.json`.
+7. **`hulls`** and **`lods`** (Python, `COACD_PYTHON` set; see below) read `manifest.json` and
+   `skeleton.bin` -- `hulls` the skeleton's segmentation profiles too -- and write `hulls.json`
+   and `skeleton-lod1.bin` + `manifest-lod1.json`.
+
+`derive` runs stages 2, 4, 5 and 6 in that order. Where a stage looks a landmark up, it answers
+the way the skeleton's landmark lookup does: a ridge point over a surface point over the raw
+marker (`loadLocatedLandmarks` in `tools/ingest/src/packData.ts`, `LOCATED` in
+`packages/skeleton/src/landmarks.ts`).
+
+### Checked, and recorded by what they read
+
+A measured table records `inputsSha256`, a hash of the files it was measured from, rather than
+the day it was written: the same inputs give the same file byte for byte, so re-running `derive`
+on unchanged data changes nothing, and a table whose inputs have since moved says so.
+
+`pnpm --filter @bs-humany/ingest check` runs stages 2, 4, 5 and 6 with `--check`: each measures
+in memory, compares with the committed file and writes nothing. `pnpm check:generated` runs it
+first, so CI fails when a committed table is not what its stage measures. `pnpm regenerate` does
+not re-measure the anatomy -- that is phase 2, taken on purpose -- but its closing check pass
+holds these files like every other.
+
+### The exception: `surface-landmarks`
+
+`surface-landmarks` is neither in `derive` nor in `check`. It projects every entry of
+`landmarks.json`, and it last ran before 842 of the 862 points `derived.ts` now measures were in
+that table. Re-running it would add all 842, each moved by up to a patch radius from a point that
+was on the bone already, and because a surface point outranks the raw one in every lookup, the
+muscles attached to them would move too. So re-running it is a change that moves goldens, not a
+refresh. OQ-032 in `docs/sources/open-questions.md` records the decision -- skip the derived
+points -- and until it lands the committed `landmarks-surface.json` stands as the input to stages
+4 and 6, still stamped with its date.
 
 ## Collision hulls
 
@@ -23,6 +91,8 @@ segmentation profile changes:
 ```bash
 uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -r tools/ingest/requirements.txt
 COACD_PYTHON=.venv/bin/python pnpm --filter @bs-humany/ingest run hulls
+COACD_PYTHON=.venv/bin/python pnpm --filter @bs-humany/ingest run lods
 ```
 
-Takes about half an hour on eight cores. The result is deterministic for a given CoACD version.
+`hulls` takes about half an hour on eight cores. The result is deterministic for a given CoACD
+version.
