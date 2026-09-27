@@ -355,6 +355,24 @@ const ui = {
   showNotes: must<HTMLInputElement>('#showNotes'),
 };
 
+/**
+ * The overlays a followed run has nothing to draw with, what they said before following, and
+ * whether they are greyed now; see `setFollowOverlayAvailability`.
+ *
+ * The bridge carries bones, muscle rings, tension and tissue. Collision proxies, joint axes, the
+ * centres of mass, the contacts and the muscle path polylines are all read off a simulation of
+ * this page's own, and while following there is none: the boxes stayed live and ticking one did
+ * nothing, which reads as a broken overlay rather than one the publisher does not send. Up here
+ * beside `ui`, because the mode is set from the first frame on.
+ */
+const unfollowedOverlays = {
+  greyed: false,
+  boxes: [ui.showMuscles, ui.showProxies, ui.showAxes, ui.showCom, ui.showContacts].map((input) => {
+    const label = input.closest('label');
+    return { input, label, inputTitle: input.title, labelTitle: label?.title ?? '' };
+  }),
+};
+
 // The drive groups and their sliders, one an entry of `MUSCLE_GROUPS`, generated so the studio
 // and the headset's panel offer the same groups at the same ids.
 const driveInputs = new Map<string, HTMLInputElement>();
@@ -434,10 +452,25 @@ let meshBuiltFor: { key: string; assets: SkeletonAssets } | null = null;
  *
  * A measured bone's normals are cached by the builder and a build is a few milliseconds, which
  * is what lets this run once a frame while a slider is dragged.
+ *
+ * While following a publisher that says what body it built, the skin is that body's, not the
+ * sliders': the sliders are this studio's settings for its own next run, and the poses on screen
+ * are somebody else's bones. So a slider moved while following, or the full-detail pack arriving,
+ * builds the publisher's body again rather than putting the sliders' back under its poses.
  */
 function rebuildMesh(): void {
   if (!assets) return;
-  const morphology = currentMorphology();
+  buildSkin(bridgeFollower.body?.morphology ?? currentMorphology());
+  updateReadouts(Number(ui.stature.value), Number(ui.mass.value));
+}
+
+/**
+ * Build the drawn skeleton for a body, touching neither the sliders nor the run: the one place a
+ * skin is made, whether for the sliders' body or for a followed publisher's. The same body with
+ * the same pack builds nothing.
+ */
+function buildSkin(morphology: Morphology): void {
+  if (!assets) return;
   const key = JSON.stringify(morphology);
   if (meshBuiltFor?.key === key && meshBuiltFor.assets === assets) return;
   const started = performance.now();
@@ -468,7 +501,6 @@ function rebuildMesh(): void {
 
   buildMs = performance.now() - started;
   refreshSelection();
-  updateReadouts(resolved.input.stature, resolved.input.mass);
 }
 
 /** The preview rebuild waiting for the next frame, or 0; see `previewMesh`. */
@@ -668,10 +700,14 @@ const FRAME_STATURE = 1.7;
 function aimAtBody(out: Vector3): number {
   if (bridgeFollower.active) {
     const pose = bridgeFollower.pose;
-    const settings = (bridgeFollower.status as { settings?: { stature?: unknown } } | null)
-      ?.settings;
+    // The body the publisher says it is; failing that, the height its bridge's header gives,
+    // which every publisher writes. Its `settings` used to be read here, and the showcase sends
+    // none, so a showcase's body was framed at whatever the sliders said.
+    const scale = bridgeFollower.datasetScale;
     const stature =
-      typeof settings?.stature === 'number' ? settings.stature : Number(ui.stature.value);
+      bridgeFollower.body?.morphology.stature ??
+      (scale !== null && assets ? scale * assets.manifest.subjectStature : undefined) ??
+      Number(ui.stature.value);
     if (pose && boundsMidpoint(pose.position, out)) {
       world.localToWorld(out);
       return stature;
@@ -989,6 +1025,30 @@ function setMode(mode: 'rest' | 'running' | 'paused' | 'following'): void {
         : mode === 'paused'
           ? 'Own run, paused'
           : 'At rest';
+  setFollowOverlayAvailability(mode === 'following');
+}
+
+/**
+ * Grey the overlays with no followed counterpart while following, and give them back after.
+ *
+ * Only `disabled` and the hover text change, never `checked`: what somebody ticked is what they
+ * want for their own runs, and it is remembered for them, so following must not untick it. The
+ * label is dimmed with the same `stale` style a readout of another frame gets, because a disabled
+ * checkbox greys only its own square and the words beside it read as live. `setMode` runs every
+ * frame a run is drawn, so nothing is written unless the answer changes.
+ */
+function setFollowOverlayAvailability(following: boolean): void {
+  if (unfollowedOverlays.greyed === following) return;
+  unfollowedOverlays.greyed = following;
+  const why = 'Not published on the bridge: drawn only for a run of this studio’s own';
+  for (const { input, label, inputTitle, labelTitle } of unfollowedOverlays.boxes) {
+    input.disabled = following;
+    input.title = following ? why : inputTitle;
+    if (label) {
+      label.classList.toggle('stale', following);
+      label.title = following ? why : labelTitle;
+    }
+  }
 }
 
 /**
@@ -2955,7 +3015,7 @@ function animate(): void {
   drawSpine(simulation ?? undefined, following && !bridgeFollower.active);
   // Scenery that moves -- a platform tilting under the body -- drawn where the solver has it.
   if (simulation) followFurniture(simulation);
-  if (bridgeFollower.active && skinned) followFrame(skinned);
+  if (bridgeFollower.active) followFrame();
   if (simulation && skinned) {
     // Everything the run puts on screen, in one guard: whatever in it throws, the run pauses and
     // says so, and the render below still happens. Before, one throw here took the frame loop's
@@ -3706,10 +3766,33 @@ let followTissue: FollowTissue | null = null;
 let followTissueKey = '';
 let followLastTick = -1;
 let followLastMuscleTick = -1;
+/**
+ * The tension array the followed tubes were last tinted from. The status brings a new one ten
+ * times a second and the page draws sixty, so tinting every frame recoloured every ring five
+ * times out of six from numbers it had already drawn.
+ */
+let followTintedFrom: ArrayLike<number> | null = null;
 
-function followFrame(skin: SkinnedSkeleton): void {
+/**
+ * How far a followed body's stature may be from the skeleton drawn for it before the page says
+ * so, as a fraction. A display tolerance, not a measurement: above the 2.5 mm that the Stature
+ * slider's 5 mm step can leave between its nearest setting and any publisher's body, so the advice
+ * the note gives can always clear it, and about where a misfit between the drawn bones and the
+ * published joints starts to be visible as a gap or an overlap.
+ */
+const FOLLOW_STATURE_TOLERANCE = 0.005;
+
+function followFrame(): void {
+  // The publisher's body first, so the pose below lands on the skin it belongs to. `body` keeps
+  // its identity while the body does, so this builds only when the publisher changes body.
+  const body = bridgeFollower.body;
+  if (body && assets && body.key !== meshBuiltFor?.key) {
+    buildSkin(body.morphology);
+    updateReadouts(Number(ui.stature.value), Number(ui.mass.value));
+  }
+  const skin = skinned;
   const pose = bridgeFollower.pose;
-  if (pose && pose.tick !== followLastTick) {
+  if (skin && pose && pose.tick !== followLastTick) {
     followLastTick = pose.tick;
     skin.update(pose.bones, pose.position, pose.orientation);
   }
@@ -3727,10 +3810,20 @@ function followFrame(skin: SkinnedSkeleton): void {
       }
       followTubes = new RingTubes(muscles.units, muscles.rings, muscles.segments);
       world.add(followTubes.mesh);
+      // New tubes are untinted, whatever the last ones were.
+      followTintedFrom = null;
     }
     followTubes.update(muscles.position, muscles.orientation, muscles.radius);
   }
-  if (followTubes && bridgeFollower.tension) followTubes.tint(bridgeFollower.tension);
+  if (followTubes) {
+    // The followed tubes are the muscle volumes, and answer to the same box as a run's own.
+    followTubes.mesh.visible = ui.showMuscleVolumes.checked;
+    const tension = bridgeFollower.tension;
+    if (tension && tension !== followTintedFrom) {
+      followTintedFrom = tension;
+      followTubes.tint(tension);
+    }
+  }
   followedFurniture();
   const status = bridgeFollower.status as {
     scenario?: { title?: string };
@@ -3738,11 +3831,39 @@ function followFrame(skin: SkinnedSkeleton): void {
   } | null;
   const title = status?.scenario?.title ?? 'a publisher';
   const training = status?.training;
+  const problem = bridgeFollower.problem;
+  // The publisher's own simulated seconds, from its frame. The tick over 500 was only right for a
+  // 2 ms step; the anatomical profile steps at 1 ms, and its runs read twice their time.
   setSimulationStatus(
-    bridgeFollower.problem
-      ? `Following the bridge: ${bridgeFollower.problem}`
+    problem
+      ? `Following the bridge: ${problem}`
       : `Following ${title}${training ? `, episode ${training.episode}` : ''}` +
-          (pose ? ` · ${(pose.tick / 500).toFixed(1)} s` : ''),
+          (pose ? ` · ${pose.simTime.toFixed(1)} s` : '') +
+          followedBodyNote(),
+    problem !== null,
+  );
+}
+
+/**
+ * What the status line owes about a followed body the page cannot draw as it is, or nothing.
+ *
+ * A publisher that says what body it built is drawn as that body (see `followFrame`). One that
+ * does not -- another studio, an older publisher -- is drawn on this studio's own skeleton, at the
+ * sliders' stature, and the only thing that says how tall it really is is its bridge's header.
+ * Where the two disagree the bones will not meet at the joints, and the line says so and what
+ * would fix it. It never moves the sliders itself: they are this studio's settings, and changing
+ * them behind somebody's back would change their next run as well.
+ */
+function followedBodyNote(): string {
+  if (bridgeFollower.body || !assets) return '';
+  const scale = bridgeFollower.datasetScale;
+  if (scale === null) return '';
+  const theirs = scale * assets.manifest.subjectStature;
+  const ours = Number(ui.stature.value);
+  if (Math.abs(theirs - ours) <= FOLLOW_STATURE_TOLERANCE * ours) return '';
+  return (
+    ` · the publisher's body is ${theirs.toFixed(2)} m, drawn on this studio's ` +
+    `${ours.toFixed(2)} m skeleton: set Stature to match`
   );
 }
 
@@ -3784,9 +3905,13 @@ function stopFollowing(): void {
   }
   followLastTick = -1;
   followLastMuscleTick = -1;
+  followTintedFrom = null;
   // The publisher's scenery was theirs, not this studio's: it goes with them.
   clearFurniture();
   followFurnitureKey = '';
+  // And so was its body. The follower has forgotten it, so this builds the sliders' body again --
+  // which nothing changed while following -- or nothing, if the two were the same.
+  rebuildMesh();
   skinned?.rest();
   followButton.textContent = 'Follow bridge';
   // Back to whatever this page's own run is doing, which with nothing running is nothing.
