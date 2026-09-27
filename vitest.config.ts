@@ -11,6 +11,11 @@ export default defineConfig({
     environment: 'node',
     // Determinism (ADR-004, §10.7): tests must not depend on wall-clock or ordering luck.
     sequence: { shuffle: false },
+    // The same goes for a test's time limit. What a test checks is a result, never a speed (the
+    // bench measures speed), and vitest's 5 s default made the heavier whole-body tests fail on
+    // whatever else the machine was doing: a load average in the twenties turned a 5.2 s test red
+    // twice in one merge. Thirty seconds still ends a genuinely hung test.
+    testTimeout: 30_000,
     // CONTRIBUTING rule 6 is enforced here. The kernel's write audit -- every channel a module did
     // not declare, compared bit for bit with a copy from before its step -- follows this variable
     // when a host does not choose, so every module test, and every kernel a test builds, catches a
