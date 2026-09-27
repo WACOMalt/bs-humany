@@ -4,6 +4,13 @@
  *
  * The sliders and the readout rows are made at runtime from the same table the headset draws its
  * panel from, so the two offer the same groups at the same ids.
+ *
+ * The tab's Spine panel, the cord's gains, is not this module's: its sliders are the Brain panel's
+ * (`brain.ts`), which hands them to every run it starts, and its picture is `spineActivity.ts`.
+ * It sits on this tab because the cord is what the muscles do under whatever drives them, and a
+ * person tuning it is watching the muscles, not a policy. It stays in view when muscles are off,
+ * where the drive and readout do not: its gains are a setting for the next run, and one set now
+ * is the cord that run starts with once muscles are turned back on.
  */
 
 import { ALL_MUSCLE_UNITS } from '@bs-humany/muscle-data';

@@ -176,13 +176,14 @@ value it had reached; the ray coming back with the trigger still down presses no
 Where the two panels overlap, the ray takes the nearer, and the nearer is drawn over the farther:
 carry the transport in front of the properties panel and you are pointing at the transport.
 
-The properties panel's tabs scroll when they are longer than the panel -- the Brain tab is, and the
-Muscles tab once its regions are opened -- with the stick of the hand aimed at them, or by the bar
+The properties panel's tabs scroll when they are longer than the panel -- the Muscles tab is, with
+its Spine at the foot, and longer again once its regions are opened -- with the stick of the hand aimed at them, or by the bar
 down the column's right edge, which a ray can drag. Rows scrolled out of the column are cut at its
 edges, and each tab keeps its own place.
 
-The properties panel's tabs run down its left edge like the desktop's, and each is the desktop's
-tab, the same controls sending the same keys:
+The properties panel's tabs run down its left edge like the desktop's, Health under the same
+Developer divider, and each is the desktop's tab, the same controls sending the same keys. The
+desktop's other developer's tab, Align, opens and saves files and is not drawn here:
 
 - **Body** -- skeletal proportions, stature, mass, the ANSUR percentile, which reads back where
   the body sits; what is held. The crural and brachial indices and relative leg length are not
@@ -204,7 +205,10 @@ tab, the same controls sending the same keys:
   prints it (50 along reads 25%); what is sent is still the position, which the publisher
   squares, and a number typed into the box is read as that excitation. The readout is the
   desktop's: the pull of each body section -- arm, hand, leg, trunk, neck, every drive group in
-  it summed over both sides -- then how many units are loaded, wrapping and out of range.
+  it summed over both sides -- then how many units are loaded, wrapping and out of range. Under
+  them the Spine: the cord's stretch, damping, set point, reciprocal inhibition and conduction
+  delay, and the desktop's line on the cord as it is set. With muscles off the drive and the
+  readout go and the Spine stays, as its gains are the next run's.
 - **Brain** -- the checkpoints the studio's Brain tab lists: the dashboard's while it runs,
   otherwise the ones this studio trained or shipped with. `pnpm publish:pose` sends no brain, so
   from it the list is empty. Choosing one only shows it, and the desktop's line under the list
@@ -212,10 +216,11 @@ tab, the same controls sending the same keys:
   Authority included, and Undo set-up takes it back once. Neither asks anything on the desktop,
   where nobody in the headset could answer. Then the authority, Hand over (which sets up first
   when the tabs differ, restarting a run whose scene or body changes) and Release, the fit line;
-  Start and Stop training, and Follow bridge, which reads Stop following once it is following,
-  with the training line. Stop training stops the showcase that plays the run as well as the trainer, which is what
-  the studio follows. The training's generations, population, episode length and workers are as set
-  on the desktop; the activity bitmap stays there too.
+  the activity bitmap stays on the desktop.
+- **Training** -- the policy's memory; Start and Stop training, and Follow bridge, which reads
+  Stop following once it is following, with the training line. Stop training stops the showcase
+  that plays the run as well as the trainer, which is what the studio follows. The training's
+  generations, population, episode length and workers are as set on the desktop.
 - **Export** -- what cannot be done from a headset, disabled, with the line that says why.
 - **Health** -- this run's profile, by name, and rates, the bridge's state, and the controls
   guide with the controllers the runtime says are in hand; the diagnostics are under Sim, and

@@ -146,10 +146,10 @@ Space, and never throws a run away; Reset, the Sim tab's restart with changed se
 session, Follow bridge and a checkpoint's set-up do, and each asks first when the recording it
 would throw away is longer than about five seconds.
 
-The Brain tab hands a checkpoint control of the running body and trains new ones. With no
-dashboard running it trains in the window itself: the desktop build reads and writes the same
-data directory as the command-line trainer (see Training the nerves), and a browser tab keeps
-what it trains in that browser's own storage. In a browser, then, listing the checkpoints on
+The Brain tab hands a checkpoint control of the running body, and the Training tab trains new
+ones. With no dashboard running it trains in the window itself: the desktop build reads and
+writes the same data directory as the command-line trainer (see Training the nerves), and a
+browser tab keeps what it trains in that browser's own storage. In a browser, then, listing the checkpoints on
 disk needs `pnpm train:dashboard` running, and training and handing over do not. When the
 dashboard is running the tab prefers it: it lists the checkpoints on disk and trains through
 it, on every core. The redesign's plan, now a record: `docs/plans/studio-ui-redesign.md`.

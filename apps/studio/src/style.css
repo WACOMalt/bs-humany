@@ -297,6 +297,23 @@ body.resizing #viewport {
   padding: 8px 4px;
   border-right: 1px solid var(--panel-border);
   background: var(--bg);
+  /* Ten tabs and a divider are taller than the sheet a narrow screen gives the editor, so the
+     strip scrolls on its own there rather than pushing the panels off the bottom. */
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The line over the developer's tabs: a rule and a small word, fainter than a tab so it reads as
+   a heading and not as one more thing to press. Small enough that "Developer" fits the strip's
+   width on one line, which capitals and the tabs' own size did not. */
+.tab-divider {
+  margin: 8px 0 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--panel-border);
+  color: var(--ink-faint);
+  font-size: 9px;
+  text-align: center;
+  user-select: none;
 }
 
 #tabs button {
