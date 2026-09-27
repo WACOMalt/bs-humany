@@ -1,8 +1,16 @@
-# Python side of `pnpm --filter @bs-humany/ingest hulls` (scripts/decompose.py).
+# Python side of `pnpm --filter @bs-humany/ingest hulls` (scripts/decompose.py) and `lods`
+# (scripts/decimate.py, whose quadric decimation trimesh hands to fast-simplification).
 # Set COACD_PYTHON to the interpreter of a venv with these installed, e.g.
 #   uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -r tools/ingest/requirements.txt
-coacd
-trimesh
-numpy
-scipy
-fast-simplification
+#
+# Pinned exactly, because hulls.json is reproducible byte for byte only for these versions: CoACD
+# cuts the pieces, trimesh and SciPy take their hulls, NumPy does the arithmetic, and a different
+# release of any of them may move a vertex. decompose.py writes the installed versions into the
+# table, so a table and the environment that made it can be compared. The pins are the versions
+# installed in the local tools/ingest/.venv on 2026-09-27. The committed hulls.json predates the
+# pin: its `coacd` field says `unknown` and it carries no `versions` until it is next regenerated.
+coacd==1.0.14
+trimesh==5.1.0
+numpy==2.5.3
+scipy==1.18.1
+fast-simplification==0.2.0

@@ -94,5 +94,10 @@ COACD_PYTHON=.venv/bin/python pnpm --filter @bs-humany/ingest run hulls
 COACD_PYTHON=.venv/bin/python pnpm --filter @bs-humany/ingest run lods
 ```
 
-`hulls` takes about half an hour on eight cores. The result is deterministic for a given CoACD
-version.
+`hulls` takes about half an hour on eight cores. Deterministic for the pinned versions, given the
+recorded per-group tiers. `tools/ingest/requirements.txt` pins the Python packages exactly, and
+each group replays the settings tier `hulls.json` records for it (`settings`), with no time limit,
+so how busy the machine is cannot change which tier a group gets. Only a group the table does not
+know yet climbs the timed ladder, and its tier is recorded for next time. The table records the
+package versions that made it (`coacd`, `versions`). An interrupted run resumes from
+`tools/ingest/.cache/hulls/`, which is keyed on the pack, so it never resumes another pack's work.

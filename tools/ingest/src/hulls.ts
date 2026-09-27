@@ -17,13 +17,22 @@
  *
  * Re-derivable from the pack and this tool; when the dataset or a profile changes, re-run. The
  * Python side saves after every group and resumes, so an interrupted run loses nothing.
+ *
+ * Reproducible byte for byte, for the pinned Python dependencies (requirements.txt). CoACD is
+ * seeded and deterministic, but a group used to try its settings tiers under a wall-clock limit,
+ * so which tier produced it depended on how loaded the machine was that day. Each group now
+ * replays the tier the table in the data directory records for it, with no time limit; only a
+ * group the table has no entry for climbs the timed ladder, and the tier it lands on is recorded
+ * for next time.
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// The key module, not hulls.ts: that one imports the hulls.json this tool is about to rewrite.
+import { hullGroupKey } from '../../../packages/skeleton/src/hullKey.js';
 import { SEGMENTATION_PROFILES } from '../../../packages/skeleton/src/segmentation.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -48,16 +57,11 @@ interface PackedBone {
 }
 
 const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8')) as {
-  dataset: Record<string, unknown>;
+  dataset: { sourceSha256?: string } & Record<string, unknown>;
   subjectStature: number;
   bones: PackedBone[];
 };
 const packed = new Map(manifest.bones.map((b) => [b.id, b]));
-
-/** The key the skeleton package uses to find a group: anchor, then the sorted bone set. */
-export function groupKey(anchor: string, bones: readonly string[]): string {
-  return `${anchor}|${[...bones].sort().join(',')}`;
-}
 
 interface Group {
   readonly anchor: string;
@@ -71,7 +75,7 @@ for (const profile of SEGMENTATION_PROFILES) {
   for (const segment of profile.segments) {
     const bones = segment.bones.filter((id) => packed.has(id));
     if (bones.length === 0 || !packed.has(segment.anchor)) continue;
-    const key = groupKey(segment.anchor, bones);
+    const key = hullGroupKey(segment.anchor, bones);
     const existing = groups.get(key);
     const label = `${profile.id}/${segment.id}`;
     if (existing) existing.segments.push(label);
@@ -92,18 +96,69 @@ for (const profile of SEGMENTATION_PROFILES) {
   }
 }
 
-// A fixed working directory, so a second run resumes what the first one finished.
-const work = join(tmpdir(), 'bs-humany-hulls');
+/**
+ * The tier each group was decomposed at, from the table already in the data directory. A group
+ * replays it only when nothing it was measured from has moved: the same bones (the key says so),
+ * the same piece budget, and the same export. A pack from another export gets no recorded tiers
+ * at all, because a tier that fitted the old meshes inside the time limit says nothing about the
+ * new ones, and a replay runs with no limit.
+ */
+function recordedTiers(): Map<string, { tier: string; maxHulls: number }> {
+  const path = join(dataDir, 'hulls.json');
+  if (!existsSync(path)) return new Map();
+  const table = JSON.parse(readFileSync(path, 'utf8')) as {
+    dataset?: { sourceSha256?: string };
+    groups?: { key: string; maxHulls: number; settings: string }[];
+  };
+  if (table.dataset?.sourceSha256 !== manifest.dataset.sourceSha256) {
+    console.error('hulls.json was made from another export; every group climbs the timed ladder');
+    return new Map();
+  }
+  return new Map(
+    (table.groups ?? []).map((g) => [g.key, { tier: g.settings, maxHulls: g.maxHulls }]),
+  );
+}
+const recorded = recordedTiers();
+const groupsInput = Object.fromEntries(
+  [...groups].map(([k, g]) => {
+    const r = recorded.get(k);
+    const tier = r && r.maxHulls === g.maxHulls ? r.tier : undefined;
+    return [k, { bones: g.bones, maxHulls: g.maxHulls, ...(tier ? { tier } : {}) }];
+  }),
+);
+
+/**
+ * The resume cache, one directory per input. It used to be a single fixed directory under the
+ * system temp dir, kept whenever decompose.py's parameters were unchanged -- so after a re-ingest
+ * a run resumed the hulls of the old meshes, and two data directories (the real one and a scratch
+ * copy) shared and overwrote one cache. Keyed on the export's hash, the pack's bytes, the data
+ * directory and this file's parameters, a run resumes exactly the work done for the same inputs
+ * and nothing else. It lives under tools/ingest/.cache (ignored) rather than the temp dir, which
+ * the OS may clear between an interrupted run and its resume.
+ */
+const cacheKey = createHash('sha256')
+  .update(String(manifest.dataset.sourceSha256 ?? ''))
+  .update(readFileSync(join(dataDir, 'skeleton.bin')))
+  .update(dataDir)
+  .update(
+    JSON.stringify({
+      hullsPerBone: HULLS_PER_BONE,
+      hullsPerSmallBone: HULLS_PER_SMALL_BONE,
+      smallBoneExtent: SMALL_BONE_EXTENT,
+      maxHullsPerGroup: MAX_HULLS_PER_GROUP,
+    }),
+  )
+  .digest('hex');
+const work = join(HERE, '../.cache/hulls', cacheKey);
 mkdirSync(work, { recursive: true });
 const groupsPath = join(work, 'groups.json');
 const outPath = join(work, 'hulls.json');
-writeFileSync(
-  groupsPath,
-  JSON.stringify(
-    Object.fromEntries([...groups].map(([k, g]) => [k, { bones: g.bones, maxHulls: g.maxHulls }])),
-  ),
+writeFileSync(groupsPath, JSON.stringify(groupsInput));
+const replaying = Object.values(groupsInput).filter((g) => 'tier' in g).length;
+console.error(
+  `${groups.size} bone groups (${replaying} replay a recorded tier, ${groups.size - replaying} climb the timed ladder)`,
 );
-console.error(`${groups.size} bone groups; decomposing with ${python} ...`);
+console.error(`cache ${work}; decomposing with ${python} ...`);
 const started = Date.now();
 const run = spawnSync(
   python,
@@ -116,6 +171,7 @@ if (run.status !== 0) throw new Error(`decompose.py failed with status ${run.sta
 
 const result = JSON.parse(readFileSync(outPath, 'utf8')) as {
   coacd: string;
+  versions: Record<string, string>;
   parameters: Record<string, unknown>;
   groups: Record<string, { hulls: number[][][]; settings: string; maxHulls: number }>;
 };
@@ -154,6 +210,7 @@ const out = {
   dataset: manifest.dataset,
   generator: 'tools/ingest/src/hulls.ts + scripts/decompose.py (CoACD)',
   coacd: result.coacd,
+  versions: result.versions,
   parameters: {
     ...result.parameters,
     hullsPerBone: HULLS_PER_BONE,

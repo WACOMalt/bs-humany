@@ -34,3 +34,8 @@ apps/studio/public/refMeshes/
 test-results/
 playwright-report/
 blob-report/
+
+# The hulls stage's resume cache (tools/ingest/src/hulls.ts), one directory per pack and parameter
+# set, so an interrupted CoACD run picks up where it stopped. It is regenerable, and belongs to
+# the machine that ran it.
+tools/ingest/.cache/
