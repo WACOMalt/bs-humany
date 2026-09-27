@@ -145,18 +145,35 @@ A stick whose controller is aimed at a panel's face scrolls that panel instead, 
 at all: forward brings the top of a long tab into view, back its bottom. Aim away and the stick
 walks, turns and lifts again.
 
+Turning is smooth unless you ask otherwise. Tick **Snap turn** at the foot of the transport strip
+and the right stick turns you in thirty-degree steps instead: one step as the stick is pushed
+past seven tenths of the way over, and no other until it has come back inside three tenths, so a
+stick held over turns you once. Rising and walking are the same either way. It is the headset's
+own setting, the one box on the strip the publisher never hears of, so it works with no
+publisher running and is never greyed with the rest of the strip when the publisher falls
+silent. It lasts until the viewer stops.
+
+Press either stick in to **recentre**: you are back where you started, the body and the scenery
+in front of you as they were, and both panels come back to their places in front of wherever
+you are standing and looking. A panel you were carrying is put down, and a bone you were holding
+is let go, since the world has just jumped under the hand; keep squeezing and the hand takes
+hold afresh. Getting lost -- walked off past the end of the grid, the panels behind you -- is
+one press.
+
 The headset says the same itself, as a two-column guide on the properties panel while it waits
 for a publisher and at the foot of its Health tab once one is running, from one list
-(`CONTROLS` in `src/panel.rs`):
+(`CONTROLS` in `src/panel.rs`, which a test holds this table to):
 
-| Control                     | Does                                                  |
-| --------------------------- | ----------------------------------------------------- |
-| Left stick                  | walk, the way you are looking                         |
-| Right stick                 | turn (left / right), rise or sink (forward / back)    |
-| Grip on a bone              | grab it (the trigger, on a basic controller)          |
-| Trigger at a panel          | press                                                 |
-| Stick, aimed at a panel     | scroll it                                             |
-| Trigger on the dotted strip | carry the panel                                       |
+| Control                     | Does                                                             |
+| --------------------------- | ---------------------------------------------------------------- |
+| Left stick                  | walk, the way you are looking                                    |
+| Right stick                 | turn (left / right), rise or sink (forward / back)               |
+| Grip on a bone              | grab it (the trigger, on a basic controller)                     |
+| Trigger at a panel          | press                                                            |
+| Stick, aimed at a panel     | scroll it                                                        |
+| Trigger on the dotted strip | carry the panel                                                  |
+| Stick click                 | recentre: back to the start, the panels in front of you          |
+| Snap turn                   | a box on the transport strip: the right stick turns in 30° steps |
 
 Each controller draws its aim ray: a thin blue line from the tip of the controller, down the way
 it points, to the blue mark where it meets a panel, or a metre and a half into the room when it
@@ -167,15 +184,45 @@ by its strip and putting it down.
 
 What actually happens is the other way round: the world -- body, muscles, grid, scenery and
 panel -- is moved and turned under a stage that never moves, and the hands, which belong to the
-stage, are not; nor are the rays and the marks, which are the hands'. A grab or a press carries the move and the turn back over, so nothing else knows
-you moved.
+stage, are not; nor are the rays and the marks, which are the hands'. A grab or a press carries
+the move and the turn back over, so nothing else knows you moved, and a recentre is that move
+and turn set back to nothing.
+
+### Which controllers
+
+The viewer binds its actions for each controller below, and the runtime picks the binding for
+the controller in your hand. The Index's is the one it was built against and must be accepted;
+a runtime that refuses any other says so on the terminal and the viewer carries on without it.
+
+| Controller                     | Grab           | Press   | Walk, turn, lift | Recentre         |
+| ------------------------------ | -------------- | ------- | ---------------- | ---------------- |
+| Valve Index                    | grip (squeeze) | trigger | thumbstick       | thumbstick click |
+| Oculus / Meta Touch            | grip           | trigger | thumbstick       | thumbstick click |
+| Windows Mixed Reality          | grip           | trigger | thumbstick       | thumbstick click |
+| HP Reverb G2                   | grip           | trigger | thumbstick       | thumbstick click |
+| HTC Vive wand                  | grip           | trigger | trackpad         | trackpad click   |
+| Anything else (simple profile) | select         | select  | none             | none             |
+
+The HP controller has a profile of its own behind an OpenXR extension, which the viewer asks for
+only when the runtime offers it; without it, the runtime binds a Reverb through whichever of the
+others it maps it to, as runtimes do for any controller an application has no binding of its own
+for. On a Vive the trackpad is the stick: a thumb resting on it walks, so lift the thumb to stand
+still, and pressing it in to recentre may move you a little on the way. The simple profile has
+one button, which both grabs and presses, and no stick, so there is no walking, turning or
+recentre on it.
+
+Which profile the runtime settled on for each hand is said when it settles and whenever it
+changes -- `hands: left uses valve/index_controller` on the terminal -- and under the controls
+guide on the panel, which also says when a hand is on the simple profile and why its stick does
+nothing.
 
 ### Grabbing it
 
 The studio's Ctrl-click, in the headset: squeeze a controller on a bone and the bone comes with
 the hand, on the same grab module and the same spring. The controllers are drawn as blue cubes at
-their grip poses, and the grip sensor is the grab on an Index controller (the trigger, on anything
-that only speaks the simple profile).
+their grip poses, and the grip is the grab: the squeeze sensor on an Index, the grip button on the
+others (the one select button, on anything that only speaks the simple profile; see "Which
+controllers").
 
 This is the bridge running the other way. The viewer writes a slot per hand every frame beside
 the pose ring -- `<pose path>-grab`, laid out in the same file as the pose format -- saying
@@ -268,12 +315,14 @@ tab, the same controls sending the same keys:
   bitmap stays there too.
 - **Export** -- what cannot be done from a headset, disabled, with the line that says why.
 - **Health** -- this run's rates and diagnostics and the bridge's state, and the controls
-  guide; the compile report, the inertia audit and the joint sweep stay on the desktop.
+  guide with the controllers the runtime says are in hand; the compile report, the inertia audit
+  and the joint sweep stay on the desktop.
 
 The transport strip is the desktop's top bar and timeline in one: Start or Resume, Pause,
 Reset; the mode -- own run, paused, at rest, or following the bridge -- with the speed, and
 "live" when the desktop's playhead is on the live edge; Play, a frame back, a frame on, Live,
-and the playhead to scrub; then the overlays. The timeline is the desktop's: its handle sits
+and the playhead to scrub; then the overlays; then the headset's own Snap turn box, beside
+what the hands are holding. The timeline is the desktop's: its handle sits
 where the desktop's playhead is, scrubbed back or replaying, and runs to the end of the
 recording. Play is the desktop's play and pause: it reads Pause while the desktop plays its
 recording back, and each press sends the state it names -- `play` false to pause, true to

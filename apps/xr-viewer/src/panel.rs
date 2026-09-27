@@ -8,7 +8,8 @@
 //! - the **properties panel**, its tabs down its left edge as the desktop's are: Body, World, Sim,
 //!   Scene, Muscles, Brain, Export, Health, with the same controls sending the same keys;
 //! - the **transport panel**, one horizontal strip: the run's Start, Pause and Reset, the mode,
-//!   the playhead and its frame buttons, the grid, and the overlay toggles.
+//!   the playhead and its frame buttons, the grid, and the overlay toggles; and the headset's own
+//!   Snap turn box, which is reported back to the viewer as a `LocalAction` and never sent on.
 //!
 //! Each has a **grab strip** down its left edge. A hand whose ray is on the strip when it pulls
 //! the trigger takes the panel with it until the trigger is let go; the panel then stays where it
@@ -287,6 +288,28 @@ pub struct Frame {
     pub meshes: Vec<Mesh>,
     pub textures: egui::TexturesDelta,
     pub commands: Vec<Command>,
+    /// What was pressed that is the headset's own business, which the viewer acts on itself and
+    /// never writes to the command file. One at most: a press lands on one control.
+    pub local: Option<LocalAction>,
+}
+
+/// A press that changes the viewer rather than the run: the publisher has no say in it and is
+/// never told of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalAction {
+    /// Snap turn on or off: whether the right stick turns in steps or smoothly.
+    SnapTurn(bool),
+}
+
+/// What the viewer knows of itself that no publisher sends, for the panels to show.
+#[derive(Clone, Debug, Default)]
+pub struct Headset {
+    /// The interaction profile the runtime is using for each hand, left then right, as
+    /// `xr::profile_name` says it; empty until the runtime has said.
+    pub profiles: [String; 2],
+    /// Whether the right stick turns in steps. The viewer's, and kept by the viewer: the panel
+    /// only shows it and reports a press of it as a `LocalAction`.
+    pub snap_turn: bool,
 }
 
 /// What the pointer is doing this frame.
@@ -472,18 +495,49 @@ pub const CONTROLS: &[(&str, &str)] = &[
     ("Trigger at a panel", "press"),
     ("Stick, aimed at a panel", "scroll it"),
     ("Trigger on the dotted strip", "carry the panel"),
+    ("Stick click", "recentre: back to the start, the panels in front of you"),
+    ("Snap turn", "a box on the transport strip: the right stick turns in 30° steps"),
 ];
 
 /// The controls, as two columns: the control, and what it does. Each row splits the width there
 /// is in two afresh and wraps its text inside its half. An egui `Grid` keeps last frame's column
 /// widths to place this frame's, and a first frame laid out before the scroll area knows its
-/// width left the guide's second column past the panel's edge.
-fn controls_guide(ui: &mut egui::Ui) {
+/// width left the guide's second column past the panel's edge. Under it, which controllers the
+/// runtime says are in hand: the guide is written for the Index, and somebody holding anything
+/// else is told what the runtime made of it.
+fn controls_guide(ui: &mut egui::Ui, headset: &Headset) {
     for (control, action) in CONTROLS {
         ui.columns(2, |columns| {
             columns[0].add(egui::Label::new(egui::RichText::new(*control).strong()).wrap());
             columns[1].add(egui::Label::new(*action).wrap());
         });
+    }
+    note(ui, &controllers_text(headset));
+}
+
+/// Which controllers the runtime says are in hand, in a sentence.
+fn controllers_text(headset: &Headset) -> String {
+    let [left, right] = &headset.profiles;
+    if left.is_empty() && right.is_empty() {
+        return "The runtime has not said yet which controllers are in hand.".to_string();
+    }
+    let said = |profile: &str| if profile.is_empty() { "none".to_string() } else { profile.to_string() };
+    let text = format!("Controllers: left {}, right {}.", said(left), said(right));
+    // The simple profile is what a runtime falls back to for a controller none of the others
+    // fits, and it has no stick: said, since walking and turning then do nothing and nothing
+    // else would say why.
+    if left == "khr/simple_controller" || right == "khr/simple_controller" {
+        format!("{text} The simple profile has no stick: one button both grabs and presses, and there is no walking, turning or recentre.")
+    } else {
+        text
+    }
+}
+
+/// The snap-turn box: the viewer's own, so it is never greyed with the run's controls when the
+/// publisher is silent, and works with no publisher at all.
+fn snap_turn_box(ui: &mut egui::Ui, headset: &Headset, local: &mut Option<LocalAction>) {
+    if let Some(on) = checkbox(ui, headset.snap_turn, "Snap turn") {
+        *local = Some(LocalAction::SnapTurn(on));
     }
 }
 
@@ -542,6 +596,9 @@ impl Panel {
     /// newest status could not be read; both are said at the top of the panel. While the
     /// publisher is silent the controls are drawn but greyed: nothing pressed would be read.
     /// `dt` is the seconds since the last frame, which the pointer's scroll is a rate over.
+    /// `headset` is what the viewer knows of itself, which the panels show whether or not a
+    /// publisher is there.
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &mut self,
         status: Option<&Status>,
@@ -550,6 +607,7 @@ impl Panel {
         feeds: &str,
         liveness: Option<&crate::xr::Liveness>,
         status_error: Option<&str>,
+        headset: &Headset,
     ) -> Frame {
         let size = self.kind.size();
         let mut events = Vec::new();
@@ -614,6 +672,7 @@ impl Panel {
         };
 
         let mut commands = Vec::new();
+        let mut local = None;
         let mut tab = self.tab;
         let mut editing = Editing {
             current: self.editing.take(),
@@ -656,10 +715,10 @@ impl Panel {
                                         .show(ui, |ui| match status {
                                             Some(s) => {
                                                 ui.add_enabled_ui(live, |ui| {
-                                                    properties(ui, tab, s, &mut editing, &mut commands, feeds)
+                                                    properties(ui, tab, s, &mut editing, &mut commands, feeds, headset)
                                                 });
                                             }
-                                            None => waiting(ui, feeds, status_error, true),
+                                            None => waiting(ui, feeds, status_error, Some(headset)),
                                         });
                                     scroll_id = Some(scrolled.id);
                                     ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -678,12 +737,11 @@ impl Panel {
                                     ui.add_space(if warned { 2.0 } else { 12.0 });
                                     warnings(ui, status.is_some(), liveness, status_error, true);
                                     match status {
-                                        Some(s) => {
-                                            ui.add_enabled_ui(live, |ui| {
-                                                transport(ui, s, &mut editing, &mut commands)
-                                            });
+                                        Some(s) => transport(ui, s, live, &mut editing, &mut commands, headset, &mut local),
+                                        None => {
+                                            waiting(ui, feeds, status_error, None);
+                                            snap_turn_box(ui, headset, &mut local);
                                         }
-                                        None => waiting(ui, feeds, status_error, false),
                                     }
                                 });
                             }
@@ -714,6 +772,7 @@ impl Panel {
             meshes,
             textures: output.textures_delta,
             commands,
+            local,
         }
     }
 }
@@ -766,18 +825,18 @@ fn tab_column(ui: &mut egui::Ui, tab: &mut Tab, height: f32) {
 }
 
 /// What a panel says with no publisher to show. The properties panel, which has the room, adds
-/// the controls guide: this is the first thing someone who has just put the headset on sees, and
-/// nothing else in the room says what the sticks and buttons do. The transport strip is 150
-/// points tall and has no room for it.
-fn waiting(ui: &mut egui::Ui, feeds: &str, status_error: Option<&str>, guide: bool) {
+/// the controls guide, given the headset to say which controllers are in hand: this is the first
+/// thing someone who has just put the headset on sees, and nothing else in the room says what the
+/// sticks and buttons do. The transport strip is 150 points tall and has no room for it.
+fn waiting(ui: &mut egui::Ui, feeds: &str, status_error: Option<&str>, guide: Option<&Headset>) {
     ui.label("Waiting for the publisher: start a run in the studio, or run `pnpm publish:pose`.");
     if let Some(why) = status_error {
         unreadable(ui, why);
     }
     note(ui, feeds);
-    if guide {
+    if let Some(headset) = guide {
         heading(ui, "Controls");
-        controls_guide(ui);
+        controls_guide(ui, headset);
     }
 }
 
@@ -837,6 +896,7 @@ fn properties(
     editing: &mut Editing,
     commands: &mut Vec<Command>,
     feeds: &str,
+    headset: &Headset,
 ) {
     match tab {
         Tab::Body => body_tab(ui, s, editing, commands),
@@ -846,7 +906,7 @@ fn properties(
         Tab::Muscles => muscles_tab(ui, s, editing, commands),
         Tab::Brain => brain_tab(ui, s, editing, commands),
         Tab::Export => export_tab(ui),
-        Tab::Health => health_tab(ui, s, feeds),
+        Tab::Health => health_tab(ui, s, feeds, headset),
     }
 }
 
@@ -895,7 +955,41 @@ fn transport_view(s: &Status) -> TransportView {
     }
 }
 
-fn transport(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
+/// The transport strip with a publisher to show. `live` is whether the publisher is there to read
+/// a press: the run's controls are greyed while it is silent, and the snap-turn box, which is the
+/// viewer's own, is not.
+fn transport(
+    ui: &mut egui::Ui,
+    s: &Status,
+    live: bool,
+    editing: &mut Editing,
+    commands: &mut Vec<Command>,
+    headset: &Headset,
+    local: &mut Option<LocalAction>,
+) {
+    ui.add_enabled_ui(live, |ui| {
+        run_row(ui, s, editing, commands);
+        overlay_boxes(ui, s, commands);
+    });
+    // The overlay row is full, so the viewer's own box starts the line the hands' note has
+    // always had, which is there whether or not a hand is holding anything now. A little shorter
+    // than the panel's rows, which is what lets that line fit under both warnings at once: 24
+    // points is still two and a half centimetres for a ray to find. Set around the row rather
+    // than in it, because a row takes its height from its parent's spacing as it begins.
+    ui.scope(|ui| {
+        ui.spacing_mut().interact_size.y = 24.0;
+        ui.horizontal(|ui| {
+            snap_turn_box(ui, headset, local);
+            if !s.holding.is_empty() {
+                ui.separator();
+                note(ui, &format!("Holding {}", s.holding.join(" and ")));
+            }
+        });
+    });
+}
+
+/// The run's row: Start or Pause, Reset, the mode, Play and the frame buttons, and the timeline.
+fn run_row(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     ui.horizontal(|ui| {
         // Seven buttons, the mode, the speed and the timeline share one row a metre wide. The
         // panel's padding either side of a button's text is trimmed here, where the row is full;
@@ -955,6 +1049,10 @@ fn transport(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
             commands.push(Command::Scrub(seconds as f64));
         }
     });
+}
+
+/// The overlay boxes: the four the headset draws, then the four only the desktop does.
+fn overlay_boxes(ui: &mut egui::Ui, s: &Status, commands: &mut Vec<Command>) {
     ui.horizontal_wrapped(|ui| {
         // A little closer than the panel's spacing: the eight boxes and their heading only just
         // fill the strip's width, and a second line would push the row below it off the strip.
@@ -986,9 +1084,6 @@ fn transport(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
             }
         }
     });
-    if !s.holding.is_empty() {
-        note(ui, &format!("Holding {}", s.holding.join(" and ")));
-    }
 }
 
 // --- The properties tabs ------------------------------------------------------------------------
@@ -1358,7 +1453,7 @@ fn export_tab(ui: &mut egui::Ui) {
     note(ui, "Save and Load are on the desktop's top bar.");
 }
 
-fn health_tab(ui: &mut egui::Ui, s: &Status, feeds: &str) {
+fn health_tab(ui: &mut egui::Ui, s: &Status, feeds: &str, headset: &Headset) {
     heading(ui, "Compile report");
     note(ui, "The compile report, the inertia audit and the joint sweep are on the desktop's Health tab.");
     heading(ui, "This run");
@@ -1379,7 +1474,7 @@ fn health_tab(ui: &mut egui::Ui, s: &Status, feeds: &str) {
     // The guide the waiting view shows, kept here for once a publisher is running and the
     // waiting view has gone: a tab of its own would be a ninth the desktop has not got.
     heading(ui, "Controls");
-    controls_guide(ui);
+    controls_guide(ui, headset);
 }
 
 #[cfg(test)]
@@ -1480,7 +1575,8 @@ mod tests {
                     let why = "invalid type: null, expected u64 at line 1 column 18";
                     ui.add_space(2.0);
                     warnings(ui, true, Some(&silent), Some(why), true);
-                    ui.add_enabled_ui(false, |ui| transport(ui, &status, &mut editing, &mut commands));
+                    // Silent, so the run's controls are greyed; the snap-turn box is not.
+                    transport(ui, &status, false, &mut editing, &mut commands, &Headset::default(), &mut None);
                 });
                 used = content.response.rect.height();
             });
@@ -1564,7 +1660,7 @@ mod tests {
 
     /// One headset frame of a panel, with the pointer where it is and the frame's commands.
     fn step(panel: &mut Panel, status: &Status, at: Option<egui::Pos2>, pressed: bool, scroll: f32) -> Frame {
-        panel.run(Some(status), Pointer { at, pressed, scroll }, 1.0 / 90.0, "feeds", None, None)
+        panel.run(Some(status), Pointer { at, pressed, scroll }, 1.0 / 90.0, "feeds", None, None, &Headset::default())
     }
 
     fn stature_sent(commands: &[Command]) -> Option<f64> {
@@ -1797,8 +1893,13 @@ mod tests {
     }
 
     /// The height the waiting view takes in the properties panel's column, with or without the
-    /// guide, laid out at the column's width as `run` gives it.
+    /// guide, laid out at the column's width as `run` gives it. With the guide, the controllers
+    /// under it are the simple profile's, whose note is the longest.
     fn waiting_height(guide: bool, status_error: Option<&str>) -> f32 {
+        let headset = Headset {
+            profiles: ["khr/simple_controller".into(), "khr/simple_controller".into()],
+            snap_turn: false,
+        };
         let panel = Panel::new(Kind::Properties);
         let size = Kind::Properties.size();
         let mut height = 0.0;
@@ -1812,7 +1913,12 @@ mod tests {
                     // The grab strip, the tab column and the gap after it, as `run` lays them.
                     ui.set_width(size[0] - GRAB_WIDTH - 110.0 - 8.0);
                     let content = ui.vertical(|ui| {
-                        waiting(ui, "pose /tmp/bs-humany-pose: waiting for the publisher", status_error, guide)
+                        waiting(
+                            ui,
+                            "pose /tmp/bs-humany-pose: waiting for the publisher",
+                            status_error,
+                            guide.then_some(&headset),
+                        )
                     });
                     height = content.response.rect.height();
                 });
@@ -1831,5 +1937,81 @@ mod tests {
         let worst = waiting_height(true, Some("invalid type: null, expected u64 at line 1 column 18"));
         let column = Kind::Properties.size()[1] - 60.0;
         assert!(worst <= column, "{worst} points of waiting view in a {column} point column");
+    }
+
+    /// Clicks down and across the transport strip until one reports a local action, as a person
+    /// would look for the box: the frame that found it.
+    fn find_snap_box(status: Option<&Status>, liveness: Option<&crate::xr::Liveness>, headset: &Headset) -> Option<Frame> {
+        let mut panel = Panel::new(Kind::Transport);
+        (40..1000).step_by(6).find_map(|x| {
+            (0..150).step_by(6).find_map(|y| {
+                let at = egui::pos2(x as f32, y as f32);
+                let mut frame = |pressed| {
+                    let pointer = Pointer { at: Some(at), pressed, scroll: 0.0 };
+                    panel.run(status, pointer, 1.0 / 90.0, "feeds", liveness, None, headset)
+                };
+                frame(false);
+                frame(true);
+                let up = frame(false);
+                up.local.is_some().then_some(up)
+            })
+        })
+    }
+
+    #[test]
+    fn the_snap_turn_box_is_the_viewers_and_is_never_sent_to_the_publisher() {
+        let status = fixture();
+        let off = Headset::default();
+        let pressed = find_snap_box(Some(&status), None, &off).expect("a snap-turn box on the strip");
+        assert_eq!(pressed.local, Some(LocalAction::SnapTurn(true)));
+        assert!(pressed.commands.is_empty(), "sent to the publisher: {:?}", pressed.commands);
+        // Ticked, a press turns it off: the box shows what the viewer keeps.
+        let on = Headset { snap_turn: true, ..Headset::default() };
+        let pressed = find_snap_box(Some(&status), None, &on).expect("still there when ticked");
+        assert_eq!(pressed.local, Some(LocalAction::SnapTurn(false)));
+        // With no publisher at all, and with one gone silent, it is still there to press: it is
+        // the headset's, and needs nobody to read it.
+        assert!(find_snap_box(None, None, &off).is_some(), "no box while waiting for a publisher");
+        let silent = crate::xr::Liveness::Silent(4);
+        assert!(
+            find_snap_box(Some(&status), Some(&silent), &off).is_some(),
+            "the box greyed with the run's controls while the publisher is silent"
+        );
+    }
+
+    #[test]
+    fn the_controllers_in_hand_are_said_under_the_guide() {
+        assert_eq!(
+            controllers_text(&Headset::default()),
+            "The runtime has not said yet which controllers are in hand."
+        );
+        let index = Headset {
+            profiles: ["valve/index_controller".into(), "valve/index_controller".into()],
+            snap_turn: false,
+        };
+        assert_eq!(controllers_text(&index), "Controllers: left valve/index_controller, right valve/index_controller.");
+        // One hand empty, the other on the simple profile: both said, and why the stick is dead.
+        let simple = Headset { profiles: [String::new(), "khr/simple_controller".into()], snap_turn: false };
+        let text = controllers_text(&simple);
+        assert!(text.starts_with("Controllers: left none, right khr/simple_controller."), "{text}");
+        assert!(text.contains("no stick"), "{text}");
+    }
+
+    #[test]
+    fn the_readme_table_is_the_guide() {
+        // README's "Moving about" says it is this list; every row of it is a row of the table
+        // there, the control and what it does, so the two cannot drift apart unnoticed.
+        let readme = include_str!("../README.md");
+        let rows: Vec<Vec<&str>> = readme
+            .lines()
+            .filter(|line| line.starts_with('|'))
+            .map(|line| line.trim_matches('|').split('|').map(str::trim).collect())
+            .collect();
+        for (control, action) in CONTROLS {
+            assert!(
+                rows.iter().any(|row| row.len() == 2 && row[0] == *control && row[1] == *action),
+                "README has no row `| {control} | {action} |`"
+            );
+        }
     }
 }
