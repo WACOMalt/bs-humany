@@ -307,7 +307,7 @@ pub enum LocalAction {
 #[derive(Clone, Debug, Default)]
 pub struct Headset {
     /// The interaction profile the runtime is using for each hand, left then right, as
-    /// `xr::profile_name` says it; empty until the runtime has said.
+    /// `input::profile_name` says it; empty until the runtime has said.
     pub profiles: [String; 2],
     /// Whether the right stick turns in steps. The viewer's, and kept by the viewer: the panel
     /// only shows it and reports a press of it as a `LocalAction`.

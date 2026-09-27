@@ -32,6 +32,7 @@ mod bridge;
 mod geometry;
 mod gpu;
 mod grab;
+mod input;
 mod locomotion;
 mod math;
 mod pack;
