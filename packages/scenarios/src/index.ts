@@ -983,4 +983,5 @@ export function scenario(id: string): Scenario {
 
 export * from './place.js';
 export * from './reports.js';
+export * from './scenarioApi.js';
 export * from './tiltingFloor.js';

@@ -65,6 +65,7 @@ import {
   type Scenario,
   type ScenarioApi,
   controlDivisorFor,
+  createScenarioApi,
   driveOutputs,
   placeArticulation,
   profileRateHz,
@@ -523,44 +524,23 @@ export class Simulation {
     await this.kernel.init();
     this.started = true;
     const position = this.channel(BODY_POSE).fields.position as Float64Array;
-    const index = new Map(this.articulation.segments.map((s) => [s.id, s.index]));
-    this.scriptApi = {
-      segment: (id) => index.get(id) ?? -1,
-      segmentPosition: (i) => ({
-        x: position[3 * i] ?? 0,
-        y: position[3 * i + 1] ?? 0,
-        z: position[3 * i + 2] ?? 0,
-      }),
-      grab: (s, local, target) => this.grab.grab(s, local, target),
-      moveGrab: (target) => this.grab.moveTo(target),
-      release: () => this.grab.release(),
+    this.scriptApi = createScenarioApi({
+      segmentIds: this.articulation.segments.map((s) => s.id),
+      position,
+      grab: this.grab,
       // Ignored rather than refused when the run has no muscles, so a script can ask without
       // checking first -- and so the same scenario is watchable with the muscles switched off.
       drive: (unit, level) => {
         if (!this.scriptMuscleDrive) return;
         this.muscleDrive?.setOverride(unit, level, 'script');
       },
-      moveStaticBox: (id, position, rotation) => {
-        const at = this.staticBoxes.findIndex((b) => b.id === id);
-        const box = this.staticBoxes[at];
-        if (!box) return;
-        if (
-          box.position.x === position.x &&
-          box.position.y === position.y &&
-          box.position.z === position.z &&
-          box.rotation?.x === rotation.x &&
-          box.rotation?.y === rotation.y &&
-          box.rotation?.z === rotation.z &&
-          box.rotation?.w === rotation.w
-        ) {
-          return;
-        }
-        // The list is what the viewport draws and what the bridge publishes, so it is kept in
-        // step with the solver rather than left where the scenery started.
-        this.staticBoxes[at] = { ...box, position: { ...position }, rotation: { ...rotation } };
-        this.physics.setStaticBoxTransform(id, position, rotation);
-      },
-    };
+      moveStaticBox: (id, at, rotation) => this.physics.setStaticBoxTransform(id, at, rotation),
+      // The list is what the viewport draws and what the bridge publishes, so it is kept in step
+      // with the solver rather than left where the scenery started. A move that changes nothing
+      // is skipped, and so is one naming a box the scenario did not declare, which would
+      // otherwise stop a run somebody is watching.
+      scenery: { boxes: this.staticBoxes, skipUnchanged: true },
+    });
     this.timeline.push({ tick: 0, snapshot: this.kernel.snapshot() });
     this.record();
   }

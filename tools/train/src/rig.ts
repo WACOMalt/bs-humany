@@ -78,6 +78,7 @@ import {
   type Scenario,
   type ScenarioApi,
   type ScenarioDefinition,
+  createScenarioApi,
   defaultControlDivisor,
   driveOutputs,
   loadActivationClips,
@@ -302,34 +303,21 @@ export class StandRig {
     this.restHead = this.position[3 * this.head + 1] as number;
     this.snapshot = kernel.snapshot();
     // What a scenario's script may do here: drive muscles. A grab has no hand in a training rig.
-    const index = new Map(segmentIds.map((id, i) => [id, i]));
-    this.scriptApi = {
-      segment: (id) => index.get(id) ?? -1,
-      segmentPosition: (i) => ({
-        x: this.position[3 * i] as number,
-        y: this.position[3 * i + 1] as number,
-        z: this.position[3 * i + 2] as number,
-      }),
-      grab: () => {},
-      moveGrab: () => {},
-      release: () => {},
+    this.scriptApi = createScenarioApi({
+      segmentIds,
+      position: this.position,
       // The script's muscle drive reaches the body only when it is the feedforward asked for.
       drive: (unit, level) => {
         if (options.feedforward.kind === 'script') this.drive.setOverride(unit, level, 'script');
       },
-      moveStaticBox: (id, position, rotation) => {
-        // The list is what a showcase publishes, so it is kept in step with the solver rather
-        // than left where the scenery started. A tilting platform moves every tick, and a
-        // viewer drawing it where it began while the body stands on where it is now makes a
-        // real force look like a trick of the rendering.
-        const at = this.scenery.findIndex((b) => b.id === id);
-        const box = this.scenery[at];
-        if (box) {
-          this.scenery[at] = { ...box, position: { ...position }, rotation: { ...rotation } };
-        }
-        this.physics.setStaticBoxTransform(id, position, rotation);
-      },
-    };
+      moveStaticBox: (id, position, rotation) =>
+        this.physics.setStaticBoxTransform(id, position, rotation),
+      // The list is what a showcase publishes, so it is kept in step with the solver rather than
+      // left where the scenery started. A tilting platform moves every tick, and a viewer
+      // drawing it where it began while the body stands on where it is now makes a real force
+      // look like a trick of the rendering. Every move goes through, as it always has here.
+      scenery: { boxes: this.scenery },
+    });
   }
 
   static async build(options: RigOptions): Promise<StandRig> {
