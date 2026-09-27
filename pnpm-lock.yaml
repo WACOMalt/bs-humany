@@ -90,6 +90,9 @@ importers:
         specifier: ^0.186.0
         version: 0.186.0
     devDependencies:
+      '@bs-humany/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
       '@tauri-apps/cli':
         specifier: ^2.11.4
         version: 2.11.4
