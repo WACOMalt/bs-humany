@@ -1,0 +1,25 @@
+bs-humany xr-viewer: the pose-bridge fixture
+
+The viewer is code, and its code is Apache-2.0 (see the root LICENSE). The pose-bridge fixture here
+is in the Data tier of ADR-009, by the owner's decision of 2026-09-27, and is distributed under
+Creative Commons Attribution-ShareAlike 4.0 International. The licence text is the one in
+packages/skeleton/LICENSE.
+
+  pose-bridge.bin, with its sidecar pose-bridge.bin.json and pose-bridge.bin-muscles
+
+It is a recording in the bridge format the studio writes and the headset reads: the skeleton's
+bone ids, their poses and muscle bellies over five frames, scaled by the dataset subject's stature.
+`pnpm generate:pose-bridge-fixture` writes it, the sidecar and the muscle file together, so the
+three are one fixture and are kept under one licence. The numbers are a fixed sample rather than a
+simulation, but the body they describe is the one in @bs-humany/skeleton, which derives from:
+
+  "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"
+  "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+
+Z-Anatomy authors: Kousaku Okubo (original BodyParts3D model), Gauthier Kervyn (design, 3D,
+anatomy), Marcin Zielinski (Blender add-on), Lluis Vinent (Unity development).
+Source: https://github.com/LluisV/Z-Anatomy and https://github.com/Z-Anatomy/Models-of-human-anatomy.
+
+status.json and README.md beside it are the viewer's own and stay Apache-2.0: status.json is the
+panel's status contract filled with sample values, with no body in it. See ADR-009, the tier table
+in CONTRIBUTING.md and the root NOTICE.

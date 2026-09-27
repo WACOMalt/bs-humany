@@ -41,15 +41,19 @@ LICENSING
 
 The program is Apache-2.0; see LICENSE and NOTICE.
 
-The anatomical data is not. The mesh pack in assets-anatomical/, and the meshes
-built into the studio, are a derivative of
+The body's data is not. The mesh pack in assets-anatomical/, and what is built
+into the studio from the same bones -- the meshes and the skeleton, the muscle
+definitions of muscle-data, which are measured on those bones, and the trained
+policies that stand and balance the body, whose weights were found against it --
+are a derivative of
 
     BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan
     Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0
 
 and are distributed under CC BY-SA 4.0; assets-anatomical/LICENSE is that
 licence and assets-anatomical/NOTICE says what the data is and where it came
-from. Redistributing this directory means passing that attribution on, and any
+from. NOTICE says which other parts of bs-humany are CC BY-SA 4.0 and why.
+Redistributing this directory means passing that attribution on, and any
 derivative of the data stays under CC BY-SA 4.0. The studio shows the same line
 in its own footer, and every export written from it carries it in the file.
 

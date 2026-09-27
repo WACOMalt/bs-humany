@@ -59,10 +59,19 @@ The Data tier of ADR-009 is licensed CC BY-SA 4.0. It is:
     lengths are measured on that skeleton.
   - packages/scenarios: the fixtures under its data/ directory. The rest of that package is code
     and stays Apache-2.0.
+  - packages/modules-nerves: the trained policies under its policies/ directory, whose weights
+    were found against the body the packages above describe. The rest of that package is code
+    and stays Apache-2.0.
+  - apps/xr-viewer: the pose-bridge fixture, fixtures/pose-bridge.bin with its sidecar and muscle
+    file. The rest of the viewer is code and stays Apache-2.0.
 
-Each of the first three packages holds the licence text in its LICENSE and says what it derives
-from in its NOTICE; the scenario fixtures are covered by this file, and the licence text is the
-same one. The geometry and everything measured on it derives from:
+So muscle-data, the trained policies and the pose-bridge fixture are all CC BY-SA 4.0: muscle-data
+by the owner's decision of 2026-09-26, the policies and the fixture by that of 2026-09-27. Each of
+the first three packages holds the licence text in its LICENSE and says what it derives from in its
+NOTICE. The policies and the pose-bridge fixture each have a NOTICE of their own
+(packages/modules-nerves/NOTICE, apps/xr-viewer/fixtures/NOTICE) that does the same; the scenario
+fixtures are covered by this file; and the licence text for all of them is the same one. The
+geometry and everything measured on it derives from:
 
   - Z-Anatomy (z-anatomy.com, github.com/Z-Anatomy) - CC BY-SA 4.0
   - BodyParts3D, Database Center for Life Science, Japan - CC BY-SA 2.1 JP
