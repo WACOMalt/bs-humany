@@ -22,9 +22,14 @@ import {
   type BridgeWrite,
   MuscleBridgeCodec,
   MuscleBridgeWriter,
+  type PanelBrain,
+  type PanelBrainAction,
+  type PanelCommand,
+  type PanelStatus,
   PoseBridgeCodec,
   PoseBridgeWriter,
   type RestPose,
+  STATUS_SUFFIX,
   readGrabIntents,
 } from '@bs-humany/pose-bridge/codec';
 import { invoke } from '@tauri-apps/api/core';
@@ -34,87 +39,60 @@ import { GrabIntents } from './grabIntents.js';
 import type { Simulation } from './simulation.js';
 
 /** What the panel can ask for; the shapes the viewer writes, parsed. */
-export type VrCommand =
-  | { kind: 'pause' }
-  | { kind: 'resume' }
-  | { kind: 'reset' }
-  | { kind: 'step'; frames: number }
-  | { kind: 'scrub'; seconds: number }
-  | { kind: 'drive'; group: number; value: number }
-  | { kind: 'set'; key: string; value: unknown }
-  /** The brain panel, from the headset: choose, hand over, release, train. */
-  | { kind: 'brain'; action: BrainAction; id?: string; value?: number };
+export type VrCommand = PanelCommand;
 
-/** What the studio says about its run, for the panel. The link adds what only it knows. */
-export interface VrStatus {
-  readonly scenario: { readonly id: string; readonly title: string };
-  readonly scenarios: readonly { readonly id: string; readonly title: string }[];
-  readonly profiles: readonly string[];
-  readonly profile: string;
-  readonly settings: Readonly<Record<string, number | boolean>>;
-  readonly driveGroups: readonly {
-    readonly title: string;
-    readonly level: number;
-    /** Arm, Leg, Trunk or Neck: the section the desktop folds the slider under. */
-    readonly section?: string;
-  }[];
-  readonly groundHeight: number;
-  readonly staticBoxes: readonly {
-    readonly halfExtents: readonly number[];
-    readonly position: readonly number[];
-    readonly rotation: readonly number[];
-  }[];
-  readonly grabStrength: number;
-  readonly diagnostics: Readonly<Record<string, number>>;
-  readonly paused: boolean;
-  /** At rest, running, paused, or following the bridge: the top bar's mode. */
-  readonly mode: 'rest' | 'running' | 'paused' | 'following';
-  /** The overlays as the viewport shows them, by checkbox id without the `show` prefix. */
-  readonly overlays: Readonly<Record<string, boolean>>;
-  /** The chosen scenario's parameters, as its sliders show them. */
-  readonly scenarioParameters: readonly {
-    readonly id: string;
-    readonly title: string;
-    readonly value: number;
-    readonly min: number;
-    readonly max: number;
-    readonly step: number;
-    readonly unit: string;
-  }[];
-  /** The Muscles tab's readout, as text. */
-  readonly muscleReadout: Readonly<Record<string, string>>;
-  /** Tendon force as a fraction of each unit's maximum, for the tint; empty without muscles. */
-  readonly tension: readonly number[];
-  /** The connective tissue, in bone frames, so the headset can draw it from the poses. */
-  readonly tissue: {
-    readonly discs: readonly {
-      readonly bone: string;
-      readonly kind: 'disc' | 'bead';
-      readonly position: readonly number[];
-      readonly rotation: readonly number[];
-    }[];
-    readonly bars: readonly {
-      readonly boneA: string;
-      readonly localA: readonly number[];
-      readonly boneB: string;
-      readonly localB: readonly number[];
-    }[];
+/**
+ * The keys of the status only the link knows -- which run of the bridges, where the frame on
+ * screen is, how fast, what the headset's hands hold -- and the showcase's training run, which
+ * reaches the status only when the link relays a showcase.
+ */
+type LinkKeys =
+  | 'generation'
+  | 'simSeconds'
+  | 'wallSeconds'
+  | 'speed'
+  | 'muscles'
+  | 'holding'
+  | 'stepsPerSecond'
+  | 'fps'
+  | 'training';
+
+/**
+ * What the studio says about its run, for the panel: the status every publisher writes, less what
+ * the link adds. The panel's own sections, which a headless publisher may not have, the studio
+ * always does, so they are required of it here.
+ *
+ * The brain is the desktop's own `BrainState` -- the type its Brain tab is drawn from -- so the
+ * headset gets the button rules and the policy note the desktop shows rather than a copy.
+ */
+export type VrStatus = Omit<PanelStatus, LinkKeys | 'brain'> &
+  Required<Pick<PanelStatus, 'mode' | 'overlays' | 'scenarioParameters' | 'muscleReadout'>> & {
+    readonly brain: BrainState;
   };
-  /**
-   * The brain panel's state, the desktop's own: the same type its Brain tab is drawn from, so the
-   * headset gets the button rules and the policy note the desktop shows rather than a copy.
-   */
-  readonly brain: BrainState;
-  /**
-   * The run time of the newest frame recorded, in the same seconds as `simSeconds`. The link
-   * reports the playhead as `simSeconds`, so this is how far the timeline reaches beyond it.
-   */
-  readonly recordedSeconds?: number;
-  /** Whether the desktop is playing a recording back. */
-  readonly playing?: boolean;
-  /** Whether the desktop is on the live edge rather than scrubbed back. */
-  readonly live?: boolean;
-}
+
+/** `true` when A and B have exactly the same keys; a type, so a drift fails to compile. */
+type SameKeys<A, B> = [keyof A] extends [keyof B]
+  ? [keyof B] extends [keyof A]
+    ? true
+    : false
+  : false;
+type Holds<T extends true> = T;
+
+/**
+ * The desktop's brain and the wire's, key for key; and the headset's brain actions and the
+ * panel's. Assigning a `BrainState` to the wire's brain already fails on a key the wire wants and
+ * the desktop lacks, but not on a key the desktop added and the contract -- and so the Rust side
+ * and the fixture -- never heard of. Nor would a Brain tab action the headset cannot send be
+ * noticed. These do both.
+ */
+export type BrainStateIsTheWireBrain = Holds<SameKeys<BrainState, PanelBrain>>;
+export type BrainActionsAreThePanels = Holds<
+  [BrainAction] extends [PanelBrainAction]
+    ? [PanelBrainAction] extends [BrainAction]
+      ? true
+      : false
+    : false
+>;
 
 export interface VrHost {
   simulation(): Simulation | null;
@@ -702,18 +680,24 @@ export class VrLink {
   ): void {
     const status = this.host.status(simulation);
     const relayed = this.relaying ? followed : null;
-    const scene = relayed
+    // The followed publisher writes this same contract, so what it says is read as that shape;
+    // the numbers and arrays are still looked at, as anything another process wrote should be.
+    const their = relayed as Partial<PanelStatus> | null;
+    const scene: Partial<PanelStatus> = their
       ? {
-          mode: 'following' as const,
+          mode: 'following',
           groundHeight: numberIn(relayed, 'groundHeight') ?? status.groundHeight,
-          staticBoxes: Array.isArray(relayed.staticBoxes) ? relayed.staticBoxes : [],
-          tissue: relayed.tissue ?? status.tissue,
-          tension: Array.isArray(relayed.tension) ? relayed.tension : [],
-          training: relayed.training,
-          paused: typeof relayed.paused === 'boolean' ? relayed.paused : false,
+          staticBoxes: Array.isArray(their.staticBoxes) ? their.staticBoxes : [],
+          tissue: their.tissue ?? status.tissue,
+          tension: Array.isArray(their.tension) ? their.tension : [],
+          ...(their.training ? { training: their.training } : {}),
+          paused: typeof their.paused === 'boolean' ? their.paused : false,
         }
       : {};
-    const text = JSON.stringify({
+    // Typed as the whole status, so a key the contract gains and this does not send, or one this
+    // sends and the contract does not name, fails to compile rather than reaching the headset as
+    // a default.
+    const full: PanelStatus = {
       ...status,
       ...scene,
       generation: this.generation,
@@ -724,7 +708,7 @@ export class VrLink {
       holding: this.intents.holding(),
       stepsPerSecond: simulation?.stepsPerSecond ?? numberIn(relayed, 'stepsPerSecond') ?? 0,
       fps: simulation?.outputFramerate ?? numberIn(relayed, 'fps') ?? 0,
-    });
-    this.queue.text('-status.json', text);
+    };
+    this.queue.text(STATUS_SUFFIX, JSON.stringify(full));
   }
 }

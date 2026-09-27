@@ -62,6 +62,10 @@
 // and hand them to whatever writes them. `node.ts` is the Node end; `index.ts` re-exports both.
 // ---------------------------------------------------------------------------------------------
 
+// The panel's status and command files, which travel beside the rings and are as much a part of
+// the contract with the viewer; stated in their own file because they are JSON, not a layout.
+export * from './panel.js';
+
 /** One range to write, at an offset from the start of the file. */
 export interface BridgeWrite {
   readonly offset: number;

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Write the pose-bridge fixture the Rust reader is tested against.
+ * Write the pose-bridge fixtures the Rust reader is tested against.
  *
- *   pnpm generate:pose-bridge-fixture           # rewrite apps/xr-viewer/fixtures/pose-bridge.bin
- *   pnpm generate:pose-bridge-fixture --check   # fail if the file is not what this would write
+ *   pnpm generate:pose-bridge-fixture           # rewrite everything in apps/xr-viewer/fixtures
+ *   pnpm generate:pose-bridge-fixture --check   # fail if any file is not what this would write
  *
  * Two implementations of one binary layout, in two languages, cannot share code. What they can
  * share is a file: this side writes it, that side reads it, and a test on each end pins the
@@ -13,6 +13,13 @@
  *
  * The contents are the ones the TypeScript unit test uses, so the two tests are literally
  * looking at the same bytes: three bones, three slots, five frames, a fixed clock.
+ *
+ * The panel's status travels as JSON rather than as a layout, and gets the same treatment:
+ * `status.json` is the typed sample in `apps/studio/src/vrStatusSample.ts`, which has to fill
+ * every field of `PanelStatus` (`packages/pose-bridge/src/panel.ts`) to compile, written out as
+ * it stands. The Rust side's status test parses that file, so a field renamed or dropped on this
+ * side reaches the Rust test through the regenerated fixture, instead of reaching the headset as
+ * a silent default.
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,15 +30,42 @@ import { createJiti } from 'jiti';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT_DIR = join(ROOT, 'apps/xr-viewer/fixtures');
-const OUT = join(OUT_DIR, 'pose-bridge.bin');
 const check = process.argv.includes('--check');
 
 const jiti = createJiti(import.meta.url);
 const { openPoseBridge, openMuscleBridge } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
+const { PANEL_STATUS_SAMPLE } = await jiti.import(join(ROOT, 'apps/studio/src/vrStatusSample.ts'));
 
-function write(path) {
+/** Every file this writes into the fixtures directory, and so every file `--check` compares. */
+const FILES = [
+  'pose-bridge.bin',
+  'pose-bridge.bin.json',
+  'pose-bridge.bin-muscles',
+  'status.json',
+  'README.md',
+];
+
+const README =
+  '# Fixtures\n\n' +
+  '`pose-bridge.bin`, its sidecar and `pose-bridge.bin-muscles` are written by ' +
+  '`pnpm generate:pose-bridge-fixture` from the TypeScript writer, and read by the Rust ' +
+  "reader's tests.\n\n" +
+  '`status.json` is the panel status with every field of the contract filled, written by the ' +
+  'same generator from `apps/studio/src/vrStatusSample.ts`, which is typed against `PanelStatus` ' +
+  "in `packages/pose-bridge/src/panel.ts`. The Rust side's status test parses it and pins a " +
+  'value from every field the headset reads.\n\n' +
+  "None of them is edited by hand; the generator's `--check` is a CI gate.\n";
+
+/** Everything, into `dir`: the rings under `pose-bridge.bin`, the status, and the README. */
+function writeAll(dir) {
+  writeRings(join(dir, 'pose-bridge.bin'));
+  writeFileSync(join(dir, 'status.json'), `${JSON.stringify(PANEL_STATUS_SAMPLE, null, 2)}\n`);
+  writeFileSync(join(dir, 'README.md'), README);
+}
+
+function writeRings(path) {
   const writer = openPoseBridge(
     {
       bones: ['pelvis', 'femur_r', 'tibia_r'],
@@ -75,15 +109,15 @@ function write(path) {
 if (check) {
   const dir = mkdtempSync(join(tmpdir(), 'pose-bridge-fixture-'));
   try {
-    write(join(dir, 'pose-bridge.bin'));
-    for (const name of ['pose-bridge.bin', 'pose-bridge.bin.json', 'pose-bridge.bin-muscles']) {
+    writeAll(dir);
+    for (const name of FILES) {
       const fresh = readFileSync(join(dir, name));
       const committed = readFileSync(join(OUT_DIR, name));
       if (!fresh.equals(committed)) {
         console.error(
           `generate-pose-bridge-fixture: ${relative(ROOT, join(OUT_DIR, name))} is not what the ` +
             'generator would write.\n  Run `pnpm generate:pose-bridge-fixture`. If the layout ' +
-            'changed, the Rust reader and its test change with it.',
+            'or the status changed, the Rust reader and its test change with it.',
         );
         process.exit(1);
       }
@@ -94,12 +128,8 @@ if (check) {
   }
 } else {
   mkdirSync(OUT_DIR, { recursive: true });
-  write(OUT);
-  writeFileSync(
-    join(OUT_DIR, 'README.md'),
-    '# Fixtures\n\n`pose-bridge.bin`, its sidecar and `pose-bridge.bin-muscles` are written by ' +
-      '`pnpm generate:pose-bridge-fixture` from the TypeScript writer, and read by the Rust ' +
-      "reader's tests. Neither is edited by hand; the generator's `--check` is a CI gate.\n",
+  writeAll(OUT_DIR);
+  console.log(
+    `generate-pose-bridge-fixture: wrote ${FILES.join(', ')} in ${relative(ROOT, OUT_DIR)}.`,
   );
-  console.log(`generate-pose-bridge-fixture: wrote ${relative(ROOT, OUT)} and its sidecar.`);
 }

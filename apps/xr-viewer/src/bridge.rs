@@ -559,38 +559,84 @@ mod tests {
     }
 
     #[test]
-    fn the_studio_status_parses_with_everything_the_panels_show_and_without() {
-        // What the studio and `pnpm publish:pose` write now, trimmed to one of each thing.
-        let now = r#"{"generation":3,"scenario":{"id":"quiet-standing","title":"Quiet standing"},
-            "scenarios":[{"id":"quiet-standing","title":"Quiet standing"}],"profile":"l3_anatomical",
-            "simSeconds":1.5,"speed":0.24,"paused":false,"muscles":true,"holding":[],"grabStrength":1,
-            "mode":"running","overlays":{"muscles":true,"tissue":false},
-            "scenarioParameters":[{"id":"lean","title":"Lean","value":0.1,"min":0,"max":0.3,"step":0.01,"unit":"m"}],
-            "muscleReadout":{"loaded":"12 of 234"},"tension":[0.1,0.5],
-            "driveGroups":[{"title":"Elbow flexors","level":20,"section":"Arm"}],
-            "tissue":{"discs":[{"bone":"sacrum","kind":"disc","position":[0.017,0.013,-0.051],
-            "rotation":[-0.018,0.707,-0.018,0.707]}],"bars":[{"boneA":"sternum","localA":[0.02,0.07,0.04],
-            "boneB":"rib_2_r","localB":[-0.01,-0.05,-0.07]}]},
-            "brain":{"serverUp":true,"active":false,"authority":0.3,"selected":"stand-7",
-            "checkpoints":[{"id":"stand-7","name":"stand, generation 7"}],"fit":"","training":"",
-            "trainingRunning":true,"trainingStoppable":true,"following":false,
-            "canStart":false,"canStop":true,"canHandOver":true,"canRelease":false,
-            "policyNote":"No dashboard server: checkpoints trained here are kept in this browser.",
-            "spineNote":"Stretch and Damping at zero is a body with no reflexes at all."},
-            "training":{"task":"stand","episode":4,"generation":7,"fitness":0.812}}"#;
-        let status: Status = serde_json::from_str(now).expect("parses");
+    fn the_status_every_publisher_writes_parses_with_everything_the_panels_show_and_without() {
+        // Written by `pnpm generate:pose-bridge-fixture` from the typed sample every publisher's
+        // status is held to, with every field filled and none of them at the default this side
+        // falls back on. So each assertion below is a field this side reads and the contract
+        // still sends under the same name: rename one on either side and its value comes back
+        // as a default, or the file stops parsing, and this fails.
+        let status = parse_status(include_str!("../fixtures/status.json")).expect("parses");
+        assert_eq!(status.generation, 1_790_000_000_003);
+        assert_eq!(status.scenario.id, "drop-standing-collapse");
+        assert_eq!(status.scenario.title, "Drop and collapse");
+        assert_eq!(status.scenarios.len(), 2);
+        assert_eq!(status.scenarios[0].title, "Standing quietly");
+        assert!(status.scenarios[1].description.starts_with("The rest pose dropped"));
+        assert_eq!(status.profiles, ["l1_standard", "l3_anatomical"]);
+        assert_eq!(status.profile, "l3_anatomical");
+        assert_eq!((status.sim_seconds, status.speed), (1.5, 0.24));
+        assert!(status.paused && status.muscles);
+        assert_eq!(status.holding, ["radius_r"]);
+        assert_eq!(status.grab_strength, 1.5);
+
+        let st = &status.settings;
+        assert!(st.muscles && st.passive && st.redistribute && st.gravity && st.floor);
+        assert_eq!((st.sex, st.stature, st.mass), (0.25, 1.62, 58.0));
+        assert_eq!((st.crural, st.brachial, st.leg_length), (1.02, 0.77, 1.03));
+        assert_eq!((st.percentile, st.drop_height), (0.4, Some(0.35)));
+        assert_eq!((st.fps, st.steps_per_second), (90.0, 1000.0));
+
+        assert_eq!(status.drive_groups.len(), 2);
+        assert_eq!(status.drive_groups[0].title, "Elbow flexors");
+        assert_eq!(status.drive_groups[0].level, 20.0);
+        assert_eq!(status.drive_groups[1].section, "Leg");
+
+        let d = &status.diagnostics;
+        assert_eq!((d.kinetic, d.potential, d.drift_mm), (12.5, 580.25, 0.75));
+        assert_eq!((d.limits_worst, d.violations), (0.625, 2.0));
+        assert_eq!((d.contacts, d.cost_ms), (14.0, 0.875));
+
+        assert_eq!(status.ground_height, -0.05);
+        assert_eq!(
+            status.static_boxes,
+            [StaticBox {
+                half_extents: [0.5, 0.25, 0.3],
+                position: [0.0, 0.25, -0.4],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+            }]
+        );
         assert_eq!(status.mode, "running");
         assert_eq!(status.overlays.get("tissue"), Some(&false));
-        assert_eq!(status.scenario_parameters[0].unit, "m");
-        assert_eq!(status.drive_groups[0].section, "Arm");
-        assert_eq!(status.tissue.discs[0].bone, "sacrum");
-        assert_eq!(status.tissue.bars[0].bone_b, "rib_2_r");
-        assert_eq!(status.brain.checkpoints[0].name, "stand, generation 7");
-        assert!(!status.brain.can_start && status.brain.can_stop);
-        assert!(status.brain.can_hand_over && !status.brain.can_release);
-        assert!(status.brain.policy_note.starts_with("No dashboard server"));
-        assert!(status.brain.spine_note.contains("no reflexes"));
-        assert_eq!(status.training.as_ref().map(|t| t.generation), Some(7));
+        assert_eq!(status.overlays.get("muscles"), Some(&true));
+        let p = &status.scenario_parameters[0];
+        assert_eq!((p.id.as_str(), p.title.as_str(), p.unit.as_str()), ("clearance", "Drop height", "m"));
+        assert_eq!((p.value, p.min, p.max, p.step), (0.3, 0.0, 1.5, 0.05));
+        assert_eq!(status.muscle_readout.get("loaded").map(String::as_str), Some("12 of 234"));
+        assert_eq!(status.tension, [0.125, 0.5]);
+        let disc = &status.tissue.discs[0];
+        assert_eq!((disc.bone.as_str(), disc.kind.as_str()), ("sacrum", "disc"));
+        assert_eq!(disc.position, [0.017, 0.013, -0.051]);
+        assert_eq!(disc.rotation, [-0.018, 0.6, -0.018, 0.8]);
+        let bar = &status.tissue.bars[0];
+        assert_eq!((bar.bone_a.as_str(), bar.bone_b.as_str()), ("sternum", "rib_2_r"));
+        assert_eq!((bar.local_a, bar.local_b), ([0.02, 0.07, 0.04], [-0.01, -0.05, -0.07]));
+
+        let b = &status.brain;
+        assert!(b.active && b.following);
+        assert_eq!(b.authority, 0.3);
+        assert_eq!(b.selected, "stand-7");
+        assert_eq!(b.checkpoints[0], Checkpoint { id: "stand-7".into(), name: "stand, generation 7".into() });
+        assert_eq!(b.fit, "In the loop");
+        assert!(b.training.starts_with("generation 7"));
+        assert_eq!((b.reflex.stretch, b.reflex.velocity, b.reflex.set_point), (2.5, 0.125, 0.875));
+        assert_eq!((b.reflex.inhibition, b.reflex.delay_seconds), (0.5, 0.03));
+        assert_eq!(b.memory, 8);
+        assert!(!b.can_start && b.can_stop && b.can_hand_over && !b.can_release);
+        assert!(b.policy_note.starts_with("No dashboard server"));
+        assert!(b.spine_note.contains("no reflexes"));
+        let t = status.training.as_ref().expect("the training run");
+        assert_eq!((t.task.as_str(), t.episode, t.generation, t.fitness), ("stand", 4, 7, 0.812));
+
         // An older publisher that says none of that is still a status: every new key defaults.
         let before = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
             "profile":"l1_standard","simSeconds":0,"speed":1,"paused":true,"muscles":false,
@@ -598,6 +644,7 @@ mod tests {
         let status: Status = serde_json::from_str(before).expect("parses");
         assert!(status.overlays.is_empty() && status.tissue.discs.is_empty());
         assert!(status.training.is_none() && !status.brain.active);
+        assert_eq!(status.settings.drop_height, None);
         let b = &status.brain;
         assert!(!b.can_start && !b.can_stop && !b.can_hand_over && !b.can_release);
         assert!(b.policy_note.is_empty() && b.spine_note.is_empty());
@@ -734,7 +781,23 @@ pub struct Named {
     pub title: String,
 }
 
+/// A scenario the picker offers.
+#[derive(serde::Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct ScenarioEntry {
+    pub id: String,
+    pub title: String,
+    /// What the scenario is and what to watch for, as the desktop's note under its picker says.
+    /// A publisher from before descriptions sends none, and the panel then shows none.
+    #[serde(default)]
+    pub description: String,
+}
+
 /// What the publisher says about itself, four times a second, in `<pose path>-status.json`.
+///
+/// The shape is `PanelStatus` in `packages/pose-bridge/src/panel.ts`, which every publisher is
+/// typed against. `fixtures/status.json` is a sample of it with every field filled, written by
+/// `pnpm generate:pose-bridge-fixture`, and the test below parses it: a field either side renames
+/// fails there rather than reading as its default in the headset.
 #[derive(serde::Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
@@ -743,7 +806,7 @@ pub struct Status {
     /// that still starts from 1 is caught by the files' inodes instead -- see `feeds_changed`.
     pub generation: u64,
     pub scenario: Named,
-    pub scenarios: Vec<Named>,
+    pub scenarios: Vec<ScenarioEntry>,
     pub profile: String,
     pub sim_seconds: f64,
     pub speed: f64,
@@ -945,8 +1008,12 @@ pub struct Settings {
     pub brachial: f64,
     #[serde(default)]
     pub leg_length: f64,
+    /// The studio's free drop, which only a publisher that offers one sends: `pnpm publish:pose`
+    /// always runs a scenario, which places the body itself, so it has no drop height to show.
+    /// Absent rather than zero, so the panel can leave the slider out instead of offering one
+    /// that reads 0 and does nothing.
     #[serde(default)]
-    pub drop_height: f64,
+    pub drop_height: Option<f64>,
     #[serde(default)]
     pub passive: bool,
     #[serde(default)]

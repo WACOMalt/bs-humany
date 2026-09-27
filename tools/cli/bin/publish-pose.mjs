@@ -34,9 +34,22 @@
  *   from wherever the last read stopped: `pause`, `resume`, `reset`, `step` with `frames`,
  *   `scrub` with `seconds`, `drive` with a muscle `group` and a slider `value`, and `set` with a
  *   `key` and `value` for everything the studio's panel sets -- scenario, profile, muscles,
- *   morphology, drop height, rates, gravity, floor, grab strength. Settings that change the
+ *   morphology, rates, gravity, floor, grab strength, and `scenario.<id>` for one of the chosen
+ *   scenario's own parameters, its drop height among them. Settings that change the
  *   articulation rebuild the simulation and every bridge file and bump `generation` in the
  *   status so the renderer knows to reopen them; the rest apply in place.
+ *
+ * Both shapes are `PanelStatus` and `PanelCommand` in `packages/pose-bridge/src/panel.ts`, the
+ * one contract every publisher and the viewer keep. The status is built by
+ * `apps/studio/src/publisherStatus.ts`, where it is typechecked against that contract.
+ *
+ * ## Which body
+ *
+ * `--profile`, or L1 when it is not given, whatever profile the scenario was written on. The
+ * publisher keeps a profile of its own rather than taking the scenario's, so a scenario written
+ * on L3 runs here on L1 unless it is asked for; the panel's Body row changes it. Because that is
+ * easy to miss, the startup line says which profile was chosen, why, and what the scenario was
+ * written on when that differs.
  */
 
 import { fstatSync, openSync, readSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -56,10 +69,14 @@ const scenarioArg = args.find(
   (a) => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'),
 );
 const fps = Number(flag('fps', 144));
-const profileId = flag('profile', 'l1_standard');
+const DEFAULT_PROFILE = 'l1_standard';
+const profileId = flag('profile', DEFAULT_PROFILE);
 const seconds = Number(flag('seconds', Number.POSITIVE_INFINITY));
 
 const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropometry/src/index.ts'));
+const { publisherStatus, publisherMorphology, scenarioDefinition } = await jiti.import(
+  join(ROOT, 'apps/studio/src/publisherStatus.ts'),
+);
 const { buildDocument, computeWorldTransforms } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/index.ts'),
 );
@@ -69,7 +86,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.ts'));
 const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
-const { scenario, SCENARIOS, DEFAULT_SCENARIO, MUSCLE_GROUPS, driveForSlider } = await jiti.import(
+const { SCENARIO_DEFINITIONS, DEFAULT_SCENARIO, MUSCLE_GROUPS, driveForSlider } = await jiti.import(
   join(ROOT, 'packages/scenarios/src/index.ts'),
 );
 const {
@@ -79,6 +96,8 @@ const {
   claimBridge,
   temporaryName,
   DEFAULT_PATH,
+  STATUS_SUFFIX,
+  COMMANDS_SUFFIX,
 } = await jiti.import(join(ROOT, 'packages/pose-bridge/src/index.ts'));
 // The codec states where the bridge lives, once; this only lets --path say otherwise.
 const path = flag('path', DEFAULT_PATH);
@@ -87,12 +106,18 @@ const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
 
 const PROFILES = ['l0_ragdoll', 'l1_standard', 'l2_biomechanical', 'l3_anatomical'];
-const DEFAULT_PROPORTIONS = { crural: 1.004, brachial: 0.785, relativeLegLength: 1 };
 
 /**
- * Everything the panel can set. `null` means "the scenario's own", which is what the studio's
- * controls start at too. The ones marked as rebuilding change the articulation and so take a
- * fresh simulation; the others apply to the running one.
+ * Everything the panel can set; `PublisherSettings` in publisherStatus.ts says what each is.
+ * `null` means "as the scenario says" -- its morphology, its passive joints, whether it wants
+ * muscles -- which is what the studio's controls start at too. The profile is not one of those:
+ * it is `--profile` or L1, whatever the scenario was written on (see the header). The ones marked
+ * as rebuilding change the articulation and so take a fresh simulation; the others apply to the
+ * running one.
+ *
+ * There is no drop height here. The studio's is for a free drop, and a run of this is always a
+ * scenario, which places the body itself: the height a drop starts from is the scenario's own
+ * `clearance` parameter, set with `scenario.clearance` like its others.
  */
 const settings = {
   scenario: scenarioArg ?? DEFAULT_SCENARIO,
@@ -104,7 +129,6 @@ const settings = {
   crural: null,
   brachial: null,
   legLength: null,
-  dropHeight: null, // rebuild
   passive: null, // rebuild
   redistribute: true, // rebuild
   fps, // rebuild
@@ -112,6 +136,12 @@ const settings = {
   gravity: true, // live
   floor: true, // live
 };
+/**
+ * Each scenario's own parameters as the panel last set them, by scenario id, so switching to
+ * another scenario and back finds them where they were left. A scenario not here runs at its
+ * committed defaults.
+ */
+const scenarioValues = new Map();
 /** The viewport overlays, as the headset's transport strip toggles them; nothing here draws. */
 const overlays = {
   muscles: true,
@@ -133,7 +163,6 @@ const REBUILDS = new Set([
   'crural',
   'brachial',
   'legLength',
-  'dropHeight',
   'passive',
   'redistribute',
   'fps',
@@ -141,35 +170,24 @@ const REBUILDS = new Set([
 ]);
 /** Slider positions, 0..100, one a muscle group; kept across rebuilds. */
 const drives = MUSCLE_GROUPS.map(() => 0);
-/** The studio's mapping: squared, so the first few per cent of drive get a usable stretch. */
-
-/** The morphology a build uses: the scenario's, with whatever the panel overrode. */
-function effectiveMorphology(chosen) {
-  const base = chosen.morphology;
-  const proportions = { ...DEFAULT_PROPORTIONS, ...(base.proportions ?? {}) };
-  return {
-    sex: settings.sex ?? base.sex,
-    stature: settings.stature ?? base.stature,
-    mass: settings.mass ?? base.mass,
-    proportions: {
-      crural: settings.crural ?? proportions.crural,
-      brachial: settings.brachial ?? proportions.brachial,
-      relativeLegLength: settings.legLength ?? proportions.relativeLegLength,
-    },
-  };
-}
 
 /** Build a simulation for the current settings and open the bridge files it publishes into. */
 async function build() {
-  const chosen = scenario(settings.scenario);
-  const morphology = resolveMorphology(effectiveMorphology(chosen));
+  // Built afresh from its definition at the panel's values, so a rebuild gets a script with no
+  // history and the parameters as they were last set.
+  const definition = scenarioDefinition(settings.scenario);
+  const values = scenarioValues.get(definition.id) ?? {};
+  const chosen = definition.build(values);
+  const morphology = resolveMorphology(publisherMorphology(settings, chosen));
   const simulation = new Simulation(document, morphology, {
     profileId: settings.profile,
     backend: 'mujoco',
     passiveJoints: settings.passive ?? chosen.passiveJoints,
     redistribute: settings.redistribute,
     scenario: chosen,
-    dropHeight: settings.dropHeight ?? chosen.clearance,
+    // Read only for a free drop. There is always a scenario here, and its own clearance places
+    // the body, so this is not read; it is given the scenario's rather than a number of its own.
+    dropHeight: chosen.clearance,
     groundHeight: chosen.ground.height,
     // As the studio does: a scenario that drives muscles gets them whatever the box says.
     muscles:
@@ -238,6 +256,8 @@ async function build() {
       : '  muscles off',
   );
   return {
+    definition,
+    values,
     chosen,
     simulation,
     order,
@@ -261,7 +281,7 @@ function applyDrives(simulation) {
 /** Every file a session leaves on tmpfs: wiped at start and at the end, so nothing of the last
  * session is ever mistaken for this one. */
 function clearBridgeFiles() {
-  for (const suffix of ['', '.json', '-muscles', '-grab', '-status.json', '-commands.jsonl']) {
+  for (const suffix of ['', '.json', '-muscles', '-grab', STATUS_SUFFIX, COMMANDS_SUFFIX]) {
     rmSync(`${path}${suffix}`, { force: true });
   }
 }
@@ -276,6 +296,16 @@ clearBridgeFiles();
 // clock only names the run; nothing simulated reads it.
 let generation = Date.now();
 let live = await build();
+{
+  const written = live.chosen.profileId;
+  const why = args.includes('--profile')
+    ? 'from --profile'
+    : 'the default; --profile picks another';
+  console.log(
+    `  profile ${settings.profile} (${why})` +
+      (written !== settings.profile ? `; ${live.chosen.id} is written on ${written}` : ''),
+  );
+}
 console.log('  Ctrl-C to stop');
 
 // ---------------------------------------------------------------------------------------------
@@ -307,61 +337,27 @@ let started = performance.now();
 let nextPublishAt = 0;
 
 function writeStatus() {
-  const { simulation, chosen } = live;
-  const simSeconds = simulation.ticks * simulation.dt;
-  const status = {
+  const status = publisherStatus({
     generation,
-    scenario: { id: chosen.id, title: chosen.title },
-    scenarios: SCENARIOS.map((s) => ({ id: s.id, title: s.title })),
-    profile: settings.profile,
-    simSeconds,
+    settings,
+    profiles: PROFILES,
+    definition: live.definition,
+    scenario: live.chosen,
+    values: live.values,
+    simulation: live.simulation,
+    muscles: Boolean(live.rings),
+    tissue: tissueOf(live),
     wallSeconds: (performance.now() - started) / 1000,
     speed: lastSpeed,
     paused,
-    muscles: Boolean(live.rings),
     holding: intents.holding(),
     grabStrength,
-    stepsPerSecond: simulation.stepsPerSecond,
-    fps: settings.fps,
-    profiles: PROFILES,
-    settings: {
-      ...settings,
-      ...effectiveMorphologyFlat(chosen),
-      muscles: Boolean(live.rings),
-      musclesForced: settings.muscles === null,
-      dropHeight: settings.dropHeight ?? chosen.clearance,
-      passive: settings.passive ?? chosen.passiveJoints,
-      stepsPerSecond: simulation.stepsPerSecond,
-    },
-    driveGroups: MUSCLE_GROUPS.map((g, i) => ({
-      title: g.title,
-      level: drives[i],
-      section: g.section,
-    })),
-    // The same keys the studio publishes, so a headset's panel is the same panel: no scenario
-    // has parameters here, and there is no readout to show.
-    mode: paused ? 'paused' : 'running',
+    drives,
     overlays,
-    scenarioParameters: [],
-    muscleReadout: {},
-    tissue: tissueOf(live),
-    // The scenery, which the viewer has no other way to know: the ground's height and every
-    // static box, in the simulation's frame.
-    // Each unit's tendon force as a fraction of its maximum, for whatever tints muscles.
-    tension: muscleTension(simulation),
-    groundHeight: chosen.ground.height,
-    staticBoxes: (chosen.staticBoxes ?? []).map((b) => ({
-      halfExtents: [b.halfExtents.x, b.halfExtents.y, b.halfExtents.z],
-      position: [b.position.x, b.position.y, b.position.z],
-      rotation: b.rotation
-        ? [b.rotation.x, b.rotation.y, b.rotation.z, b.rotation.w]
-        : [0, 0, 0, 1],
-    })),
-    diagnostics: diagnostics(simulation),
-  };
-  const tmp = temporaryName(`${path}-status.json`);
+  });
+  const tmp = temporaryName(`${path}${STATUS_SUFFIX}`);
   writeFileSync(tmp, JSON.stringify(status));
-  renameSync(tmp, `${path}-status.json`);
+  renameSync(tmp, `${path}${STATUS_SUFFIX}`);
 }
 
 /** The tissue table, once a build: it is the articulation's, and that lives as long as `live`. */
@@ -373,52 +369,6 @@ function tissueOf(built) {
   return tissueCache.table;
 }
 
-function muscleTension(simulation) {
-  const state = simulation.muscleState();
-  const units = simulation.muscles?.units;
-  if (!state || !units) return [];
-  return units.map((u, i) => {
-    const maximum = u.parameters.maxIsometricForce;
-    return Number((maximum > 0 ? (state.tendonForce[i] ?? 0) / maximum : 0).toFixed(3));
-  });
-}
-
-function effectiveMorphologyFlat(chosen) {
-  const m = effectiveMorphology(chosen);
-  return {
-    sex: m.sex,
-    stature: m.stature,
-    mass: m.mass,
-    crural: m.proportions.crural,
-    brachial: m.proportions.brachial,
-    legLength: m.proportions.relativeLegLength,
-  };
-}
-
-/** The studio's diagnostics strip, as numbers. */
-function diagnostics(simulation) {
-  const energy = simulation.channel('diagnostics.energy').fields;
-  const limits = simulation.channel('diagnostics.limits').fields;
-  const contacts = simulation.channel('contact.manifolds');
-  let worst = 0;
-  let violations = 0;
-  const proximity = limits.proximity;
-  const violation = limits.violation;
-  for (let i = 0; i < proximity.length; i++) {
-    worst = Math.max(worst, proximity[i] ?? 0);
-    violations += violation[i] ?? 0;
-  }
-  return {
-    kinetic: energy.kinetic[0] ?? 0,
-    potential: energy.potential[0] ?? 0,
-    driftMm: (energy.drift[0] ?? 0) * 1000,
-    limitsWorst: worst,
-    violations,
-    contacts: contacts.count,
-    costMs: simulation.lastStepMs,
-  };
-}
-
 let commandsFd;
 let commandsOffset = 0;
 let commandsTail = '';
@@ -427,7 +377,7 @@ const commandsBuffer = Buffer.alloc(4096);
 async function readCommands() {
   if (commandsFd === undefined) {
     try {
-      commandsFd = openSync(`${path}-commands.jsonl`, 'r');
+      commandsFd = openSync(`${path}${COMMANDS_SUFFIX}`, 'r');
       console.log('  panel: a renderer is sending commands');
     } catch {
       return;
@@ -507,15 +457,27 @@ async function command(line) {
         await command(JSON.stringify({ kind: 'resume' }));
         return;
       }
-      if (key === 'live' || key === 'percentile' || key.startsWith('scenario.')) {
+      const parameter = /^scenario\.(.+)$/.exec(key)?.[1];
+      if (parameter !== undefined) {
+        await setScenarioParameter(parameter, value);
+        break;
+      }
+      if (key === 'live' || key === 'percentile') {
         console.log(`  panel: ${key} is the studio's; nothing to do here`);
+        break;
+      }
+      if (key === 'dropHeight') {
+        console.log(
+          `  panel: dropHeight is for the studio's free drop; ${live.chosen.id} places the body ` +
+            'itself, so set its own parameter instead',
+        );
         break;
       }
       if (!(key in settings)) {
         console.log(`  panel: no setting ${key}`);
         break;
       }
-      if (key === 'scenario' && !SCENARIOS.some((s) => s.id === value)) {
+      if (key === 'scenario' && !SCENARIO_DEFINITIONS.some((d) => d.id === value)) {
         console.log(`  panel: no scenario ${value}`);
         break;
       }
@@ -607,6 +569,28 @@ async function command(line) {
       console.log(`  panel: unknown command ${parsed.kind}`);
   }
   writeStatus();
+}
+
+/**
+ * One of the running scenario's own parameters, from the panel: checked against that scenario's
+ * definition, held to its range, remembered for the scenario, and built into a new run -- a
+ * parameter is part of what the scenario builds, not something a running one can change.
+ */
+async function setScenarioParameter(id, value) {
+  const { definition, values } = live;
+  const parameter = definition.parameters.find((p) => p.id === id);
+  if (!parameter) {
+    console.log(`  panel: ${definition.id} has no parameter ${id}`);
+    return;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    console.log(`  panel: scenario.${id} wants a number, not ${JSON.stringify(value)}`);
+    return;
+  }
+  const clamped = Math.min(parameter.max, Math.max(parameter.min, value));
+  if ((values[id] ?? parameter.value) === clamped) return;
+  scenarioValues.set(definition.id, { ...values, [id]: clamped });
+  await rebuild(`${definition.id} ${id} = ${clamped}`);
 }
 
 let pausedAt = started;
