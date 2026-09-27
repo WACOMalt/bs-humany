@@ -36,6 +36,7 @@ if (rig) {
     outputNames: rig.outputNames,
     stepsPerSecond: rig.stepsPerSecond,
     controlDivisor: rig.controlDivisor,
+    body: rig.body,
   });
   // One episode a message: the finest grain there is, so no thread sits idle at the end of a
   // generation waiting on another's last long episode.

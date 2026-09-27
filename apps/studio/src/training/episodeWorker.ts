@@ -36,6 +36,8 @@ self.onmessage = async (event: MessageEvent<Incoming>): Promise<void> => {
         outputNames: rig.outputNames,
         stepsPerSecond: rig.stepsPerSecond,
         controlDivisor: rig.controlDivisor,
+        // What the body is, for every checkpoint this run writes to carry: see `RigShape.body`.
+        body: rig.body,
       });
     } catch (error) {
       self.postMessage({

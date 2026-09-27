@@ -62,6 +62,7 @@ import {
   ringBuffers,
 } from '@bs-humany/modules-muscle';
 import {
+  type BodyFingerprint,
   MlpPolicy,
   MotorNoiseModule,
   NervesModule,
@@ -609,6 +610,15 @@ export class StandRig {
   /** Ticks between policy evaluations: what a run has to match to be the same controller. */
   get controlDivisor(): number {
     return this.nerves.divisor;
+  }
+
+  /**
+   * This body as a checkpoint records it, with the cord under its brain: what the trainer writes
+   * into every file this rig's run keeps. Here because the rig is the one thing holding both the
+   * nerves and the cord.
+   */
+  get body(): BodyFingerprint {
+    return this.nerves.bodyFingerprint(this.spine.gains);
   }
 
   /** The cord in this rig, for a probe or a panel that wants to see what the reflexes do. */

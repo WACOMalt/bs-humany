@@ -344,6 +344,16 @@ console.log(
 console.log(
   `  policy ${shape.sizes.join(' x ')}: ${shape.parameterCount} weights; ${shape.inputNames.length} senses, ${shape.outputNames.length} drives`,
 );
+// The body every checkpoint of this run records, in the hashes it is compared by, so two runs'
+// headers say at a glance whether they trained in the same body. A worker that did not say --
+// one from before fingerprints -- leaves its checkpoints reading as trained before they were kept.
+if (shape.body) {
+  const body = shape.body;
+  console.log(
+    `  body ${body.profile}: senses ${body.senses.schema}, drives ${body.drives.names}, ` +
+      `${body.muscles.count} muscle units ${body.muscles.hash}; recorded in every checkpoint`,
+  );
+}
 
 /**
  * The store, in Node: three files beside the checkpoint, and a line a generation appended.

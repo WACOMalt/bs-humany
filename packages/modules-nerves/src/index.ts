@@ -14,11 +14,25 @@ export {
 } from './noise.js';
 export { MlpPolicy, type PolicyFile } from './policy.js';
 export {
+  BODY_FINGERPRINT_VERSION,
+  type BodyDescription,
+  type BodyFingerprint,
+  SENSE_MEANINGS,
+  bodyFingerprint,
+  compareBody,
+  compareCord,
+  senseFamily,
+  senseMeaning,
+  summariseDifferences,
+} from './bodyFingerprint.js';
+export {
+  type Carried,
   type DriveOutput,
   NERVES_MODULE_ID,
   NervesModule,
   type NervesOptions,
   type PolicyNames,
+  type TrainedBody,
 } from './nervesModule.js';
 export {
   DEFAULT_SPINAL_GAINS,
