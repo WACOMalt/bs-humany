@@ -16,6 +16,7 @@
   "dependencies": {
     "@bs-humany/compiler": "workspace:*",
     "@bs-humany/frames": "workspace:*",
+    "@bs-humany/hsdl": "workspace:*",
     "@bs-humany/kernel": "workspace:*",
     "@bs-humany/modules-mechanics": "workspace:*",
     "@bs-humany/scenarios": "workspace:*",

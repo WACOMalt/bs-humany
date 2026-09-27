@@ -434,6 +434,9 @@ importers:
       '@bs-humany/frames':
         specifier: workspace:*
         version: link:../frames
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../hsdl
       '@bs-humany/kernel':
         specifier: workspace:*
         version: link:../kernel

@@ -91,6 +91,10 @@ describe.each([
   // ['rapier', () => new RapierBackend()],
   ['mujoco', () => new MujocoBackend()],
 ] as const)('recompile-and-restore on %s', (_name, make) => {
+  // Widened to a plain string on purpose. With the Rapier row commented out the tuple's name is
+  // the literal 'mujoco', and the compiler rightly calls a comparison against 'rapier' dead code;
+  // the branches stay, with their tolerances, for the day the row comes back.
+  const rapier = (_name as string) === 'rapier';
   it('places a fresh backend at a running one’s state, losslessly in joint space', async () => {
     const running = await stepped(make(), 150);
     const fresh = make();
@@ -106,7 +110,7 @@ describe.each([
     // a singular sequence the recovery is exact, and along the near-null direction of one (the
     // Y-X-Y shoulder hanging at rest) it is regularised toward neutral, which moves the split
     // by a fraction of a milliradian (jointSolver.ts, NULL_SPACE_ONSET).
-    const qTolerance = _name === 'rapier' ? 1e-3 : 1e-9;
+    const qTolerance = rapier ? 1e-3 : 1e-9;
     for (let i = 0; i < l1.nq; i++) {
       const diff = Math.abs(
         (buffers.jointState.q[i] ?? 0) - (running.buffers.jointState.q[i] ?? 0),
@@ -117,8 +121,8 @@ describe.each([
     // millimetre or two (spec 9.4) and on MuJoCo nothing -- except below a regularised joint,
     // where the angles deliberately do not encode the swing the sequence cannot represent, so
     // the pose rebuilt from them differs by that swing (centimetres at the hand).
-    const tolerance = _name === 'rapier' ? 0.005 : 1e-6;
-    const regularised = _name === 'rapier' ? 0.05 : 1e-6;
+    const tolerance = rapier ? 0.005 : 1e-6;
+    const regularised = rapier ? 0.05 : 1e-6;
     const nearNull = segmentsBelowSingularJoints(running.buffers.jointState.q);
     for (const segment of l1.segments) {
       for (let k = 0; k < 3; k++) {
@@ -154,7 +158,7 @@ describe.each([
       const diff = Math.abs(
         (buffers.jointState.q[i] ?? 0) - (running.buffers.jointState.q[i] ?? 0),
       );
-      expect(diff, `q[${i}]`).toBeLessThan(_name === 'rapier' ? 1e-3 : 1e-9);
+      expect(diff, `q[${i}]`).toBeLessThan(rapier ? 1e-3 : 1e-9);
     }
     // The taller body keeps simulating from there without a jolt.
     for (let i = 0; i < 100; i++) fresh.step(1);
