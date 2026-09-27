@@ -230,6 +230,14 @@ export function enclosingRadius(distances: number[]): { radius: number; spread: 
   };
 }
 
+// `--check` is the only flag. Anything else that looks like one used to fall through to a write:
+// `wrap-radii --chek` was not a check but a re-measure that rewrote the committed file, and a
+// single-dash typo was taken for the data directory. A leading `--` is pnpm's, passed through.
+const stray = process.argv.slice(2).find((a) => a.startsWith('-') && a !== '--' && a !== '--check');
+if (stray !== undefined) {
+  console.error(`wrap-radii: no such option ${stray}; usage: wrap-radii [dataDir] [--check]`);
+  process.exit(2);
+}
 const { dataDir, check } = stageArgs();
 const data = new DataDir(dataDir);
 const { manifest, meshOf } = loadPack(data);

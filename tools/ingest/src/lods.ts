@@ -13,7 +13,16 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const dataDir = resolve(process.argv[2] ?? join(HERE, '../../../packages/assets-anatomical/data'));
+// The one argument is a data directory, and nothing that looks like a flag is one: `lods --check`
+// used to resolve `--check` as a directory and hand it to the Python side. A leading `--` is
+// pnpm's, passed through.
+const args = process.argv.slice(2).filter((a) => a !== '--');
+const stray = args.find((a) => a.startsWith('-'));
+if (stray !== undefined) {
+  console.error(`lods: no such option ${stray}; usage: lods [dataDir]`);
+  process.exit(2);
+}
+const dataDir = resolve(args[0] ?? join(HERE, '../../../packages/assets-anatomical/data'));
 const python = process.env.COACD_PYTHON ?? 'python3';
 
 /** LOD name and fraction of triangles kept. */

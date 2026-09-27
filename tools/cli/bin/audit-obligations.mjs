@@ -21,10 +21,11 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
 import { reportIsCurrent } from '../lib/report.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const check = process.argv.includes('--check');
+const { check } = cliFlags('audit-obligations');
 const jiti = createJiti(import.meta.url);
 
 const kernel = await jiti.import(join(ROOT, 'packages/kernel/src/index.ts'));

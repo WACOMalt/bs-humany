@@ -114,16 +114,18 @@
  * anterior or posterior direction, and anterior is anterior on both arms.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
 import { MODELS, MYO_SIM, upstreamPath } from '../../validate-external/src/models.mjs';
 import { REFERENCE_FOREARM_AT_OUR_NEUTRAL } from '../../validate-external/src/referenceArm.mjs';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/skeleton/src/muscleViaPoints.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-via-points');
 
 const jiti = createJiti(import.meta.url);
 const frames = await jiti.import(join(ROOT, 'packages/frames/src/index.ts'));
@@ -1154,28 +1156,11 @@ ${directionBody}
 };
 `;
 
-const existing = (() => {
-  try {
-    return readFileSync(OUT, 'utf8');
-  } catch {
-    return undefined;
-  }
-})();
-
-if (check) {
-  if (existing !== rendered) {
-    console.error(
-      `generate-via-points: ${relative(ROOT, OUT)} is not what the generator would write.\n` +
-        '  Run `pnpm generate:via-points`.',
-    );
-    process.exit(1);
-  }
-  console.log(
-    `generate-via-points: ok. ${rows.length} points match ${LIMBS.map((l) => l.model.chain).join(' and ')}.`,
-  );
-} else {
-  writeFileSync(OUT, rendered);
-  console.log(
-    `generate-via-points: wrote ${relative(ROOT, OUT)} -- ${rows.length} points from ${LIMBS.map((l) => l.model.chain).join(' and ')}.`,
-  );
-}
+emitOrCheck({
+  name: 'generate-via-points',
+  script: 'generate:via-points',
+  out: OUT,
+  text: rendered,
+  check,
+  summary: `${rows.length} points from ${LIMBS.map((l) => l.model.chain).join(' and ')}`,
+});

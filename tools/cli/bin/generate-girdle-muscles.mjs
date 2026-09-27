@@ -21,15 +21,16 @@
  * the lengths averaged by force.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 import { bothSides, renderMuscleGroups } from '../lib/renderMuscles.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/girdle.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-girdle-muscles');
 
 // The site-id scheme `attachments.ts` builds the sites with, so an id named here is the one the
 // body carries.
@@ -241,14 +242,10 @@ export const GIRDLE_UNITS = GIRDLE_MUSCLES.flatMap((g) => g.units);
 }
 
 const text = render();
-if (check) {
-  const current = readFileSync(OUT, 'utf8');
-  if (current !== text) {
-    console.error(`${relative(ROOT, OUT)} is stale; run pnpm generate:girdle-muscles`);
-    process.exit(1);
-  }
-  console.log(`${relative(ROOT, OUT)} is up to date`);
-} else {
-  writeFileSync(OUT, text);
-  console.log(`wrote ${relative(ROOT, OUT)}`);
-}
+emitOrCheck({
+  name: 'generate-girdle-muscles',
+  script: 'generate:girdle-muscles',
+  out: OUT,
+  text,
+  check,
+});

@@ -26,13 +26,15 @@
  * psoas 2 of 22 -- so there is no subset of it that is a muscle rather than an arbitrary handful.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 import {
   TORSO,
   TORSO_LUMBAR,
+  actuatorFor,
   readActuators,
   renderGroups,
   requirePhysical,
@@ -41,7 +43,7 @@ import {
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/torso.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-torso-muscles');
 
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
@@ -131,13 +133,7 @@ function render() {
   const units = sided(UNITS).map((unit) => {
     const actuator = unit.actuator.replace('$', unit.id.endsWith('_l') ? 'l' : 'r');
     const model = unit.from === 'lumbar' ? TORSO_LUMBAR : TORSO;
-    const parameters = (unit.from === 'lumbar' ? lumbar : abdomen).get(actuator);
-    if (parameters === undefined) {
-      throw new Error(
-        `${model.muscle} has no actuator named '${actuator}'. The vendored commit may have ` +
-          'moved; check tools/validate-external/README.md before changing this mapping.',
-      );
-    }
+    const parameters = actuatorFor(unit.from === 'lumbar' ? lumbar : abdomen, actuator, model);
     requirePhysical(actuator, parameters, model);
     return {
       ...unit,
@@ -195,27 +191,11 @@ export const TORSO_UNITS = TORSO_MUSCLES.flatMap((group) => group.units);
 `;
 }
 
-const rendered = render();
-const existing = (() => {
-  try {
-    return readFileSync(OUT, 'utf8');
-  } catch {
-    return undefined;
-  }
-})();
-
-if (check) {
-  if (existing !== rendered) {
-    console.error(
-      `generate-torso-muscles: ${relative(ROOT, OUT)} is not what the generator would write.\n` +
-        '  Run `pnpm generate:torso-muscles`. If the vendored model changed, say so in the commit.',
-    );
-    process.exit(1);
-  }
-  console.log(`generate-torso-muscles: ok. ${sided(UNITS).length} units match ${TORSO.muscle}.`);
-} else {
-  writeFileSync(OUT, rendered);
-  console.log(
-    `generate-torso-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${TORSO.muscle}.`,
-  );
-}
+emitOrCheck({
+  name: 'generate-torso-muscles',
+  script: 'generate:torso-muscles',
+  out: OUT,
+  text: render(),
+  check,
+  summary: `${sided(UNITS).length} units from ${TORSO.muscle}`,
+});

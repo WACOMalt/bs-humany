@@ -33,10 +33,11 @@ import {
   readMjcf,
 } from '../../validate-external/src/mjcf.mjs';
 import { MODELS, MYO_SIM, MYO_SIM_COMMIT } from '../../validate-external/src/models.mjs';
+import { cliFlags } from '../lib/args.mjs';
 import { reportIsCurrent } from '../lib/report.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const check = process.argv.includes('--check');
+const { check } = cliFlags('external-validate');
 
 /** Angles closer than this count as the same axis: a hundredth of a degree. */
 const AXIS_TOLERANCE = 1.75e-4;

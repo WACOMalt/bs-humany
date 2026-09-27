@@ -35,6 +35,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MODELS, MYO_SIM } from '../../validate-external/src/models.mjs';
+import { renderMuscleGroups } from './renderMuscles.mjs';
 
 export { MYO_SIM };
 
@@ -273,6 +274,24 @@ export function pathElements(unit, viaPointsFor, direction, model = ARM) {
 }
 
 /**
+ * The parameters `readActuators` found for one actuator, or an error naming the file it is not in.
+ *
+ * Every generator maps its units to actuators by name, and the name is the whole of the join: a
+ * vendored commit that renamed an actuator would otherwise hand a generator `undefined` to render.
+ * Nine generators used to carry this refusal each, word for word; it is here so that what they
+ * tell someone who meets it -- that the pin may have moved, and where the pin is described -- is
+ * said once.
+ */
+export function actuatorFor(actuators, name, model = ARM) {
+  const parameters = actuators.get(name);
+  if (parameters !== undefined) return parameters;
+  throw new Error(
+    `${model.muscle} has no actuator named '${name}'. The vendored commit may have moved; check ` +
+      'tools/validate-external/README.md before changing this mapping.',
+  );
+}
+
+/**
  * Refuse an actuator whose derived lengths are not a muscle.
  *
  * Called by each generator for the actuators it names, rather than when they are read, so that a
@@ -325,33 +344,13 @@ export function sided(units) {
   return out;
 }
 
-/** Six significant figures: more than the source states, and enough to round-trip it. */
-export const num = (v) => Number(v.toPrecision(6)).toString();
-
-/** Biome's configured line width, which generated output has to respect to survive `--check`. */
-const LINE_WIDTH = 100;
-
-/**
- * One `name: 'value',` field at eight spaces, wrapped where the formatter would wrap it.
- *
- * A generated file has to be what `biome format` would leave behind or the lint gate and the
- * `--check` gate disagree forever: one rewrites the file and the other then says the data is
- * stale. Extensor carpi radialis brevis is the case -- its insertion is on the styloid process of
- * the third metacarpal, and the site id that makes runs past a hundred columns.
- */
-function quoted(name, value) {
-  const single = `        ${name}: '${value}',`;
-  return single.length <= LINE_WIDTH ? single : `        ${name}:\n          '${value}',`;
-}
-
-/** The formatter's line width, from biome.json: past it, it breaks an object across lines. */
-const FORMATTER_WIDTH = 100;
-
 /**
  * Render one group's worth of units as the muscle-data literal they become.
  *
  * The shape is HSDL's `MuscleGroup`, and every generator writes the same shape; what differs is
- * which units go in it and the prose around it.
+ * which units go in it and the prose around it. This builds the groups and their paths from the
+ * MyoSuite units and hands the writing to `renderMuscleGroups`, the writer the landmark-style sets
+ * use too, so the two kinds of set cannot lay a file out differently.
  */
 export function renderGroups(units, viaPointsFor, direction, model = ARM) {
   const groups = new Map();
@@ -359,90 +358,60 @@ export function renderGroups(units, viaPointsFor, direction, model = ARM) {
     if (!groups.has(unit.group)) groups.set(unit.group, []);
     groups.get(unit.group).push(unit);
   }
-  const body = [];
-  for (const [groupId, members] of groups) {
-    const head = members[0];
-    body.push(`  {
-    id: '${groupId}',
-    displayName: '${head.groupName}',
-    taTerm: '${head.taTerm}',
-    innervation: '${head.innervation}',
-    source: gray('${head.groupName.split(',')[0]}'),
-    units: [`);
-    for (const unit of members) {
-      const p = unit.parameters;
-      // A unit may name path points of its own, ahead of whatever the reference contributes. Two
-      // reasons, and both are about a chord cutting through a body it should be lying against.
-      // The torso's are the reference's problem: it anchors its trunk muscles to bodies this
-      // skeleton has no counterpart for, so erector spinae gets none of them and would run from
-      // the sacrum to the sixth rib straight through the ribcage. The iliopsoas's is ours: the
-      // reference holds it over the pelvic brim with a point in its pelvis frame, and this
-      // package carries no pelvis frame correspondence, so only the femoral point survived and
-      // the path lost the one bend that keeps it in front of the hip.
-      const elements = [
-        ...(unit.via ?? []).map((id) => ({ kind: 'site', id })),
-        ...pathElements(unit, viaPointsFor, direction, unit.model ?? model),
-        // And points of its own *after* them, for a muscle whose own points are the distal ones.
-        // The long toe tendons are the case: the reference holds them at the ankle and this
-        // package holds them along the toe, and a toe point ahead of an ankle point sends the
-        // tendon down to the toe, back to the ankle and out to the toe again.
-        ...(unit.viaAfter ?? []).map((id) => ({ kind: 'site', id })),
-      ]
-        .map((e) =>
-          e.kind === 'site'
-            ? // The formatter breaks a line past a hundred columns, and a finger tendon's site
-              // ids are long enough to reach it. A generator whose output has to be reformatted
-              // cannot check its own output, so it writes the broken form itself.
-              `          { kind: 'site', site: '${e.id}' },\n`.length - 1 > FORMATTER_WIDTH
-              ? `          {
-            kind: 'site',
-            site: '${e.id}',
-          },\n`
-              : `          { kind: 'site', site: '${e.id}' },\n`
-            : `          {
-            kind: 'wrap',
-            surface: '${unit.wrap}',
-            preferredSide: { x: ${unit.preferredSide.x}, y: ${unit.preferredSide.y}, z: ${unit.preferredSide.z} },
-            source: gray('${unit.name.split(',')[0]}'),
-          },\n`,
-        )
-        .join('');
-      // A single-element path on one line, which is how the formatter would write it: a
-      // generator whose output has to be reformatted cannot check its own output.
-      // One element on one line and none at all as an empty pair, which is how the formatter
-      // would write them: a generator whose output has to be reformatted cannot check its own
-      // output. A unit with no path at all is a straight line from origin to insertion, which
-      // several of the knee flexors are.
-      const lines = elements.split('\n').filter((line) => line.length > 0);
-      const oneLine = `[${elements.trim().replace(/,$/, '')}]`;
-      const path =
-        lines.length === 0
-          ? '[]'
-          : // A single point goes on one line unless that line would run past the formatter's
-            // width, which one long site id is enough to do.
-            lines.length === 1 && `        path: ${oneLine},`.length <= FORMATTER_WIDTH
-            ? oneLine
-            : `[\n${elements}        ]`;
-      body.push(`      {
-        id: '${unit.id}',
-        displayName: '${unit.name}',
-${quoted('origin', unit.origin)}
-${quoted('insertion', unit.insertion)}
-        path: ${path},
-        parameters: {
-          maxIsometricForce: ${num(p.maxIsometricForce)},
-          optimalFiberLength: ${num(p.optimalFiberLength)},
-          tendonSlackLength: ${num(p.tendonSlackLength)},
-          pennationAngle: 0,${
-            p.maxContractionVelocity === undefined
-              ? ''
-              : `\n          maxContractionVelocity: ${num(p.maxContractionVelocity)},`
-          }
-          source: ${unit.cite ?? (model === LEGS ? 'myoLegs' : 'myoArm')}('${unit.actuator}'),
+  return renderMuscleGroups(
+    [...groups].map(([groupId, members]) => {
+      const head = members[0];
+      return {
+        id: groupId,
+        displayName: head.groupName,
+        taTerm: head.taTerm,
+        innervation: head.innervation,
+        source: `gray('${head.groupName.split(',')[0]}')`,
+        units: members.map((unit) => ({
+          id: unit.id,
+          displayName: unit.name,
+          origin: unit.origin,
+          insertion: unit.insertion,
+          path: unitPath(unit, viaPointsFor, direction, model),
+          // The MuJoCo muscle model has no pennation angle: the conversion folded it into the peak
+          // force, so zero is a faithful transcription rather than a missing value. OQ-014.
+          parameters: { ...unit.parameters, pennationAngle: 0 },
+          source: `${unit.cite ?? (model === LEGS ? 'myoLegs' : 'myoArm')}('${unit.actuator}')`,
+        })),
+      };
+    }),
+  );
+}
+
+/**
+ * One unit's path, in order, as the elements `renderPath` takes.
+ *
+ * A unit may name path points of its own, ahead of whatever the reference contributes. Two
+ * reasons, and both are about a chord cutting through a body it should be lying against. The
+ * torso's are the reference's problem: it anchors its trunk muscles to bodies this skeleton has no
+ * counterpart for, so erector spinae gets none of them and would run from the sacrum to the sixth
+ * rib straight through the ribcage. The iliopsoas's is ours: the reference holds it over the
+ * pelvic brim with a point in its pelvis frame, and this package carries no pelvis frame
+ * correspondence, so only the femoral point survived and the path lost the one bend that keeps it
+ * in front of the hip.
+ */
+function unitPath(unit, viaPointsFor, direction, model) {
+  return [
+    ...(unit.via ?? []).map((id) => ({ kind: 'site', id })),
+    ...pathElements(unit, viaPointsFor, direction, unit.model ?? model),
+    // And points of its own *after* them, for a muscle whose own points are the distal ones. The
+    // long toe tendons are the case: the reference holds them at the ankle and this package holds
+    // them along the toe, and a toe point ahead of an ankle point sends the tendon down to the
+    // toe, back to the ankle and out to the toe again.
+    ...(unit.viaAfter ?? []).map((id) => ({ kind: 'site', id })),
+  ].map((e) =>
+    e.kind === 'site'
+      ? e
+      : {
+          kind: 'wrap',
+          surface: unit.wrap,
+          preferredSide: unit.preferredSide,
+          source: `gray('${unit.name.split(',')[0]}')`,
         },
-      },`);
-    }
-    body.push('    ],\n  },');
-  }
-  return body.join('\n');
+  );
 }

@@ -16,16 +16,18 @@
  * arc (`rib-arcs.json`), and a space takes the mean of its two ribs'.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 import { distance, renderMuscleGroups } from '../lib/renderMuscles.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/thorax.ts');
 const DATA = join(ROOT, 'packages/assets-anatomical/data');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-thorax-muscles');
 
 // The attachment points come from the skeleton's own lookup, not from the export's marker table:
 // `measuredWorld` answers where a feature is, and a marker only names one (CONTRIBUTING rule 5).
@@ -144,14 +146,10 @@ export const THORAX_UNITS = THORAX_MUSCLES.flatMap((g) => g.units);
 }
 
 const text = render();
-if (check) {
-  const current = readFileSync(OUT, 'utf8');
-  if (current !== text) {
-    console.error(`${relative(ROOT, OUT)} is stale; run pnpm generate:thorax-muscles`);
-    process.exit(1);
-  }
-  console.log(`${relative(ROOT, OUT)} is up to date`);
-} else {
-  writeFileSync(OUT, text);
-  console.log(`wrote ${relative(ROOT, OUT)}`);
-}
+emitOrCheck({
+  name: 'generate-thorax-muscles',
+  script: 'generate:thorax-muscles',
+  out: OUT,
+  text,
+  check,
+});

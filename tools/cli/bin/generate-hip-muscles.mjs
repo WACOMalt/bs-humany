@@ -41,15 +41,23 @@
  * is a question for the moment-arm sweep rather than for this comment.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { LEGS, readActuators, renderGroups, requirePhysical, sided } from '../lib/myoSuite.mjs';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
+import {
+  LEGS,
+  actuatorFor,
+  readActuators,
+  renderGroups,
+  requirePhysical,
+  sided,
+} from '../lib/myoSuite.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/hip.ts');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-hip-muscles');
 
 const jiti = createJiti(import.meta.url);
 const { VIA_PATH_DIRECTION, viaPointsFor } = await jiti.import(
@@ -282,13 +290,7 @@ function render() {
   const units = sided(UNITS).map((unit) => {
     // The reference model's leg is a right leg and names its actuators for it, so both of ours
     // read the same one.
-    const parameters = actuators.get(unit.actuator);
-    if (parameters === undefined) {
-      throw new Error(
-        `${LEGS.muscle} has no actuator named '${unit.actuator}'. The vendored commit may have ` +
-          'moved; check tools/validate-external/README.md before changing this mapping.',
-      );
-    }
+    const parameters = actuatorFor(actuators, unit.actuator, LEGS);
     requirePhysical(unit.actuator, parameters, LEGS);
     return {
       ...unit,
@@ -350,27 +352,11 @@ export const HIP_UNITS = HIP_MUSCLES.flatMap((group) => group.units);
 `;
 }
 
-const rendered = render();
-const existing = (() => {
-  try {
-    return readFileSync(OUT, 'utf8');
-  } catch {
-    return undefined;
-  }
-})();
-
-if (check) {
-  if (existing !== rendered) {
-    console.error(
-      `generate-hip-muscles: ${relative(ROOT, OUT)} is not what the generator would write.\n` +
-        '  Run `pnpm generate:hip-muscles`. If the vendored model changed, say so in the commit.',
-    );
-    process.exit(1);
-  }
-  console.log(`generate-hip-muscles: ok. ${sided(UNITS).length} units match ${LEGS.muscle}.`);
-} else {
-  writeFileSync(OUT, rendered);
-  console.log(
-    `generate-hip-muscles: wrote ${relative(ROOT, OUT)} -- ${sided(UNITS).length} units from ${LEGS.muscle}.`,
-  );
-}
+emitOrCheck({
+  name: 'generate-hip-muscles',
+  script: 'generate:hip-muscles',
+  out: OUT,
+  text: render(),
+  check,
+  summary: `${sided(UNITS).length} units from ${LEGS.muscle}`,
+});

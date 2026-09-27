@@ -25,16 +25,18 @@
  * Seth 2019's table, which states their forces directly; they are in `girdle.ts`.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { cliFlags } from '../lib/args.mjs';
+import { emitOrCheck } from '../lib/generated.mjs';
 import { bothSides, distance, renderMuscleGroups } from '../lib/renderMuscles.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/neck.ts');
 const DATA = join(ROOT, 'packages/assets-anatomical/data');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('generate-neck-muscles');
 
 // The export's marker table, which CONTRIBUTING rule 5 says names a feature and never positions
 // it. The lengths below are still measured between those markers; measuring them through the
@@ -293,14 +295,10 @@ export const NECK_UNITS = NECK_MUSCLES.flatMap((g) => g.units);
 }
 
 const text = render();
-if (check) {
-  const current = readFileSync(OUT, 'utf8');
-  if (current !== text) {
-    console.error(`${relative(ROOT, OUT)} is stale; run pnpm generate:neck-muscles`);
-    process.exit(1);
-  }
-  console.log(`${relative(ROOT, OUT)} is up to date`);
-} else {
-  writeFileSync(OUT, text);
-  console.log(`wrote ${relative(ROOT, OUT)}`);
-}
+emitOrCheck({
+  name: 'generate-neck-muscles',
+  script: 'generate:neck-muscles',
+  out: OUT,
+  text,
+  check,
+});

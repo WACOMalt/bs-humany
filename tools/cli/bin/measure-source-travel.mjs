@@ -58,12 +58,13 @@ import {
   SHOULDER_TENDONS,
   loadReference,
 } from '../../validate-external/src/referenceArm.mjs';
+import { cliFlags } from '../lib/args.mjs';
 import { ARM, LEGS, readActuators } from '../lib/myoSuite.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OUT = join(ROOT, 'packages/muscle-data/src/sourceTravel.ts');
 const REPORT = join(ROOT, 'docs/validation/fiber-lengths.md');
-const check = process.argv.includes('--check');
+const { check } = cliFlags('measure-source-travel');
 
 /** Angles sampled across each coordinate's range, ends included. Matches `measure-muscle-ranges`. */
 const SAMPLES = 9;
