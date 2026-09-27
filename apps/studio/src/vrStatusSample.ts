@@ -11,11 +11,15 @@
  * Rust side falls back on, so a key it no longer finds shows up as a wrong number rather than
  * passing as a zero.
  *
- * Types only, from the contract: the generator loads this with jiti, and nothing here may pull in
- * the studio's runtime, which needs a browser and Tauri.
+ * Types from the contract and one table, the slider bounds, which is data every publisher sends
+ * as it stands: the generator loads this with jiti, and nothing here may pull in the studio's
+ * runtime, which needs a browser and Tauri. So a bound edited in the table reaches the fixture
+ * when the fixture is regenerated, and the Rust side's slider test runs against the bounds the
+ * headset will be sent.
  */
 
 import type { PanelStatus } from '@bs-humany/pose-bridge/codec';
+import { CONTROL_RANGES } from '@bs-humany/scenarios';
 
 /** T with every optional key made required, all the way down. */
 type Complete<T> = T extends readonly (infer U)[]
@@ -43,7 +47,10 @@ export const PANEL_STATUS_SAMPLE = {
       description: 'The rest pose dropped onto the ground with nothing holding it up.',
     },
   ],
-  profiles: ['l1_standard', 'l3_anatomical'],
+  profiles: [
+    { id: 'l1_standard', title: 'L1 — Standard (23 bodies, 500 Hz)' },
+    { id: 'l3_anatomical', title: 'L3 — Anatomical (~135 bodies, 1000 Hz)' },
+  ],
   profile: 'l3_anatomical',
   simSeconds: 1.5,
   wallSeconds: 6.25,
@@ -112,7 +119,8 @@ export const PANEL_STATUS_SAMPLE = {
   scenarioParameters: [
     { id: 'clearance', title: 'Drop height', value: 0.3, min: 0, max: 1.5, step: 0.05, unit: 'm' },
   ],
-  muscleReadout: { loaded: '12 of 234' },
+  muscleReadout: { 'section.arm': '310 N', loaded: '12 of 234' },
+  controls: CONTROL_RANGES,
   brain: {
     serverUp: true,
     active: true,

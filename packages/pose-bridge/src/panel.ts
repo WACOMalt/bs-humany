@@ -42,6 +42,26 @@ export interface PanelScenario {
   readonly description?: string;
 }
 
+/**
+ * A fidelity profile as the Body row lists it: the id a `set profile` command sends, and the name
+ * the desktop's picker shows. The headset used to be sent the ids alone and drew `l3_anatomical`
+ * where the desktop says "L3 — Anatomical".
+ */
+export interface PanelProfile {
+  readonly id: string;
+  readonly title: string;
+}
+
+/**
+ * A slider's reach and step, as the headset draws it: `CONTROL_RANGES` in
+ * packages/scenarios/src/controls.ts, the one table both panels take theirs from.
+ */
+export interface PanelControl {
+  readonly min: number;
+  readonly max: number;
+  readonly step: number;
+}
+
 /** One of the chosen scenario's own parameters, as its slider shows it. */
 export interface PanelScenarioParameter {
   readonly id: string;
@@ -195,7 +215,8 @@ export interface PanelStatus {
   readonly generation: number;
   readonly scenario: PanelScenario;
   readonly scenarios: readonly PanelScenario[];
-  readonly profiles: readonly string[];
+  readonly profiles: readonly PanelProfile[];
+  /** The id of the profile the run is built on. */
   readonly profile: string;
   /** The run time of the frame on screen, in simulated seconds. */
   readonly simSeconds: number;
@@ -222,8 +243,18 @@ export interface PanelStatus {
   /** The viewport's overlays by checkbox id without the `show` prefix. */
   readonly overlays?: Readonly<Record<string, boolean>>;
   readonly scenarioParameters?: readonly PanelScenarioParameter[];
-  /** The Muscles tab's readout, as text. */
+  /**
+   * The Muscles tab's readout, as text by key: `section.arm`, `section.hand`, `section.leg`,
+   * `section.trunk` and `section.neck` (tendon force summed over each body section's drive
+   * groups), then `loaded`, `wrapping` and `strained`.
+   */
   readonly muscleReadout?: Readonly<Record<string, string>>;
+  /**
+   * The reach and step of each slider this publisher honours, by the key its `set` is sent with
+   * (`stature`, `spine.delay`, ...). The headset draws a slider only for a key named here, so a
+   * publisher that changes none of them -- the showcase -- sends none and offers none.
+   */
+  readonly controls?: Readonly<Record<string, PanelControl>>;
   readonly brain?: PanelBrain;
   readonly training?: PanelTraining;
   /** How far the recording reaches, in the same seconds as `simSeconds`. */

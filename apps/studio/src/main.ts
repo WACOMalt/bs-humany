@@ -44,6 +44,7 @@ import {
   toSkeletonGeometry,
 } from '@bs-humany/render-three';
 import {
+  CONTROL_RANGES,
   DEFAULT_SCENARIO,
   type ReportNote,
   SCENARIO_DEFINITIONS,
@@ -53,9 +54,15 @@ import {
   jointSweep,
   profileRateHz,
 } from '@bs-humany/scenarios';
-import { type DriveSection, MUSCLE_GROUPS, driveForSlider } from '@bs-humany/scenarios';
+import {
+  type DriveSection,
+  MUSCLE_GROUPS,
+  applyDriveSliders,
+  driveForSlider,
+} from '@bs-humany/scenarios';
 import {
   REFERENCE_PROFILE,
+  SEGMENTATION_PROFILES,
   buildDocument,
   computeWorldTransforms,
   modelLimitations,
@@ -97,6 +104,7 @@ import { type RunSettings, pendingChanges } from './pending.js';
 import { Playback } from './playback.js';
 import { RingTubes } from './ringTubes.js';
 import { createRunGate, startSingleFlight } from './runController.js';
+import { clampToStep, controlKind, isChanged } from './scenarioControls.js';
 import {
   type NormalisedSettings,
   RESTORE_REFUSED,
@@ -2425,10 +2433,7 @@ function showRates(): void {
 function applyMuscleDrive(sim: Simulation | null | undefined): void {
   const drive = sim?.muscleDrive;
   if (!drive) return;
-  for (const group of MUSCLE_GROUPS) {
-    const level = driveForSlider(Number(driveInputs.get(group.id)?.value ?? 0));
-    for (const unit of group.units) drive.setOverride(unit, level);
-  }
+  applyDriveSliders(drive, (group) => Number(driveInputs.get(group.id)?.value ?? 0));
 }
 
 /**
@@ -2438,14 +2443,6 @@ function applyMuscleDrive(sim: Simulation | null | undefined): void {
 const DRIVE_SECTIONS: readonly DriveSection[] = [...new Set(MUSCLE_GROUPS.map((g) => g.section))];
 /** Each group's section, as an index into `DRIVE_SECTIONS`, resolved once. */
 const SECTION_OF_GROUP = Int8Array.from(MUSCLE_GROUPS, (g) => DRIVE_SECTIONS.indexOf(g.section));
-/**
- * The four groups the headset's two old rows are about -- elbow and knee, flexors against
- * extensors -- resolved once rather than looked up by id every frame. Those rows stay on the wire
- * until the headset's panel reads the section rows instead; see `muscleReadoutText`.
- */
-const PAIR_GROUPS = (
-  ['flexorDrive', 'extensorDrive', 'kneeFlexorDrive', 'kneeExtensorDrive'] as const
-).map((id) => MUSCLE_GROUPS.findIndex((g) => g.id === id));
 
 /**
  * What the muscles are pulling with, as numbers: every drive group, every body section, and the
@@ -2553,17 +2550,13 @@ const strainedText = (r: MuscleReadout) =>
  * The readout as the headset's panel is sent it: text by key, the keys a `HashMap` on the Rust
  * side, so adding one changes no protocol type.
  *
- * The section rows and the three counts are what the desktop shows. `flexion` and `extension`
- * are the elbow and knee rows the desktop used to show and the headset still draws, so they are
- * kept on the wire, from the same numbers, until the headset reads the section rows instead.
+ * The section rows and the three counts, as the desktop shows them: `section.arm` and the other
+ * four sections, then `loaded`, `wrapping` and `strained`. The elbow and knee rows the headset
+ * used to be sent, which covered four groups of thirty-five, are gone now that it draws these.
  * With no readout the map is empty and the headset shows its dashes.
  */
 function muscleReadoutText(r: MuscleReadout | null): Record<string, string> {
   if (!r) return {};
-  const force = (at: number | undefined) =>
-    at !== undefined && at >= 0 ? (r.groupForce[at] as number) : 0;
-  const pair = (flex: number | undefined, extend: number | undefined) =>
-    `${force(flex).toFixed(0)} / ${force(extend).toFixed(0)} N`;
   const text: Record<string, string> = {};
   DRIVE_SECTIONS.forEach((section, at) => {
     text[`section.${section.toLowerCase()}`] = newtons(r.sectionForce[at] as number);
@@ -2571,8 +2564,6 @@ function muscleReadoutText(r: MuscleReadout | null): Record<string, string> {
   text.loaded = loadedText(r);
   text.wrapping = wrappingText(r);
   text.strained = strainedText(r);
-  text.flexion = pair(PAIR_GROUPS[0], PAIR_GROUPS[1]);
-  text.extension = pair(PAIR_GROUPS[2], PAIR_GROUPS[3]);
   return text;
 }
 
@@ -3070,12 +3061,26 @@ function currentScenario() {
   return definition?.build(scenarioValues.get(definition.id));
 }
 
-/** Draw a slider per parameter of the chosen scenario, or nothing when none is chosen. */
+const scenarioDefaults = must<HTMLButtonElement>('#scenario-defaults');
+
+/**
+ * Draw a control per parameter of the chosen scenario, or nothing when none is chosen: a slider,
+ * or a number box for a parameter with more notches than a slider can reach one by one (the
+ * tilting floor's seed). A parameter moved off the value the scenario was validated with is
+ * marked, its label's tooltip says what that value is, and the Defaults button under them shows
+ * while any is.
+ */
 function refreshScenarioParameters(): void {
   const definition = definitionFor(ui.scenario.value);
   ui.scenarioParameters.replaceChildren();
+  must<HTMLElement>('#scenario-defaults-row').hidden = true;
   if (!definition) return;
   const values = scenarioValues.get(definition.id) ?? {};
+  const showDefaults = () => {
+    must<HTMLElement>('#scenario-defaults-row').hidden = !definition.parameters.some((p) =>
+      isChanged(p, values[p.id] ?? p.value),
+    );
+  };
   for (const p of definition.parameters) {
     const value = values[p.id] ?? p.value;
     values[p.id] = value;
@@ -3083,29 +3088,61 @@ function refreshScenarioParameters(): void {
     control.className = 'control';
     const label = window.document.createElement('label');
     label.htmlFor = `scenario-${p.id}`;
+    const name = window.document.createElement('span');
+    name.className = 'parameter-name';
+    name.textContent = p.label;
     const readout = window.document.createElement('output');
+    const decimals = p.step >= 1 ? 0 : 2;
+    label.title = `Default: ${p.value.toFixed(decimals)}${p.unit}`;
     const show = (v: number) => {
-      readout.textContent = `${p.step >= 1 ? v.toFixed(0) : v.toFixed(2)}${p.unit}`;
+      readout.textContent = `${v.toFixed(decimals)}${p.unit}`;
+      control.classList.toggle('changed', isChanged(p, v));
+      showDefaults();
     };
-    label.append(`${p.label} `, readout);
+    label.append(name, readout);
     const input = window.document.createElement('input');
-    input.type = 'range';
+    const kind = controlKind(p);
+    input.type = kind === 'number' ? 'number' : 'range';
     input.id = `scenario-${p.id}`;
     input.min = String(p.min);
     input.max = String(p.max);
     input.step = String(p.step);
     input.value = String(value);
     show(value);
-    input.addEventListener('input', () => {
-      const next = Number(input.value);
-      values[p.id] = next;
-      show(next);
-    });
+    if (kind === 'number') {
+      // Taken when the box is left or Enter is pressed, held to the step and the range, and put
+      // back into the box as taken: a seed typed as 4242.5 or 0 must not reach a run as that.
+      input.addEventListener('change', () => {
+        const next = clampToStep(p, Number(input.value));
+        input.value = String(next);
+        values[p.id] = next;
+        show(next);
+      });
+    } else {
+      input.addEventListener('input', () => {
+        const next = Number(input.value);
+        values[p.id] = next;
+        show(next);
+      });
+    }
     control.append(label, input);
     ui.scenarioParameters.append(control);
   }
   scenarioValues.set(definition.id, values);
 }
+
+// Every parameter of the chosen scenario back to the value it was validated with. Forgetting the
+// scenario's values, rather than writing the defaults over them, is what a fresh studio has.
+scenarioDefaults.addEventListener('click', () => {
+  const definition = definitionFor(ui.scenario.value);
+  if (!definition) return;
+  scenarioValues.delete(definition.id);
+  refreshScenarioParameters();
+  announce(
+    `${definition.title}: every parameter back to the value it was validated with. ` +
+      (simulation ? 'They apply from the next run.' : 'They apply when the run starts.'),
+  );
+});
 
 /**
  * Whether the chosen scenario drives muscles, and so gets them whatever the box says. Kept from
@@ -3115,8 +3152,20 @@ function refreshScenarioParameters(): void {
 let scenarioDrivesMuscles = false;
 
 /**
- * The chosen scenario's description, and what choosing it did to the Passive box when it did
- * anything: the box is on another tab, and a setting that changes out of sight should be said.
+ * The profile the chosen scenario was written and validated on, by the name the Profile picker
+ * gives it, or undefined for the free drop. Kept from the last choice, as `scenarioDrivesMuscles`
+ * is, because working it out builds the scenario.
+ */
+let scenarioProfile: string | undefined;
+
+/**
+ * The chosen scenario's description, the profile it was validated at, and what choosing it did to
+ * the Passive box when it did anything: the box is on another tab, and a setting that changes out
+ * of sight should be said.
+ *
+ * The profile is said because a scenario's committed numbers -- its goldens, the gains it was
+ * tuned with -- hold at that profile, and the studio runs whatever profile the picker shows, which
+ * choosing a scenario does not change.
  */
 function showScenarioNote(passive?: boolean): void {
   const definition = definitionFor(ui.scenario.value);
@@ -3126,7 +3175,9 @@ function showScenarioNote(passive?: boolean): void {
       : passive
         ? ' Passive joint resistance turned on: this scenario is tuned with it.'
         : ' Passive joint resistance turned off: this scenario is tuned without it.';
-  must<HTMLElement>('#scenario-note').textContent = `${definition?.description ?? ''}${said}`;
+  const validated = scenarioProfile ? ` Validated at ${scenarioProfile}.` : '';
+  must<HTMLElement>('#scenario-note').textContent =
+    `${definition?.description ?? ''}${validated}${said}`;
 }
 
 function scenarioChanged(): void {
@@ -3135,6 +3186,10 @@ function scenarioChanged(): void {
 
   refreshScenarioParameters();
   const chosen = currentScenario();
+  scenarioProfile = chosen
+    ? (SEGMENTATION_PROFILES.find((p) => p.id === chosen.profileId)?.displayName ??
+      chosen.profileId)
+    : undefined;
   // Set to what the scenario is tuned with, as before -- a scenario is chosen to be watched as it
   // was made -- and now said, when it differs from what the box had.
   const turned =
@@ -4092,6 +4147,17 @@ function setFromPanel(input: HTMLInputElement | HTMLSelectElement, value: unknow
   input.dispatchEvent(new Event('change'));
 }
 
+/**
+ * What the VR link has to say that the desktop user should see: in the event line, and on the
+ * terminal beside the viewer's own lines, where a failure can actually be read. A command the
+ * studio cannot place -- an overlay, a setting or a scenario parameter it has no control for --
+ * is said here too, rather than in a console nobody has open.
+ */
+function vrLog(message: string): void {
+  announce(message);
+  void invoke('studio_log', { message }).catch(() => undefined);
+}
+
 const vrHost = {
   simulation: () => simulation,
   restPose(sim: Simulation) {
@@ -4130,7 +4196,8 @@ const vrHost = {
     return {
       scenario: { id: ui.scenario.value, title: chosen?.textContent?.trim() ?? ui.scenario.value },
       scenarios: option(ui.scenario),
-      profiles: Array.from(ui.profile.options).map((o) => o.value),
+      // By title as well as id, so the headset's Body row reads as the desktop's picker does.
+      profiles: option(ui.profile),
       profile: ui.profile.value,
       settings: {
         muscles: sim ? sim.muscles !== undefined : ui.muscles.checked,
@@ -4194,6 +4261,8 @@ const vrHost = {
       // The numbers the desktop's readout is drawn from, not its text read back off the page:
       // with no run, or a run without muscles, there are none and the headset shows dashes.
       muscleReadout: sim ? muscleReadoutText(muscleReadout) : {},
+      // The one table the desktop's sliders are held to, which the headset draws its own from.
+      controls: CONTROL_RANGES,
       // Relaxed off the live edge, as the desktop draws a replayed belly: tension is not recorded,
       // and the newest tick's would tint a frame it does not belong to.
       tension: sim && following ? Array.from(muscleOverlay(sim)?.tension ?? []) : [],
@@ -4305,25 +4374,23 @@ const vrHost = {
                 `#show${overlay.charAt(0).toUpperCase()}${overlay.slice(1)}`,
               );
               if (box) setFromPanel(box, value);
-              else console.warn('VR panel: no overlay', overlay);
+              else vrLog(`VR panel: no overlay ${overlay}`);
             } else if (parameter) {
               const input = window.document.querySelector<HTMLInputElement>(
                 `#scenario-${parameter}`,
               );
               if (input) setFromPanel(input, value);
-              else console.warn('VR panel: no scenario parameter', parameter);
-            } else console.warn('VR panel: no setting', key);
+              else vrLog(`VR panel: no scenario parameter ${parameter}`);
+            } else vrLog(`VR panel: no setting ${key}`);
           }
         }
         break;
       }
     }
   },
-  log: (message: string) => {
-    announce(message);
-    // And on the terminal, beside the viewer's own lines, where a failure can actually be read.
-    void invoke('studio_log', { message }).catch(() => undefined);
-  },
+  log: vrLog,
+  // The panel's command traffic, merged a drag to a line: the terminal's, not the status line's.
+  trace: (message: string) => void invoke('studio_log', { message }).catch(() => undefined),
   onViewerExit(code: number | null, signal: number | null, tail: readonly string[]): void {
     void (async () => {
       const link = vrLink;

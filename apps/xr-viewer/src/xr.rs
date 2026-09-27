@@ -290,7 +290,7 @@ impl Graphics {
         let instance_handle = unsafe {
             xr.create_vulkan_instance(
                 system,
-                std::mem::transmute::<vk::PFN_vkGetInstanceProcAddr, _>(
+                std::mem::transmute::<vk::PFN_vkGetInstanceProcAddr, openxr::sys::platform::VkGetInstanceProcAddr>(
                     entry.static_fn().get_instance_proc_addr,
                 ),
                 &create as *const _ as *const _,
@@ -333,7 +333,7 @@ impl Graphics {
         let device_handle = unsafe {
             xr.create_vulkan_device(
                 system,
-                std::mem::transmute::<vk::PFN_vkGetInstanceProcAddr, _>(
+                std::mem::transmute::<vk::PFN_vkGetInstanceProcAddr, openxr::sys::platform::VkGetInstanceProcAddr>(
                     entry.static_fn().get_instance_proc_addr,
                 ),
                 physical.as_raw() as _,
@@ -430,7 +430,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         .enumerate_images()
         .context("asking the OpenXR runtime for the swapchain's images")?
         .into_iter()
-        .map(|i| ash::vk::Image::from_raw(i))
+        .map(ash::vk::Image::from_raw)
         .collect();
 
     // The hands. One action set: where each grip and aim is, whether it is squeezing, whether it
@@ -855,8 +855,8 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 (right[1] * stick[0] + forward[1] * stick[1]) * scale,
                 (right[2] * stick[0] + forward[2] * stick[1]) * scale,
             ]);
-            for axis in 0..3 {
-                view_point.offset[axis] += step[axis];
+            for (offset, moved) in view_point.offset.iter_mut().zip(step) {
+                *offset += moved;
             }
         }
         // Turning and rising: the right stick. Left and right turn the viewer about where the
@@ -888,7 +888,10 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 .and_then(|s| s.overlays.get(name).copied())
                 .unwrap_or(true)
         };
-        let show_muscles = overlay("muscles") || overlay("muscleVolumes");
+        // The tubes are the muscles' volumes, swept from the belly rings, so they follow that box
+        // alone. Muscle paths are the desktop's origin-to-insertion lines, which nothing here
+        // draws; following either box drew tubes for a desktop showing paths with volumes off.
+        let show_muscles = overlay("muscleVolumes");
         let show_tissue = overlay("tissue");
         matrices[slots.stage] =
             crate::render::scale_matrix(if overlay("grid") { 1.0 } else { 0.0 });
@@ -1556,7 +1559,7 @@ impl Viewpoint {
     }
 
     /// A point of the world, where the stage has it.
-    fn to_stage(&self, p: [f32; 3]) -> [f32; 3] {
+    fn to_stage(self, p: [f32; 3]) -> [f32; 3] {
         crate::render::rotate(
             [p[0] - self.offset[0], p[1] - self.offset[1], p[2] - self.offset[2]],
             self.spin(),
@@ -1564,18 +1567,18 @@ impl Viewpoint {
     }
 
     /// A point of the stage -- a hand, a mark -- where the world has it.
-    fn to_world(&self, p: [f32; 3]) -> [f32; 3] {
+    fn to_world(self, p: [f32; 3]) -> [f32; 3] {
         let turned = self.to_world_direction(p);
         [turned[0] + self.offset[0], turned[1] + self.offset[1], turned[2] + self.offset[2]]
     }
 
     /// A direction of the stage in the world: the turn without the walk.
-    fn to_world_direction(&self, v: [f32; 3]) -> [f32; 3] {
+    fn to_world_direction(self, v: [f32; 3]) -> [f32; 3] {
         crate::render::rotate(v, crate::render::quaternion_conjugate(self.spin()))
     }
 
     /// A rotation of the stage -- a hand's -- in the world.
-    fn to_world_rotation(&self, q: [f32; 4]) -> [f32; 4] {
+    fn to_world_rotation(self, q: [f32; 4]) -> [f32; 4] {
         crate::render::quaternion_multiply(crate::render::quaternion_conjugate(self.spin()), q)
     }
 

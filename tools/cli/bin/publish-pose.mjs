@@ -77,7 +77,7 @@ const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropomet
 const { publisherStatus, publisherMorphology, scenarioDefinition } = await jiti.import(
   join(ROOT, 'apps/studio/src/publisherStatus.ts'),
 );
-const { buildDocument, computeWorldTransforms } = await jiti.import(
+const { buildDocument, computeWorldTransforms, SEGMENTATION_PROFILES } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/index.ts'),
 );
 const { loadSkeletonAssetsFromDisk } = await jiti.import(
@@ -86,9 +86,15 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
 const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.ts'));
 const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
-const { SCENARIO_DEFINITIONS, DEFAULT_SCENARIO, MUSCLE_GROUPS, driveForSlider } = await jiti.import(
-  join(ROOT, 'packages/scenarios/src/index.ts'),
-);
+const {
+  SCENARIO_DEFINITIONS,
+  DEFAULT_SCENARIO,
+  MUSCLE_GROUPS,
+  applyDriveSliders,
+  CONTROL_RANGES,
+  isControlKey,
+  snapToControl,
+} = await jiti.import(join(ROOT, 'packages/scenarios/src/index.ts'));
 const {
   openPoseBridge,
   openMuscleBridge,
@@ -105,7 +111,12 @@ const path = flag('path', DEFAULT_PATH);
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
 
-const PROFILES = ['l0_ragdoll', 'l1_standard', 'l2_biomechanical', 'l3_anatomical'];
+/**
+ * The profiles the panel's Body row offers, by id and by the name the skeleton package gives each,
+ * so the headset lists "L3 — Anatomical" as the desktop does rather than `l3_anatomical`.
+ */
+const PROFILES = SEGMENTATION_PROFILES.map((p) => ({ id: p.id, title: p.displayName }));
+const PROFILE_IDS = PROFILES.map((p) => p.id);
 
 /**
  * Everything the panel can set; `PublisherSettings` in publisherStatus.ts says what each is.
@@ -301,10 +312,8 @@ function publishedBody(context) {
 function applyDrives(simulation) {
   const drive = simulation.muscleDrive;
   if (!drive) return;
-  MUSCLE_GROUPS.forEach((group, i) => {
-    const level = driveForSlider(drives[i]);
-    for (const unit of group.units) drive.setOverride(unit, level);
-  });
+  // The same helper the studio's sliders go through, so a slider means the same excitation here.
+  applyDriveSliders(drive, (_group, i) => drives[i] ?? 0);
 }
 
 /** Every file a session leaves on tmpfs: wiped at start and at the end, so nothing of the last
@@ -453,6 +462,10 @@ function writeStatus() {
   status.resets = live.simulation.physics.backendResets;
   if (stoppedBecause !== undefined) status.error = stoppedBecause;
   status.morphology = live.body;
+  // The one table of slider bounds the studio's own are held to, so the headset draws this
+  // publisher's sliders from it too, and a bound changed there reaches the headset without a Rust
+  // edit.
+  status.controls = CONTROL_RANGES;
   const tmp = temporaryName(`${path}${STATUS_SUFFIX}`);
   writeFileSync(tmp, JSON.stringify(status));
   renameSync(tmp, `${path}${STATUS_SUFFIX}`);
@@ -550,9 +563,20 @@ async function command(line) {
   }
   switch (parsed.kind) {
     case 'set': {
-      const { key, value } = parsed;
+      const { key } = parsed;
+      let { value } = parsed;
+      // A slider's value is held to the table's bounds and put on its step before anything reads
+      // it, as the studio's own range inputs do: a viewer that snaps differently, or not at all,
+      // must not build a body at a stature the desktop could never have set.
+      if (isControlKey(key)) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          console.log(`  panel: ${key} wants a number, not ${JSON.stringify(value)}`);
+          break;
+        }
+        value = snapToControl(CONTROL_RANGES[key], value);
+      }
       if (key === 'grabStrength') {
-        if (Number.isFinite(Number(value)) && Number(value) > 0) grabStrength = Number(value);
+        grabStrength = value;
         break;
       }
       // The transport strip's keys: an overlay is remembered for the status; Play resumes, and
@@ -590,7 +614,7 @@ async function command(line) {
         console.log(`  panel: no scenario ${value}`);
         break;
       }
-      if (key === 'profile' && !PROFILES.includes(value)) {
+      if (key === 'profile' && !PROFILE_IDS.includes(value)) {
         console.log(`  panel: no profile ${value}`);
         break;
       }

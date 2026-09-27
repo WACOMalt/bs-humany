@@ -318,6 +318,25 @@ export function driveForSlider(position: number): number {
 }
 
 /**
+ * Put every group's slider onto the drive module: each of its units held at the excitation its
+ * slider's position asks for.
+ *
+ * The studio and `pnpm publish:pose` each had this loop, and a group or a mapping changed in one
+ * would have reached the headset through one publisher only. `drive` is anything with the drive
+ * module's `setOverride`, and `levelOf` gives a group's slider position (0..100), by the group and
+ * its index in `MUSCLE_GROUPS`, from wherever that publisher keeps it.
+ */
+export function applyDriveSliders(
+  drive: { setOverride(unit: string, level: number): void },
+  levelOf: (group: DriveGroup, index: number) => number,
+): void {
+  MUSCLE_GROUPS.forEach((group, index) => {
+    const level = driveForSlider(levelOf(group, index));
+    for (const unit of group.units) drive.setOverride(unit, level);
+  });
+}
+
+/**
  * What opposes what, for the cord's reciprocal inhibition.
  *
  * A stretched muscle's Ia afferent excites it and, through an interneuron, inhibits its
