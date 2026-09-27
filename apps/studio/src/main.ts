@@ -1446,11 +1446,12 @@ function playheadFrame(): number {
  * Whether the capture's newest frame is the run's newest tick: false once the capture budget has
  * stopped it and the run has gone on past it. Then the newest frame is not live, and nothing
  * computed from here on is recorded, so the timeline stops calling itself live and ▶ stops
- * offering to compute a frame onto the end of it.
+ * offering to compute a frame onto the end of it. An empty capture nothing has stopped is at the
+ * edge, because the next tick is its first; see `Playback.atLiveEdge`.
  */
 function captureAtLiveEdge(sim: Simulation): boolean {
-  const capture = sim.capture;
-  return capture.frameCount > 0 && capture.firstTick + capture.frameCount - 1 === sim.ticks;
+  const stopped = sim.capturesStoppedBy !== undefined || sim.capture.full;
+  return Playback.atLiveEdge(sim.capture, stopped, sim.ticks);
 }
 
 /**

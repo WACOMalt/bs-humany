@@ -116,6 +116,26 @@ export class Playback {
   }
 
   /**
+   * Whether the capture's newest frame is the run's newest tick, so that a frame computed now is
+   * recorded onto the end of it and the playhead can show it.
+   *
+   * An empty capture is at the live edge unless it has been stopped: a carry, a session load and
+   * a restore all clear the capture and leave the run where it was, and the next tick is the
+   * capture's first. It used to count as a stopped recording, for no better reason than that it
+   * had no newest frame to compare, and ▶ on a run paused after moving Stature then went "back to
+   * live" without computing anything -- frame-by-frame stepping was dead until Space. `stopped`
+   * is whatever says the capture will take no more: a budget that ran out, or a capture full.
+   */
+  static atLiveEdge(
+    capture: { readonly frameCount: number; readonly firstTick: number },
+    stopped: boolean,
+    runTick: number,
+  ): boolean {
+    if (capture.frameCount === 0) return !stopped;
+    return capture.firstTick + capture.frameCount - 1 === runTick;
+  }
+
+  /**
    * The output frame nearest a run's tick, for a capture whose first frame is `firstTick`: the
    * way back from a time somebody asked for -- the headset's timeline says seconds of the run --
    * to the playhead. The caller clamps it into the capture.

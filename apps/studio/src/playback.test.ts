@@ -156,6 +156,18 @@ describe('playing a capture back', () => {
     expect(playback.at(0, false)).toBe(0);
   });
 
+  it('counts an empty capture as live unless it was stopped, and a stopped one behind the run as not', () => {
+    // A carry, a session load and a restore clear the capture and leave the run paused where it
+    // was: the next tick is the capture's first, so ▶ there computes a frame rather than going
+    // "back to live" without one.
+    expect(Playback.atLiveEdge({ frameCount: 0, firstTick: 0 }, false, 812)).toBe(true);
+    expect(Playback.atLiveEdge({ frameCount: 0, firstTick: 0 }, true, 812)).toBe(false);
+    // Holding frames, it is the newest frame's tick against the run's, stopped or not.
+    expect(Playback.atLiveEdge({ frameCount: 100, firstTick: 500 }, false, 599)).toBe(true);
+    expect(Playback.atLiveEdge({ frameCount: 100, firstTick: 500 }, true, 599)).toBe(true);
+    expect(Playback.atLiveEdge({ frameCount: 100, firstTick: 500 }, true, 640)).toBe(false);
+  });
+
   it('turns a frame into the run tick it shows and back, from a capture that started late', () => {
     // The timeline's clock is the run's: a capture that began at tick 500 after a carry shows
     // frame 0 at 0.5 s of the run, not at 0 s.
