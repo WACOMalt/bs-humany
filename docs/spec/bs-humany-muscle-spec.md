@@ -1,13 +1,14 @@
-# HumanSim — Muscle Module Technical Specification
+# bs-humany — Muscle Module
 
-**Module `muscle` — Phase 2 of the HumanSim framework**
+**Module `muscle` — Phase 2 of bs-humany**
 
 | | |
 |---|---|
-| Document | `humansim-muscle-spec` |
-| Version | 0.1 (draft for implementation handoff) |
-| Status | Planning complete. No code written. |
-| Depends on | `humansim-spec` v0.4, sections 10 (kernel), 12 (fidelity), 14.2 (muscle contract) |
+| Document | `bs-humany-muscle-spec` |
+| Version | 0.1.1 |
+| Changes in 0.1.1 | Status header, 2026-09-27. The placeholder project name is replaced by `bs-humany` (ADR-010). §16 marks the tickets that are done, with evidence. The normative text is not rewritten. |
+| Status | Implementation under way. The N0 gate passed (084760e). Finished tickets are marked in §16. |
+| Depends on | `bs-humany-spec` v0.5, sections 10 (kernel), 12 (fidelity), 14.2 (muscle contract) |
 | Audience | Implementation agents working a Trello-style board |
 | Prose style | ASD-STE100 Issue 9, flavored mode |
 
@@ -15,7 +16,7 @@
 
 ## 0. How to use this document
 
-This document extends the base specification. It does not replace it. Read `humansim-spec` sections 10, 12 and 14.2 first.
+This document extends the base specification. It does not replace it. Read `bs-humany-spec` sections 10, 12 and 14.2 first.
 
 - **Sections 1 to 3** give scope, research results, and decisions. Do not reopen a decision in section 3 without a note to the human.
 - **Sections 4 to 13** are the normative spec.
@@ -31,7 +32,7 @@ Conventions follow the base spec. MUST, SHOULD and MAY follow RFC 2119. SI units
 
 ### 1.1 What this module does
 
-The `muscle` module adds musculotendon actuators to the HumanSim skeleton. Each actuator attaches to bones at an origin and an insertion. It follows a path that can wrap over bone and tissue surfaces. It contracts under a neural command, and it pulls on the bones it attaches to.
+The `muscle` module adds musculotendon actuators to the bs-humany skeleton. Each actuator attaches to bones at an origin and an insertion. It follows a path that can wrap over bone and tissue surfaces. It contracts under a neural command, and it pulls on the bones it attaches to.
 
 The module answers three requirements from the project owner:
 
@@ -105,7 +106,7 @@ The restrictions are specific and they matter:
 - The MuJoCo muscle actuator supports **rigid tendons only**, and it does **not** model variable pennation angles.
 - MuJoCo treats actuator length as the sum of tendon length and muscle length.
 
-The last two points are the important ones. The base spec (`humansim-spec` section 15.4) recommended that we use MuJoCo's muscle actuators first and write our own version later. **This research reverses that recommendation.** MuJoCo's muscle model is a simplified Hill-type model with a rigid tendon. Adopting it would lock the project to the 20.9% error tier from section 2.1, and it would drop elastic energy storage.
+The last two points are the important ones. The base spec (`bs-humany-spec` section 15.4) recommended that we use MuJoCo's muscle actuators first and write our own version later. **This research reverses that recommendation.** MuJoCo's muscle model is a simplified Hill-type model with a rigid tendon. Adopting it would lock the project to the 20.9% error tier from section 2.1, and it would drop elastic energy storage.
 
 MuJoCo's *path* machinery remains excellent and we should use it where it fits.
 
@@ -589,47 +590,47 @@ packages/
 ## 16. Milestones and tickets
 
 ### N0 — Model foundations
-`N0.1` Curve implementations: active force-length, force-velocity, passive force-length, tendon force-length. Smooth, monotone, invertible.
-`N0.2` Curve tests against published sample values and numerical derivatives.
-`N0.3` Activation dynamics with separate time constants.
-`N0.4` Damped equilibrium fiber model. Semi-implicit integration.
-`N0.5` Reproduce the Millard (2013) single-muscle benchmarks. **Gate: do not start N1 until this passes.**
-`N0.6` Rigid-tendon variant for Tier `M2-fast`.
+`N0.1` Curve implementations: active force-length, force-velocity, passive force-length, tendon force-length. Smooth, monotone, invertible. ✅ 084760e, `@bs-humany/muscle-model`.
+`N0.2` Curve tests against published sample values and numerical derivatives. ✅ 084760e, `@bs-humany/muscle-model`.
+`N0.3` Activation dynamics with separate time constants. ✅ 084760e, `@bs-humany/muscle-model`.
+`N0.4` Damped equilibrium fiber model. Semi-implicit integration. ✅ 084760e, `@bs-humany/muscle-model`.
+`N0.5` Reproduce the Millard (2013) single-muscle benchmarks. **Gate: do not start N1 until this passes.** ✅ 084760e, the gate passed: `benchmark.test.ts` in `@bs-humany/muscle-model`.
+`N0.6` Rigid-tendon variant for Tier `M2-fast`. ✅ 084760e, `@bs-humany/muscle-model`.
 
 ### N1 — Path solving
-`N1.1` `IMusclePathSolver` interface and capability reporting.
-`N1.2` Straight-path and via-point solver. Analytic path velocity.
+`N1.1` `IMusclePathSolver` interface and capability reporting. ✅ dd8fa7e, `@bs-humany/muscle-path`.
+`N1.2` Straight-path and via-point solver. Analytic path velocity. ✅ dd8fa7e.
 `N1.3` Conditional via points with blended transitions.
-`N1.4` Single-surface geodesics: sphere, then cylinder with finite length, then ellipsoid.
+`N1.4` Single-surface geodesics: sphere, then cylinder with finite length, then ellipsoid. *Sphere and cylinder done (d4151cf). The ellipsoid has no closed form and waits for N1.5 (OQ-016).*
 `N1.5` Natural Geodesic Variations multi-surface solver with the explicit banded Jacobian.
 `N1.6` Warm-start and iteration cap with failure reporting.
 `N1.7` `NativeTendonPathSolver` over MuJoCo spatial tendons, with a compile-time check against MuJoCo's limits.
-`N1.8` Moment arm computation by virtual work.
-`N1.9` Moment arm validation harness against published data. **Runs in continuous integration.**
+`N1.8` Moment arm computation by virtual work. ✅ dd8fa7e.
+`N1.9` Moment arm validation harness against published data. **Runs in continuous integration.** ✅ d34b026: `pnpm validate:moment-arms` compares with the vendored MyoSuite arm and legs, writes `docs/validation/moment-arms.md`, and runs with `--check` in CI through `pnpm check:generated`.
 
 ### N2 — Data
-`N2.1` HSDL `muscle.*` schema: units, groups, paths, wrap surfaces, parameters.
+`N2.1` HSDL `muscle.*` schema: units, groups, paths, wrap surfaces, parameters. ✅ c11c463, `@bs-humany/muscle-data`.
 `N2.2` Attachment sites for the muscles in scope, with citations.
 `N2.3` Wrap surface definitions with citations.
-`N2.4` Lower-limb parameter set from Rajagopal 2016. About 80 units.
-`N2.5` Upper-limb parameter set from Holzbaur 2005.
+`N2.4` Lower-limb parameter set from Rajagopal 2016. About 80 units. ✅ Hip, knee and ankle, complete at 4add23d. The values are extracted by generators from MyoSuite's leg model (caggiano2022), not transcribed from Rajagopal.
+`N2.5` Upper-limb parameter set from Holzbaur 2005. ✅ The elbow first (d8358d1), then the shoulder, forearm and hand. The values are extracted by generators from MyoSuite's arm model (caggiano2022), not transcribed from Holzbaur.
 `N2.6` Morphology scaling for muscle parameters, per section 6.6.
 `N2.7` Trunk and neck parameter set.
 
 ### N3 — Kernel integration
-`N3.1` `muscle.path` module.
-`N3.2` `muscle.dynamics` module with `actuation.bodyWrench` accumulation, including wrap reaction forces.
-`N3.3` `MuscleTestDriveModule` with constant, sine, step and scripted patterns.
-`N3.4` `muscle.moment` diagnostics module.
+`N3.1` `muscle.path` module. ✅ b91b401, `@bs-humany/modules-muscle`.
+`N3.2` `muscle.dynamics` module with `actuation.bodyWrench` accumulation, including wrap reaction forces. ✅ b91b401. The wrap reactions came with N1.4 (d4151cf).
+`N3.3` `MuscleTestDriveModule` with constant, sine, step and scripted patterns. ✅ b91b401.
+`N3.4` `muscle.moment` diagnostics module. ✅ 4bb9578, `MuscleMomentModule`.
 `N3.5` Confirm the five base spec section 14.5 obligations listed in section 10.3.
 `N3.6` Tier selection and live switching.
-`N3.7` **First muscle-driven motion.** Drive the elbow flexors and watch the forearm lift. *The demo milestone.*
+`N3.7` **First muscle-driven motion.** Drive the elbow flexors and watch the forearm lift. *The demo milestone.* ✅ b2d7bb9: driving the elbow flexors flexes the right forearm, live in the studio.
 `N3.8` Golden trajectories and plausibility assertions.
 `N3.9` Benchmarks: milliseconds per step by tier, unit count and backend.
 
 ### N4 — Display
 `N4.1` Muscle path rendering with tension coloring.
-`N4.2` Procedural muscle volume generation by sweeping a cross-section along the path.
+`N4.2` Procedural muscle volume generation by sweeping a cross-section along the path. ✅ ffc0d50, `@bs-humany/muscle-volume`.
 `N4.3` XPBD solver with anisotropic fiber constraints and overpressure.
 `N4.4` Bone collision constraints for muscle meshes.
 `N4.5` Muscle inspector panel: name, innervation slot, current length, force, activation, moment arms.

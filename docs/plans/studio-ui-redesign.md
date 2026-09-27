@@ -1,5 +1,9 @@
 # The studio, rethought as a studio
 
+**Status: built (all steps ticked); kept as the record.** For current behaviour, read the README
+and `apps/studio`. Details below (`popover.ts`, the 29 sliders, the policy folders in the
+repository) describe the plan, not today.
+
 A plan for turning the studio's one long side panel into an application shaped like the tools
 people already know -- Blender is the reference, at a fraction of its scope -- with the
 controls sorted by what they are *for* rather than by the order they were written in, and a
@@ -163,8 +167,9 @@ The one panel that is new rather than rearranged.
 
 **Policy in the loop.**
 - A list of saved checkpoints, fetched from the dashboard server's new `GET /policies`: every
-  `packages/modules-nerves/policies/*.json`, and every `tools/train/runs/*-latest.json`'s
-  record and `*-centre.json` (the search's live centre). Each row: name, task, profile it was
+  `<data>/policies/*.json`, and every `<data>/runs/*-latest.json`'s record and `*-centre.json`
+  (the search's live centre). `<data>` is the data directory of `tools/train/bin/home.mjs`; the
+  checkpoints in `packages/modules-nerves/policies` are copied into it once, on a fresh machine. Each row: name, task, profile it was
   trained on, generations, fitness, when. The list refreshes while training runs.
 - **Hand over control**: loads the chosen policy into the running body. A policy is fitted to
   the body by the names of its senses and drives (`MlpPolicy.fit`), so any checkpoint fits any

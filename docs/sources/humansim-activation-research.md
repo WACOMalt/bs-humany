@@ -8,7 +8,7 @@
 | Version | 0.2 |
 | Status | Research complete. Design proposed. Reference clips supplied and bound to the repository. |
 | Changes in 0.2 | Section 1 replaced with an actual repository review. Clip identifiers bound to real `muscle-data` ids. Scapulothoracic gap found. Companion file written. |
-| Depends on | `humansim-spec` v0.4, `humansim-muscle-spec` v0.1 |
+| Depends on | `bs-humany-spec` v0.5, `bs-humany-muscle-spec` v0.1 |
 | Companion file | `activation-clips.json` — 27 weighted groups, 3 clips, all ids verified against `muscle-data` |
 | Prose style | ASD-STE100 Issue 9, flavored mode |
 
