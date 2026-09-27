@@ -1,137 +1,30 @@
-# A native OpenXR viewer
+# The headset viewer
 
-The first thing here that is not a web view. What it is for, right now, is deciding whether the
-native route is worth taking before weeks go into it.
+A native OpenXR/Vulkan viewer, and the studio's headset renderer. It ships as the desktop studio's
+sidecar: **Connect VR viewer** launches it on the studio's own run, or, from a terminal, it
+follows `pnpm publish:pose`. It draws the body from the mesh pack, the muscles as tubes tinted by
+their tension and the connective tissue, all posed from the simulation; it puts the studio's
+controls in the room on two panels that drive the run exactly as the mouse does; and the
+controllers grab bones, press and carry the panels, and walk, turn and lift you about the body.
 
-## The three steps, in the order they stop being checkable from a terminal
+It began as a probe for whether the native route was worth taking at all. What that found is kept
+below as history, under "What it answered".
 
-```bash
-cargo run --release -- check-pack     # needs no hardware at all
-cargo run --release -- probe          # needs a runtime, not a headset
-cargo run --release -- session 10     # needs a headset
-cargo run --release -- view 30       # needs a headset, and draws
-cargo run --release -- view --follow      # ...posed live by a running simulation, until Ctrl-C
-```
-
-**`check-pack`** loads `manifest.json` and `skeleton.bin` and says what came out. It is the half
-of this crate that can be checked with nothing plugged in, and on this repository it should say:
-
-```
-bones     200  vertices 256030  triangles 511713
-bounds    x -0.335..0.335   y 0.000..1.696   z -0.137..0.113
-normals   255992 non-zero, worst length error 1.79e-7, mean (0.000, -0.012, 0.011)
-```
-
-A 1.7 m body standing with its feet at zero. The mean normal near zero is the check worth having:
-a closed surface faces every way at once, so anything else means the winding or the accumulation
-is wrong.
-
-**`probe`** asks the loader which runtime answers, then asks the runtime for a headset, the view
-configuration and the Vulkan version it will accept. It stops cleanly and says so if there is no
-headset, because "no display attached" and "the runtime is broken" are different problems.
-
-**`session`** begins a session and runs the frame loop for a few seconds, reading the predicted
-display time and the eye poses, and **submits no layers** — which `xrEndFrame` permits. That is
-the point of it: it exercises frame timing, the session state machine and head tracking without a
-single line of rendering, so if it holds the headset's rate then everything left is ordinary
-Vulkan rather than an unknown.
-
-**`view`** is the one that draws: the skeleton standing a metre and a half away, both eyes in one
-multiview pass, for as many seconds as you ask. It reports the frame rate it held and the worst
-CPU frame at the end.
-
-It reports the rate it is holding every couple of seconds rather than only at the end, because
-the natural way to stop watching something in a headset is to take it off and press Ctrl-C, and a
-summary that only prints on a clean exit is a summary nobody sees.
-
-Its loop already has the shape ADR-012 requires -- it takes the head pose the runtime predicts for
-this frame and draws from the pose buffer as it stands, never waiting for anything upstream. With
-a rest pose that is invisible; it is the shape the loop has to have before a simulation is
-attached, and retrofitting it afterwards is how a headset ends up stalling on a slow tick.
-
-## What it answered, on the machine it was written for
-
-    runtime   SteamVR/OpenXR 2.17.10, lighthouse tracking
-    gpu       NVIDIA GeForce RTX 3090, queue family 0
-    views     2016 x 2240 per eye, 1 sample, OPAQUE
-    vulkan    1.0 to 1.2 -- the ceiling, so nothing 1.3-only
-    session   IDLE -> READY -> SYNCHRONIZED -> VISIBLE -> FOCUSED
-    rate      1428 frames over 10.00 s of predicted display time -- 142.7 Hz
-
-Which is to say: every step of the native path works, and the budget is **7 ms a frame** for
-9.03 megapixels of stereo. On a 3090, half a million triangles in one multiview pass is not close
-to that, so the renderer is not where the difficulty is.
-
-The eye poses came back 65.6 mm apart, which is an interpupillary distance rather than a number
-somebody made up, so tracking and the stage space are both real.
-
-**The consequence is for the simulation, not the renderer -- and it is smaller than it first
-looks.** A 144 Hz headset wants a fresh *view* every 7 ms. It does not want a fresh *body* every
-7 ms, and conflating those two is how a slow simulation would wrongly be made to look like a
-broken headset.
-
-The view is the projection from the tracked head pose, and it is drawn every frame regardless. The
-body is whatever the simulation last published. So L1, which computes at 1.28 times real time,
-gives a body moving at life speed; L3, which computes at 0.39, gives a body moving at two fifths
-speed inside a view that is still perfectly tracked and perfectly comfortable. That is a slow
-simulation, which is what it is, rather than an unusable one.
-
-ADR-012 is where this is written down, along with what it means for the transport: latest-wins,
-non-blocking in both directions, no queue.
-
-## Following a live simulation
-
-Two terminals. The simulation, headless, publishing a pose every output frame:
-
-```bash
-pnpm publish:pose                                   # default scenario, L1, 144 poses a second
-pnpm publish:pose quiet-standing --profile l3_anatomical --fps 90
-```
-
-And the viewer, reading them:
-
-```bash
-cargo run --release -- view --follow
-```
-
-It runs until Ctrl-C, or until the runtime ends the session; a number of seconds after `view`
-stops it sooner.
-
-The two never wait for each other, which is ADR-012 and is what `packages/pose-bridge` exists to
-make true: the simulation writes the newest pose into a small ring on tmpfs and the viewer reads
-whichever slot is newest each frame. A simulation that cannot keep up -- L3 with muscles, today --
-publishes in slow motion and the headset shows a slow body in a perfectly tracked room. One that
-has stopped shows a still body, and the viewer's status line says how old the pose is, because
-"not moving" and "died" would otherwise look identical:
-
-```
-  142.9 Hz, worst CPU frame 0.41 ms, pose 7 ms old
-```
-
-Measured with the publisher on L1 with the full muscle set: `1.00x life` -- it keeps up exactly,
-which is the 35 per cent the belly-sweep divisor bought.
-
-What crosses the bridge is bones: 206 of them, seven floats each, plus the rest pose and the
-stature scale once. The muscles cross beside them as rings rather than meshes -- 234 bellies of
-24 rings, eight floats a ring: centre, orientation, radius -- and the viewer sweeps its own tubes
-from them each time a new frame arrives, on the same pipeline as the bones with a second draw.
-That is 113 KB a frame against the 1.4 MB the vertices would be, and the sweep is a few
-microseconds. A publisher with muscles off writes no muscle file, and the viewer says so and
-draws bones alone.
-
-### From the studio
+## From the studio
 
 The desktop studio has a **Connect VR viewer** button beside the export buttons. It launches this
 viewer on the studio's own run: the headset shows the body on screen, the controllers grab it,
-and the panel drives the studio's controls -- the same sliders and buttons the mouse uses, so the
+and the panels drive the studio's controls -- the same sliders and buttons the mouse uses, so the
 two never disagree about what the run is doing. Disconnect stops the viewer.
 
 The studio is the publisher then, not `pnpm publish:pose`. Its page builds the bridge bytes with
 the same codec and hands them to the Tauri side in one batch a frame, which writes them in place
 on tmpfs; the grab channel and the panel's command log come back the same way. The viewer is
-found beside the studio's executable, or named by `BS_HUMANY_XR_VIEWER`, or in this crate's
-`target/release` when running from a checkout; the mesh pack by `BS_HUMANY_PACK_DIR`, the
-studio's bundled resources, or the checkout.
+the one named by `BS_HUMANY_XR_VIEWER` if that is set; otherwise the copy beside the studio's
+executable, which is where a release ships it; otherwise, running from a checkout, this crate's
+`target/release`. A debug build of the studio takes the checkout's build over the copy beside it
+when the checkout's is newer, so a viewer rebuilt with cargo is the one Connect launches. The
+mesh pack is found by `BS_HUMANY_PACK_DIR`, the studio's bundled resources, or the checkout.
 
 ### Moving about
 
@@ -283,10 +176,10 @@ value it had reached; the ray coming back with the trigger still down presses no
 Where the two panels overlap, the ray takes the nearer, and the nearer is drawn over the farther:
 carry the transport in front of the properties panel and you are pointing at the transport.
 
-The properties panel's tabs scroll when they are longer than the panel -- the Brain tab is, and
-the Muscles tab once its regions are opened -- with the stick of the hand aimed at them, or by the bar down the column's right edge,
-which a ray can drag. Rows scrolled out of the column are cut at its edges, and each tab keeps its
-own place.
+The properties panel's tabs scroll when they are longer than the panel -- the Brain tab is, and the
+Muscles tab once its regions are opened -- with the stick of the hand aimed at them, or by the bar
+down the column's right edge, which a ray can drag. Rows scrolled out of the column are cut at its
+edges, and each tab keeps its own place.
 
 The properties panel's tabs run down its left edge like the desktop's, and each is the desktop's
 tab, the same controls sending the same keys:
@@ -305,18 +198,20 @@ tab, the same controls sending the same keys:
   off; a button per fidelity profile, named as the desktop's picker names it ("L3 — Anatomical
   ...") and sending the profile's id.
 - **Muscles** -- a drive slider per muscle group, folded by region as the desktop folds them:
-  the same twenty-nine groups, one table in `packages/scenarios`; the readout. The number
+  every group in `MUSCLE_GROUPS` (`packages/scenarios/src/muscleGroups.ts`: 35 today, in its
+  five sections, Hand among them), the one table both sides draw from; the readout. The number
   beside a slider is the excitation it asks for, the square of its travel, as the desktop
   prints it (50 along reads 25%); what is sent is still the position, which the publisher
   squares, and a number typed into the box is read as that excitation. The readout is the
   desktop's: the pull of each body section -- arm, hand, leg, trunk, neck, every drive group in
   it summed over both sides -- then how many units are loaded, wrapping and out of range.
-- **Brain** -- the checkpoints the dashboard lists, the authority, Hand over and Release, the
-  fit line; Start and Stop training, and Follow bridge, which reads Stop following once it is
-  following, with the training line. Stop training stops the showcase that plays the run as well
-  as the trainer, which is what the studio follows. The training's
-  generations, population, episode length and workers are as set on the desktop; the activity
-  bitmap stays there too.
+- **Brain** -- the checkpoints the studio's Brain tab lists: the dashboard's while it runs,
+  otherwise the ones this studio trained or shipped with. `pnpm publish:pose` sends no brain, so
+  from it the list is empty. Then the authority, Hand over and Release, the fit line; Start and Stop
+  training, and Follow bridge, which reads Stop following once it is following, with the training
+  line. Stop training stops the showcase that plays the run as well as the trainer, which is what
+  the studio follows. The training's generations, population, episode length and workers are as set
+  on the desktop; the activity bitmap stays there too.
 - **Export** -- what cannot be done from a headset, disabled, with the line that says why.
 - **Health** -- this run's profile, by name, and rates, the bridge's state, and the controls
   guide with the controllers the runtime says are in hand; the diagnostics are under Sim, and
@@ -363,9 +258,9 @@ headset thinks the floor is, which is where the body stands.
 
 The panels are drawn with egui -- immediate mode, laid out afresh each frame from what the
 publisher last said -- on their own pipeline over the same render pass as the bones, so the body
-occludes them and they occlude the body like anything else in the room. The web UI itself cannot come along: there
-is no way to get a WebKit view onto a Vulkan image at headset rate, and the controls that matter
-from inside a headset are few enough to draw again.
+occludes them and they occlude the body like anything else in the room. The web UI itself
+cannot come along: there is no way to get a WebKit view onto a Vulkan image at headset rate, and
+the controls that matter from inside a headset are few enough to draw again.
 
 egui draws at two pixels a point, so its font atlas holds each glyph at twice the size a point
 would need; read from arm's length or further, the panel covers fewer of the headset's pixels
@@ -375,12 +270,101 @@ than shimmering as the head moves. A device that cannot blit and linearly filter
 `R8G8B8A8_SRGB` gets the single level it had before. Labels are a light grey and notes a darker
 one that still clears WCAG's 4.5:1 over the panel's fill, whatever is behind it.
 
-Two files beside the pose ring carry it. The publisher rewrites `<path>-status.json` four times a
-second -- a temporary file renamed into place, so it is never half-written -- and the viewer
-appends commands to `<path>-commands.jsonl`, one JSON object a line, which the publisher reads
-from wherever it last stopped. Switching scenario rebuilds the simulation and every bridge file
-on the publisher's side and bumps a generation in the status; the viewer sees it change and
+Two files beside the pose ring carry it. The publisher rewrites `<path>-status.json` ten times a
+second (every 100 ms) -- a temporary file renamed into place, so it is never half-written -- and the
+viewer appends commands to `<path>-commands.jsonl`, one JSON object a line, which the publisher
+reads from wherever it last stopped. Switching scenario rebuilds the simulation and every bridge
+file on the publisher's side and bumps a generation in the status; the viewer sees it change and
 reopens everything, which is a stall of a frame or two.
+
+## Running it by hand
+
+```bash
+cargo run --release -- check-pack     # needs no hardware at all
+cargo run --release -- probe          # needs a runtime, not a headset
+cargo run --release -- session 10     # needs a headset
+cargo run --release -- view 30        # needs a headset, and draws
+cargo run --release -- view --follow  # ...posed live by a running simulation, until Ctrl-C
+```
+
+In the order they stop being checkable from a terminal.
+
+**`check-pack`** loads `manifest.json` and `skeleton.bin` and says what came out. It is the half
+of this crate that can be checked with nothing plugged in, and on this repository it should say:
+
+```
+bones     200  vertices 256030  triangles 511713
+bounds    x -0.335..0.335   y 0.000..1.696   z -0.137..0.113
+normals   255992 non-zero, worst length error 1.79e-7, mean (0.000, -0.012, 0.011)
+```
+
+A 1.7 m body standing with its feet at zero. The mean normal near zero is the check worth having:
+a closed surface faces every way at once, so anything else means the winding or the accumulation
+is wrong.
+
+**`probe`** asks the loader which runtime answers, then asks the runtime for a headset, the view
+configuration and the Vulkan version it will accept. It stops cleanly and says so if there is no
+headset, because "no display attached" and "the runtime is broken" are different problems.
+
+**`session`** begins a session and runs the frame loop for a few seconds, reading the predicted
+display time and the eye poses, and **submits no layers** — which `xrEndFrame` permits. That is
+the point of it: it exercises frame timing, the session state machine and head tracking without a
+single line of rendering, so if it holds the headset's rate then everything left is ordinary
+Vulkan rather than an unknown.
+
+**`view`** is the one that draws: the body standing a metre and a half away, both eyes in one
+multiview pass, for as many seconds as you ask. It reports the frame rate it held and the worst
+CPU frame at the end.
+
+It reports the rate it is holding every couple of seconds rather than only at the end, because
+the natural way to stop watching something in a headset is to take it off and press Ctrl-C, and a
+summary that only prints on a clean exit is a summary nobody sees.
+
+Its loop has the shape ADR-012 requires: it takes the head pose the runtime predicts for this
+frame and draws from the pose buffer as it stands, never waiting for anything upstream. A slow
+simulation is a slow body in a view that is still tracked at the headset's rate, rather than a
+headset stalling on a slow tick.
+
+### Following a live simulation
+
+Two terminals. The simulation, headless, publishing a pose every output frame:
+
+```bash
+pnpm publish:pose                                   # default scenario, L1, 144 poses a second
+pnpm publish:pose quiet-standing --profile l3_anatomical --fps 90
+```
+
+And the viewer, reading them:
+
+```bash
+cargo run --release -- view --follow
+```
+
+It runs until Ctrl-C, or until the runtime ends the session; a number of seconds after `view`
+stops it sooner.
+
+The two never wait for each other, which is ADR-012 and is what `packages/pose-bridge` exists to
+make true: the simulation writes the newest pose into a small ring on tmpfs and the viewer reads
+whichever slot is newest each frame. A simulation that cannot keep up -- L3 with muscles, today --
+publishes in slow motion and the headset shows a slow body in a perfectly tracked room. One that
+has stopped shows a still body, and the viewer's status line says how old the pose is, because
+"not moving" and "died" would otherwise look identical:
+
+```
+  142.9 Hz, worst CPU frame 0.41 ms, pose 7 ms old
+```
+
+Measured with the publisher on L1 with the full muscle set: `1.00x life` -- it keeps up exactly,
+which is the 35 per cent the belly-sweep divisor bought.
+
+What crosses the bridge is bones: 206 of them, seven floats each, plus the rest pose and the stature
+scale once. The muscles cross beside them as rings rather than meshes -- one belly per muscle unit
+(`ALL_MUSCLE_UNITS` in `packages/muscle-data/src/wholeBody.ts`), `DEFAULT_RINGS` (24) rings each,
+eight floats a ring: centre, orientation, radius -- and the viewer sweeps its own tubes from them
+each time a new frame arrives, on the same pipeline as the bones with a second draw. That is units ×
+24 × 32 bytes a frame, about 209 KB with the full 272, against about 1.9 MB for the positions and
+normals of the twelve vertices round each ring they sweep into; and the sweep is a few microseconds.
+A publisher with muscles off writes no muscle file, and the viewer says so and draws bones alone.
 
 ## Choosing a runtime
 
@@ -401,9 +385,10 @@ mkdir -p ~/.config/openxr/1 && ln -sf ~/.local/share/Steam/steamapps/common/Stea
 
 ## What the drawing was checked against
 
-Run on the machine above it put the skeleton in the headset at a good rate, which is the answer
-that mattered. But "it looked right" is not a regression test, so the matrix maths is also checked
-against this headset's own reported numbers -- `cargo test`, five of them:
+Run on the machine under "What it answered" below, it put the skeleton in the headset at a good
+rate, which is the answer that mattered. But "it looked right" is not a regression test, so the
+matrix maths is also checked against this headset's own reported numbers -- `cargo test`, five of
+them:
 
 - near maps to 0 and far to 1, Vulkan's way, which is what the pipeline's LESS compare assumes;
 - each edge of the reported fov lands on exactly the corresponding edge of clip space, which is
@@ -447,6 +432,36 @@ saving that actually matters in stereo, and it has to be asked for at device cre
 somebody running the binary has no reason to have installed; `libopenxr_loader.so.1`, which
 `dlopen` finds, ships with every runtime. It also means a machine with no runtime gets a sentence
 explaining that, rather than a binary that could not be built.
+
+## What it answered, on the machine it was written for (history)
+
+    runtime   SteamVR/OpenXR 2.17.10, lighthouse tracking
+    gpu       NVIDIA GeForce RTX 3090, queue family 0
+    views     2016 x 2240 per eye, 1 sample, OPAQUE
+    vulkan    1.0 to 1.2 -- the ceiling, so nothing 1.3-only
+    session   IDLE -> READY -> SYNCHRONIZED -> VISIBLE -> FOCUSED
+    rate      1428 frames over 10.00 s of predicted display time -- 142.7 Hz
+
+Which is to say: every step of the native path works, and the budget is **7 ms a frame** for
+9.03 megapixels of stereo. On a 3090, half a million triangles in one multiview pass is not close
+to that, so the renderer is not where the difficulty is.
+
+The eye poses came back 65.6 mm apart, which is an interpupillary distance rather than a number
+somebody made up, so tracking and the stage space are both real.
+
+**The consequence is for the simulation, not the renderer -- and it is smaller than it first
+looks.** A 144 Hz headset wants a fresh *view* every 7 ms. It does not want a fresh *body* every
+7 ms, and conflating those two is how a slow simulation would wrongly be made to look like a
+broken headset.
+
+The view is the projection from the tracked head pose, and it is drawn every frame regardless. The
+body is whatever the simulation last published. So L1, which computes at 1.28 times real time,
+gives a body moving at life speed; L3, which computes at 0.39, gives a body moving at two fifths
+speed inside a view that is still perfectly tracked and perfectly comfortable. That is a slow
+simulation, which is what it is, rather than an unusable one.
+
+ADR-012 is where this is written down, along with what it means for the transport: latest-wins,
+non-blocking in both directions, no queue.
 
 ## Where this sits in the plan
 

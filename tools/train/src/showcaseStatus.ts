@@ -81,7 +81,7 @@ export function showcaseStatus(run: ShowcaseRun): PanelStatus {
     // draw this body's connective tissue from the poses it is already reading.
     tissue: run.tissue,
     training: run.training,
-    // Rounded: it is a tint, and a status four times a second need not carry sixteen digits.
+    // Rounded: it is a tint, and a status ten times a second need not carry sixteen digits.
     tension: Array.from(run.tension, (v) => Number(v.toFixed(3))),
   };
 }

@@ -1,7 +1,7 @@
 [package]
 name = "bs-humany-xr-viewer"
 version = "0.2.0"
-description = "An OpenXR viewer for the bs-humany skeleton, native and outside the web view."
+description = "The bs-humany OpenXR headset viewer: body, muscles and panels, native and outside the web view."
 edition = "2021"
 license = "Apache-2.0"
 publish = false

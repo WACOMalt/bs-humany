@@ -42,9 +42,9 @@ the same fixture generator writes its fixture.
 ## And the panel
 
 Two more files beside the ring, neither of them binary: `<path>-status.json`, which the publisher
-renames into place four times a second, and `<path>-commands.jsonl`, which the viewer appends to
-one JSON object a line. `tools/cli/bin/publish-pose.mjs` documents both; they are what the
-headset's panel reads and writes.
+renames into place ten times a second (every 100 ms), and `<path>-commands.jsonl`, which the
+viewer appends to one JSON object a line. `tools/cli/bin/publish-pose.mjs` documents both; they
+are what the headset's panel reads and writes.
 
 ## And back: grabs
 

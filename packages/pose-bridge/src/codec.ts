@@ -386,7 +386,8 @@ export function readBridge(bytes: Uint8Array): {
  *     12  i32  bone        index into the pose bridge's bone order; -1 if the hand held nothing
  *     16  f32  x3 point    world point where the grab began, in the simulation's frame
  *     28  f32  x3 target   world point the hand is at now, in the simulation's frame
- *     40  f32  strength    the spring the grab module scales; 1 is the studio's default
+ *     40  f32  strength    reserved: writers write 1, readers ignore it; the publisher's
+ *                          grabStrength setting scales every grab
  *     44  f32  x4 rotation the hand's orientation now, xyzw, in the simulation's frame
  *
  * The renderer converts out of its own stage space before writing, so both points arrive in the
@@ -490,8 +491,10 @@ export function readGrabIntents(
  *
  * What crosses is not the belly meshes but their rings -- centre, orientation, radius: eight
  * floats -- because a swept tube's vertices are a function of its rings and the renderer can
- * sweep them itself, and because eight floats a ring is a hundred times less than the vertices.
- * At 234 bellies of 24 rings that is 180 KB a frame; three slots of it is what the file holds.
+ * sweep them itself, and because eight floats a ring is a ninth of what a ring sweeps into:
+ * twelve vertices by default, six floats each. There is one belly per muscle unit, of
+ * `DEFAULT_RINGS` (24) rings, so a frame is units x 24 x 32 bytes -- about 209 KB with the full
+ * set of 272 -- and three slots of it is what the file holds.
  *
  *   HEADER, 64 bytes
  *     0   u32  magic       0x4353554d, "MUSC"

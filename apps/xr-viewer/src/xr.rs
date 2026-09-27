@@ -1,25 +1,32 @@
-//! Bringing up OpenXR far enough to know whether this machine will cooperate.
+//! OpenXR: bringing the runtime up, and the frame loop that draws the body in the room.
 //!
-//! This is the half of the spike that cannot be checked without a headset, so it is arranged to
-//! fail in useful places rather than in one lump at the end. Three steps, each reporting what it
-//! found before the next is attempted:
+//! Bringing up is arranged to fail in useful places rather than in one lump at the end, each
+//! step saying what it found before the next is attempted -- which is what `probe` and `session`
+//! are for:
 //!
 //!   1. **Instance.** Does a loader exist, which runtime answers, what extensions does it offer?
 //!      Needs no hardware. Runs on a machine with nothing plugged in.
 //!   2. **System and views.** Is there a head-mounted display, and what does it want rendered --
 //!      how many views, at what resolution, at what rates? Needs the runtime to see a headset.
-//!   3. **Session and frame loop.** Begin a session, wait on frames, read the predicted display
-//!      time and the view poses. Submits *no layers*, which `xrEndFrame` permits, so this proves
-//!      the timing and tracking path without a single line of Vulkan rendering in it.
+//!   3. **Session.** Begin a session and run the frame loop. `session` submits *no layers*, which
+//!      `xrEndFrame` permits, so it proves the timing and tracking path with no rendering in it.
 //!
-//! Step 3 still needs a Vulkan device, because OpenXR will only create a session against a
-//! graphics binding and will only accept an instance and device built to its requirements. That
-//! is exactly why this crate uses `ash` rather than a portability layer: the requirements come
-//! from the runtime and have to be obeyed literally.
+//! A session needs a Vulkan device, because OpenXR will only create one against a graphics
+//! binding and will only accept an instance and device built to its requirements. That is why
+//! this crate uses `ash` rather than a portability layer: the requirements come from the runtime
+//! and have to be obeyed literally.
 //!
-//! What is deliberately not here is drawing. Getting a pipeline, a render pass and multiview
-//! correct is ordinary graphics work; finding out that a runtime will not start a session is not,
-//! and it is the thing worth learning first.
+//! `view` is the frame loop the studio's headset runs. Each frame it waits on the runtime, locates
+//! the eyes at the predicted display time, and then, never waiting on the publisher (ADR-012):
+//! polls the publisher's status ten times a second by the clock, reopening the bridges when its
+//! generation moves or its files are replaced; takes the newest pose and belly rings if they are
+//! newer than the ones applied, and otherwise draws what it has; moves the viewer by the sticks
+//! (or scrolls the panel a stick's ray is on) and recentres on a stick click; locates the hands,
+//! aims their rays at the panels, and turns squeezes into grabs written to the grab channel and
+//! trigger presses into panel presses and carries; lays out both panels and appends what was
+//! pressed to the command log; and draws bones, muscles, tissue, scenery, grid, hands, rays and
+//! panels in one multiview pass for both eyes. Every way out of drawing lets go of whatever the
+//! hands held first, so the simulation never reads a squeeze that has stopped.
 
 use anyhow::{Context, Result, bail};
 use ash::vk::{self, Handle};
@@ -360,13 +367,13 @@ impl Graphics {
     }
 }
 
-/// Begin a session, build the renderer and draw the skeleton until told to stop.
+/// Begin a session, build the renderer and draw the body until told to stop: posed by the
+/// publisher at `follow` when there is one, the rest pose until it appears or when there is none.
 ///
 /// The frame loop takes the head pose the runtime predicts for *this* frame and draws from the
-/// pose buffer as it stands, never waiting for anything upstream -- ADR-012. While the body is a
-/// rest pose that distinction is invisible; it is the shape the loop has to have before a
-/// simulation is attached to it, and retrofitting it afterwards is how a headset ends up stalling
-/// on a slow tick.
+/// pose buffer as it stands, never waiting for anything upstream -- ADR-012. A slow simulation is
+/// therefore a slow body in a view that is still tracked at the headset's rate, rather than a
+/// headset stalling on a slow tick.
 pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::Path>) -> Result<()> {
     let (_entry, xr, system) = bring_up()?;
     let graphics = Graphics::for_runtime(&xr, system)?;
@@ -1483,7 +1490,7 @@ impl Liveness {
 
 /// A status this much older than the last one is a publisher that has stopped. Three seconds,
 /// not one: the training showcase stops writing for 1.2 s between episodes, and every publisher
-/// writes at least four times a second while it lives.
+/// writes ten times a second while it lives.
 const SILENT_AFTER: std::time::Duration = std::time::Duration::from_secs(3);
 /// A status seen this recently is a publisher that is certainly still there.
 const FRESH: std::time::Duration = std::time::Duration::from_secs(1);
