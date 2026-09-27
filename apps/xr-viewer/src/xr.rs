@@ -27,6 +27,13 @@
 //! pressed to the command log; and draws bones, muscles, tissue, scenery, grid, hands, rays and
 //! panels in one multiview pass for both eyes. Every way out of drawing lets go of whatever the
 //! hands held first, so the simulation never reads a squeeze that has stopped.
+//!
+//! What the loop keeps between frames is a `ViewerState`, and a frame is its steps in that order:
+//! `poll_publisher`, `apply_newest_pose`, `locomote`, `hands_and_panels` (whose grab intents are
+//! then written) and `submit`. What those steps call on lives beside this file: `follow.rs` for
+//! the publisher's feeds and status, `locomotion.rs` for the sticks and the recentre, `input.rs`
+//! for the controllers and what their rays and triggers do to the panels, `grab.rs` for what a
+//! squeeze takes hold of, and `render.rs` for the drawing.
 
 use anyhow::{Context, Result, bail};
 use ash::vk::{self, Handle};
@@ -471,155 +478,39 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         pack.triangle_count()
     );
 
-    // Where the body stands: the simulation's ground lifted to the stage floor. Known once the
-    // status says the ground's height; zero, which is nearly every scenario, until then.
-    let mut ground = 0.0f32;
-    let mut place = crate::math::placement(ground);
-    // Bones, the two controllers, the world slot at the placement, a pointer mark a hand, the
-    // grid at the identity, the scenery at the placement, and an aim ray a hand; `Slots` says
-    // where each is.
-    let slots = renderer.slots();
-    let mut matrices: Vec<[f32; 16]> = vec![place; slots.total];
-    // The marks and the rays are nothing until a hand points.
-    for hand in 0..crate::render::MARKERS {
-        matrices[slots.marker(hand)] = crate::math::scale_matrix(0.0);
-    }
-    for hand in 0..crate::render::RAYS {
-        matrices[slots.ray(hand)] = crate::math::scale_matrix(0.0);
-    }
-    // The grid is the stage itself: the identity.
-    matrices[slots.stage] = crate::math::scale_matrix(1.0);
-
-    // What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
-    // together, and reopened together whenever the publisher's generation changes, which is how
-    // a scenario switch reaches this side, or the files at their names are not the ones mapped,
-    // which is how a publisher that restarted from the same generation does.
-    // Opened now if the publisher is already there; otherwise the loop keeps trying every status
-    // poll, drawing the rest pose meanwhile, because "viewer first, then the run" is a perfectly
-    // good order to do things in and the studio's Connect button does exactly that.
-    let mut feeds = match follow {
-        Some(path) => match Feeds::open(path, pack, &mut renderer) {
-            Ok(f) => Some(f),
-            Err(e) => {
-                println!("waiting for a publisher at {}: {e}", path.display());
-                None
-            }
-        },
-        None => None,
-    };
-    let status_path = follow.map(|p| std::path::PathBuf::from(format!("{}-status.json", p.display())));
-    let mut publisher = StatusFeed::default();
-    let mut said = SaidLiveness::Fine;
-    let mut commands = match follow {
-        Some(path) => Some(crate::bridge::CommandWriter::create(&std::path::PathBuf::from(
-            format!("{}-commands.jsonl", path.display()),
-        ))?),
-        None => None,
-    };
-    let mut holding: [Option<Hold>; crate::bridge::HANDS] = [None, None];
-    let mut hand_seen = [false; crate::bridge::HANDS];
-    // Where each hand's press began, from the trigger going down until it is let go. It decides
-    // everything the press does: begun on a panel's face, that panel keeps the hand as its
-    // pointer wherever the ray goes, so a slider dragged off the end still lands and the drag
-    // never slides onto a strip and picks the panel up; begun on a strip, it carries the panel;
-    // begun anywhere else, it presses nothing at all. The last is what the trigger was once
-    // "armed" for: squeezing to grab a bone tends to pull the trigger too, and the ray sweeping
-    // the panel then was clicking whatever it crossed.
-    let mut press_on: [Option<PressOn>; crate::bridge::HANDS] = [None, None];
-    // Which panel's face each hand's ray was on last frame. That hand's stick scrolls the panel
-    // instead of moving the viewer; last frame's, because the sticks are read before the rays.
-    let mut on_face: [Option<usize>; crate::bridge::HANDS] = [None, None];
-    // Pressed past six tenths, released under a quarter: a trigger held anywhere between stays
-    // what it was, so a hand resting on the trigger does not click.
-    let mut trigger_down = [false; crate::bridge::HANDS];
-    let mut scene_generation: Option<u64> = None;
-    // Moving about: the sticks carry the viewer through the world, which is to say the world is
-    // moved the other way under a stage that does not move. `view_point` is where the stage
-    // origin sits in the world and how far the world is turned about the viewer; everything of
-    // the world is drawn through `shift`, and the hands, which are of the stage, are not.
-    let mut view_point = Viewpoint::default();
-    let mut last_frame = std::time::Instant::now();
-    let controller_scale = crate::math::scale_matrix(1.0);
-    let mut muscle_vertices: Vec<f32> = Vec::new();
-    let mut tissue_vertices: Vec<f32> = Vec::new();
-    // The connective tissue's fixed shape, rebuilt when the publisher's generation changes.
-    let mut tissue_shape: Option<crate::tissue::TissueShape> = None;
-    let mut tissue_generation: Option<u64> = None;
-    let mut last_tick: Option<u64> = None;
-    let mut last_muscle_tick: Option<u64> = None;
-
-    // The panels: the properties panel to the viewer's right of the body, a little below eye
-    // height, and the transport strip under it, both turned to face where the viewer stands --
-    // `home_placements`, which a recentre puts them back to. Whichever hand is pointing at a
-    // panel is its pointer; a hand that pressed on it keeps being the pointer until it lets go, so
-    // a drag does not change hands mid-way. A hand on a grab strip carries the panel instead.
-    // Where they overlap, the nearer is the one pointed at.
-    use crate::panel::{Held, Kind, Panel};
-    let mut placements = home_placements([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
-    let mut panels = [Panel::new(Kind::Properties), Panel::new(Kind::Transport)];
-    let mut pointer_hand: [Option<usize>; 2] = [None, None];
-    let mut carrying: [Option<(usize, Held)>; crate::bridge::HANDS] = [None, None];
-    // What the viewer knows of itself for the panels to show: which controllers are in hand, and
-    // whether the right stick turns in steps. Smooth turning is the default; snap turn is a box on
-    // the transport strip for whoever the smooth turn makes queasy.
-    let mut headset = crate::panel::Headset::default();
-    let mut profiles_changed = false;
-    // Whether a snap turn is armed: the stick has come back to the middle since the last step.
-    let mut snap_armed = true;
+    // Everything the loop keeps from one frame to the next; the publisher's feeds are opened here
+    // if it is already there.
+    let mut viewer = ViewerState::new(pack, follow, &mut renderer)?;
 
     let stage = session
         .create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)
         .context("asking the OpenXR runtime for the room's floor (the stage space)")?;
     let mut event_storage = openxr::EventDataBuffer::new();
     let mut running = false;
-    let mut frames = 0u32;
-    let mut last_poll: Option<std::time::Instant> = None;
-    let mut worst_cpu = 0f64;
     let started = std::time::Instant::now();
-    // Reported as it goes rather than only at the end, because the natural way to stop watching
-    // something in a headset is to take it off and press Ctrl-C, and a summary that only prints
-    // on a clean exit is a summary nobody ever sees.
-    let mut window_started = started;
-    let mut window_frames = 0u32;
-    let mut window_worst = 0f64;
-    // Whether the last frame was drawn, which is whether the hands were last written. The slots
-    // are only rewritten on a frame that is drawn, so every way out of drawing -- the session
-    // stopping, the runtime saying not to render, the session or the loop ending -- first
-    // writes both hands open: the simulation would otherwise read the last squeeze for as long
-    // as the file stands. Its readers keep a watch on the write count as well, which is what
-    // covers a viewer that is killed and never gets to say so.
-    let mut drawing = false;
 
     while started.elapsed().as_secs_f32() < seconds {
-        let flow = pump_events(&xr, &session, &mut event_storage, &mut running, &mut profiles_changed)?;
+        let flow = pump_events(&xr, &session, &mut event_storage, &mut running, &mut viewer.profiles_changed)?;
         // The controllers in hand changed, or the runtime has settled on them for the first time:
         // which they are is said once, on the terminal and on the panels, where somebody holding
         // a controller the guide was not written for can see what the runtime made of it.
-        if profiles_changed && flow == Flow::Continue {
-            profiles_changed = false;
-            headset.profiles = hands.profiles(&xr, &session);
-            for (side, profile) in ["left", "right"].iter().zip(&headset.profiles) {
+        if viewer.profiles_changed && flow == Flow::Continue {
+            viewer.profiles_changed = false;
+            viewer.headset.profiles = hands.profiles(&xr, &session);
+            for (side, profile) in ["left", "right"].iter().zip(&viewer.headset.profiles) {
                 println!("hands: {side} uses {profile}");
             }
         }
         if flow == Flow::Exit {
-            let_go_of_everything(
-                feeds.as_mut().map(|f| &mut f.grabs),
-                &mut holding,
-                "the session is over",
-            );
+            viewer.let_go("the session is over");
             // Nothing is destroyed while the GPU may still be drawing into it.
             renderer.wait_idle();
             return Ok(());
         }
         if !running {
-            if drawing {
-                drawing = false;
-                let_go_of_everything(
-                    feeds.as_mut().map(|f| &mut f.grabs),
-                    &mut holding,
-                    "the session stopped",
-                );
+            if viewer.drawing {
+                viewer.drawing = false;
+                viewer.let_go("the session stopped");
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
             continue;
@@ -628,13 +519,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         let state = frame_wait.wait()?;
         frame_stream.begin()?;
         if !state.should_render {
-            if drawing {
-                drawing = false;
-                let_go_of_everything(
-                    feeds.as_mut().map(|f| &mut f.grabs),
-                    &mut holding,
-                    "nothing is being drawn",
-                );
+            if viewer.drawing {
+                viewer.drawing = false;
+                viewer.let_go("nothing is being drawn");
             }
             frame_stream.end(
                 state.predicted_display_time,
@@ -643,7 +530,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             )?;
             continue;
         }
-        drawing = true;
+        viewer.drawing = true;
 
         let cpu_started = std::time::Instant::now();
         let (_flags, views) = session.locate_views(
@@ -652,32 +539,295 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             &stage,
         )?;
 
-        // The publisher's status, ten times a second by the clock rather than by the frame, so a
-        // 144 Hz headset and a 90 Hz one poll at the rate every publisher writes; and the feeds
-        // reopened if its generation moved or its files were replaced. A publisher that has not
-        // written a status yet, or that has stopped and removed it, is simply not there this
-        // poll. None of this waits on the publisher: a stat and a read of a small file on tmpfs.
-        if last_poll.map_or(true, |at| at.elapsed() >= STATUS_POLL) {
-            last_poll = Some(std::time::Instant::now());
-            if let (None, Some(follow_path)) = (feeds.as_ref(), follow) {
-                if let Ok(opened) = Feeds::open(follow_path, pack, &mut renderer) {
-                    feeds = Some(opened);
-                    last_tick = None;
-                    last_muscle_tick = None;
-                    muscle_vertices.clear();
-                    reopen_commands(&mut commands);
+        viewer.poll_publisher(pack, follow, &mut renderer)?;
+        viewer.apply_newest_pose();
+        hands.sync(&session)?;
+        let moved = viewer.locomote(&hands, &session, &views)?;
+        let frame = viewer.hands_and_panels(
+            pack,
+            follow,
+            &hands,
+            &session,
+            &stage,
+            state.predicted_display_time,
+            &moved,
+            &mut renderer,
+        )?;
+        viewer.publish_grabs(&frame.grabs);
+        viewer.submit(
+            &mut swapchain,
+            &mut frame_stream,
+            &renderer,
+            &stage,
+            &views,
+            state.predicted_display_time,
+            extent,
+            &frame,
+            cpu_started,
+        )?;
+    }
+
+    viewer.let_go("the viewer is done");
+    renderer.wait_idle();
+    println!(
+        "{} frames in {:.1} s -- {:.1} Hz, worst CPU frame {:.2} ms",
+        viewer.frames,
+        started.elapsed().as_secs_f32(),
+        viewer.frames as f32 / started.elapsed().as_secs_f32(),
+        viewer.worst_cpu
+    );
+    Ok(())
+}
+
+/// Everything the frame loop keeps from one frame to the next, and the per-frame steps that read
+/// and change it, in the order `view` calls them: `poll_publisher`, `apply_newest_pose`,
+/// `locomote`, `hands_and_panels` and `submit`. None of them waits on the publisher (ADR-012).
+struct ViewerState {
+    /// Where the body stands: the simulation's ground lifted to the stage floor. Known once the
+    /// status says the ground's height; zero, which is nearly every scenario, until then.
+    ground: f32,
+    place: [f32; 16],
+    /// Bones, the two controllers, the world slot at the placement, a pointer mark a hand, the
+    /// grid at the identity, the scenery at the placement, and an aim ray a hand; `Slots` says
+    /// where each is.
+    slots: crate::render::Slots,
+    matrices: Vec<[f32; 16]>,
+
+    /// What is followed: the pose bridge, the muscles beside it, the grab channel back. Opened
+    /// together, and reopened together whenever the publisher's generation changes, which is how
+    /// a scenario switch reaches this side, or the files at their names are not the ones mapped,
+    /// which is how a publisher that restarted from the same generation does.
+    /// Opened at the start if the publisher is already there; otherwise the loop keeps trying
+    /// every status poll, drawing the rest pose meanwhile, because "viewer first, then the run" is
+    /// a perfectly good order to do things in and the studio's Connect button does exactly that.
+    feeds: Option<Feeds>,
+    status_path: Option<std::path::PathBuf>,
+    publisher: StatusFeed,
+    said: SaidLiveness,
+    commands: Option<crate::bridge::CommandWriter>,
+    holding: [Option<Hold>; crate::bridge::HANDS],
+    hand_seen: [bool; crate::bridge::HANDS],
+    /// Where each hand's press began, from the trigger going down until it is let go. It decides
+    /// everything the press does: begun on a panel's face, that panel keeps the hand as its
+    /// pointer wherever the ray goes, so a slider dragged off the end still lands and the drag
+    /// never slides onto a strip and picks the panel up; begun on a strip, it carries the panel;
+    /// begun anywhere else, it presses nothing at all. The last is what the trigger was once
+    /// "armed" for: squeezing to grab a bone tends to pull the trigger too, and the ray sweeping
+    /// the panel then was clicking whatever it crossed.
+    press_on: [Option<PressOn>; crate::bridge::HANDS],
+    /// Which panel's face each hand's ray was on last frame. That hand's stick scrolls the panel
+    /// instead of moving the viewer; last frame's, because the sticks are read before the rays.
+    on_face: [Option<usize>; crate::bridge::HANDS],
+    /// Pressed past six tenths, released under a quarter: a trigger held anywhere between stays
+    /// what it was, so a hand resting on the trigger does not click.
+    trigger_down: [bool; crate::bridge::HANDS],
+    scene_generation: Option<u64>,
+    /// Moving about: the sticks carry the viewer through the world, which is to say the world is
+    /// moved the other way under a stage that does not move. `view_point` is where the stage
+    /// origin sits in the world and how far the world is turned about the viewer; everything of
+    /// the world is drawn through `shift`, and the hands, which are of the stage, are not.
+    view_point: Viewpoint,
+    last_frame: std::time::Instant,
+    muscle_vertices: Vec<f32>,
+    tissue_vertices: Vec<f32>,
+    /// The connective tissue's fixed shape, rebuilt when the publisher's generation changes.
+    tissue_shape: Option<crate::tissue::TissueShape>,
+    tissue_generation: Option<u64>,
+    last_tick: Option<u64>,
+    last_muscle_tick: Option<u64>,
+
+    /// The panels: the properties panel to the viewer's right of the body, a little below eye
+    /// height, and the transport strip under it, both turned to face where the viewer stands --
+    /// `home_placements`, which a recentre puts them back to. Whichever hand is pointing at a
+    /// panel is its pointer; a hand that pressed on it keeps being the pointer until it lets go, so
+    /// a drag does not change hands mid-way. A hand on a grab strip carries the panel instead.
+    /// Where they overlap, the nearer is the one pointed at.
+    placements: [Placement; 2],
+    panels: [crate::panel::Panel; 2],
+    pointer_hand: [Option<usize>; 2],
+    carrying: [Option<(usize, crate::panel::Held)>; crate::bridge::HANDS],
+    /// What the viewer knows of itself for the panels to show: which controllers are in hand, and
+    /// whether the right stick turns in steps. Smooth turning is the default; snap turn is a box on
+    /// the transport strip for whoever the smooth turn makes queasy.
+    headset: crate::panel::Headset,
+    profiles_changed: bool,
+    /// Whether a snap turn is armed: the stick has come back to the middle since the last step.
+    snap_armed: bool,
+
+    frames: u32,
+    last_poll: Option<std::time::Instant>,
+    worst_cpu: f64,
+    /// Reported as it goes rather than only at the end, because the natural way to stop watching
+    /// something in a headset is to take it off and press Ctrl-C, and a summary that only prints
+    /// on a clean exit is a summary nobody ever sees.
+    window_started: std::time::Instant,
+    window_frames: u32,
+    window_worst: f64,
+    /// Whether the last frame was drawn, which is whether the hands were last written. The slots
+    /// are only rewritten on a frame that is drawn, so every way out of drawing -- the session
+    /// stopping, the runtime saying not to render, the session or the loop ending -- first
+    /// writes both hands open: the simulation would otherwise read the last squeeze for as long
+    /// as the file stands. Its readers keep a watch on the write count as well, which is what
+    /// covers a viewer that is killed and never gets to say so.
+    drawing: bool,
+}
+
+/// What this frame's sticks did, for the hands and the panels after them: the time since the last
+/// frame, where the head is in the stage, the matrix everything of the world is drawn through, and
+/// how far each panel is scrolled.
+#[derive(Clone, Copy)]
+struct Moved {
+    dt: f32,
+    head: [f32; 3],
+    shift: [f32; 16],
+    scroll: [f32; 2],
+}
+
+/// What the hands and the panels made of this frame: a grab intent for each hand that has a
+/// publisher's grab channel to write it to; every slot's matrix as it is drawn; each panel's
+/// meshes, and the panels in the order to draw them with the matrix each is drawn by; and whether
+/// the muscles and the tissue are shown.
+struct HandsAndPanels {
+    grabs: [Option<crate::bridge::GrabIntent>; crate::bridge::HANDS],
+    drawn: Vec<[f32; 16]>,
+    meshes: [Vec<crate::panel::Mesh>; 2],
+    order: [(usize, [f32; 16]); 2],
+    show_muscles: bool,
+    show_tissue: bool,
+}
+
+impl HandsAndPanels {
+    /// The panels as `draw` wants them, in the order they are to be drawn.
+    fn panel_draws(&self) -> Vec<crate::render::PanelDraw<'_>> {
+        self.order
+            .iter()
+            .map(|(which, model)| crate::render::PanelDraw {
+                model: *model,
+                meshes: &self.meshes[*which],
+            })
+            .collect()
+    }
+}
+
+impl ViewerState {
+    /// The state before the first frame: the rest pose at the placement, the marks and rays
+    /// hidden, the panels at home, and the publisher's feeds and command log opened when
+    /// `follow` names one.
+    fn new(
+        pack: &crate::pack::Pack,
+        follow: Option<&std::path::Path>,
+        renderer: &mut crate::render::Renderer,
+    ) -> Result<Self> {
+        use crate::panel::{Kind, Panel};
+        let ground = 0.0f32;
+        let place = crate::math::placement(ground);
+        let slots = renderer.slots();
+        let mut matrices: Vec<[f32; 16]> = vec![place; slots.total];
+        // The marks and the rays are nothing until a hand points.
+        for hand in 0..crate::render::MARKERS {
+            matrices[slots.marker(hand)] = crate::math::scale_matrix(0.0);
+        }
+        for hand in 0..crate::render::RAYS {
+            matrices[slots.ray(hand)] = crate::math::scale_matrix(0.0);
+        }
+        // The grid is the stage itself: the identity.
+        matrices[slots.stage] = crate::math::scale_matrix(1.0);
+
+        let feeds = match follow {
+            Some(path) => match Feeds::open(path, pack, renderer) {
+                Ok(f) => Some(f),
+                Err(e) => {
+                    println!("waiting for a publisher at {}: {e}", path.display());
+                    None
+                }
+            },
+            None => None,
+        };
+        let status_path = follow.map(|p| std::path::PathBuf::from(format!("{}-status.json", p.display())));
+        let commands = match follow {
+            Some(path) => Some(crate::bridge::CommandWriter::create(&std::path::PathBuf::from(
+                format!("{}-commands.jsonl", path.display()),
+            ))?),
+            None => None,
+        };
+        Ok(Self {
+            ground,
+            place,
+            slots,
+            matrices,
+            feeds,
+            status_path,
+            publisher: StatusFeed::default(),
+            said: SaidLiveness::Fine,
+            commands,
+            holding: [None, None],
+            hand_seen: [false; crate::bridge::HANDS],
+            press_on: [None, None],
+            on_face: [None, None],
+            trigger_down: [false; crate::bridge::HANDS],
+            scene_generation: None,
+            view_point: Viewpoint::default(),
+            last_frame: std::time::Instant::now(),
+            muscle_vertices: Vec::new(),
+            tissue_vertices: Vec::new(),
+            tissue_shape: None,
+            tissue_generation: None,
+            last_tick: None,
+            last_muscle_tick: None,
+            placements: home_placements([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+            panels: [Panel::new(Kind::Properties), Panel::new(Kind::Transport)],
+            pointer_hand: [None, None],
+            carrying: [None, None],
+            headset: crate::panel::Headset::default(),
+            profiles_changed: false,
+            snap_armed: true,
+            frames: 0,
+            last_poll: None,
+            worst_cpu: 0.0,
+            window_started: std::time::Instant::now(),
+            window_frames: 0,
+            window_worst: 0.0,
+            drawing: false,
+        })
+    }
+
+    /// Both hands open, on both sides of the grab channel: `let_go_of_everything`, said with why.
+    fn let_go(&mut self, why: &str) {
+        let_go_of_everything(self.feeds.as_mut().map(|f| &mut f.grabs), &mut self.holding, why);
+    }
+
+    /// The publisher's status, ten times a second by the clock rather than by the frame, so a
+    /// 144 Hz headset and a 90 Hz one poll at the rate every publisher writes; and the feeds
+    /// reopened if its generation moved or its files were replaced. A publisher that has not
+    /// written a status yet, or that has stopped and removed it, is simply not there this
+    /// poll. None of this waits on the publisher: a stat and a read of a small file on tmpfs.
+    fn poll_publisher(
+        &mut self,
+        pack: &crate::pack::Pack,
+        follow: Option<&std::path::Path>,
+        renderer: &mut crate::render::Renderer,
+    ) -> Result<()> {
+        if self.last_poll.map_or(true, |at| at.elapsed() >= STATUS_POLL) {
+            self.last_poll = Some(std::time::Instant::now());
+            if let (None, Some(follow_path)) = (self.feeds.as_ref(), follow) {
+                if let Ok(opened) = Feeds::open(follow_path, pack, renderer) {
+                    self.feeds = Some(opened);
+                    self.last_tick = None;
+                    self.last_muscle_tick = None;
+                    self.muscle_vertices.clear();
+                    reopen_commands(&mut self.commands);
                 }
             }
-            if let Some(path) = &status_path {
-                publisher.observe(read_status_file(path), std::time::Instant::now());
+            if let Some(path) = &self.status_path {
+                self.publisher.observe(read_status_file(path), std::time::Instant::now());
             }
-            if let (Some(f), Some(follow_path)) = (feeds.as_ref(), follow) {
+            if let (Some(f), Some(follow_path)) = (self.feeds.as_ref(), follow) {
                 // The generation is only trusted from a status that read cleanly: the feeds
                 // take theirs from the file when they open, and one that did not parse then
                 // would disagree with the last good status at every poll. The files' identity
                 // needs no status at all.
-                let why = match publisher.status.as_ref() {
-                    Some(s) if publisher.error.is_none() && s.generation != f.generation => {
+                let why = match self.publisher.status.as_ref() {
+                    Some(s) if self.publisher.error.is_none() && s.generation != f.generation => {
                         Some(format!("generation {}", s.generation))
                     }
                     _ if crate::bridge::feeds_changed(follow_path, &f.mapped) => {
@@ -691,19 +841,19 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 };
                 if let Some(why) = why {
                     println!("publisher: {why}, reopening the bridges");
-                    match Feeds::open(follow_path, pack, &mut renderer) {
+                    match Feeds::open(follow_path, pack, renderer) {
                         Ok(reopened) => {
-                            feeds = Some(reopened);
-                            holding = [None, None];
-                            last_tick = None;
-                            last_muscle_tick = None;
-                            muscle_vertices.clear();
+                            self.feeds = Some(reopened);
+                            self.holding = [None, None];
+                            self.last_tick = None;
+                            self.last_muscle_tick = None;
+                            self.muscle_vertices.clear();
                             // A publisher that restarted may have kept its generation, so the
                             // scene and the tissue are taken again from whatever it says next,
                             // rather than only when the number moves.
-                            scene_generation = None;
-                            tissue_generation = None;
-                            reopen_commands(&mut commands);
+                            self.scene_generation = None;
+                            self.tissue_generation = None;
+                            reopen_commands(&mut self.commands);
                         }
                         Err(e) => println!("publisher: could not reopen yet: {e}"),
                     }
@@ -711,13 +861,13 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
             // The scenery, once a generation. `set_scene` waits for the device to idle and
             // reallocates, so it is never called on a poll that changed nothing.
-            if let Some(s) = publisher.status.as_ref() {
-                if scene_generation != Some(s.generation) {
-                    scene_generation = Some(s.generation);
-                    ground = s.ground_height as f32;
-                    place = crate::math::placement(ground);
-                    matrices[slots.world] = place;
-                    matrices[slots.scene] = place;
+            if let Some(s) = self.publisher.status.as_ref() {
+                if self.scene_generation != Some(s.generation) {
+                    self.scene_generation = Some(s.generation);
+                    self.ground = s.ground_height as f32;
+                    self.place = crate::math::placement(self.ground);
+                    self.matrices[self.slots.world] = self.place;
+                    self.matrices[self.slots.scene] = self.place;
                     renderer.set_scene(&s.static_boxes)?;
                     println!(
                         "scene: ground at {:.2} m, {} static boxes",
@@ -728,37 +878,41 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
             // The tissue's shape, from the status's table and the bridge's bone order, once a
             // generation -- or when a table first arrives from a publisher that had none.
-            if let (Some(f), Some(s)) = (feeds.as_ref(), publisher.status.as_ref()) {
-                let table_arrived = tissue_shape.is_none() && !s.tissue.discs.is_empty();
-                if tissue_generation != Some(f.generation) || table_arrived {
-                    tissue_generation = Some(f.generation);
+            if let (Some(f), Some(s)) = (self.feeds.as_ref(), self.publisher.status.as_ref()) {
+                let table_arrived = self.tissue_shape.is_none() && !s.tissue.discs.is_empty();
+                if self.tissue_generation != Some(f.generation) || table_arrived {
+                    self.tissue_generation = Some(f.generation);
                     let shape = crate::tissue::TissueShape::new(&s.tissue, &f.bridge.names);
                     renderer.enable_tissue(&shape.indices, shape.vertex_count * 7)?;
-                    tissue_vertices.clear();
+                    self.tissue_vertices.clear();
                     if shape.is_empty() {
-                        tissue_shape = None;
+                        self.tissue_shape = None;
                     } else {
                         println!(
                             "tissue: {} discs and beads, {} bars",
                             s.tissue.discs.len(),
                             s.tissue.bars.len()
                         );
-                        tissue_shape = Some(shape);
+                        self.tissue_shape = Some(shape);
                     }
                 }
             }
         }
+        Ok(())
+    }
 
-        // The newest pose, if there is one and it is newer than the one already applied. Per
-        // ADR-012 this never waits: no frame yet, or one mid-write, means the matrices stand.
-        if let Some(f) = feeds.as_mut() {
+    /// The newest pose, if there is one and it is newer than the one already applied, into the
+    /// bones' matrices and the tissue; and the newest belly rings swept into the muscle tubes. Per
+    /// ADR-012 this never waits: no frame yet, or one mid-write, means the matrices stand.
+    fn apply_newest_pose(&mut self) {
+        if let Some(f) = self.feeds.as_mut() {
             if let Some(frame) = f.bridge.newest() {
-                if last_tick != Some(frame.tick) {
-                    last_tick = Some(frame.tick);
+                if self.last_tick != Some(frame.tick) {
+                    self.last_tick = Some(frame.tick);
                     let b = &f.bridge;
                     let scale = crate::math::scale_matrix(b.dataset_scale as f32);
                     for (i, found) in f.pose_index.iter().enumerate() {
-                        matrices[i] = match found {
+                        self.matrices[i] = match found {
                             Some(j) => {
                                 let p = &frame.pose[j * 7..j * 7 + 7];
                                 let r = &b.rest[j * 7..j * 7 + 7];
@@ -769,83 +923,88 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 let rest_inverse =
                                     crate::math::inverse_pose([r[0], r[1], r[2]], [r[3], r[4], r[5], r[6]]);
                                 crate::math::multiply(
-                                    &place,
+                                    &self.place,
                                     &crate::math::multiply(
                                         &current,
                                         &crate::math::multiply(&rest_inverse, &scale),
                                     ),
                                 )
                             }
-                            None => place,
+                            None => self.place,
                         };
                     }
-                    if let Some(shape) = &tissue_shape {
-                        shape.vertices(&frame.pose, &mut tissue_vertices);
+                    if let Some(shape) = &self.tissue_shape {
+                        shape.vertices(&frame.pose, &mut self.tissue_vertices);
                     }
                 }
             }
             if let Some(m) = f.muscles.as_mut() {
                 if let Some(frame) = m.newest() {
-                    if last_muscle_tick != Some(frame.tick) {
-                        last_muscle_tick = Some(frame.tick);
+                    if self.last_muscle_tick != Some(frame.tick) {
+                        self.last_muscle_tick = Some(frame.tick);
                         let tension: &[f32] =
-                            publisher.status.as_ref().map(|s| s.tension.as_slice()).unwrap_or(&[]);
+                            self.publisher.status.as_ref().map(|s| s.tension.as_slice()).unwrap_or(&[]);
                         crate::geometry::tube_vertices(
                             &frame.rings,
                             m.rings,
                             m.segments,
-                            slots.world as u32,
+                            self.slots.world as u32,
                             tension,
-                            &mut muscle_vertices,
+                            &mut self.muscle_vertices,
                         );
                     }
                 }
             }
         }
+    }
 
-        hands.sync(&session)?;
-
-        // The sticks, each either moving the viewer or, while its hand's ray is on a panel's
-        // face, scrolling that panel: the one stick cannot do both, and a person aiming at a
-        // long tab and pushing the stick wants the tab to move, not the room.
+    /// The sticks, each either moving the viewer or, while its hand's ray is on a panel's face,
+    /// scrolling that panel: the one stick cannot do both, and a person aiming at a long tab and
+    /// pushing the stick wants the tab to move, not the room. And a stick pressed in recentres.
+    fn locomote(
+        &mut self,
+        hands: &Hands,
+        session: &openxr::Session<openxr::Vulkan>,
+        views: &[openxr::View],
+    ) -> Result<Moved> {
         let now = std::time::Instant::now();
-        let dt = (now - last_frame).as_secs_f32().min(0.1);
-        last_frame = now;
+        let dt = (now - self.last_frame).as_secs_f32().min(0.1);
+        self.last_frame = now;
         let head = views[0].pose.position;
         let head = [head.x, head.y, head.z];
         // The stick pressed in, on either hand: back to the start, the panels in front. Before
         // anything this frame is aimed or carried, so all of it is in the recentred world.
         let mut recentred = false;
         for hand in 0..crate::bridge::HANDS {
-            if hands.recentre_pressed(&session, hand)? {
+            if hands.recentre_pressed(session, hand)? {
                 recentred = true;
-                hands.pulse(&session, hand, FIRM_TICK);
+                hands.pulse(session, hand, FIRM_TICK);
             }
         }
         if recentred {
-            for (which, _) in carrying.iter().flatten() {
-                panels[*which].grabbed = false;
+            for (which, _) in self.carrying.iter().flatten() {
+                self.panels[*which].grabbed = false;
             }
             let q = views[0].pose.orientation;
-            recentre(&mut view_point, &mut placements, &mut carrying, head, [q.x, q.y, q.z, q.w]);
+            recentre(&mut self.view_point, &mut self.placements, &mut self.carrying, head, [q.x, q.y, q.z, q.w]);
             // A press under way was aimed through the world as it was; it presses nothing more,
             // and the trigger must be let go and pulled again to press on the panel that has
             // come to meet it.
-            for press in press_on.iter_mut().filter(|p| p.is_some()) {
+            for press in self.press_on.iter_mut().filter(|p| p.is_some()) {
                 *press = Some(PressOn::Air);
             }
             // So is a hold: its target is the hand carried into the world through the viewpoint,
             // and the world has just jumped, which would fling the body after it. A squeeze that
             // is still held takes hold afresh, where the bone now is.
-            let_go_of_everything(feeds.as_mut().map(|f| &mut f.grabs), &mut holding, "recentred");
+            self.let_go("recentred");
             println!("view: recentred");
         }
         let mut scroll = [0.0f32; 2];
         let mut sticks = [[0.0f32; 2]; crate::bridge::HANDS];
         for (hand, stick) in sticks.iter_mut().enumerate() {
-            let (moving, scrolling) = stick_on_panel(hands.thumbstick(&session, hand)?, on_face[hand].is_some(), DEAD_ZONE);
+            let (moving, scrolling) = stick_on_panel(hands.thumbstick(session, hand)?, self.on_face[hand].is_some(), DEAD_ZONE);
             *stick = moving;
-            if let Some(which) = on_face[hand] {
+            if let Some(which) = self.on_face[hand] {
                 scroll[which] = (scroll[which] + scrolling).clamp(-1.0, 1.0);
             }
         }
@@ -862,12 +1021,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             let scale = WALK_SPEED * dt * ((deflection - DEAD_ZONE) / (1.0 - DEAD_ZONE)) / deflection;
             // The step is in the frame of the head, which is of the stage; it is spent on the
             // world, so it is turned there first.
-            let step = view_point.to_world_direction([
+            let step = self.view_point.to_world_direction([
                 (right[0] * stick[0] + forward[0] * stick[1]) * scale,
                 (right[1] * stick[0] + forward[1] * stick[1]) * scale,
                 (right[2] * stick[0] + forward[2] * stick[1]) * scale,
             ]);
-            for (offset, moved) in view_point.offset.iter_mut().zip(step) {
+            for (offset, moved) in self.view_point.offset.iter_mut().zip(step) {
                 *offset += moved;
             }
         }
@@ -876,25 +1035,46 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         // stage -- smoothly, or in steps with snap turn on; forward and back lift and lower.
         // Each axis has its own dead zone, so a stick pushed to turn does not also drift upwards.
         let look = sticks[1];
-        if headset.snap_turn {
-            let by = snap_turn(look[0], &mut snap_armed);
+        if self.headset.snap_turn {
+            let by = snap_turn(look[0], &mut self.snap_armed);
             if by != 0.0 {
-                view_point.turn(by, head);
+                self.view_point.turn(by, head);
             }
         } else {
             let turn = past_dead_zone(look[0], DEAD_ZONE);
             if turn != 0.0 {
-                view_point.turn(turn * TURN_SPEED * dt, head);
+                self.view_point.turn(turn * TURN_SPEED * dt, head);
             }
         }
         let lift = past_dead_zone(look[1], DEAD_ZONE);
         if lift != 0.0 {
-            view_point.offset[1] += lift * LIFT_SPEED * dt;
+            self.view_point.offset[1] += lift * LIFT_SPEED * dt;
         }
-        let shift = view_point.shift();
+        let shift = self.view_point.shift();
+        Ok(Moved { dt, head, shift, scroll })
+    }
+
+    /// The hands and the panels: where each hand is drawn, what its ray points at and its trigger
+    /// presses or carries, what its squeeze grabs; then both panels laid out afresh, their
+    /// textures applied before the draw that samples them and what was pressed sent on. The grab
+    /// intents come back to be written, and the panels come back in the order to draw them.
+    #[allow(clippy::too_many_arguments)]
+    fn hands_and_panels(
+        &mut self,
+        pack: &crate::pack::Pack,
+        follow: Option<&std::path::Path>,
+        hands: &Hands,
+        session: &openxr::Session<openxr::Vulkan>,
+        stage: &openxr::Space,
+        time: openxr::Time,
+        moved: &Moved,
+        renderer: &mut crate::render::Renderer,
+    ) -> Result<HandsAndPanels> {
+        let Moved { dt, head, shift, scroll } = *moved;
+        let controller_scale = crate::math::scale_matrix(1.0);
         // The overlays as the studio has them; a publisher that says nothing shows everything.
         let overlay = |name: &str| {
-            publisher
+            self.publisher
                 .status
                 .as_ref()
                 .and_then(|s| s.overlays.get(name).copied())
@@ -905,26 +1085,27 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         // draws; following either box drew tubes for a desktop showing paths with volumes off.
         let show_muscles = overlay("muscleVolumes");
         let show_tissue = overlay("tissue");
-        matrices[slots.stage] =
+        self.matrices[self.slots.stage] =
             crate::math::scale_matrix(if overlay("grid") { 1.0 } else { 0.0 });
         // What is drawn: the world's slots through the shift, the hands' slots as they are.
-        let mut drawn = matrices.clone();
+        let mut drawn = self.matrices.clone();
         for (slot, m) in drawn.iter_mut().enumerate() {
-            if !slots.is_hand(slot) {
-                *m = crate::math::multiply(&shift, &matrices[slot]);
+            if !self.slots.is_hand(slot) {
+                *m = crate::math::multiply(&shift, &self.matrices[slot]);
             }
         }
         // The hands: located in the stage like the eyes, drawn as cubes at their grips, and asked
         // whether they are squeezing. A hand the runtime cannot place this frame keeps its last
         // cube and cannot begin a grab, but a grab already begun continues at the last target.
+        let mut grabs: [Option<crate::bridge::GrabIntent>; crate::bridge::HANDS] = [None, None];
         let mut pointers = [crate::panel::Pointer::default(); 2];
         let mut pointer_candidate: [Option<(usize, egui::Pos2, bool)>; 2] = [None, None];
         for hand in 0..crate::bridge::HANDS {
-            let slot = slots.controller(hand);
-            let located = hands.locate(&hands.grip_spaces[hand], &stage, state.predicted_display_time)?;
+            let slot = self.slots.controller(hand);
+            let located = hands.locate(&hands.grip_spaces[hand], stage, time)?;
             if let Some((position, orientation)) = located {
-                if !hand_seen[hand] {
-                    hand_seen[hand] = true;
+                if !self.hand_seen[hand] {
+                    self.hand_seen[hand] = true;
                     println!("hand {}: tracked", ["left", "right"][hand]);
                 }
                 drawn[slot] = crate::math::multiply(
@@ -934,19 +1115,19 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             }
             // Where the aim ray meets the panel, if it does: a mark there, and a candidate for
             // being the pointer.
-            let marker = slots.marker(hand);
+            let marker = self.slots.marker(hand);
             drawn[marker] = crate::math::scale_matrix(0.0);
-            let pull = hands.trigger(&session, hand)?;
-            let was_down = trigger_down[hand];
-            trigger_down[hand] = if was_down { pull > 0.25 } else { pull > 0.6 };
-            let pressed = trigger_down[hand];
-            let aimed = hands.locate(&hands.aim_spaces[hand], &stage, state.predicted_display_time)?;
+            let pull = hands.trigger(session, hand)?;
+            let was_down = self.trigger_down[hand];
+            self.trigger_down[hand] = if was_down { pull > 0.25 } else { pull > 0.6 };
+            let pressed = self.trigger_down[hand];
+            let aimed = hands.locate(&hands.aim_spaces[hand], stage, time)?;
             // The panels are of the world; the ray is of the stage. Carry the ray over, turn
             // and all: a viewer who has turned no longer points where the stage says.
             let ray = aimed.map(|(position, orientation)| {
-                let q = view_point.to_world_rotation(orientation);
+                let q = self.view_point.to_world_rotation(orientation);
                 (
-                    view_point.to_world(position),
+                    self.view_point.to_world(position),
                     q,
                     crate::math::rotate([0.0, 0.0, -1.0], q),
                 )
@@ -956,25 +1137,25 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             let mut reach: Option<f32> = None;
             // A hand carrying a panel keeps carrying it while the trigger is down, wherever it
             // points; let go, the panel stays.
-            on_face[hand] = None;
-            if let Some((which, held)) = carrying[hand] {
+            self.on_face[hand] = None;
+            if let Some((which, held)) = self.carrying[hand] {
                 match ray {
                     Some((from, q, forward)) if pressed => {
-                        placements[which] = placements[which].carried(&held, from, q);
-                        reach = placements[which].hit(from, forward).map(|(t, _)| t);
+                        self.placements[which] = self.placements[which].carried(&held, from, q);
+                        reach = self.placements[which].hit(from, forward).map(|(t, _)| t);
                     }
                     Some(_) => {
-                        carrying[hand] = None;
-                        press_on[hand] = None;
-                        panels[which].grabbed = false;
-                        hands.pulse(&session, hand, FIRM_TICK);
+                        self.carrying[hand] = None;
+                        self.press_on[hand] = None;
+                        self.panels[which].grabbed = false;
+                        hands.pulse(session, hand, FIRM_TICK);
                         println!("hand {}: put the panel down", ["left", "right"][hand]);
                     }
                     None => {}
                 }
             } else {
                 // A hand that is holding a bone is busy; its ray is not a pointer.
-                let busy = holding[hand].is_some();
+                let busy = self.holding[hand].is_some();
                 let pointing = ray.map(|(from, _, forward)| (from, forward));
                 // A mark where the ray meets a panel, in the stage, and the ray drawn as far as
                 // it. The distance is the same in the stage as in the world, which differ only by
@@ -983,24 +1164,24 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 // edge, whose mark waits at the edge, the ray still stops about the panel's
                 // depth instead of running on through it.
                 let mut mark = |which: usize, at: egui::Pos2| {
-                    let in_stage = view_point.to_stage(placements[which].to_world(at));
+                    let in_stage = self.view_point.to_stage(self.placements[which].to_world(at));
                     if let Some((from, _)) = aimed {
                         reach = Some(distance(from, in_stage));
                     }
                     crate::math::pose_matrix(in_stage, [0.0, 0.0, 0.0, 1.0])
                 };
-                match aim(&placements, pointing, pressed, busy, &mut press_on[hand]) {
+                match aim(&self.placements, pointing, pressed, busy, &mut self.press_on[hand]) {
                     Aim::Face { which, at, pressing } => {
                         drawn[marker] = mark(which, at);
-                        on_face[hand] = Some(which);
+                        self.on_face[hand] = Some(which);
                         // A tick as a press lands on a face: the trigger's travel says nothing
                         // about whether the button under the mark took it.
                         if pressing && !was_down {
-                            hands.pulse(&session, hand, PRESS_TICK);
+                            hands.pulse(session, hand, PRESS_TICK);
                         }
                         // The hand that pressed keeps the panel; otherwise the first hand on it,
                         // unless a later one is pressing and the first only pointing.
-                        let keep = pointer_hand[which] == Some(hand);
+                        let keep = self.pointer_hand[which] == Some(hand);
                         let outranks = pointer_candidate[which].map_or(true, |(_, _, other)| pressing && !other);
                         if keep || outranks {
                             pointer_candidate[which] = Some((hand, at, pressing));
@@ -1008,12 +1189,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     }
                     Aim::Strip { which, at, take } => {
                         drawn[marker] = mark(which, at);
-                        let already_carried = carrying.iter().flatten().any(|(w, _)| *w == which);
+                        let already_carried = self.carrying.iter().flatten().any(|(w, _)| *w == which);
                         if take && !already_carried {
                             if let Some((from, q, _)) = ray {
-                                carrying[hand] = Some((which, placements[which].held_by(from, q)));
-                                panels[which].grabbed = true;
-                                hands.pulse(&session, hand, FIRM_TICK);
+                                self.carrying[hand] = Some((which, self.placements[which].held_by(from, q)));
+                                self.panels[which].grabbed = true;
+                                hands.pulse(session, hand, FIRM_TICK);
                                 println!("hand {}: took the panel", ["left", "right"][hand]);
                             }
                         }
@@ -1024,17 +1205,17 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
             // The ray, from the aim pose in the stage, where the hands live. None for a hand the
             // runtime cannot aim this frame, and none for a hand holding a bone, which is not a
             // pointer and would only draw a line through the body it is holding.
-            drawn[slots.ray(hand)] = match aimed {
-                Some((position, orientation)) if holding[hand].is_none() => crate::geometry::ray_matrix(
+            drawn[self.slots.ray(hand)] = match aimed {
+                Some((position, orientation)) if self.holding[hand].is_none() => crate::geometry::ray_matrix(
                     position,
                     orientation,
                     reach.unwrap_or(crate::geometry::RAY_REACH),
                 ),
                 _ => crate::math::scale_matrix(0.0),
             };
-            let Some(f) = feeds.as_mut() else { continue };
-            let squeezing = hands.squeezing(&session, hand)?;
-            let intent = match (&holding[hand], squeezing, located) {
+            let Some(f) = self.feeds.as_ref() else { continue };
+            let squeezing = hands.squeezing(session, hand)?;
+            let intent = match (&self.holding[hand], squeezing, located) {
                 (None, true, Some((hand_at, hand_q))) => {
                     // A grab begins: the nearest point on the nearest bone's surface, if any is
                     // within reach. Nothing in reach is a squeeze in empty air, which sends
@@ -1046,12 +1227,12 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 ["left", "right"][hand],
                                 pack.bones[pack_bone].id
                             );
-                            hands.pulse(&session, hand, FIRM_TICK);
+                            hands.pulse(session, hand, FIRM_TICK);
                             // A hand holding a bone draws no ray, from this frame on.
-                            drawn[slots.ray(hand)] = crate::math::scale_matrix(0.0);
+                            drawn[self.slots.ray(hand)] = crate::math::scale_matrix(0.0);
                             // The surface is in the stage; the simulation wants the world.
-                            let point = crate::math::unplace(view_point.to_world(surface), ground);
-                            holding[hand] = Some(Hold {
+                            let point = crate::math::unplace(self.view_point.to_world(surface), self.ground);
+                            self.holding[hand] = Some(Hold {
                                 pose_bone,
                                 point,
                                 offset: [
@@ -1068,7 +1249,7 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                                 target: point,
                                 strength: 1.0,
                                 rotation: crate::math::unplace_rotation(
-                                    view_point.to_world_rotation(hand_q),
+                                    self.view_point.to_world_rotation(hand_q),
                                 ),
                             }
                         }
@@ -1087,22 +1268,22 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                             let carried = crate::math::rotate(hold.offset, delta);
                             (
                                 crate::math::unplace(
-                                    view_point.to_world([
+                                    self.view_point.to_world([
                                         hand_at[0] + carried[0],
                                         hand_at[1] + carried[1],
                                         hand_at[2] + carried[2],
                                     ]),
-                                    ground,
+                                    self.ground,
                                 ),
                                 crate::math::unplace_rotation(
-                                    view_point.to_world_rotation(hand_q),
+                                    self.view_point.to_world_rotation(hand_q),
                                 ),
                             )
                         }
                         None => (
                             hold.point,
                             crate::math::unplace_rotation(
-                                view_point.to_world_rotation(hold.hand_q),
+                                self.view_point.to_world_rotation(hold.hand_q),
                             ),
                         ),
                     };
@@ -1117,43 +1298,43 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 }
                 (Some(_), false, _) => {
                     println!("hand {}: let go", ["left", "right"][hand]);
-                    hands.pulse(&session, hand, FIRM_TICK);
-                    holding[hand] = None;
+                    hands.pulse(session, hand, FIRM_TICK);
+                    self.holding[hand] = None;
                     crate::bridge::GrabIntent::default()
                 }
                 _ => crate::bridge::GrabIntent::default(),
             };
-            f.grabs.publish(hand, &intent);
+            grabs[hand] = Some(intent);
         }
         for which in 0..2 {
             match pointer_candidate[which] {
                 Some((hand, at, pressed)) => {
-                    pointer_hand[which] = if pressed { Some(hand) } else { None };
+                    self.pointer_hand[which] = if pressed { Some(hand) } else { None };
                     pointers[which] = crate::panel::Pointer {
                         at: Some(at),
                         pressed,
                         scroll: scroll[which],
                     };
                 }
-                None => pointer_hand[which] = None,
+                None => self.pointer_hand[which] = None,
             }
         }
 
         // How lively the publisher is: how long since the status last changed and since a new
         // pose arrived, which the panels say in numbers and, past a threshold, in words.
-        let status_age = publisher.age();
-        let pose_age = feeds.as_ref().map(|f| f.bridge.stale_for());
+        let status_age = self.publisher.age();
+        let pose_age = self.feeds.as_ref().map(|f| f.bridge.stale_for());
         let alive = liveness(
             status_age,
             pose_age,
-            publisher.status.as_ref().is_some_and(|s| s.paused),
+            self.publisher.status.as_ref().is_some_and(|s| s.paused),
         );
-        said = said.report(alive.as_ref());
+        self.said = self.said.report(alive.as_ref());
         let status_age_text = match status_age {
             Some(age) => format!("status {:.1} s old", age.as_secs_f64()),
             None => "no status".to_string(),
         };
-        let feeds_line = match (&feeds, follow) {
+        let feeds_line = match (&self.feeds, follow) {
             (Some(f), _) => format!(
                 "{} of {} bones posed, {}, pose {:.0} ms old, {status_age_text}",
                 f.pose_index.iter().filter(|m| m.is_some()).count(),
@@ -1169,28 +1350,28 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         };
         // The panels, laid out afresh; their textures applied before the draw that samples them,
         // and what was pressed sent on.
-        let mut panel_meshes = Vec::with_capacity(2);
-        for (which, panel) in panels.iter_mut().enumerate() {
+        let mut meshes: [Vec<crate::panel::Mesh>; 2] = [Vec::new(), Vec::new()];
+        for (which, panel) in self.panels.iter_mut().enumerate() {
             let frame = panel.run(
-                publisher.status.as_ref(),
+                self.publisher.status.as_ref(),
                 pointers[which],
                 dt,
                 &feeds_line,
                 alive.as_ref(),
-                publisher.error.as_deref(),
-                &headset,
+                self.publisher.error.as_deref(),
+                &self.headset,
             );
             // The viewer's own settings, kept here and never sent: the publisher has no say in
             // how the headset turns.
             if let Some(crate::panel::LocalAction::SnapTurn(on)) = frame.local {
-                headset.snap_turn = on;
-                snap_armed = true;
+                self.headset.snap_turn = on;
+                self.snap_armed = true;
                 println!("view: snap turn {}", if on { "on" } else { "off" });
             }
             if !frame.textures.is_empty() {
                 renderer.update_panel_textures(&frame.textures)?;
             }
-            if let Some(writer) = commands.as_mut() {
+            if let Some(writer) = self.commands.as_mut() {
                 for command in &frame.commands {
                     println!("panel: {command:?}");
                     // A press that cannot be written is lost, and said so; it is no reason to
@@ -1200,33 +1381,65 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     }
                 }
             }
-            panel_meshes.push(frame.meshes);
+            meshes[which] = frame.meshes;
         }
         // Farther first: the panels are blended over what is behind them and do not write depth,
         // so the nearer must be drawn last to be seen on top where they overlap -- as a panel
         // carried in front of the other is pointed at, now, by being the nearer.
-        let panel_draws: Vec<crate::render::PanelDraw> = back_to_front(&placements, view_point.to_world(head))
-            .into_iter()
-            .map(|which| crate::render::PanelDraw {
-                model: crate::math::multiply(&shift, &placements[which].model()),
-                meshes: &panel_meshes[which],
-            })
-            .collect();
+        let order = back_to_front(&self.placements, self.view_point.to_world(head))
+            .map(|which| (which, crate::math::multiply(&shift, &self.placements[which].model())));
+        Ok(HandsAndPanels {
+            grabs,
+            drawn,
+            meshes,
+            order,
+            show_muscles,
+            show_tissue,
+        })
+    }
+
+    /// Write each hand's grab intent to the grab channel, for the hands that have one.
+    fn publish_grabs(&mut self, grabs: &[Option<crate::bridge::GrabIntent>; crate::bridge::HANDS]) {
+        if let Some(f) = self.feeds.as_mut() {
+            for (hand, intent) in grabs.iter().enumerate() {
+                if let Some(intent) = intent {
+                    f.grabs.publish(hand, intent);
+                }
+            }
+        }
+    }
+
+    /// Draw the frame into the next swapchain image, hand it to the compositor as one projection
+    /// layer for both eyes, and every two seconds say the rate and the worst CPU frame.
+    #[allow(clippy::too_many_arguments)]
+    fn submit(
+        &mut self,
+        swapchain: &mut openxr::Swapchain<openxr::Vulkan>,
+        frame_stream: &mut openxr::FrameStream<openxr::Vulkan>,
+        renderer: &crate::render::Renderer,
+        stage: &openxr::Space,
+        views: &[openxr::View],
+        time: openxr::Time,
+        extent: vk::Extent2D,
+        frame: &HandsAndPanels,
+        cpu_started: std::time::Instant,
+    ) -> Result<()> {
+        let panel_draws = frame.panel_draws();
 
         let image = swapchain.acquire_image()?;
         swapchain.wait_image(openxr::Duration::INFINITE)?;
         renderer.draw(
             image as usize,
-            &crate::math::view_projections(&views, 0.05, 50.0),
-            Some(drawn.as_slice()),
-            if muscle_vertices.is_empty() || !show_muscles { None } else { Some(muscle_vertices.as_slice()) },
-            if tissue_vertices.is_empty() || !show_tissue { None } else { Some(tissue_vertices.as_slice()) },
+            &crate::math::view_projections(views, 0.05, 50.0),
+            Some(frame.drawn.as_slice()),
+            if self.muscle_vertices.is_empty() || !frame.show_muscles { None } else { Some(self.muscle_vertices.as_slice()) },
+            if self.tissue_vertices.is_empty() || !frame.show_tissue { None } else { Some(self.tissue_vertices.as_slice()) },
             &panel_draws,
         )?;
         swapchain.release_image()?;
         let cpu_ms = cpu_started.elapsed().as_secs_f64() * 1000.0;
-        worst_cpu = worst_cpu.max(cpu_ms);
-        window_worst = window_worst.max(cpu_ms);
+        self.worst_cpu = self.worst_cpu.max(cpu_ms);
+        self.window_worst = self.window_worst.max(cpu_ms);
 
         let rect = openxr::Rect2Di {
             offset: openxr::Offset2Di { x: 0, y: 0 },
@@ -1242,61 +1455,53 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                     .fov(views[eye].fov)
                     .sub_image(
                         openxr::SwapchainSubImage::new()
-                            .swapchain(&swapchain)
+                            .swapchain(swapchain)
                             .image_array_index(eye as u32)
                             .image_rect(rect),
                     )
             })
             .collect();
         frame_stream.end(
-            state.predicted_display_time,
+            time,
             openxr::EnvironmentBlendMode::OPAQUE,
             &[&openxr::CompositionLayerProjection::new()
-                .space(&stage)
+                .space(stage)
                 .views(&eyes)],
         )?;
-        frames += 1;
-        window_frames += 1;
-        let window = window_started.elapsed().as_secs_f64();
+        self.frames += 1;
+        self.window_frames += 1;
+        let window = self.window_started.elapsed().as_secs_f64();
         if window >= 2.0 {
-            let pose_age = feeds
+            let pose_age = self
+                .feeds
                 .as_ref()
                 .map(|f| format!(", pose {:.0} ms old", f.bridge.stale_for().as_secs_f64() * 1000.0))
                 .unwrap_or_default();
-            let held = holding
+            let held = self
+                .holding
                 .iter()
                 .flatten()
-                .map(|h| feeds.as_ref().map(|f| f.bridge.names[h.pose_bone].clone()).unwrap_or_default())
+                .map(|h| self.feeds.as_ref().map(|f| f.bridge.names[h.pose_bone].clone()).unwrap_or_default())
                 .collect::<Vec<_>>()
                 .join(" and ");
             let held = if held.is_empty() { held } else { format!(", holding {held}") };
-            let bellies = feeds
+            let bellies = self
+                .feeds
                 .as_ref()
                 .and_then(|f| f.muscles.as_ref())
                 .map(|m| format!(", {} muscle frames", m.published()))
                 .unwrap_or_default();
             println!(
-                "  {:.1} Hz, worst CPU frame {window_worst:.2} ms{pose_age}{bellies}{held}",
-                window_frames as f64 / window
+                "  {:.1} Hz, worst CPU frame {:.2} ms{pose_age}{bellies}{held}",
+                self.window_frames as f64 / window,
+                self.window_worst
             );
-            window_started = std::time::Instant::now();
-            window_frames = 0;
-            window_worst = 0.0;
+            self.window_started = std::time::Instant::now();
+            self.window_frames = 0;
+            self.window_worst = 0.0;
         }
+        Ok(())
     }
-
-    let_go_of_everything(
-        feeds.as_mut().map(|f| &mut f.grabs),
-        &mut holding,
-        "the viewer is done",
-    );
-    renderer.wait_idle();
-    println!(
-        "{frames} frames in {:.1} s -- {:.1} Hz, worst CPU frame {worst_cpu:.2} ms",
-        started.elapsed().as_secs_f32(),
-        frames as f32 / started.elapsed().as_secs_f32()
-    );
-    Ok(())
 }
 
 /// The panels in the order to draw them: the farthest from the eye first. A fixed-size sort, so
