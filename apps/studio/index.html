@@ -35,7 +35,7 @@
           <span class="dot"></span><span id="mode-label">Own run</span>
         </div>
         <div class="files buttons">
-          <button type="button" id="save" title="Save the settings and, when running, the whole state of the run">Save session</button>
+          <button type="button" id="save" title="Save the settings that define a run &mdash; body, profile, scenario and its values, joints, gravity and floor, grab strength, muscles and their drive, the cord, the step and output rates, the capture budget, and the Brain panel's authority and chosen checkpoint &mdash; and, during a run, its state, so Load carries on from the saved tick. Not the recording, the camera or the overlays">Save session</button>
           <button type="button" id="load" title="Load a session file">Load session</button>
           <button type="button" id="connect-vr" hidden title="Launch the OpenXR viewer on this run: the headset shows this body, the controllers grab it, and its panel drives these controls">Connect VR viewer</button>
           <input type="file" id="load-file" accept="application/json" hidden />
@@ -100,6 +100,7 @@
                 <input type="range" id="sex" min="0" max="1" step="0.01" value="0.5" />
                 <div class="endpoints"><span>female-typical</span><span>male-typical</span></div>
                 <p class="note live">Changes the segment mass distribution (de Leva) and the ANSUR stature and mass behind the percentile; not bone shape or placement yet.</p>
+                <p class="note live">Limb proportions are not modelled yet: the measured skeleton is one subject scaled by stature.</p>
                 <p class="note" id="sex-note"></p>
               </div>
               <div class="control">
@@ -117,24 +118,6 @@
                 </label>
                 <input type="range" id="percentile" min="0.01" max="0.99" step="0.01" value="0.5" />
                 <p class="note">Sets stature and mass together from the distribution for the current blend; reads back where the current stature sits.</p>
-              </div>
-            </details>
-            <details class="panel">
-              <summary>Proportions</summary>
-              <p class="note live">Not applied yet: the measured skeleton is one subject scaled by stature. Per-segment lengths need landmark-derived joint frames (M1.2/M1.3).</p>
-              <div class="control">
-                <label for="crural">Crural index <output id="crural-value">1.00</output></label>
-                <input type="range" id="crural" min="0.85" max="1.15" step="0.005" value="1.004" disabled />
-                <p class="note">Shank length relative to thigh.</p>
-              </div>
-              <div class="control">
-                <label for="brachial">Brachial index <output id="brachial-value">0.78</output></label>
-                <input type="range" id="brachial" min="0.68" max="0.9" step="0.005" value="0.785" disabled />
-                <p class="note">Forearm length relative to upper arm.</p>
-              </div>
-              <div class="control">
-                <label for="legLength">Relative leg length <output id="legLength-value">1.00</output></label>
-                <input type="range" id="legLength" min="0.9" max="1.1" step="0.005" value="1" disabled />
               </div>
             </details>
             <details class="panel" open>
@@ -183,8 +166,8 @@
             <details class="panel" open>
               <summary>Time</summary>
               <div class="control">
-                <label for="stepsPerSecond">Simulation steps per second <output id="stepsPerSecond-value">500</output></label>
-                <input type="range" id="stepsPerSecond" min="60" max="2000" step="20" value="500" />
+                <label for="stepsPerSecond">Simulation steps per second <output id="stepsPerSecond-value">1000</output></label>
+                <input type="range" id="stepsPerSecond" min="60" max="2000" step="20" value="1000" />
                 <label for="outputFramerate">Output frame rate <output id="outputFramerate-value">60 fps</output></label>
                 <input type="range" id="outputFramerate" min="1" max="240" step="1" value="60" />
                 <p class="note live" id="rate-note"></p>
@@ -198,8 +181,9 @@
                 whatever the machine was doing: every step is taken and every step is captured. A slow
                 machine takes longer in wall-clock seconds and produces the identical run. Playback moves
                 one output frame per display refresh, so 60 fps output on a 60 Hz display is life speed
-                and 24 is two and a half times life; neither changes the export. Changing the step rate
-                starts a new run, because the timestep is fixed for the life of one.</p>
+                and 24 is two and a half times life; neither changes the export. A new step rate is used
+                from the next run; the one running keeps its own, because the timestep is fixed for the
+                life of a run. Left alone, the slider follows the body profile's own rate.</p>
               </div>
             </details>
             <details class="panel" open>
@@ -226,6 +210,10 @@
             </details>
             <details class="panel" open>
               <summary>Run</summary>
+              <div class="note live" id="pending-changes" hidden>
+                Changed since this run started: <span id="pending-changes-list"></span>.
+                <button type="button" id="pending-restart" title="Start a new run with the settings as they are now; this run and its recording are thrown away">Restart to apply</button>
+              </div>
               <p class="note">Start begins a run, or carries one on from wherever it was left; Pause stops
               computing and leaves everything that has been computed where it is. Reset takes the body
               back to the pose it started in and throws the recording away. They live in the top bar.</p>
@@ -589,8 +577,12 @@
             </details>
             <details class="panel" open>
               <summary>Session</summary>
-              <p class="note">Save and Load live in the top bar. A session holds every setting and,
-              when a run is going, the whole state of the run.</p>
+              <p class="note">Save and Load live in the top bar. A session holds the settings that
+              define a run &mdash; the body, the profile, the scenario and its values, the joints,
+              gravity and the floor, the grab strength, the muscles and their drive, the cord, the
+              step and output rates, the capture budget, and the Brain panel's authority and chosen
+              checkpoint, by name &mdash; and, when a run is going, its state, so Load carries on from
+              the tick it was saved at. It does not hold the recording, the camera or the overlays.</p>
             </details>
           </section>
 
