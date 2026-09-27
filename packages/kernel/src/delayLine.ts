@@ -52,9 +52,14 @@ export class DelayLine {
     return this.#filled;
   }
 
-  /** Record the current value. Copies; the source may be reused immediately. */
+  /**
+   * Record the current value. Copies; the source may be reused immediately.
+   *
+   * @stepPath
+   */
   push(value: ArrayLike<number>): void {
     if (value.length !== this.#width) {
+      // allocation-ok: error path; a push of the wrong width is a wiring fault, not a tick.
       throw new Error(`DelayLine expects ${this.#width} elements per push, got ${value.length}.`);
     }
     const base = this.#head * this.#width;
@@ -76,12 +81,16 @@ export class DelayLine {
    * The answer is a number rather than a `{ requested, available }` pair because this is called
    * every tick from inside a module's step, and an object per call is an allocation per tick. The
    * caller already knows what it requested.
+   *
+   * @stepPath
    */
   read(delayTicks: number, out: Float64Array): number {
     if (!Number.isInteger(delayTicks) || delayTicks < 0 || delayTicks > this.maxDelayTicks) {
+      // allocation-ok: error path; a read this far out of range ends the run.
       throw new Error(`Delay ${delayTicks} is outside 0..${this.maxDelayTicks}.`);
     }
     if (out.length !== this.#width) {
+      // allocation-ok: error path, as above.
       throw new Error(`Output needs ${this.#width} elements, got ${out.length}.`);
     }
     if (this.#filled === 0) {

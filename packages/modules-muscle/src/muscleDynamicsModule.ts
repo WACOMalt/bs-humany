@@ -62,6 +62,8 @@ import {
   FIBER_LENGTH_MAXIMUM,
   FIBER_LENGTH_MINIMUM,
   type MusculotendonParameters,
+  createFiberSolution,
+  createRigidTendonSolution,
   equilibriumFiberLength,
   solveEquilibrium,
   solveRigidTendon,
@@ -130,9 +132,10 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
   /**
    * Scratch reused every tick.
    *
-   * `solveEquilibrium` takes a parameter object and a state object. Building either in `step`
-   * would be an allocation per unit per tick -- eighty muscles at 500 Hz is forty thousand
-   * objects a second, all immediately garbage. These two are mutated in place instead.
+   * `solveEquilibrium` takes a parameter object and a state object and writes a solution object.
+   * Building any of them in `step` would be an allocation per unit per tick -- eighty muscles at
+   * 500 Hz is forty thousand objects a second, all immediately garbage. These are mutated in place
+   * instead.
    */
   private readonly scratchParameters: {
     maxIsometricForce: number;
@@ -145,6 +148,14 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
   private readonly scratchState: { activation: number; fiberLength: number };
   /** Reused by the overshoot guard, which solves the equilibrium again at the step's far end. */
   private readonly scratchOvershoot = { activation: 0, fiberLength: 1 };
+  /** The elastic unit's solution this tick, read after the overshoot guard has run. */
+  private readonly scratchSolution = createFiberSolution();
+  /**
+   * What the overshoot guard's own solves write into. Its own, because `scratchSolution` still
+   * holds the tendon force this tick publishes while the guard is working.
+   */
+  private readonly scratchOvershootSolution = createFiberSolution();
+  private readonly scratchRigid = createRigidTendonSolution();
   private readonly scratchActivation: { activationTime: number; deactivationTime: number };
 
   private length: Float64Array | undefined;
@@ -404,6 +415,7 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
           unitLength,
           (pathVelocity?.[i] as number) ?? 0,
           parameters as MusculotendonParameters,
+          this.scratchRigid,
         );
         fiberNormalised = rigidSolution.fiberLength;
         fiberVelocity = rigidSolution.fiberVelocity;
@@ -420,7 +432,12 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
           fiberNormalised > FIBER_LENGTH_MAXIMUM;
         this.fiberLength[i] = fiberNormalised;
       } else {
-        const solution = solveEquilibrium(state, unitLength, parameters as MusculotendonParameters);
+        const solution = solveEquilibrium(
+          state,
+          unitLength,
+          parameters as MusculotendonParameters,
+          this.scratchSolution,
+        );
         // Semi-implicit: the fiber advances on the activation this tick produced, not last tick's.
         // And it is not allowed to end the tick on the far side of the length where the forces
         // balance: a stiff tendon puts that length a tenth of a millimetre away, a tick's worth of
@@ -434,6 +451,7 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
           parameters as MusculotendonParameters,
           solution.fiberVelocity,
           this.scratchOvershoot,
+          this.scratchOvershootSolution,
         );
         // Fiber lengths outside the range the muscle model's curves are fitted over are held at
         // its edge rather than left to diverge, and the tick is flagged. The flag has to be read
@@ -495,7 +513,9 @@ export class MuscleDynamicsModule implements SimModule, Stateful {
       let dy = 0;
       let dz = 0;
       // Toward the previous point, and toward the next: a unit vector for each neighbour there is.
-      for (const step of [-1, 1]) {
+      // Counted rather than iterated over `[-1, 1]`, which would make that array every point of
+      // every loaded unit every tick; the order is the same, previous first.
+      for (let step = -1; step <= 1; step += 2) {
         const other = i + step;
         if (other < 0 || other >= points) continue;
         const to = 3 * (from + other);
