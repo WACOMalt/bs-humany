@@ -33,15 +33,19 @@
  * the data directory -- `~/.local/share/bs-humany/policies/<name>.json` on Linux, and the
  * equivalent elsewhere -- whenever it improves, and a line a generation goes to
  * `<data>/runs/<name>-<started>.jsonl`. `pnpm train:where` prints the paths and the recipes.
+ *
+ * A run that cannot go on stops and says why, with a non-zero exit, rather than waiting: a body
+ * that cannot be built is named in a line, and an episode that throws or a worker that dies ends
+ * the run with the episode and its seed, and the worker's stack under them. Everything up to the
+ * last finished generation is kept, so `--resume` carries on from there once it is fixed.
  */
 
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Worker } from 'node:worker_threads';
 import { createJiti } from 'jiti';
-import { TRAIN_FLAGS, formatHelp, parse } from './flags.mjs';
+import { REFLEX_FLAGS, formatHelp, parse, trainFlags } from './flags.mjs';
 import { dataHome, runsDir as runsHome, seedFromRepository } from './home.mjs';
 
 // When the dashboard pipes this process and exits first, a write to the closed pipe raises
@@ -57,6 +61,15 @@ const refuse = (text) => {
   console.error(`train-nerves: ${text}`);
   process.exit(1);
 };
+
+// The recipe module: every default, limit and rule a recipe is held to, in one place the
+// dashboard and the studio read too. It loads nothing that runs -- no MuJoCo, no kernel -- so it
+// is here before the flags are read, and a refused run is still refused at once.
+const jiti = createJiti(import.meta.url);
+const RECIPE = await jiti.import(join(ROOT, 'tools/train/src/recipe.ts'));
+const { rigOptionsFor, defaultRecipe, checkRecipe, reflexWithFlags, DEFAULT_NOISE, NO_REFLEX } =
+  RECIPE;
+const TRAIN_FLAGS = trainFlags(RECIPE);
 
 /**
  * Every flag, read once, before anything else happens.
@@ -117,34 +130,6 @@ if (flags.recipe !== undefined) {
   }
 }
 
-const jiti = createJiti(import.meta.url);
-const { rigOptionsFor, defaultRecipe, DEFAULT_NOISE, DEFAULT_REFLEX, NO_REFLEX } =
-  await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
-const { train, describeResult, formatRemaining } = await jiti.import(
-  join(ROOT, 'tools/train/src/trainer.ts'),
-);
-
-/** The fields this script reads from a recipe, which a hand-edited one may have lost. */
-function recipeProblems(r) {
-  if (r === null || typeof r !== 'object' || Array.isArray(r)) return ['it is not an object'];
-  const wrong = [];
-  if (typeof r.name !== 'string' || !/^[\w.-]+$/.test(r.name)) wrong.push('name');
-  if (typeof r.task !== 'string' || r.task === '') wrong.push('task');
-  if (typeof r.profile !== 'string' || r.profile === '') wrong.push('profile');
-  if (typeof r.feedforward?.kind !== 'string') wrong.push('feedforward');
-  if (typeof r.authority !== 'number') wrong.push('authority');
-  return wrong.length ? [`${wrong.join(', ')} missing or not what a recipe holds`] : [];
-}
-
-/** The reference stand the flags describe, refused in a sentence if the task is not one. */
-function reference(task, profile, authority) {
-  try {
-    return defaultRecipe(task, profile, authority);
-  } catch (error) {
-    return refuse(error instanceof Error ? error.message : String(error));
-  }
-}
-
 /** A policy or centre file's own recipe, when it has one, without the timescale it was run at. */
 function savedRecipe(path) {
   if (!existsSync(path)) return { found: false };
@@ -164,7 +149,9 @@ const say = (text) => (flags['print-recipe'] ? console.error(text) : console.log
 /**
  * What is trained, in what: the recipe file; or, resuming without one, the recipe the checkpoint
  * was saved with, so a resume continues what it was rather than whatever the flags default to;
- * or the reference stand the flags describe.
+ * or the reference stand the flags describe. The task and the body the flags name have already
+ * been held to the recipe module's lists by the table, so the reference stand is never asked for
+ * a task it does not have.
  */
 let recipe;
 let cordSource;
@@ -180,8 +167,9 @@ if (flags.recipe !== undefined) {
   } catch (error) {
     refuse(`${flags.recipe} is not JSON: ${error instanceof Error ? error.message : error}`);
   }
-  const wrong = recipeProblems(recipe);
-  if (wrong.length) refuse(`${flags.recipe} is not a recipe: ${wrong.join('; ')}`);
+  // The same rules the dashboard's recipes and the studio's are read by, all of them said at once.
+  const wrong = checkRecipe(recipe);
+  if (wrong.length) refuse(`${flags.recipe} is not a recipe:\n  ${wrong.join('\n  ')}`);
   cordSource = 'recipe';
 } else if (flags.resume) {
   const name = flags.task;
@@ -196,14 +184,14 @@ if (flags.recipe !== undefined) {
     if (given.has('profile')) recipe.profile = flags.profile;
     cordSource = 'checkpoint';
   } else {
-    recipe = reference(flags.task, flags.profile, flags.authority);
+    recipe = defaultRecipe(flags.task, flags.profile, flags.authority);
     if (fromPolicy.found || fromCentre.found) {
       say('  the saved checkpoint records no recipe; resuming under the reference stand');
     }
     cordSource = 'default';
   }
 } else {
-  recipe = reference(flags.task, flags.profile, flags.authority);
+  recipe = defaultRecipe(flags.task, flags.profile, flags.authority);
   cordSource = 'default';
 }
 
@@ -224,28 +212,20 @@ if (given.has('noise') || given.has('sense-noise') || given.has('noise-tau')) {
  *
  * `--reflex` sets the stretch gain, or names a whole cord: `default` is the measured one, `none`
  * is the body every checkpoint before the spinal module was trained in. Any other cord flag
- * changes that one number of the recipe's cord -- and a recipe without a cord has none, so
- * `--reflex-delay 0.04` on its own used to switch on the measured cord at full gain, which is not
- * what anybody changing a delay asked for.
+ * changes that one number of the recipe's cord, and a recipe without a cord has none -- the rule
+ * is `reflexWithFlags` in the recipe module, the same one the rig reads a recipe by, rather than a
+ * copy of it here that could come to disagree.
  */
-const REFLEX_FLAGS = {
-  'reflex-velocity': 'velocity',
-  'reflex-delay': 'delaySeconds',
-  'reflex-inhibition': 'inhibition',
-  'reflex-setpoint': 'setPoint',
-  'reflex-ceiling': 'forceCeiling',
-  'reflex-force-inhibition': 'forceInhibition',
-};
 if (given.has('reflex') || Object.keys(REFLEX_FLAGS).some((f) => given.has(f))) {
-  const named =
-    flags.reflex === 'default' ? DEFAULT_REFLEX : flags.reflex === 'none' ? NO_REFLEX : undefined;
-  const cord = { ...(named ?? recipe.reflex ?? NO_REFLEX) };
-  if (typeof flags.reflex === 'number') cord.stretch = flags.reflex;
+  const fields = {};
+  if (typeof flags.reflex === 'number') fields.stretch = flags.reflex;
   for (const [flag, field] of Object.entries(REFLEX_FLAGS)) {
-    if (given.has(flag)) cord[field] = flags[flag];
+    if (given.has(flag)) fields[field] = flags[flag];
   }
-  recipe.reflex = cord;
-  cordSource = named ? `${flags.reflex}, with flags` : `${cordSource}, with flags`;
+  const preset = typeof flags.reflex === 'string' ? flags.reflex : undefined;
+  const cord = reflexWithFlags(recipe.reflex, { ...fields, ...(preset ? { preset } : {}) });
+  recipe.reflex = cord.levels;
+  cordSource = cord.source;
 }
 if (given.has('memory')) recipe.memory = flags.memory;
 if (given.has('authority')) recipe.authority = flags.authority;
@@ -326,74 +306,33 @@ console.log(
     ? `  memory: ${recipe.memory} context units carried between control steps`
     : '  memory: none; the policy answers the instant it is shown and nothing else',
 );
-/**
- * The pool, in Node: one worker thread a core, each with its own rig. The search does not know
- * that -- it asks for episodes and gets scores back -- so the same search runs in a window with
- * web workers behind the same three methods.
- */
-const threads = [];
-const ready = [];
-for (let i = 0; i < workers; i++) {
-  const worker = new Worker(new URL('./worker.mjs', import.meta.url), { workerData: { options } });
-  threads.push(worker);
-  ready.push(
-    new Promise((resolve, reject) => {
-      worker.once('message', (m) =>
-        m.type === 'ready' ? resolve(m) : reject(new Error(String(m))),
-      );
-      worker.once('error', reject);
-    }),
-  );
+// The search and the pool, loaded only for a run that is going to happen: the search brings the
+// policy's maths with it, and nothing refused above needs it.
+const { train, describeResult, formatRemaining } = await jiti.import(
+  join(ROOT, 'tools/train/src/trainer.ts'),
+);
+const { createNodePool } = await jiti.import(join(ROOT, 'tools/train/src/nodePool.ts'));
+
+/** An error in one line, as everything this script says about one is. */
+const said = (error) => (error instanceof Error ? error.message : String(error));
+
+// One worker thread a core, each with its own rig. A body that cannot be built -- a scenario that
+// is not there, a clip nobody has -- is said in a line and the run ends, rather than a stack from
+// the top of this script: it is the recipe's to fix, not the trainer's, and nothing of the run has
+// been written yet.
+let pool;
+try {
+  pool = await createNodePool(new URL('./worker.mjs', import.meta.url), { options }, workers);
+} catch (error) {
+  refuse(`could not build the body to train: ${said(error)}`);
 }
-const shapes = await Promise.all(ready);
-const shape = shapes[0];
+const shape = pool.shape;
 console.log(
   `  ${shape.stepsPerSecond} steps a second, the policy every ${shape.controlDivisor} of them`,
 );
 console.log(
   `  policy ${shape.sizes.join(' x ')}: ${shape.parameterCount} weights; ${shape.inputNames.length} senses, ${shape.outputNames.length} drives`,
 );
-
-const pool = {
-  shape,
-  run(tasks, onResult) {
-    return new Promise((resolve) => {
-      if (tasks.length === 0) {
-        resolve();
-        return;
-      }
-      let next = 0;
-      let done = 0;
-      const feed = (worker) => {
-        if (next >= tasks.length) return;
-        const task = tasks[next++];
-        worker.postMessage({
-          type: 'evaluate',
-          id: task.id,
-          weights: task.weights,
-          seed: task.seed,
-        });
-      };
-      for (const worker of threads) {
-        worker.on('message', function onMessage(m) {
-          if (m.type !== 'result') return;
-          onResult({ id: m.id, fitness: m.fitness, alive: m.alive });
-          done += 1;
-          if (done === tasks.length) {
-            for (const w of threads) w.removeAllListeners('message');
-            resolve();
-          } else {
-            feed(worker);
-          }
-        });
-        feed(worker);
-      }
-    });
-  },
-  dispose() {
-    for (const w of threads) w.terminate();
-  },
-};
 
 /** The store, in Node: three files beside the checkpoint, and a line a generation appended. */
 const store = {
@@ -461,8 +400,15 @@ try {
   });
 } catch (error) {
   // A resume that cannot continue what is saved throws before it writes anything; so does
-  // anything else the search cannot go on from. Either way the workers are let go.
-  console.error(`train-nerves: training failed: ${error instanceof Error ? error.message : error}`);
+  // anything else the search cannot go on from, and so does an episode that failed in a worker --
+  // the pool names it and its seed, so it can be run again on its own. Either way the workers are
+  // let go, and what was kept is what the last finished generation wrote. An episode's failure
+  // carries the worker's stack, which is where somebody has to look next, so it is printed under
+  // the line; nothing else here has one worth reading.
+  console.error(`train-nerves: training failed: ${said(error)}`);
+  if (error instanceof Error && typeof error.cause === 'string') {
+    console.error(error.cause.replace(/^/gm, '    '));
+  }
   pool.dispose();
   process.exit(1);
 }

@@ -38,17 +38,40 @@ self.onmessage = async (event: MessageEvent<Incoming>): Promise<void> => {
         controlDivisor: rig.controlDivisor,
       });
     } catch (error) {
-      self.postMessage({ type: 'failed', error: String(error) });
+      self.postMessage({
+        type: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
     return;
   }
-  if (message.type === 'evaluate' && rig) {
-    const result = rig.episode(message.weights, message.seed);
-    self.postMessage({
-      type: 'result',
-      id: message.id,
-      fitness: result.fitness,
-      alive: result.aliveSeconds,
-    });
+  if (message.type !== 'evaluate') return;
+  // Every episode is answered, with a score or with why there is none. This handler is async, so
+  // a throw from it is not an 'error' on the Worker the pool holds: it is a rejected promise
+  // nobody awaits, which the browser logs in the worker's console and the pool never hears of,
+  // and the pool, one answer short, waits for ever. An episode sent before the body is built used
+  // to be dropped the same way, without a word.
+  if (!rig) {
+    self.postMessage({ type: 'failed', id: message.id, error: 'its worker has no body built yet' });
+    return;
   }
+  let result: ReturnType<StandRig['episode']>;
+  try {
+    result = rig.episode(message.weights, message.seed);
+  } catch (error) {
+    // The stack goes to this worker's console, for whoever opens it; the pool gets the sentence.
+    console.error(error);
+    self.postMessage({
+      type: 'failed',
+      id: message.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+  self.postMessage({
+    type: 'result',
+    id: message.id,
+    fitness: result.fitness,
+    alive: result.aliveSeconds,
+  });
 };
