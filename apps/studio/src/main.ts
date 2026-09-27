@@ -18,7 +18,8 @@
  * - `ui/bodyPanel.ts`, `ui/simPanel.ts`, `ui/musclePanel.ts` and `ui/healthPanel.ts`: the tabs.
  * - `sessionWiring.ts`: the settings a session holds, saving, loading and the exports.
  * - `followView.ts`, `vrHost.ts`, `alignHost.ts`, `brainHost.ts` and `nervesView.ts`: following
- *   the bridge, the headset, the Align and Brain tabs, and the brain's activity on screen.
+ *   the bridge, the headset, the Align, Brain and Training tabs, and the brain's activity on
+ *   screen.
  *
  * The order they are made in below is the order the page needs them in: each is made after
  * everything it calls while it is being made. Where two need each other -- a session applies the
@@ -56,7 +57,7 @@ import { createMusclePanel } from './ui/musclePanel.js';
 import { createResizer } from './ui/resizer.js';
 import { createSimPanel } from './ui/simPanel.js';
 import { drawSpine } from './ui/spineActivity.js';
-import { createTabs } from './ui/tabs.js';
+import { TAB_CHANGE, createTabs } from './ui/tabs.js';
 import { createTimeline } from './ui/timeline.js';
 import { createStatusLine, createTransport, wireShortcuts } from './ui/transport.js';
 import { createVrHost } from './vrHost.js';
@@ -413,7 +414,7 @@ function boot(): void {
   }
   wireShortcuts({ runs, transport, timeline: timeline.buttons, frameBody: () => frameBody() });
 
-  // --- The headset, the Align tab, the Brain tab -----------------------------------------------
+  // --- The headset, the Align tab, the Brain and Training tabs ---------------------------------
 
   const vr = createVrHost({
     document: document_,
@@ -444,7 +445,20 @@ function boot(): void {
     // A press at the desktop asks before a set-up's restart throws a long recording away; the
     // headset's presses reach the panel through `act`, which never asks.
     confirmDiscard: transport.confirmDiscard,
-    pollIsRead: () => tabs.active === 'brain' || follower.active || vr.link()?.connected === true,
+    // The Training tab reads the same poll as the Brain tab, now that training has a tab of its
+    // own: the training status and its chart come back with the checkpoint list.
+    pollIsRead: () =>
+      tabs.active === 'brain' ||
+      tabs.active === 'training' ||
+      follower.active ||
+      vr.link()?.connected === true,
+  });
+  // The Brain panel asks the server again at once when its own tab is opened, which it sees for
+  // itself; the Training tab is a person looking for the training status just as much, and the
+  // panel cannot see that tab, so opening it asks here. Without this the status would wait for
+  // the next three-second poll, the first after the tab opened.
+  must<HTMLElement>('#tabs').addEventListener(TAB_CHANGE, (event) => {
+    if ((event as CustomEvent<string>).detail === 'training') void brain.panel.poll();
   });
   const nerves = createNervesView(brain.panel);
 

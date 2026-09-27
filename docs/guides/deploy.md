@@ -104,7 +104,7 @@ context from every address it is opened at.
 
 ## What a served studio cannot do
 
-The Brain tab's dashboard features are served by the training dashboard, `pnpm
+The Brain and Training tabs' dashboard features are served by the training dashboard, `pnpm
 train:dashboard`, which runs on the viewer's own machine and which the studio reaches at
 `http://localhost:5280`. The container does not carry one and should not: the dashboard starts
 processes and reads and writes files on the machine it runs on. The features that need it are:

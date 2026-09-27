@@ -78,11 +78,17 @@
           <button type="button" data-tab="world" title="World: what the body is in">World</button>
           <button type="button" data-tab="simulation" title="Simulation: how it is computed and recorded">Sim</button>
           <button type="button" data-tab="scenario" title="Scenario: what happens">Scene</button>
-          <button type="button" data-tab="muscles" title="Muscles: drive the body by hand">Muscles</button>
-          <button type="button" data-tab="brain" title="Brain: a trained policy in charge, and training">Brain</button>
-          <button type="button" data-tab="align" title="Align: the reference models beside ours, and the points that need moving">Align</button>
-          <button type="button" data-tab="export" title="Export: recordings, Blender, sessions">Export</button>
-          <button type="button" data-tab="health" title="Health: whether the numbers are right">Health</button>
+          <button type="button" data-tab="muscles" title="Muscles: drive the body by hand, and the spinal cord's reflexes under it">Muscles</button>
+          <button type="button" data-tab="brain" title="Brain: a trained policy in charge of the running body">Brain</button>
+          <button type="button" data-tab="training" title="Training: train a checkpoint, or follow one being trained">Training</button>
+          <button type="button" data-tab="export" title="Export: recordings and Blender">Export</button>
+          <!-- The tabs below the divider are for whoever works on the model rather than with it:
+               Align edits the anatomy data's own points, and Health checks the numbers the rest
+               of the studio shows. The divider is not a tab, so the keyboard and a screen reader
+               pass over it; each tab under it says in its title that it is a developer's. -->
+          <div class="tab-divider" aria-hidden="true">Developer</div>
+          <button type="button" data-tab="align" title="Developer -- Align: the reference models beside ours, and the points that need moving">Align</button>
+          <button type="button" data-tab="health" title="Developer -- Health: whether the numbers are right">Health</button>
         </div>
 
         <div id="panels">
@@ -287,6 +293,43 @@
                 <p class="note live" id="muscle-readout-note" hidden></p>
               </details>
             </div>
+            <details class="panel" data-memory="spine" open>
+              <summary>Spine</summary>
+              <p class="note">The reflexes, under whatever the brain is doing. A muscle pulled
+              past its set point excites itself in proportion to how far and how fast -- the
+              spindle's group II and Ia -- and inhibits its opposite through an interneuron. It
+              needs no training and it is most of what holds a body up: a real person stands on
+              the cord, and the brain only decides where to put the set points. Stretch and
+              Damping both at zero is the body every checkpoint before the cord was trained in.</p>
+              <div class="control grid2">
+                <label for="spine-stretch">Stretch <output id="spine-stretch-value">off</output></label>
+                <input type="range" id="spine-stretch" min="0" max="10" step="0.1" value="0" />
+                <label for="spine-velocity">Damping <output id="spine-velocity-value">0.00</output></label>
+                <input type="range" id="spine-velocity" min="0" max="2" step="0.05" value="0" />
+                <label for="spine-setpoint">Set point <output id="spine-setpoint-value">0.00</output></label>
+                <input type="range" id="spine-setpoint" min="-0.2" max="0.2" step="0.01" value="0" />
+                <label for="spine-inhibition">Reciprocal <output id="spine-inhibition-value">0.30</output></label>
+                <input type="range" id="spine-inhibition" min="0" max="1" step="0.05" value="0.3" />
+                <label for="spine-delay">Conduction <output id="spine-delay-value">30 ms</output></label>
+                <input type="range" id="spine-delay" min="0" max="0.12" step="0.005" value="0.03" />
+              </div>
+              <p class="note">Stretch is the gain on a strain: how hard a muscle answers being
+              longer than its set point, where 0.1 is a fibre a tenth longer than its own optimal
+              length. Damping is the gain on how fast it is being stretched, and is there to stop
+              the delayed loop ringing. Set point is the length the loop holds the fibre at; zero,
+              its optimal length, keeps the cord quiet until something actually stretches.
+              Reciprocal is how much a muscle's excitation inhibits its opposite. Conduction is
+              the time to the cord and back, about thirty milliseconds in a leg, without which a
+              modelled arc oscillates. The panel opens with the measured cord, the one the
+              command-line trainer uses; every run, and every training run started here, takes the
+              cord these sliders show. Under the committed standing policy time upright levels off
+              from a stretch of 8.5; see
+              docs/validation/reflex-gains.md.</p>
+              <div id="spine-activity-wrap" hidden>
+                <canvas id="spine-activity" width="320" height="40"></canvas>
+                <p class="note live" id="spine-note"></p>
+              </div>
+            </details>
           </section>
 
           <!-- Brain -->
@@ -329,44 +372,10 @@
               </div>
               <p class="note live" id="brain-idle-note">No policy in the loop.</p>
             </details>
-            <details class="panel" data-memory="spine" open>
-              <summary>Spine</summary>
-              <p class="note">The reflexes, under whatever the brain is doing. A muscle pulled
-              past its set point excites itself in proportion to how far and how fast -- the
-              spindle's group II and Ia -- and inhibits its opposite through an interneuron. It
-              needs no training and it is most of what holds a body up: a real person stands on
-              the cord, and the brain only decides where to put the set points. Stretch and
-              Damping both at zero is the body every checkpoint before the cord was trained in.</p>
-              <div class="control grid2">
-                <label for="spine-stretch">Stretch <output id="spine-stretch-value">off</output></label>
-                <input type="range" id="spine-stretch" min="0" max="10" step="0.1" value="0" />
-                <label for="spine-velocity">Damping <output id="spine-velocity-value">0.00</output></label>
-                <input type="range" id="spine-velocity" min="0" max="2" step="0.05" value="0" />
-                <label for="spine-setpoint">Set point <output id="spine-setpoint-value">0.00</output></label>
-                <input type="range" id="spine-setpoint" min="-0.2" max="0.2" step="0.01" value="0" />
-                <label for="spine-inhibition">Reciprocal <output id="spine-inhibition-value">0.30</output></label>
-                <input type="range" id="spine-inhibition" min="0" max="1" step="0.05" value="0.3" />
-                <label for="spine-delay">Conduction <output id="spine-delay-value">30 ms</output></label>
-                <input type="range" id="spine-delay" min="0" max="0.12" step="0.005" value="0.03" />
-              </div>
-              <p class="note">Stretch is the gain on a strain: how hard a muscle answers being
-              longer than its set point, where 0.1 is a fibre a tenth longer than its own optimal
-              length. Damping is the gain on how fast it is being stretched, and is there to stop
-              the delayed loop ringing. Set point is the length the loop holds the fibre at; zero,
-              its optimal length, keeps the cord quiet until something actually stretches.
-              Reciprocal is how much a muscle's excitation inhibits its opposite. Conduction is
-              the time to the cord and back, about thirty milliseconds in a leg, without which a
-              modelled arc oscillates. The panel opens with the measured cord, the one the
-              command-line trainer uses; every run, and every training run started here, takes the
-              cord these sliders show. Under the committed standing policy time upright levels off
-              from a stretch of 8.5; see
-              docs/validation/reflex-gains.md.</p>
-              <div id="spine-activity-wrap" hidden>
-                <canvas id="spine-activity" width="320" height="40"></canvas>
-                <p class="note live" id="spine-note"></p>
-              </div>
-            </details>
+          </section>
 
+          <!-- Training -->
+          <section data-panel="training" hidden>
             <details class="panel" data-memory="training" open>
               <summary>Training</summary>
               <div class="control">
@@ -428,6 +437,23 @@
             </details>
           </section>
 
+          <!-- Export -->
+          <section data-panel="export" hidden>
+            <details class="panel" data-memory="export.recording" open>
+              <summary>Recording</summary>
+              <div class="buttons">
+                <button type="button" id="export" disabled title="Export needs a run: press Start sim">Export recording</button>
+                <button type="button" id="export-blender" disabled title="Export needs a run: press Start sim">Export for Blender</button>
+              </div>
+              <p class="note live" id="export-why">Export needs a run: press Start sim.</p>
+              <p class="note">Export for Blender writes three files that belong together: the glTF with
+              the bones and the belly mesh, a <code>.pc2</code> vertex cache the muscles stream from,
+              and the Python script that imports the pair. Keep them in one folder. The muscles are a
+              streamed cache rather than an armature because as armatures they cost 4.3 GB of Blender
+              for six tenths of a second of simulation; as a cache the same import is under 600 MB and
+              a longer run costs disk instead of memory.</p>
+            </details>
+          </section>
 
           <!-- Align -->
           <section data-panel="align" hidden>
@@ -596,23 +622,6 @@
                 <button type="button" id="align-save-moves">Save overrides</button>
                 <button type="button" id="align-open-moves" disabled title="Open a saved Align file; it goes into whichever list it belongs to">Open…</button>
               </div>
-            </details>
-          </section>
-          <!-- Export -->
-          <section data-panel="export" hidden>
-            <details class="panel" data-memory="export.recording" open>
-              <summary>Recording</summary>
-              <div class="buttons">
-                <button type="button" id="export" disabled title="Export needs a run: press Start sim">Export recording</button>
-                <button type="button" id="export-blender" disabled title="Export needs a run: press Start sim">Export for Blender</button>
-              </div>
-              <p class="note live" id="export-why">Export needs a run: press Start sim.</p>
-              <p class="note">Export for Blender writes three files that belong together: the glTF with
-              the bones and the belly mesh, a <code>.pc2</code> vertex cache the muscles stream from,
-              and the Python script that imports the pair. Keep them in one folder. The muscles are a
-              streamed cache rather than an armature because as armatures they cost 4.3 GB of Blender
-              for six tenths of a second of simulation; as a cache the same import is under 600 MB and
-              a longer run costs disk instead of memory.</p>
             </details>
           </section>
 

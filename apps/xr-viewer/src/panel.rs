@@ -6,7 +6,8 @@
 //! as the desktop has two regions that are not the viewport:
 //!
 //! - the **properties panel**, its tabs down its left edge as the desktop's are: Body, World, Sim,
-//!   Scene, Muscles, Brain, Export, Health, with the same controls sending the same keys;
+//!   Scene, Muscles, Brain, Training, Export, and under a Developer divider Health, with the same
+//!   controls sending the same keys (the desktop's Align tab, which edits files, is not here);
 //! - the **transport panel**, one horizontal strip: the run's Start, Pause and Reset, the mode,
 //!   the playhead and its frame buttons, the grid, and the overlay toggles; and the headset's own
 //!   Snap turn box, which is reported back to the viewer as a `LocalAction` and never sent on.
@@ -324,7 +325,7 @@ pub struct Pointer {
 }
 
 /// How fast a stick held full over scrolls, in points a second: most of the properties panel's
-/// height in a second, quick enough to cross the Brain tab and slow enough to stop on a row.
+/// height in a second, quick enough to cross the Muscles tab and slow enough to stop on a row.
 const SCROLL_SPEED: f32 = 900.0;
 
 /// The properties panel's tabs, the desktop's in the desktop's order.
@@ -336,10 +337,12 @@ enum Tab {
     Scene,
     Muscles,
     Brain,
+    Training,
     Export,
     Health,
 }
 
+/// The tabs for working with the body, above the divider.
 const TABS: [(Tab, &str); 8] = [
     (Tab::Body, "Body"),
     (Tab::World, "World"),
@@ -347,9 +350,14 @@ const TABS: [(Tab, &str); 8] = [
     (Tab::Scene, "Scene"),
     (Tab::Muscles, "Muscles"),
     (Tab::Brain, "Brain"),
+    (Tab::Training, "Training"),
     (Tab::Export, "Export"),
-    (Tab::Health, "Health"),
 ];
+
+/// The tabs for working on the model, under a Developer divider as the desktop has them. The
+/// desktop's Align is the other one there; it opens and saves files, which a headset cannot, so
+/// it has never been drawn here.
+const DEVELOPER_TABS: [(Tab, &str); 1] = [(Tab::Health, "Health")];
 
 pub struct Panel {
     kind: Kind,
@@ -733,8 +741,8 @@ impl Panel {
                                     ui.add_space(14.0);
                                     let warned = warnings(ui, status.is_some(), liveness, status_error, false);
                                     // Each tab its own offset, as a tab page would have: the
-                                    // Brain tab scrolled to its training buttons does not open
-                                    // the Body tab half-way down.
+                                    // Muscles tab scrolled down to its Spine does not open the
+                                    // Body tab half-way down.
                                     let scrolled = egui::ScrollArea::vertical()
                                         .id_salt(tab)
                                         .max_height(size[1] - 60.0 - warned)
@@ -827,8 +835,16 @@ fn grab_strip(ui: &mut egui::Ui, height: f32, grabbed: bool) {
     }
 }
 
-/// The tabs, down the left as the desktop's are.
+/// The tabs, down the left as the desktop's are, the developer's under their divider.
 fn tab_column(ui: &mut egui::Ui, tab: &mut Tab, height: f32) {
+    let mut tab_button = |ui: &mut egui::Ui, t: Tab, name: &str| {
+        if ui
+            .add_sized([96.0, 40.0], egui::SelectableLabel::new(*tab == t, name))
+            .clicked()
+        {
+            *tab = t;
+        }
+    };
     egui::Frame::none()
         .fill(egui::Color32::from_rgb(24, 27, 33))
         .inner_margin(egui::Margin::symmetric(6.0, 12.0))
@@ -839,12 +855,15 @@ fn tab_column(ui: &mut egui::Ui, tab: &mut Tab, height: f32) {
                 ui.label(egui::RichText::new("bs-humany").strong());
                 ui.add_space(8.0);
                 for (t, name) in TABS {
-                    if ui
-                        .add_sized([96.0, 40.0], egui::SelectableLabel::new(*tab == t, name))
-                        .clicked()
-                    {
-                        *tab = t;
-                    }
+                    tab_button(ui, t, name);
+                }
+                // A rule and a quiet word rather than a button: it is a heading over the tabs
+                // below it, and a ray that lands on it changes nothing.
+                ui.add_space(6.0);
+                ui.separator();
+                ui.label(egui::RichText::new("Developer").small().color(NOTE_TEXT));
+                for (t, name) in DEVELOPER_TABS {
+                    tab_button(ui, t, name);
                 }
             });
         });
@@ -931,6 +950,7 @@ fn properties(
         Tab::Scene => scene_tab(ui, s, editing, commands),
         Tab::Muscles => muscles_tab(ui, s, editing, commands),
         Tab::Brain => brain_tab(ui, s, editing, commands),
+        Tab::Training => training_tab(ui, s, editing, commands),
         Tab::Export => export_tab(ui),
         Tab::Health => health_tab(ui, s, feeds, headset),
     }
@@ -1347,10 +1367,18 @@ const MUSCLE_READOUT_ROWS: [(&str, &str); 8] = [
 ];
 
 fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
-    if !s.muscles {
+    if s.muscles {
+        drive_and_readout(ui, s, editing, commands);
+    } else {
         ui.label("Muscles are off for this run. Turn them on under Scene.");
-        return;
     }
+    // The cord stays with muscles off, as it does on the desktop: its gains are the next run's,
+    // and one set now is the cord that run starts with once muscles are back on.
+    spine(ui, s, editing, commands);
+}
+
+/// The Muscles tab's drive sliders and what they are pulling with, for a run that has muscles.
+fn drive_and_readout(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     heading(ui, "Drive");
     // One collapsed section a region, as the desktop has them; a group with no section named
     // goes under the one before it, so an older publisher still shows every slider.
@@ -1469,11 +1497,16 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     }
     heading(ui, "Activity");
     note(ui, if b.active { "The policy is in the loop; its activity bitmap is on the desktop." } else { "No policy in the loop." });
+}
 
+/// The Muscles tab's Spine: the cord, under whatever drives the muscles. It was the Brain tab's
+/// until the desktop moved it to Muscles, and it moved here with it.
+fn spine(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     // The cord, under whatever the brain is doing. The same five gains the desktop offers, with
     // the same keys, because a person in the headset is setting the same body up.
     heading(ui, "Spine");
     note(ui, "The reflexes: a muscle pulled past its set point excites itself and inhibits its opposite. Needs no training, and it is most of what holds a body up. Stretch and Damping at zero is a body with no reflexes at all.");
+    let b = &s.brain;
     let r = &b.reflex;
     for (key, label, value, action) in [
         ("spine.stretch", "stretch", r.stretch, "reflexStretch"),
@@ -1493,7 +1526,12 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     if !b.spine_note.is_empty() {
         note(ui, &b.spine_note);
     }
+}
 
+/// The Training tab: training a checkpoint on the desktop's machine, and following one being
+/// trained. It was the foot of the Brain tab until the desktop gave it a tab of its own.
+fn training_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
+    let b = &s.brain;
     heading(ui, "Training");
     note(ui, "Generations, population, episode seconds and workers are as set on the desktop.");
     if let Some(v) = slider(ui, editing, s, "train.memory", "memory", b.memory as f64, false) {
@@ -1560,7 +1598,7 @@ fn health_tab(ui: &mut egui::Ui, s: &Status, feeds: &str, headset: &Headset) {
     heading(ui, "The bridge");
     ui.label(feeds);
     // The guide the waiting view shows, kept here for once a publisher is running and the
-    // waiting view has gone: a tab of its own would be a ninth the desktop has not got.
+    // waiting view has gone: a tab of its own would be one the desktop has not got.
     heading(ui, "Controls");
     controls_guide(ui, headset);
 }
@@ -1896,6 +1934,35 @@ mod tests {
         sent
     }
 
+    /// The same, on any tab and down the whole height of its column, with the tab scrolled to the
+    /// bottom first when `to_the_foot`. Each row is pressed on a panel of its own, because a press
+    /// on one of the Muscles tab's folded sections opens it and would move every row below.
+    fn actions_clicked_on(tab: Tab, status: &Status, to_the_foot: bool) -> Vec<&'static str> {
+        let mut sent = Vec::new();
+        for y in (60..740).step_by(6) {
+            let mut panel = Panel::new(Kind::Properties);
+            panel.tab = tab;
+            // The second frame is laid out on the panel's own size; the first is egui's default.
+            step(&mut panel, status, None, false, 0.0);
+            if to_the_foot {
+                for _ in 0..30 {
+                    step(&mut panel, status, Some(egui::pos2(400.0, 400.0)), false, -1.0);
+                }
+            }
+            for x in (170..640).step_by(30) {
+                let at = Some(egui::pos2(x as f32, y as f32));
+                step(&mut panel, status, at, false, 0.0);
+                step(&mut panel, status, at, true, 0.0);
+                for command in step(&mut panel, status, at, false, 0.0).commands {
+                    if let Command::Brain { action, .. } = command {
+                        sent.push(action);
+                    }
+                }
+            }
+        }
+        sent
+    }
+
     #[test]
     fn set_up_as_trained_and_its_undo_are_pressed_on_the_brain_tab_and_only_when_offered() {
         let status = fixture();
@@ -1911,12 +1978,87 @@ mod tests {
         assert!(sent.contains(&"handover"), "{sent:?}");
     }
 
+    /// The tab a press at `y` down the tab column leaves chosen, starting from the Body tab.
+    fn tab_pressed_at(status: &Status, y: f32) -> Tab {
+        let mut panel = Panel::new(Kind::Properties);
+        // Right of the grab strip, in the middle of the column's buttons.
+        let at = Some(egui::pos2(GRAB_WIDTH + 50.0, y));
+        step(&mut panel, status, at, false, 0.0);
+        step(&mut panel, status, at, true, 0.0);
+        step(&mut panel, status, at, false, 0.0);
+        panel.tab
+    }
+
+    #[test]
+    fn the_tabs_are_the_desktops_with_health_under_the_developer_divider() {
+        // Pressed down the column one row at a time, as a person would find them: the tabs come
+        // in the desktop's order, Training a tab of its own after Brain, and Health last, under
+        // the divider. The divider itself is a heading, and a press on it chooses nothing.
+        let status = fixture();
+        let mut order: Vec<Tab> = Vec::new();
+        let mut last_export = None;
+        let mut first_health = None;
+        for y in (0..780).step_by(3) {
+            let tab = tab_pressed_at(&status, y as f32);
+            if tab == Tab::Export {
+                last_export = Some(y);
+            }
+            if tab == Tab::Health && first_health.is_none() {
+                first_health = Some(y);
+            }
+            if tab != Tab::Body && !order.contains(&tab) {
+                order.push(tab);
+            }
+        }
+        let expected: Vec<Tab> = TABS.iter().chain(DEVELOPER_TABS.iter()).map(|(t, _)| *t).skip(1).collect();
+        assert_eq!(order, expected);
+        assert_eq!(
+            expected,
+            [Tab::World, Tab::Sim, Tab::Scene, Tab::Muscles, Tab::Brain, Tab::Training, Tab::Export, Tab::Health]
+        );
+        let (export, health) = (last_export.expect("an Export tab"), first_health.expect("a Health tab"));
+        // Between the last row that is Export and the first that is Health there is the divider:
+        // more than the few points between two neighbouring tabs.
+        assert!(health - export > 20, "Export ends at {export}, Health starts at {health}");
+        assert!((export + 3..health).step_by(3).all(|y| tab_pressed_at(&status, y as f32) == Tab::Body));
+    }
+
+    #[test]
+    fn the_spine_is_on_the_muscles_tab_and_training_has_its_own() {
+        // The cord's five gains moved from Brain to Muscles, as they did on the desktop, and the
+        // training buttons to a Training tab: each sends from its new tab and from nowhere else.
+        let status = fixture();
+        let spine = ["reflexStretch", "reflexVelocity", "reflexSetPoint", "reflexInhibition", "reflexDelay"];
+        let training = ["memory", "trainStop", "follow"];
+        // The Spine is at the foot of the Muscles tab, which is longer than the panel.
+        let on_muscles = actions_clicked_on(Tab::Muscles, &status, true);
+        let on_brain = actions_clicked_on(Tab::Brain, &status, false);
+        let on_training = actions_clicked_on(Tab::Training, &status, false);
+        for action in spine {
+            assert!(on_muscles.contains(&action), "{action} not on Muscles: {on_muscles:?}");
+            assert!(!on_brain.contains(&action) && !on_training.contains(&action), "{action} left behind");
+        }
+        for action in training {
+            assert!(on_training.contains(&action), "{action} not on Training: {on_training:?}");
+            assert!(!on_brain.contains(&action) && !on_muscles.contains(&action), "{action} left behind");
+        }
+        // The Brain tab keeps the policy in the loop.
+        assert!(on_brain.contains(&"handover") && on_brain.contains(&"authority"), "{on_brain:?}");
+        // With muscles off the drive and readout go, and the cord stays: its gains are the next
+        // run's, as the desktop's are.
+        let mut off = fixture();
+        off.muscles = false;
+        let on_muscles_off = actions_clicked_on(Tab::Muscles, &off, false);
+        assert!(on_muscles_off.contains(&"reflexStretch"), "{on_muscles_off:?}");
+    }
+
     #[test]
     fn the_stick_scrolls_the_tab_the_ray_is_on() {
-        // The Brain tab is longer than the panel. Pulled back, the stick brings its bottom up.
+        // The Muscles tab, its Spine under the drive and the readout, is longer than the panel.
+        // Pulled back, the stick brings its bottom up.
         let status = fixture();
         let mut panel = Panel::new(Kind::Properties);
-        panel.tab = Tab::Brain;
+        panel.tab = Tab::Muscles;
         let on_face = Some(egui::pos2(400.0, 400.0));
         step(&mut panel, &status, on_face, false, 0.0);
         let id = panel.scroll_id.expect("the properties panel scrolls");
@@ -1947,7 +2089,7 @@ mod tests {
         // only the room, where no ray can reach it.
         let status = fixture();
         let size = Kind::Properties.size();
-        for (tab, name) in TABS {
+        for (tab, name) in TABS.into_iter().chain(DEVELOPER_TABS) {
             let mut panel = Panel::new(Kind::Properties);
             panel.tab = tab;
             // The second frame: egui lays the first out on a screen of its own default size.
