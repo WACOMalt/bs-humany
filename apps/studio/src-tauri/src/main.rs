@@ -970,10 +970,22 @@ mod tests {
 
     #[test]
     fn the_viewers_output_is_drained_to_the_end_and_its_last_lines_kept() {
+        use std::io::Write as _;
+        use std::sync::atomic::Ordering;
+        // The two pipes are drained by two threads into one tail, so the order in which their
+        // lines land is up to the scheduler. If the stderr line could arrive while stdout was
+        // still being read, twenty later stdout lines might push it out and the test would fail
+        // on a slow machine only. The child therefore closes stdout once it has written it, and
+        // writes its stderr line only after the test has seen stdout drained to the end and says
+        // so on stdin: the order is fixed by a handshake rather than hoped for from a sleep.
         let mut child = std::process::Command::new("sh")
             .arg("-c")
             // A line that is not UTF-8 in the middle: the rest must still be read.
-            .arg("for i in $(seq 1 30); do echo line $i; done; printf 'bad \\377\\n'; echo 'no headset' >&2; exit 3")
+            .arg(
+                "for i in $(seq 1 30); do echo line $i; done; printf 'bad \\377\\n'; exec 1>&-; \
+                 read go; echo 'no headset' >&2; exit 3",
+            )
+            .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -981,12 +993,21 @@ mod tests {
         let output = std::sync::Arc::new(ViewerOutput::default());
         drain_viewer_output(child.stdout.take().unwrap(), output.clone());
         drain_viewer_output(child.stderr.take().unwrap(), output.clone());
+        let wait_for_open_pipes = |left: usize| {
+            let waited = std::time::Instant::now();
+            while output.open_pipes.load(Ordering::SeqCst) > left {
+                assert!(
+                    waited.elapsed() < std::time::Duration::from_secs(5),
+                    "a pipe was never drained"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        };
+        // Only stderr is still open once the stdout thread has read every line and seen the end.
+        wait_for_open_pipes(1);
+        writeln!(child.stdin.take().unwrap(), "go").unwrap();
         assert_eq!(child.wait().unwrap().code(), Some(3));
-        let waited = std::time::Instant::now();
-        while output.open_pipes.load(std::sync::atomic::Ordering::SeqCst) > 0 {
-            assert!(waited.elapsed() < std::time::Duration::from_secs(5), "a pipe was never drained");
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
+        wait_for_open_pipes(0);
         let tail = output.tail.lock().unwrap();
         assert_eq!(tail.len(), VIEWER_TAIL_LINES);
         assert!(tail.contains(&"no headset".to_string()));
