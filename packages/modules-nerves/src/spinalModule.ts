@@ -10,32 +10,45 @@
  * Without this layer a search has to discover the whole stabilising feedback law from scratch,
  * which is what nine hundred generations of not standing looks like.
  *
- * Three reflexes. The afferents are read per unit, but the reflexes are worked out per reflex
- * group -- the drive groups `reflexGroups()` builds in `packages/scenarios/src/muscleGroups.ts`,
- * each holding both sides of the body -- and each group's answer is applied uniformly to every
- * unit in it. So a real cord's monosynaptic loop, which is a muscle answering its own spindle, is
- * here a group answering the mean of its units' spindles: a stretched left soleus excites the
- * right one as much as itself. That is what the code does today, and it is what every measurement
- * in `docs/validation/reflex-gains.md` was taken on. A cord per side and per unit is a decision
- * already taken (owner, 2026-09-26) and not yet built.
+ * Three reflexes, two of them per unit and one per group. Each unit answers its own spindle and
+ * its own tendon organ, on itself and nothing else, which is what a real cord's monosynaptic loop
+ * is. The groups -- `reflexGroups()` in `packages/scenarios/src/muscleGroups.ts`, one side of one
+ * drive group each, seventy of them -- are where reciprocal inhibition is worked out, because the
+ * antagonist table is written between groups and not between muscles. A group is on one side of
+ * the body, so a stretched right soleus excites the right soleus only, and inhibits the right
+ * shin only.
  *
- * **The stretch reflex.** Each unit past its set point contributes in proportion to how far past
- * it is -- the spindle's group II, length-sensitive -- and in proportion to how fast it is being
- * pulled -- group Ia, velocity-sensitive -- and the group's drive is the mean of those over its
- * units. The velocity term is the damping, and it is the one that stops a pure length loop from
- * ringing. Only lengthening excites: a shortening muscle is not resisted by its own spindle.
+ * It was not always so, and the history is in the measurements. Until the owner's decision of
+ * 2026-09-26 was built, a group held both sides of the body and every term was the group's mean,
+ * applied alike to every unit in it: a stretched left soleus excited the right one as much as
+ * itself, and a stretched soleus excited tibialis posterior beside it just as much. The gains in
+ * `docs/validation/reflex-gains.md` were measured again on this cord, and the page keeps the
+ * pooled cord's numbers beside them.
  *
- * **Reciprocal inhibition**, per antagonist pair of groups. The Ia afferent that excites a muscle
- * also inhibits its opposite through an interneuron, so a stretched muscle does not fight its own
- * antagonist's tone. Without it the two halves of every pair co-contract and the joint stiffens
- * into uselessness.
+ * **The stretch reflex.** A unit past its set point is excited in proportion to how far past it
+ * is -- the spindle's group II, length-sensitive -- and in proportion to how fast it is being
+ * pulled -- group Ia, velocity-sensitive. The velocity term is the damping, and it is the one that
+ * stops a pure length loop from ringing. Only lengthening excites: a shortening muscle is not
+ * resisted by its own spindle.
  *
- * **Autogenic inhibition**, from the Golgi tendon organ's Ib. Each unit's tendon load past a
- * ceiling subtracts from its contribution to the group's mean. It is what keeps a reflex from
- * tearing its own tendon off the bone, and the reason a loop can be stable under a load it cannot
- * lift. It is a safety limit that has not been seen to fire: at the default ceiling of 1.2 it
- * never does, because tendon load peaks near a quarter of maximum isometric force even in a full
- * collapse (0.235, measured once ba50a95 fixed the length afferent; reflex-gains.md).
+ * **Reciprocal inhibition**, per antagonist pair of groups on one side. The Ia afferent that
+ * excites a muscle also inhibits its opposite through an interneuron, so a stretched muscle does
+ * not fight its own antagonist's tone. Without it the two halves of every pair co-contract and the
+ * joint stiffens into uselessness. A group's inhibitory drive is the mean of its units' own reflex
+ * drives, and a share of it (`SpinalGains.inhibition`) comes off every unit of the group opposite.
+ * The mean, rather than a unit-to-unit table, because there is no such table: the pairing is by
+ * what a group does to a joint, and one interneuron pool per side of a joint is as fine as it goes.
+ *
+ * **Autogenic inhibition**, from the Golgi tendon organ's Ib. A unit's tendon load past a ceiling
+ * subtracts from that unit's own drive. It is what keeps a reflex from tearing its own tendon off
+ * the bone, and the reason a loop can be stable under a load it cannot lift. It is a safety limit
+ * that has not been seen to fire: at the default ceiling of 1.2 it never does, because tendon load
+ * peaks near a quarter of maximum isometric force even in a full collapse (0.235, measured once
+ * ba50a95 fixed the length afferent; reflex-gains.md).
+ *
+ * A unit in no group is not wired to the cord at all, and the cord leaves it alone. Every unit in
+ * the body is in exactly one group of the table `reflexGroups()` builds, so that is a statement
+ * about a caller's partial table -- a test's ankle, say -- and not about the body.
  *
  * **Stretch and velocity both at 0 switch the whole cord off**, Ib included: the step returns
  * before it reads a single afferent. A Golgi term on its own could still take drive off a loaded
@@ -82,9 +95,11 @@ import {
 export const SPINAL_MODULE_ID = 'bsums.xyz.bs-humany.spinal';
 
 /**
- * A group of units the cord treats together, and the group that opposes it. The pairing comes
+ * A group of units the cord inhibits together, and the group that opposes it. The pairing comes
  * from the caller because the group table lives above this package; `antagonist` naming a group
- * that was not given is ignored rather than refused, so a partial table still works.
+ * that was not given is ignored rather than refused, so a partial table still works. Groups are
+ * meant not to overlap: a unit in two of them answers its own spindle once and is inhibited by
+ * both groups' antagonists.
  */
 export interface ReflexGroup {
   readonly id: string;
@@ -230,7 +245,14 @@ export class SpinalModule implements SimModule, Stateful {
   private readonly groupUnits: Int32Array[];
   private readonly groupIds: readonly string[];
   private readonly opposes: Int32Array;
-  /** The reflex drive each group worked out this tick, before inhibition. */
+  /** Every unit in at least one group, once each: the units the cord is wired to. */
+  private readonly wired: Int32Array;
+  /**
+   * Per unit, this tick: first its own reflex drive, from its own spindle and tendon organ, then
+   * that less what its group's antagonist takes off -- the amount added to its excitation.
+   */
+  private readonly unitDrive: Float64Array;
+  /** The mean of each group's units' own reflex drives this tick, before inhibition. */
   private readonly groupDrive: Float64Array;
   private readonly unitCount: number;
 
@@ -265,6 +287,8 @@ export class SpinalModule implements SimModule, Stateful {
     this.opposes = Int32Array.from(options.groups, (g) =>
       g.antagonist === undefined ? -1 : (at.get(g.antagonist) ?? -1),
     );
+    this.wired = Int32Array.from(new Set(this.groupUnits.flatMap((units) => Array.from(units))));
+    this.unitDrive = new Float64Array(this.unitCount);
     this.groupDrive = new Float64Array(options.groups.length);
     this.snapshot = new Float64Array(3 * this.unitCount);
     this.delayed = new Float64Array(3 * this.unitCount);
@@ -381,7 +405,11 @@ export class SpinalModule implements SimModule, Stateful {
     this.gains = { ...this.gainsInUse, ...next };
   }
 
-  /** The reflex drive per group as of the last tick, for a panel to draw. */
+  /**
+   * Per group, the mean of its units' own reflex drives as of the last tick, before reciprocal
+   * inhibition -- what the group sends its antagonist -- for a panel to draw. In the order of the
+   * groups the cord was given, which for `reflexGroups()` is the order of the policy's outputs.
+   */
   get lastDrive(): Float64Array {
     return this.groupDrive;
   }
@@ -457,41 +485,55 @@ export class SpinalModule implements SimModule, Stateful {
     }
     this.pastSetPoint = past;
 
-    // Each group's drive: the mean over its units of the stretch reflex, less what the Golgi
-    // organ takes back. Worked per group because that is the dimension the antagonist table is
-    // in, and applied per unit because that is where excitation lives.
+    // Each wired unit's own drive: its stretch reflex, less what its own Golgi organ takes back.
+    // Per unit, because the monosynaptic loop is a muscle answering its own spindle; a unit the
+    // cord is not wired to keeps a drive of zero, which the constructor's fill left it at.
+    const wired = this.wired;
+    const unitDrive = this.unitDrive;
+    for (let k = 0; k < wired.length; k++) {
+      const u = wired[k] as number;
+      const stretch = (this.delayed[u] as number) - g.setPoint;
+      const rate = this.delayed[n + u] as number;
+      const load = this.delayed[2 * n + u] as number;
+      // Only a lengthening muscle is excited by its own spindle.
+      let drive = 0;
+      if (stretch > 0) drive += g.stretch * stretch;
+      if (rate > 0) drive += g.velocity * rate;
+      // Ib: past the ceiling the organ takes drive back off, and can drive it negative.
+      if (load > g.forceCeiling) drive -= g.forceInhibition * (load - g.forceCeiling);
+      unitDrive[u] = drive;
+    }
+
+    // Each group's drive, the mean of its units' own, which is what its interneurons carry to the
+    // antagonist. All of these are taken before any inhibition is subtracted, so a pair inhibit
+    // each other symmetrically rather than in the order the groups happen to sit.
     for (let gi = 0; gi < this.groupUnits.length; gi++) {
       const units = this.groupUnits[gi] as Int32Array;
       let sum = 0;
-      for (let k = 0; k < units.length; k++) {
-        const u = units[k] as number;
-        const stretch = (this.delayed[u] as number) - g.setPoint;
-        const rate = this.delayed[n + u] as number;
-        const load = this.delayed[2 * n + u] as number;
-        // Only a lengthening muscle is excited by its own spindle.
-        let drive = 0;
-        if (stretch > 0) drive += g.stretch * stretch;
-        if (rate > 0) drive += g.velocity * rate;
-        // Ib: past the ceiling the organ takes drive back off, and can drive it negative.
-        if (load > g.forceCeiling) drive -= g.forceInhibition * (load - g.forceCeiling);
-        sum += drive;
-      }
+      for (let k = 0; k < units.length; k++) sum += unitDrive[units[k] as number] as number;
       this.groupDrive[gi] = units.length ? sum / units.length : 0;
     }
 
-    // Reciprocal inhibition, from the drive as it stood before any of it was subtracted, so the
-    // pair inhibit each other symmetrically rather than in the order the groups happen to sit.
+    // Reciprocal inhibition: a share of the antagonist group's excitatory drive off every unit of
+    // this one. Taken off the per-unit drive in place, now that every group's mean is known.
     for (let gi = 0; gi < this.groupUnits.length; gi++) {
       const against = this.opposes[gi] as number;
-      const mine = this.groupDrive[gi] as number;
-      const theirs = against >= 0 ? (this.groupDrive[against] as number) : 0;
-      const net = mine - g.inhibition * Math.max(0, theirs);
+      if (against < 0) continue;
+      const theirs = this.groupDrive[against] as number;
+      if (theirs <= 0) continue;
+      const taken = g.inhibition * theirs;
       const units = this.groupUnits[gi] as Int32Array;
       for (let k = 0; k < units.length; k++) {
         const u = units[k] as number;
-        const value = (excitation[u] as number) + net;
-        excitation[u] = value < 0 ? 0 : value > 1 ? 1 : value;
+        unitDrive[u] = (unitDrive[u] as number) - taken;
       }
+    }
+
+    // And onto the efferent, once per unit, clamped to what a motor neuron can be asked for.
+    for (let k = 0; k < wired.length; k++) {
+      const u = wired[k] as number;
+      const value = (excitation[u] as number) + (unitDrive[u] as number);
+      excitation[u] = value < 0 ? 0 : value > 1 ? 1 : value;
     }
     let ceiling = 0;
     for (let u = 0; u < n; u++) {

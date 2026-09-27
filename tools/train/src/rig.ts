@@ -407,8 +407,11 @@ export class StandRig {
     const noise = options.noise ?? DEFAULT_NOISE;
     const reflex = options.reflex ?? NO_REFLEX;
     const divisor = options.controlDivisor ?? defaultControlDivisor(rate);
-    // The cord first: it is the layer the brain corrects, so it goes into the accumulator
-    // before the brain does. Its gains at zero leave the excitation exactly as it was.
+    // The cord, one side of one drive group a reflex group, each unit answering its own spindle.
+    // Registered first, but it runs last of the control phase's three writers -- the kernel
+    // orders them by module id, so the tremor, then the brain, then the cord (SpinalModule's
+    // header) -- and its drive lands on the brain's correction. Its gains at zero leave the
+    // excitation exactly as it was.
     const spine = new SpinalModule(muscles, {
       groups: reflexGroups(),
       gains: reflex,

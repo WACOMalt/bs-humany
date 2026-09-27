@@ -376,18 +376,57 @@ export const ANTAGONISTS: ReadonlyMap<string, string> = new Map(
   ]),
 );
 
+/** A side of the body, as the end of a unit id names it: `_r` or `_l`. */
+export type DriveSide = 'r' | 'l';
+
+/** Both sides, right first: the order the policy's outputs and the cord's groups are in. */
+export const DRIVE_SIDES: readonly DriveSide[] = ['r', 'l'];
+
 /**
- * The groups as the cord wants them: units by name, and the group each one opposes. The shape
- * `SpinalModule` takes, built here because the group table and the pairing both live here.
+ * The units of a group on one side of the body.
+ *
+ * Every unit id ends in the side it is on -- `soleus_r`, `soleus_l` -- and a test holds every
+ * group to that, so the two sides of a group are its units split on that suffix with nothing left
+ * over. One function for it, because the policy's outputs (`driveOutputs`) and the cord's reflex
+ * groups both split a group this way, and a side decided in two places is a side two places can
+ * disagree about.
+ */
+export function unitsOnSide(
+  group: { readonly units: readonly string[] },
+  side: DriveSide,
+): string[] {
+  const suffix = `_${side}`;
+  return group.units.filter((u) => u.endsWith(suffix));
+}
+
+/**
+ * The groups as the cord wants them: one side of one drive group each, its units by name, and
+ * the group on the same side that opposes it. The shape `SpinalModule` takes, built here because
+ * the group table and the pairing both live here.
+ *
+ * Seventy of them, thirty-five a side, with the ids and in the order of the policy's outputs
+ * (`driveOutputs`): `soleus_r` is in `anklePlantarflexorDrive:r`, which is opposed by
+ * `ankleDorsiflexorDrive:r` and by nothing on the left. A real cord's stretch reflex and the Ia
+ * interneuron that inhibits the antagonist are segmental, on the side the spindle is on; when
+ * these groups held both sides of the body, a stretched right soleus excited the left one and
+ * inhibited the left shin as much as the right. The members are the drive group's, unchanged --
+ * a biarticular muscle is in the one group the slider table put it in -- and the cord answers
+ * each unit's own spindle on that unit; a group is where reciprocal inhibition is worked out
+ * (see `SpinalModule`).
  */
 export function reflexGroups(): readonly {
   readonly id: string;
   readonly units: readonly string[];
   readonly antagonist: string | undefined;
 }[] {
-  return MUSCLE_GROUPS.map((g) => ({
-    id: g.id,
-    units: g.units,
-    antagonist: ANTAGONISTS.get(g.id),
-  }));
+  return DRIVE_SIDES.flatMap((side) =>
+    MUSCLE_GROUPS.map((g) => {
+      const opposite = ANTAGONISTS.get(g.id);
+      return {
+        id: `${g.id}:${side}`,
+        units: unitsOnSide(g, side),
+        antagonist: opposite === undefined ? undefined : `${opposite}:${side}`,
+      };
+    }),
+  );
 }
