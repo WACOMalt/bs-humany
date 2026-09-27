@@ -20,17 +20,25 @@ export interface OrbitControls {
   /** Jump to a view: azimuth and polar angle in radians, distance in metres. */
   setView(theta: number, phi: number, radius: number): void;
   /**
-   * True when the pointer moved far enough during the last press to count as a drag.
+   * True when the pointer moved far enough during the last press to count as a drag, or the press
+   * was taken by something else.
    *
    * Lets the click handler distinguish "finished orbiting" from "selected a bone", which are
-   * otherwise the same event.
+   * otherwise the same event. A claimed press -- a gizmo dragged and let go over empty space, a
+   * bone grabbed and dropped -- ends in a click on the canvas too, and that click is the end of
+   * the claim, not a pick.
    */
   wasDragging(): boolean;
   target: Vector3;
 }
 
-/** Pixels of pointer travel before a press counts as a drag rather than a click. */
-const DRAG_THRESHOLD = 4;
+/**
+ * Pixels of pointer travel before a press counts as a drag rather than a click.
+ *
+ * Exported so anything else that has to tell a click from a drag on the same canvas -- the Align
+ * tab's point picking -- draws the line in the same place.
+ */
+export const DRAG_THRESHOLD = 4;
 
 const MIN_POLAR = 0.08;
 const MAX_POLAR = Math.PI - 0.08;
@@ -38,10 +46,6 @@ const MIN_DISTANCE = 0.35;
 const MAX_DISTANCE = 12;
 
 export interface OrbitOptions {
-  /**
-   * Called on every primary pointer press before the orbit claims it. Return true to take the
-   * pointer for something else -- grabbing a bone -- and the orbit leaves it alone.
-   */
   /**
    * Offered every left-press. Returning true means something else has taken the pointer and the
    * camera should not move.
@@ -62,6 +66,8 @@ export function createOrbitControls(
   let dragging = false;
   let panning = false;
   let moved = 0;
+  /** Whether the last press was taken by `claimPointer`, which makes it a drag whatever it did. */
+  let claimed = false;
   let lastX = 0;
   let lastY = 0;
 
@@ -75,7 +81,15 @@ export function createOrbitControls(
   element.style.touchAction = 'none';
 
   element.addEventListener('pointerdown', (event) => {
-    if (event.button === 0 && !event.shiftKey && options.claimPointer?.(event)) return;
+    // Reset before anything can return, so `wasDragging` always describes this press. It used to
+    // reset only once the orbit took the press, and a claimed or Ctrl press answered with whatever
+    // the press before it had been.
+    moved = 0;
+    claimed = false;
+    if (event.button === 0 && !event.shiftKey && options.claimPointer?.(event)) {
+      claimed = true;
+      return;
+    }
     // Ctrl is the modifier for reaching into the scene rather than moving around it. The camera
     // holds still for the whole press even when the reach missed, so a near miss does not swing
     // the view out from under the next attempt.
@@ -85,7 +99,6 @@ export function createOrbitControls(
 
     dragging = true;
     panning = event.button === 2 || event.shiftKey;
-    moved = 0;
     lastX = event.clientX;
     lastY = event.clientY;
   });
@@ -169,7 +182,7 @@ export function createOrbitControls(
     },
 
     wasDragging() {
-      return moved > DRAG_THRESHOLD;
+      return claimed || moved > DRAG_THRESHOLD;
     },
 
     update() {

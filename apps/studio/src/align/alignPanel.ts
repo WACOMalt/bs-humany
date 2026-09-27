@@ -15,8 +15,10 @@
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
 import type { Camera, WebGLRenderer } from 'three';
-import { Object3D, Raycaster, Vector2 } from 'three';
+import { Object3D } from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { DRAG_THRESHOLD } from '../orbit.js';
+import { TAB_CHANGE } from '../ui/tabs.js';
 import { type Move, PointHandles } from './pointHandles.js';
 import { type BodyPair, fitBodies, retargetPath, suggestBodyPairs } from './retarget.js';
 import {
@@ -84,13 +86,33 @@ export interface AlignPanel {
    * ask about. `axis` is set on hover and is the question that can be answered in time.
    */
   overGizmo(): boolean;
+  /**
+   * Pick the point of ours drawn under a place on the page, if there is one to pick.
+   *
+   * Only while the tab is open, the handles are showing and the gizmo is neither hovered nor
+   * dragged -- a press on the gizmo is the gizmo's. True when a point was picked, so a caller
+   * that also picks things on a click knows this one is spent. The panel runs it on its own
+   * clicks; it is public for a caller that would rather order the picks itself.
+   */
+  pickPoint(clientX: number, clientY: number): boolean;
+  /**
+   * Switch every Align tool on or off: the gizmo, the handles, the reference overlay, the tinted
+   * segment and point picking.
+   *
+   * They draw into the viewport every tab shares, and they belong to this tab. Left on elsewhere,
+   * the gizmo takes presses meant for the camera, the handles take clicks meant for the bones,
+   * and the overlay clutters a view that no longer explains it. Switching off remembers what the
+   * gizmo was holding and switching on gives it back, so leaving the tab and returning loses
+   * nothing. The panel follows the tabs by itself (see `TAB_CHANGE`); this is for a caller that
+   * would rather say so.
+   */
+  setActive(active: boolean): void;
   /** Add the overlay and the handles to a scene graph. */
   attach(world: Object3D): void;
   /** Take the reference sites once they have been fetched. */
   adopt(data: SourceSites): void;
   /** Called when the body is rebuilt, so the handles follow it. */
   refresh(): void;
-  readonly gizmo: TransformControls;
   dispose(): void;
 }
 
@@ -103,6 +125,16 @@ export function createAlignPanel(
   const handles = new PointHandles();
   const gizmo = new TransformControls(camera, renderer.domElement);
   gizmo.setSize(0.8);
+  /**
+   * Whether the Align tab is open, and with it every tool here. Everything starts off, the gizmo
+   * included, and `attach` switches it all on when the studio opens on this tab.
+   */
+  let active = false;
+  gizmo.enabled = false;
+  /** Our segment picked in the bone pairing list, lit again when the tab comes back. */
+  let highlighted: string | undefined;
+  /** What the gizmo held when the tab was left, handed back when it returns. */
+  let parked: Object3D | undefined;
   // A gizmo drag must not also orbit the camera, and three's own event says when it starts.
   gizmo.addEventListener('dragging-changed', (event) => {
     host.setGizmoDragging((event as unknown as { value: boolean }).value);
@@ -375,37 +407,76 @@ export function createAlignPanel(
     handles.show(
       kind === 'joints' ? PointHandles.jointsOf(model) : PointHandles.sitesOf(model, host.sites()),
     );
-    handles.visible = true;
+    // Not simply on: a rebuild in another tab runs this too (`refresh`), and must not bring the
+    // handles back into a viewport that is not aligning anything.
+    handles.visible = active;
     ui.pointNote.textContent = `${handles.all.length} ${kind === 'joints' ? 'joint centres' : 'attachment sites'}. Click one in the viewport.`;
   };
   ui.points.addEventListener('change', showPoints);
 
-  // Picking: a ray from the pointer, nearest handle within a tolerance.
+  // Picking: the handle drawn nearest the pointer, measured on the screen.
   //
   // The gizmo drives an empty that the picked handle follows, because the handles are one Points
   // cloud and a cloud has no node per point for a gizmo to attach to.
   const proxy = new Object3D();
   proxy.name = 'align-gizmo-proxy';
-  const ray = new Raycaster();
-  const pointer = new Vector2();
-  renderer.domElement.addEventListener('pointerdown', (event) => {
-    // Over a gizmo handle the press belongs to the gizmo, not to picking a new point -- and
-    // `dragging` is still false at this moment, so the hovered axis is what must be asked.
-    if (!handles.visible || gizmo.axis !== null || gizmo.dragging) return;
+  const pickPoint = (clientX: number, clientY: number): boolean => {
+    // Over a gizmo handle the press belongs to the gizmo, not to picking a new point.
+    if (!active || !handles.visible || gizmo.axis !== null || gizmo.dragging) return false;
     const rect = renderer.domElement.getBoundingClientRect();
-    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    ray.setFromCamera(pointer, camera);
-    const at = handles.nearest(ray.ray.origin, ray.ray.direction);
-    if (at < 0) return;
+    const at = handles.nearestOnScreen(camera, rect, clientX, clientY);
+    if (at < 0) return false;
     const h = handles.pick(at);
-    if (!h) return;
-    // The gizmo drives a proxy the handle follows, because a Points cloud has no per-point node.
+    if (!h) return false;
     proxy.position.copy(h.world);
     gizmo.attach(proxy);
     gizmo.setMode('translate');
     showPicked();
+    return true;
+  };
+
+  // A pick is a click, not a press. Picking on the press, as this did, took the first instant of
+  // every orbit and pan that happened to start on a dot, and did it while the camera was being
+  // handed the same press. So the press is only watched here -- how far it travels, and whether it
+  // began on the gizmo -- and the pick waits for the click it ends in.
+  const canvas = renderer.domElement;
+  let lastX = 0;
+  let lastY = 0;
+  let travel = 0;
+  let pressOnGizmo = false;
+  canvas.addEventListener('pointerdown', (event) => {
+    lastX = event.clientX;
+    lastY = event.clientY;
+    travel = 0;
+    // Hover has already set `axis` by now, and three's own pointerdown, which runs before this
+    // one, sets it for a touch that had no hover. After the release it is null again, so this is
+    // the only moment the question can be asked.
+    pressOnGizmo = gizmo.axis !== null || gizmo.dragging;
   });
+  canvas.addEventListener('pointermove', (event) => {
+    if (event.buttons === 0) return;
+    travel += Math.abs(event.clientX - lastX) + Math.abs(event.clientY - lastY);
+    lastX = event.clientX;
+    lastY = event.clientY;
+  });
+  /**
+   * Pick on a click that stayed still, and keep the click from the studio's bone picking.
+   *
+   * The whole path the pointer took is counted, not only where it let go, so an orbit that
+   * swung out and came back to the same pixel is still an orbit; the line is the orbit's own,
+   * so the two never disagree about which presses were clicks. It listens on the window in the
+   * capture phase, filtered to the canvas, because that runs before any listener on the canvas
+   * itself in every browser -- the bone pick's included, which was registered first -- and
+   * stopping the click there means the inspector's bone is not picked by the same click too.
+   */
+  const onClick = (event: MouseEvent): void => {
+    if (event.target !== canvas || pressOnGizmo) return;
+    const moved = travel + Math.abs(event.clientX - lastX) + Math.abs(event.clientY - lastY);
+    if (moved > DRAG_THRESHOLD) return;
+    if (!pickPoint(event.clientX, event.clientY)) return;
+    event.stopPropagation();
+  };
+  window.addEventListener('click', onClick, { capture: true });
 
   ui.keep.addEventListener('click', () => {
     const move = handles.keep(ui.reason.value.trim());
@@ -496,7 +567,8 @@ export function createAlignPanel(
     refreshBoneButton();
   });
   ui.ourBone.addEventListener('change', () => {
-    host.highlightSegment(ui.ourBone.value || undefined);
+    highlighted = ui.ourBone.value || undefined;
+    host.highlightSegment(highlighted);
     refreshBoneButton();
   });
   ui.pairBone.addEventListener('click', () => {
@@ -625,10 +697,47 @@ export function createAlignPanel(
   fillBones();
   writeSliders(placement);
 
+  const setActive = (on: boolean): void => {
+    if (on === active) return;
+    active = on;
+    if (!on) {
+      parked = gizmo.object;
+      gizmo.detach();
+      gizmo.enabled = false;
+      host.setGizmoDragging(false);
+      host.highlightSegment(undefined);
+      // Hidden outside this tab by default, the reference overlay included: it is a comparison
+      // with our body, and elsewhere there is nothing being compared.
+      overlay.visible = false;
+      overlay.bonesVisible = false;
+      handles.visible = false;
+      return;
+    }
+    gizmo.enabled = true;
+    const model = ui.model.value !== '';
+    overlay.visible = ui.show.checked && model;
+    overlay.bonesVisible = ui.showBones.checked && model;
+    handles.visible = ui.points.value !== '' && host.articulation() !== undefined;
+    host.highlightSegment(highlighted);
+    // The proxy only means something while the point it stood for is still picked: a rebuild
+    // while the tab was closed redraws the handles and forgets the pick.
+    if (parked === overlay.group || (parked === proxy && handles.pickedHandle)) {
+      gizmo.attach(parked);
+    }
+    parked = undefined;
+  };
+  // The tabs announce themselves; a panel built after the first announcement reads its own
+  // section for where the studio opened, in `attach`.
+  const onTab = (event: Event): void =>
+    setActive((event as CustomEvent<string>).detail === 'align');
+  document.addEventListener(TAB_CHANGE, onTab);
+
   return {
     overGizmo(): boolean {
-      return gizmo.object !== undefined && gizmo.axis !== null;
+      return active && gizmo.object !== undefined && gizmo.axis !== null;
     },
+    pickPoint,
+    setActive,
     attach(world: Object3D): void {
       world.add(overlay.group);
       world.add(overlay.bones);
@@ -636,6 +745,9 @@ export function createAlignPanel(
       world.add(proxy);
       const helper = (gizmo as unknown as { getHelper?: () => Object3D }).getHelper?.();
       if (helper) world.parent?.add(helper);
+      // A studio that reopens on this tab announced it before the panel was listening.
+      const section = document.querySelector<HTMLElement>('[data-panel="align"]');
+      setActive(section !== null && !section.hidden);
     },
     adopt(data: SourceSites): void {
       overlay.load(data);
@@ -653,8 +765,9 @@ export function createAlignPanel(
       fillOurs();
       showPoints();
     },
-    gizmo,
     dispose(): void {
+      window.removeEventListener('click', onClick, { capture: true });
+      document.removeEventListener(TAB_CHANGE, onTab);
       host.highlightSegment(undefined);
       overlay.dispose();
       handles.dispose();

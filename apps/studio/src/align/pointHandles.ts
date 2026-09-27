@@ -17,6 +17,7 @@ import type { CompiledArticulation } from '@bs-humany/compiler';
 import { transformPoint } from '@bs-humany/frames';
 import {
   BufferGeometry,
+  type Camera,
   Color,
   Float32BufferAttribute,
   Group,
@@ -54,12 +55,37 @@ const LIT = new Color(0xe0864a);
 const REST = new Color(0x8c93a8);
 const MOVED = new Color(0x4fb4c8);
 
+/**
+ * CSS pixels from a dot's centre that still count as clicking it.
+ *
+ * The dots are drawn nine CSS pixels across whatever the distance (`sizeAttenuation: false`), so
+ * a press within 4.5 px is on the dot itself; the rest is slack for a hand that lands just beside
+ * it. The tolerance is in pixels because the dot is: a tolerance in world metres is a different
+ * size on screen at every zoom. The two centimetres this replaced were, on a viewport 800 pixels
+ * high under the studio's 38-degree lens, some sixty pixels either way at the closest the camera
+ * goes and under two at the farthest -- a dot you could not miss, then one you could not hit.
+ */
+export const PICK_RADIUS_PX = 8;
+
+/** Screen distances this close are the same pixel, and the dot nearer the camera wins them. */
+const SAME_PIXEL_PX = 1;
+
+/** A box on the page, in CSS pixels: what `getBoundingClientRect` gives for the canvas. */
+export interface ScreenRect {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export class PointHandles {
   readonly group = new Group();
   private handles: Handle[] = [];
   private cloud: Points | undefined;
   private picked = -1;
   private readonly moved = new Set<string>();
+  /** Reused by `nearestOnScreen`, which runs on every click in the viewport. */
+  private readonly scratch = new Vector3();
 
   constructor() {
     this.group.visible = false;
@@ -133,20 +159,42 @@ export class PointHandles {
     return this.handles;
   }
 
-  /** The handle nearest a world ray, within a tolerance, for picking with the mouse. */
-  nearest(origin: Vector3, direction: Vector3, tolerance = 0.02): number {
+  /**
+   * The handle drawn nearest a point on the page, within `radiusPx`, or -1 when none is.
+   *
+   * Each handle is put through the camera and onto the canvas's box, and measured from the
+   * pointer in CSS pixels -- the unit the dots are drawn in. A handle whose depth falls outside
+   * the view volume is skipped: one behind the eye still divides out onto the screen, often right
+   * under the pointer, but nothing is drawn there. Two dots on the same pixel go to the one nearer
+   * the camera, because that is the one on top as far as the eye can tell.
+   */
+  nearestOnScreen(
+    camera: Camera,
+    rect: ScreenRect,
+    clientX: number,
+    clientY: number,
+    radiusPx = PICK_RADIUS_PX,
+  ): number {
     let best = -1;
-    let bestDistance = tolerance;
-    const v = new Vector3();
+    let bestDistance = Number.POSITIVE_INFINITY;
+    let bestDepth = Number.POSITIVE_INFINITY;
+    const v = this.scratch;
     for (let i = 0; i < this.handles.length; i++) {
       const h = this.handles[i] as Handle;
-      v.copy(h.world).sub(origin);
-      const along = v.dot(direction);
-      if (along <= 0) continue;
-      const d = v.addScaledVector(direction, -along).length();
-      if (d < bestDistance) {
-        bestDistance = d;
+      v.copy(h.world).project(camera);
+      if (!(v.z >= -1 && v.z <= 1)) continue;
+      const x = rect.left + ((v.x + 1) / 2) * rect.width;
+      const y = rect.top + ((1 - v.y) / 2) * rect.height;
+      const d = Math.hypot(x - clientX, y - clientY);
+      if (d > radiusPx) continue;
+      const clearlyCloser = d < bestDistance - SAME_PIXEL_PX;
+      const samePixelNearer = Math.abs(d - bestDistance) <= SAME_PIXEL_PX && v.z < bestDepth;
+      if (best < 0 || clearlyCloser || samePixelNearer) {
         best = i;
+        // The smaller of the two, so a chain of near-ties cannot walk the pick away from the
+        // pointer a pixel at a time.
+        bestDistance = Math.min(bestDistance, d);
+        bestDepth = v.z;
       }
     }
     return best;
@@ -215,6 +263,15 @@ export class PointHandles {
 
   set visible(on: boolean) {
     this.group.visible = on;
+  }
+  /**
+   * Whether the handles are showing.
+   *
+   * A setter with no getter reads back as undefined, never false, so `!handles.visible` was true
+   * whatever had been set and every pick was turned away at its first line.
+   */
+  get visible(): boolean {
+    return this.group.visible;
   }
 
   clear(): void {
