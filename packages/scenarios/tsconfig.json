@@ -10,7 +10,6 @@
     { "path": "../frames" },
     { "path": "../hsdl" },
     { "path": "../anthropometry" },
-    { "path": "../skeleton" },
     { "path": "../modules-mechanics" },
     { "path": "../modules-nerves" }
   ]

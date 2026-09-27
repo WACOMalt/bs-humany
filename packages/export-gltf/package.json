@@ -2,7 +2,7 @@
   "name": "@bs-humany/export-gltf",
   "version": "0.0.0",
   "private": true,
-  "description": "Animated glTF (.glb) export of a bone hierarchy with every simulation tick as a keyframe, for Blender.",
+  "description": "Animated glTF (.glb) export of the bone hierarchy for Blender, sampled at a stride, with the muscle bellies as a PC2 point cache.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

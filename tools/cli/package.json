@@ -2,7 +2,7 @@
   "name": "@bs-humany/cli",
   "version": "0.0.0",
   "private": true,
-  "description": "Headless scenario runner and repository lints.",
+  "description": "Repository lints and checks, the muscle-data generators and measurements, the validation reports, bench, the desktop sidecar and release tarball, and publish-pose: a headless scenario runner that feeds the pose bridge.",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
