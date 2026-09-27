@@ -21,6 +21,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { reportIsCurrent } from '../lib/report.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const check = process.argv.includes('--check');
@@ -77,6 +78,74 @@ function channelField(spec, field) {
     : { ok: false, detail: `\`${spec.id}\` has no \`${field}\` field` };
 }
 
+/**
+ * What Phase 2 has since put into the places obligations 1 and 7 held open.
+ *
+ * Two of the obligations were written as absences -- a primitive nobody calls, a phase nobody
+ * runs in -- because in Phase 1 the only way to tell a slot was being kept for later was that
+ * nothing was in it. Phase 2 has begun, and the nerves are exactly what those slots were kept for.
+ * Read literally the obligations now fail on the work they existed to make room for, and a check
+ * that fails on the right answer teaches everyone to ignore it.
+ *
+ * So each consumer is named here with the decision that put it there. What the obligation guards
+ * against is unchanged: something drifting into the slot by accident, before anyone decided it
+ * should. A file that is not on this list still fails, by name, and adding one is meant to be the
+ * same deliberate act as the ADR that justifies it.
+ */
+const PHASE2_CONSUMERS = Object.freeze({
+  delayLine: Object.freeze([
+    Object.freeze({
+      file: 'packages/modules-nerves/src/spinalModule.ts',
+      decision: 'ADR-014',
+      reason: 'the spinal cord reads its afferents back from a conduction delay ago, per spec 10.5',
+    }),
+  ]),
+  control: Object.freeze([
+    Object.freeze({
+      file: 'packages/modules-nerves/src/nervesModule.ts',
+      decision: 'ADR-013',
+      reason: 'the trained policy, between the senses and the muscles',
+    }),
+    Object.freeze({
+      file: 'packages/modules-nerves/src/spinalModule.ts',
+      decision: 'ADR-014',
+      reason: 'the reflex arcs add onto the same drive as the policy, beneath it',
+    }),
+    Object.freeze({
+      // No ADR covers the noise; the commit that added it is where the decision is written down.
+      file: 'packages/modules-nerves/src/noise.ts',
+      decision: 'commit bc8fcfc',
+      reason: 'a slow tremor added onto the muscles alongside every other driver',
+    }),
+  ]),
+});
+
+/**
+ * The evidence for a slot that Phase 1 held open: either still empty, or filled only by the
+ * consumers `allowed` names. A consumer found that is not on the list is a gap, by file.
+ */
+function heldOpen(found, allowed, emptyDetail) {
+  if (found.length === 0) {
+    return [{ ok: true, detail: `${emptyDetail}: it is held open, as Phase 1 intended` }];
+  }
+  const expected = found.map((f) => allowed.find((a) => a.file === f)).filter(Boolean);
+  const unexpected = found.filter((f) => !allowed.some((a) => a.file === f));
+  const out = [];
+  if (expected.length > 0) {
+    const named = expected.map((a) => `\`${a.file}\` (${a.decision}: ${a.reason})`).join(', ');
+    out.push({ ok: true, detail: `held open in Phase 1; now used by ${named}` });
+  }
+  if (unexpected.length > 0) {
+    out.push({
+      ok: false,
+      detail:
+        `used by ${unexpected.map((f) => `\`${f}\``).join(', ')}, which no decision put there: ` +
+        'if it belongs, name its ADR in PHASE2_CONSUMERS in this tool',
+    });
+  }
+  return out;
+}
+
 const OBLIGATIONS = [
   {
     n: 1,
@@ -90,8 +159,10 @@ const OBLIGATIONS = [
       );
       out.push(namedTest('packages/kernel/src/delayLine.test.ts', 'ticks ago'));
       out.push(namedTest('packages/kernel/src/delayLine.test.ts', 'does not allocate'));
-      // "Unused" is the point: it exists so a reflex arc has somewhere to put its latency, and
-      // nothing should be leaning on it yet.
+      // "Unused" was the Phase 1 half of this: the primitive existed so that a reflex arc would
+      // have somewhere to put its latency, and nothing was to lean on it until one did. One does
+      // now. So the check is no longer that nothing uses it but that everything which does was
+      // put there on purpose, by a decision that says so.
       // This file names the symbol in order to look for it, which does not count as using it.
       const users = ALL_SOURCES.filter(
         (f) =>
@@ -100,9 +171,7 @@ const OBLIGATIONS = [
           /\bDelayLine\b/.test(read(f)),
       );
       out.push(
-        users.length === 0
-          ? { ok: true, detail: 'nothing outside the kernel uses it, as intended' }
-          : { ok: false, detail: `used outside the kernel by ${users.join(', ')}` },
+        ...heldOpen(users, PHASE2_CONSUMERS.delayLine, 'nothing outside the kernel uses it'),
       );
       return out;
     },
@@ -216,9 +285,7 @@ const OBLIGATIONS = [
         phases.includes('control')
           ? { ok: true, detail: `the phase list is ${phases.join(', ')}` }
           : { ok: false, detail: 'no `control` phase in the list' },
-        inControl.length === 0
-          ? { ok: true, detail: 'no module runs in it, which is the point: it is held open' }
-          : { ok: false, detail: `${inControl.join(', ')} already runs in it` },
+        ...heldOpen(inControl, PHASE2_CONSUMERS.control, 'no module runs in it'),
         namedTest('packages/kernel/src/kernel.test.ts', 'rateDivisor'),
       ];
     },
@@ -329,13 +396,16 @@ if (check) {
     process.exit(1);
   }
   const existing = read('docs/validation/obligations.md');
-  if (existing.split('Generated ')[0] !== report.split('Generated ')[0]) {
+  if (!reportIsCurrent(existing, report)) {
     console.error(
       'docs/validation/obligations.md is stale. Run `pnpm audit:obligations` and commit it.',
     );
     process.exit(1);
   }
   console.error(`section 14.5 audit: all ${results.length} obligations met, report current.`);
+} else if (reportIsCurrent(read('docs/validation/obligations.md'), report)) {
+  // Nothing but the date would change, and a date that moves on every run is churn in a commit.
+  console.error(`${path} is current: ${results.length - unmet.length} of ${results.length} met.`);
 } else {
   writeFileSync(path, `${report}\n`);
   console.error(`wrote ${path}: ${results.length - unmet.length} of ${results.length} met.`);

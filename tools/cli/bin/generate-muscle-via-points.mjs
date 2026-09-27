@@ -118,6 +118,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
+import { REFERENCE_FOREARM_AT_OUR_NEUTRAL } from '../../validate-external/src/referenceArm.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const MYO_SIM = join(ROOT, 'tools/validate-external/myo_sim');
@@ -200,7 +201,14 @@ const LIMBS = [
      * one at the wrist moves the width of the wrist -- as it should. The direction is checked
      * rather than trusted: turned the wrong way, the extensors land in front of the bone.
      */
-    pose: [{ body: 'radius_r', joint: 'pro_sup_r', radians: -Math.PI / 2, dorsal: 'ECRB-P3_r' }],
+    pose: [
+      {
+        body: 'radius_r',
+        joint: 'pro_sup_r',
+        radians: REFERENCE_FOREARM_AT_OUR_NEUTRAL,
+        dorsal: 'ECRB-P3_r',
+      },
+    ],
     /**
      * Points placed on this skeleton's own bone rather than carried, where the carry cannot
      * reach: the reference's wrist is wider than ours across the forearm, and no rigid frame with
