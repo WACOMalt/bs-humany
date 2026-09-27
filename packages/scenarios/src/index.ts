@@ -68,8 +68,17 @@ export interface Scenario {
   /** Whether a passive-system energy check applies: false when a script pumps energy in. */
   readonly passiveSystem: boolean;
   /**
-   * Per-scenario tolerance overrides (spec 13.3: tolerances are per scenario). Each carries its
-   * reason where it is set; the defaults live with the checks in the testkit.
+   * The run is expected to be at rest at its end; false for a scenario whose drive or shake never
+   * stops. Defaults to true. A scenario that is still moving by design says so here, with its
+   * reason beside the flag, rather than by raising the kinetic energy that counts as at rest: a
+   * raised threshold would still pass a run that ended in a runaway, where a flag switches the
+   * one check off and leaves the peak-energy bound watching the whole run.
+   */
+  readonly settles?: boolean | undefined;
+  /**
+   * Per-scenario tolerance overrides (spec 13.3: tolerances are per scenario). Each applies over
+   * the MuJoCo defaults in the testkit's `plausibility.ts`, which live with the checks and say
+   * why they are what they are, and each carries its own reason where it is set.
    */
   readonly plausibility?: Readonly<Partial<Record<PlausibilityKey, number>>> | undefined;
   /** The nerves in the loop: a trained policy over the drive. */
@@ -87,6 +96,7 @@ export type PlausibilityKey =
   | 'rangeViolation'
   | 'penetration'
   | 'restKinetic'
+  | 'peakKinetic'
   | 'drift'
   | 'ballistic';
 
@@ -448,9 +458,9 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       passiveJoints: true,
       // A muscle is a source of energy, so the passive-system check does not apply.
       passiveSystem: false,
-      // It is still moving at the end because it never stops: a body with no balance reflex on
-      // a set of tonic excitations sways and keeps swaying.
-      plausibility: { restKinetic: 30 },
+      // It settles: nothing here holds standing yet, so by the end the body is down and still
+      // (0.04 J). A body that did stand would settle too, because the sway of quiet standing is
+      // millijoules; only a scenario that keeps something moving to its last tick is excused.
       script: ankleStrategy(v),
     }),
   }),
@@ -628,10 +638,11 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
         passiveJoints: true,
         // A script driving a joint at half the tick rate is pumping energy in by the bucket.
         passiveSystem: false,
-        // It is still being shaken when the run ends, so of course it is still moving. Two joules
-        // on a 70 kg body is a head vibrating a couple of millimetres, which is the scenario
-        // doing exactly what it was written to do.
-        plausibility: { restKinetic: 4 },
+        // It is still being shaken when the run ends, so of course it is still moving: a head
+        // vibrating a couple of millimetres, which is the scenario doing exactly what it was
+        // written to do. It happens to end under a joule (0.51 J), but that is the amplitude
+        // talking, not rest.
+        settles: false,
         script: (time, api) => {
           const head = api.segment('head');
           if (head < 0) return;
@@ -697,9 +708,6 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       ground: { height: 0 },
       passiveJoints: true,
       passiveSystem: false,
-      // The release flings the body into the ground at a few metres per second; the impulse
-      // solver lets a capsule sink a little further than a drop does before it pushes back.
-      plausibility: { penetration: 0.06 },
       script: (time, api) => {
         const hand = api.segment('hand_r');
         const radius = v.radius as number;
@@ -736,12 +744,9 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       passiveJoints: true,
       // A muscle is a source of energy, so the passive-system check does not apply.
       passiveSystem: false,
-      // The last group is still driving when the run ends and the body hangs from one wrist, so
-      // it is still swinging: a few joules on a 70 kg body is the pendulum a driven limb makes of
-      // it, which is the scenario doing what it was written to do. Six of them since the
-      // shoulder girdle got its muscles, because the body now hangs from the wrist through a
-      // scapula that is slung to the trunk rather than through the clavicle alone.
-      plausibility: { restKinetic: 8 },
+      // It settles: each group's drive is a half sine that is back to zero when its phase ends,
+      // and the run goes on a second past the last phase, so the body is left hanging from its
+      // wrist with the swing of that last group dying away (0.39 J).
       script: (time, api) => {
         const hand = api.segment('hand_r');
         if (time === 0) api.grab(hand, vec3(0, 0, 0), vec3(0.2, v.hold as number, 0));
@@ -784,7 +789,7 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       passiveSystem: false,
       // It is still flailing when the run ends, by construction: the drive never stops and the
       // body hangs from one wrist while two arms swing.
-      plausibility: { restKinetic: 8 },
+      settles: false,
       script: (time, api) => {
         // Held by the left wrist, so the right arm is the one flailing freely.
         const hand = api.segment('hand_l');
@@ -829,7 +834,8 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       ground: { height: 0 },
       passiveJoints: true,
       passiveSystem: false,
-      plausibility: { restKinetic: 30 },
+      // It settles, for the reason quiet-standing does: standing, it sways by millijoules, and
+      // open loop it goes over and lies still.
       script: playClip(clipCalled('quiet-standing'), v.gain as number, v.rate as number),
     }),
   }),
@@ -855,7 +861,10 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       ground: { height: 0 },
       passiveJoints: true,
       passiveSystem: false,
-      plausibility: { restKinetic: 60 },
+      // The gait plays to the last tick, and a body that walked to it would end with tens of
+      // joules of forward motion. Today it goes over and ends nearly still (0.43 J), which is
+      // the fall, not the scenario settling.
+      settles: false,
       script: playClip(clipCalled('walk-normal'), v.gain as number, v.rate as number),
     }),
   }),
@@ -881,7 +890,8 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       ground: { height: 0 },
       passiveJoints: true,
       passiveSystem: false,
-      plausibility: { restKinetic: 80 },
+      // The flailing plays to the last tick, so the arms are driven hard right up to the end.
+      settles: false,
       script: playClip(clipCalled('flail-arms'), v.gain as number, v.rate as number),
     }),
   }),
@@ -909,7 +919,7 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       passiveJoints: true,
       passiveSystem: false,
       golden: false,
-      plausibility: { restKinetic: 30 },
+      // It settles: standing, it sways by millijoules, and fallen it lies still (0.00 J).
       nerves: {
         policy: standPolicy as unknown as PolicyFile,
         authority: v.authority as number,

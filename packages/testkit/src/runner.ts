@@ -94,6 +94,14 @@ export interface RunOptions {
   readonly audit?: boolean | undefined;
   /** Stop after this many ticks, if that is sooner than the scenario's own duration. */
   readonly maxTicks?: number | undefined;
+  /**
+   * Wall-clock milliseconds the stepping may take before the run gives up with an error naming
+   * the scenario and how far it got. The stepping loop is synchronous, so a test runner's timeout
+   * cannot fire inside it: a solve that slowed to a crawl would otherwise hold its test, and
+   * everything waiting on it, for as long as it took. Checked at each sample, so it costs nothing
+   * per tick and never changes a trajectory; unbounded when absent.
+   */
+  readonly budgetMs?: number | undefined;
 }
 
 export async function runScenario(
@@ -119,7 +127,7 @@ export async function runScenario(
   // checking every channel after every module's step for all of it would slow the suite's longest
   // file for nothing the golden checks; the audit reads and never writes, so it cannot change a
   // trajectory either way. The scenarios are audited instead by a short second pass over each
-  // (scenarios.test.ts), which asks for it here.
+  // (goldenSuite.ts), which asks for it here.
   const kernel = new Kernel({
     rateHz: rate,
     seed: 1,
@@ -254,9 +262,19 @@ export async function runScenario(
     const t0 = performance.now();
     kernel.step();
     stepMs += performance.now() - t0;
-    if (tick % every === 0 || tick === ticks) sample(tick);
+    if (tick % every === 0 || tick === ticks) {
+      sample(tick);
+      const spent = performance.now() - started;
+      if (options.budgetMs !== undefined && spent > options.budgetMs) {
+        kernel.dispose();
+        throw new Error(
+          `Scenario '${scenario.id}' on ${backend.id} used its ${Math.round(options.budgetMs / 1000)} s ` +
+            `wall-clock budget by tick ${tick} of ${ticks}: the stepping has slowed to a crawl or ` +
+            'the machine is badly overloaded, and waiting longer would only hold up the run.',
+        );
+      }
+    }
   }
-  void started;
   kernel.dispose();
   return {
     scenarioId: scenario.id,

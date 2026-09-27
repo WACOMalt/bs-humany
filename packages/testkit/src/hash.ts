@@ -2,9 +2,15 @@
  * Trajectory hashing for golden tests -- spec section 13.2.
  *
  * FNV-1a over the exact bit patterns of every sampled position, orientation and joint
- * coordinate. Any change in behaviour, however small, changes the hash; that is the point. The
- * hash is platform-specific to the extent the backend is -- MuJoCo's WASM is deterministic across
- * platforms -- and the goldens file records the platform each was produced on regardless.
+ * coordinate. Any change in behaviour, however small, changes the hash; that is the point.
+ *
+ * MuJoCo, the only backend, runs as WebAssembly, whose arithmetic is IEEE 754 with nothing left
+ * to the platform, so the solver itself is portable. The TypeScript around it is portable too as
+ * far as its arithmetic goes, but it calls `Math.exp`, `Math.cos` and the like, whose last bit
+ * ECMAScript leaves to the engine; one Node version computes them the same way everywhere, a
+ * different one need not. So the goldens file records the platform each hash was produced on: if
+ * two machines ever disagree, the divergence can be explained rather than argued about, and a
+ * mismatch names the recorded platform when it is not the one running (`goldenSuite.ts`).
  */
 
 import type { Trajectory } from './runner.js';
