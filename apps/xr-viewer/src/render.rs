@@ -90,7 +90,9 @@ pub struct Renderer {
 /// Per image rather than shared, because a shared buffer written for frame N+1 while the GPU is
 /// still reading it for frame N tears -- and the fence that says frame N is finished belongs to
 /// frame N's image, not to whichever one is being recorded now. Three copies of thirteen
-/// kilobytes is the whole cost of not having that bug.
+/// kilobytes is the whole cost of not having that bug. The depth image is the exception, one for
+/// all of them: the render pass's external dependency is what makes one shared depth image safe
+/// while frames overlap, chosen over a depth image per Target at about 36 MB each.
 struct Target {
     view: vk::ImageView,
     framebuffer: vk::Framebuffer,
@@ -270,6 +272,9 @@ impl Renderer {
         }?;
 
         // --- depth, shared by every swapchain image ---------------------------------------------
+        // One image, not one a target, although frames overlap: the render pass's external
+        // dependency (multiview_render_pass) orders each frame's clear after the last frame's
+        // depth writes, which is what makes sharing it safe, and saves about 36 MB a target.
         let depth = Image::depth(&device, &memory_properties, extent)?;
 
         // --- one framebuffer, command buffer and fence per swapchain image ----------------------
@@ -1503,6 +1508,33 @@ fn multiview_render_pass(device: &ash::Device, format: vk::Format) -> Result<vk:
         .color_attachments(&colour)
         .depth_stencil_attachment(&depth)];
 
+    // Every frame draws into the one depth image, and frames overlap: frame N+1 is submitted
+    // while frame N's fragment tests may still be running, and nothing else orders the two on
+    // the GPU -- each frame's fence belongs to its own swapchain image. The dependency Vulkan
+    // supplies when none is given waits on nothing (TOP_OF_PIPE, no access), so N+1's clear of
+    // the depth image, which is a write at the early fragment tests, and its layout transition
+    // could land while N is still writing depth at the late ones. This one makes them wait for
+    // every earlier depth write, and makes the colour writes wait for the colour stage of the
+    // work before. It is what makes one shared depth image safe while frames overlap, and was
+    // chosen over a depth image per swapchain image (about 36 MB each at the resolution the
+    // runtime asks for) because what it costs is only that overlap of one frame's depth work
+    // with the next. Every pipeline here is built against this one render pass object, so adding
+    // it changes no pipeline's compatibility.
+    let fragment_tests_and_colour = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT
+        | vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS
+        | vk::PipelineStageFlags::LATE_FRAGMENT_TESTS;
+    let dependencies = [vk::SubpassDependency::default()
+        .src_subpass(vk::SUBPASS_EXTERNAL)
+        .dst_subpass(0)
+        .src_stage_mask(fragment_tests_and_colour)
+        .dst_stage_mask(fragment_tests_and_colour)
+        .src_access_mask(vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE)
+        .dst_access_mask(
+            vk::AccessFlags::COLOR_ATTACHMENT_WRITE
+                | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ
+                | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
+        )];
+
     // The mask is the whole of multiview: bit per view, so 0b11 is both eyes. The correlation mask
     // tells the driver the two views are near each other, which is what lets it share work.
     let view_masks = [0b11u32];
@@ -1516,6 +1548,7 @@ fn multiview_render_pass(device: &ash::Device, format: vk::Format) -> Result<vk:
             &vk::RenderPassCreateInfo::default()
                 .attachments(&attachments)
                 .subpasses(&subpasses)
+                .dependencies(&dependencies)
                 .push_next(&mut multiview),
             None,
         )
