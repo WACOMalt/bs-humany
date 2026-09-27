@@ -1,0 +1,23 @@
+@bs-humany/skeleton
+
+This package is in the Data tier of ADR-009 and is distributed under Creative Commons
+Attribution-ShareAlike 4.0 International (see LICENSE). Its landmarks, local frames, joint centres,
+rest transforms, collision proxies and the profiles traced from the bone meshes are derived from
+the meshes in @bs-humany/assets-anatomical, and so from the following:
+
+  "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"
+  "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+
+Z-Anatomy authors: Kousaku Okubo (original BodyParts3D model), Gauthier Kervyn (design, 3D,
+anatomy), Marcin Zielinski (Blender add-on), Lluis Vinent (Unity development).
+Source: https://github.com/LluisV/Z-Anatomy (Resources/Models/FBX/SkeletalSystem100.fbx) and
+https://github.com/Z-Anatomy/Models-of-human-anatomy.
+
+src/muscleViaPoints.ts also carries the muscle via points of MyoSuite myo_sim (MyoHub,
+Apache-2.0), moved into this skeleton's bone frames by `pnpm generate:via-points`. Apache-2.0
+permits their use in a CC BY-SA work; the licence and the pinned commit are in
+tools/validate-external/myo_sim, and the root NOTICE says what else is taken from that model.
+
+The data and the code that holds it share the same source files here, so the package as a whole
+carries the data's licence. The other bs-humany code packages, which load this data, remain
+Apache-2.0: they are not derivatives of it. See ADR-009 and ADR-011, and the root NOTICE.
