@@ -151,6 +151,40 @@ headless. What a studio frame costs beyond the ticks it advances is the renderin
 not the simulation. These figures come from a desktop that was running other work at the same
 time; compare rows within one run rather than across runs.
 
+## The studio's frame, headless
+
+Written 2026-09-27 by hand, not by `pnpm bench`, as the first answer to the studio running L3 at
+about 0.07x life speed and 1.5 frames a second. It measures the studio's own `Simulation` class,
+captures and all, which the bench's Studio row does not: the scenario the studio opens on
+(`quiet-standing`) at L3, 1000 Hz, with the muscles, the recipe module's default cord and the
+default 60 fps output, driven the way the frame loop drives it -- `advance` once a rendered frame,
+16.67 ticks each. After twenty warm-up frames, 180 frames (3000 ticks, three simulated seconds)
+were timed; five runs of each, the two versions alternating, Node v22.22.2 on linux-x64 with a
+load average between 0.9 and 1.7 from other work. The figure is the median of the five runs, and
+no run was more than 2% from it.
+
+| Studio `Simulation`, L3 | ms / frame (median) | ms / tick | Ticks / s | Life speed | Memory grown over 3 s |
+|---|---|---|---|---|---|
+| Before (3a82ace) | 60.6 | 3.67 | 273 | 0.27x | 747 MB |
+| After | 49.0 | 2.97 | 337 | 0.34x | 68 MB |
+
+What changed between them is what the studio kept rather than what it computed, so the ticks are
+the same ticks: the ring capture is taken once a sweep (one tick in eight at 1000 Hz) instead of
+every tick, the timeline keeps only the start of the run instead of a snapshot every tenth of a
+second, and the sampled recording is bounded by the capture budget. After the change a studio
+tick costs what the bench's Studio row says the body costs (2.935 ms), so the captures are no
+longer a measurable part of it. The memory column is `arrayBuffers` growth: before, the ring
+capture alone was 200 MB a simulated second at L3 and thirty snapshots added about 120 MB; after,
+it is the two captures at their new rates.
+
+One rendered frame now runs at most 60 ticks (`MAX_TICKS_PER_ADVANCE`), so the panel's extreme
+of 2000 steps into 1 fps spreads its output frame over 34 rendered frames of about 180 ms each at
+this tick cost, rather than stopping the page for six seconds or more. None of this touches MuJoCo's
+step or the muscle dynamics, which are most of the tick: at L3 the body is still about a third of
+life speed headless, and what the browser adds on top -- rendering, the overlays, the page -- is
+measured in the browser, before and after, by whoever integrates this. Whether the simulation
+leaves the main thread (ADR-008) is decided from both sets of numbers.
+
 ## Historical: ADR-003 reassessment evidence
 
 Frozen. The skeleton-only table as the bench generated it on 2026-09-14 on linux-x64 with Node

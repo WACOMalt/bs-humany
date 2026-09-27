@@ -3,9 +3,11 @@
  *
  * Nodes are the document's bones in their anatomical hierarchy, parents before children; each
  * carries the measured mesh at rest (scaled to stature, as the viewer draws it), and the
- * keyframes are the captured bone transforms, every tick. The glTF writer moves meshes into
- * bone frames and keyframes into parent-relative form; this module only gathers the pieces
- * and the provenance that goes with them.
+ * keyframes are the captured bone transforms at every stride-th tick -- every tick, unless one
+ * output frame would hold more than `MAX_SAMPLES_PER_FRAME` of them. The muscle bellies are one
+ * mesh beside them, moved by a PC2 vertex cache of one sample per output frame. The glTF writer
+ * moves meshes into bone frames and keyframes into parent-relative form; this module only
+ * gathers the pieces and the provenance that goes with them.
  */
 
 import type { SkeletonAssets } from '@bs-humany/assets-anatomical';
@@ -15,6 +17,7 @@ import {
   blenderImportScript,
   boxMesh,
   buildAnimatedGlb,
+  newestAtOrBefore,
   planeMesh,
   writePointCache,
 } from '@bs-humany/export-gltf';
@@ -114,7 +117,6 @@ function toBlenderAxes(from: Float64Array, into: Float32Array, vertices: number)
   }
 }
 
-/** One muscle's slice of the joined belly mesh, so the import script can name it. */
 /**
  * The most keyframes worth writing inside one output frame.
  *
@@ -139,6 +141,7 @@ export function sampleCount(frames: number, stride: number): number {
   return Math.floor((frames - 1) / stride) + 1;
 }
 
+/** One muscle's slice of the joined belly mesh, so the import script can name it. */
 export interface MuscleVertexGroup {
   readonly name: string;
   readonly displayName: string;
@@ -151,18 +154,25 @@ export interface MuscleVertexGroup {
  *
  * The view is already one contiguous block per stream, so a frame is a subarray and this copies
  * it into the caller's buffers the way the live capture does. Written here rather than reaching
- * into the capture, because the export holds a view rather than the capture itself.
+ * into the capture, because the export holds a view rather than the capture itself. The same
+ * goes for `indexForTick`, the ring frame a bone tick was showing: the view carries each frame's
+ * tick for it.
  */
 function capturedRings(view: {
   readonly frames: number;
   readonly rings: number;
+  readonly ticks: Int32Array;
   readonly position: Float32Array;
   readonly orientation: Float32Array;
   readonly radius: Float32Array;
 }) {
+  const tickAt = (index: number): number => view.ticks[index] ?? -1;
   return {
     frameCount: view.frames,
     ringCount: view.rings,
+    indexForTick(tick: number): number {
+      return newestAtOrBefore(view.frames, tickAt, tick);
+    },
     frameInto(
       index: number,
       position: Float32Array,
@@ -186,9 +196,9 @@ export function buildBlenderExport(
   assets: SkeletonAssets,
 ): BlenderExport {
   const capture = simulation.capture.view();
-  // One keyframe per simulation step, timed in seconds. That is the whole of the timing contract:
-  // a second of simulated time is a second of Blender timeline, however many steps went into it
-  // and whatever frame rate the scene is set to. Nothing here resamples.
+  // One keyframe per simulation step, or per stride-th step, timed in seconds. That is the whole
+  // of the timing contract: a second of simulated time is a second of Blender timeline, however
+  // many steps went into it and whatever frame rate the scene is set to. Nothing here resamples.
   const rate = simulation.stepsPerSecond;
   const outputFramerate = Math.max(1, Math.round(simulation.outputFramerate));
   // How many recorded samples to skip between keyframes. One means none are skipped, which is the
@@ -343,21 +353,22 @@ export function buildBlenderExport(
     });
   }
 
-  // Muscles, as skinned bellies: one joint per ring, and a mesh bound to them a ring at a time.
-  // A belly is swept anew every tick, so it is rigid in no bone and cannot be a node with a mesh
-  // the way a bone is -- but it is rigid ring by ring, and that is exactly what a skin expresses.
+  // Muscles, as one belly mesh moved by a vertex cache. A belly is swept anew along its path, so
+  // it is rigid in no bone and cannot be a node with a mesh the way a bone is; what the capture
+  // holds is its rings, one frame a sweep, and every vertex is rebuilt from those.
   const muscleRings = simulation.muscleCapture.view();
   const volume = simulation.muscleVolume;
   const units = simulation.muscles?.units;
-  // Whether there are any ring frames to lay against the pose frames, rather than whether there
-  // are exactly as many. The two captures are held level as they are taken
-  // (`Simulation.keepCapturesLevel`), so they normally match exactly -- but the test used to be
-  // an equality, and an equality means that the moment they diverge the export writes a file
-  // with an empty Muscles collection and says nothing about it. They diverge for a reason that
-  // has nothing to do with the muscles being wrong: the two hold very different amounts per
-  // frame against the same budget, so the muscle capture stops first and the bone capture runs
-  // on. A belly animation that holds its last pose is a better answer than no belly.
-  const muscleAvailable = muscleRings.frames;
+  // The bone frames the rings can be laid against, as a span of ticks: every bone tick finds the
+  // newest ring frame at or before it, which is the belly that was showing then. The two captures
+  // are held to the same span as they are taken (`Simulation.keepCapturesLevel`), so that is
+  // normally every bone frame -- but the test is whether there are rings at all rather than an
+  // exact match, because an exact test means that the moment the two diverge the export writes a
+  // file with an empty Muscles collection and says nothing about it. They diverge for a reason
+  // that has nothing to do with the muscles being wrong: the two hold very different amounts
+  // against the same budget, so the muscle capture stops first. A belly that holds its last pose
+  // is a better answer than no belly.
+  const muscleAvailable = muscleRings.frames > 0 ? capture.frames : 0;
   // The bellies: one mesh, and their movement in a cache beside the file rather than in it.
   //
   // They used to be a hundred and forty-eight skinned meshes over 3552 armature bones, keyed
@@ -394,7 +405,9 @@ export function buildBlenderExport(
     const replay = new Playback();
     const template = { index: indices, verticesPerUnit: perUnit };
     const held = capturedRings(muscleRings);
-    const first = replay.bellyAt(held, 0, template, volume.rings, volume.segments);
+    /** The ring frame showing at a bone frame of the capture. */
+    const ringsAt = (boneFrame: number): number => held.indexForTick(capture.firstTick + boneFrame);
+    const first = replay.bellyAt(held, ringsAt(0), template, volume.rings, volume.segments);
     const positions = new Float64Array(vertices * 3);
     if (first) positions.set(first.position.subarray(0, vertices * 3));
 
@@ -415,7 +428,8 @@ export function buildBlenderExport(
 
     // One sample per output frame, which is what a mesh cache is: Blender plays frames, and a
     // cache finer than the frames it is played at is bytes nobody reads. The bone curves keep
-    // every sample -- they are cheap and they are the part somebody edits.
+    // every stride-th step -- they are cheap and they are the part somebody edits. Each sample is
+    // the bone frame on that output frame's tick, and the rings that were showing there.
     pointCacheSamples = Math.max(
       1,
       Math.floor(((muscleAvailable - 1) * outputFramerate) / rate) + 1,
@@ -424,7 +438,7 @@ export function buildBlenderExport(
       { points: vertices, samples: pointCacheSamples, startFrame: 0, sampleRate: 1 },
       (index, into) => {
         const at = Math.min(muscleAvailable - 1, Math.round((index * rate) / outputFramerate));
-        const frame = replay.bellyAt(held, at, template, volume.rings, volume.segments);
+        const frame = replay.bellyAt(held, ringsAt(at), template, volume.rings, volume.segments);
         if (frame) toBlenderAxes(frame.position, into, vertices);
       },
     );
@@ -485,10 +499,12 @@ export function buildBlenderExport(
       frame: '+X right, +Y up, +Z posterior (anterior is -Z); metres; seconds',
       hierarchy:
         'bones nested by anatomical parent, each carrying its own rigid mesh; a joint__<id> ' +
-        'node at every joint centre, parented to the bone the pivot is fixed in; the ground ' +
-        'and the scenario furniture under a static "scene" root; muscle bellies under a ' +
-        '"muscles" root, each a skinned mesh bound one ring at a time to a joint per ' +
-        'cross-section, which carries both the bend of the path and the swell of the belly',
+        'node at every joint centre, parented to the bone the pivot is fixed in, carrying the ' +
+        'intervertebral disc or costovertebral bead where there is one; the costal cartilage ' +
+        'under a "tissue" root, one bar a weld, each skinned to the two bones it joins; the ' +
+        'ground and the scenario furniture under a static "scene" root; the muscle bellies as ' +
+        'one unskinned "muscles" mesh whose movement is the .pc2 beside the file, one sample ' +
+        'per output frame',
       muscles: muscleGroups.length,
       attribution: attributionText(assets.manifest),
       dataLicense: assets.manifest.dataset.license,

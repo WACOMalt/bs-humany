@@ -1,10 +1,16 @@
 /**
  * The studio's simulation session: one compiled and placed articulation, one kernel, the
- * mechanical modules, and a timeline of kernel snapshots.
+ * mechanical and muscle modules, the two captures the export and the playback read, and a few
+ * kernel snapshots to go back to.
+ *
+ * The snapshots are the start of the run, always, which is what Reset returns to, and as many
+ * restore points after it as the caller asks for, which is none in the studio: its timeline plays
+ * the captures back rather than re-simulating, so a snapshot there would be megabytes of state
+ * that nothing restores. The headless publisher asks for a minute of them, because its headset
+ * scrub does re-simulate.
  *
  * Runs on the main thread. The worker host (M2.6) exists and is where this moves once the
- * transport is worth its cost; on the main thread the timeline is simplest, since a scrub is a
- * synchronous restore.
+ * transport is worth its cost (ADR-008); on the main thread a scrub is a synchronous restore.
  */
 
 import type { ResolvedMorphology } from '@bs-humany/anthropometry';
@@ -81,8 +87,20 @@ export interface SimulationOptions {
   readonly scenario?: Scenario | undefined;
   readonly dropHeight: number;
   readonly groundHeight: number;
-  /** Seconds between timeline snapshots. */
+  /** Seconds between restore points, when there are any. @see restorePoints */
   readonly snapshotEverySeconds?: number | undefined;
+  /**
+   * How many kernel snapshots to keep after the start of the run, for `scrubTo` to restore from.
+   *
+   * None unless asked for. A snapshot of the whole body with its muscles is about four megabytes,
+   * and the studio used to keep six hundred of them -- two and a third gigabytes of state that
+   * nothing on its timeline ever restored, since that plays the captures back. With none, the
+   * start of the run is still kept, so Reset and a scrub still work; a scrub to anywhere else
+   * simply re-simulates from the start. The newest are kept and the oldest after the start are
+   * dropped, so a caller that scrubs, as the headless publisher does, gets a window of
+   * `restorePoints * snapshotEverySeconds` behind the present.
+   */
+  readonly restorePoints?: number | undefined;
   /** Sampled trajectory recording cadence, ticks. 0 disables recording. */
   readonly recordEveryTicks?: number | undefined;
   /**
@@ -90,10 +108,8 @@ export interface SimulationOptions {
    *
    * Off unless asked for, because every unit costs a solve per tick and plenty of what the studio
    * is used for has nothing to do with muscles -- though the studio now asks for them by default,
-   * because a muscle module should open showing muscles. What is wired up is the whole set: the
-   * elbow, shoulder, forearm, hip, knee, ankle, trunk, torso, neck, shoulder girdle and thorax,
-   * two hundred and seventy-two units.
-   * The hand has none yet.
+   * because a muscle module should open showing muscles. What is wired up is every region in
+   * `ALL_MUSCLES` (packages/muscle-data/src/wholeBody.ts), the hand included.
    */
   readonly muscles?: boolean | undefined;
   /**
@@ -160,6 +176,21 @@ export interface Recording {
 export const DEFAULT_OUTPUT_FRAMERATE = 60;
 
 /**
+ * The most ticks one call to `advance` runs, which is the most one rendered frame waits for.
+ *
+ * An output frame is `stepsPerSecond / outputFramerate` ticks, and the panel allows 2000 steps a
+ * second into 1 frame a second: two thousand ticks inside one animation frame, which at L3 with
+ * the muscles is several seconds in which the page answers nothing -- Pause included. Sixty is
+ * one output frame at 60 fps and 1000 Hz with room to spare, so every setting the panel opens at
+ * is under it and unchanged; a bigger frame is spread over several rendered frames.
+ *
+ * A count of ticks and never a budget of milliseconds, because a budget would make how far a
+ * frame gets depend on how fast the machine was, and the run would stop being the same run on
+ * two machines (blenderExport.test.ts pins that it is).
+ */
+export const MAX_TICKS_PER_ADVANCE = 60;
+
+/**
  * The backend for a run, which is MuJoCo whatever was asked for.
  *
  * MuJoCo became the only enabled backend at the ADR-003 reassessment of 2026-09-13, and the
@@ -213,9 +244,15 @@ export class Simulation {
   private started = false;
   private readonly snapshotEvery: number;
   private readonly recordEvery: number;
-  /** Timeline snapshots, one every `snapshotEvery` ticks, oldest first. */
+  /** Restore points kept after the start. @see SimulationOptions.restorePoints */
+  private readonly restorePoints: number;
+  /**
+   * Kernel snapshots, oldest first. The first is always tick 0 of this run, taken by `start` --
+   * the scenario's start on this body -- whatever has been carried or restored since, so Reset
+   * always has somewhere to go back to. After it: where a carry or a restore put the run, and a
+   * restore point every `snapshotEvery` ticks, at most `restorePoints` of them.
+   */
   private readonly timeline: { tick: number; snapshot: KernelSnapshot }[] = [];
-  private readonly timelineCapacity = 600;
   private scriptApi: ScenarioApi | undefined;
   /** Whether the scenario's script may drive muscles. @see SimulationOptions.scriptMuscleDrive */
   private readonly scriptMuscleDrive: boolean;
@@ -243,10 +280,12 @@ export class Simulation {
    * Frames a second of simulated time is divided into for playback and for the export.
    *
    * The wall clock has nothing to do with this and that is the point. One rendered frame advances
-   * the simulation by exactly one output frame's worth of simulated time -- `stepsPerSecond /
+   * the simulation by one output frame's worth of simulated time -- `stepsPerSecond /
    * outputFramerate` ticks, with the remainder carried so the average is exact -- and it does that
    * whether the frame took two milliseconds or two seconds. A slow machine produces the same
-   * frames more slowly. It never produces fewer of them.
+   * frames more slowly. It never produces fewer of them. The one exception is an output frame
+   * worth more than `MAX_TICKS_PER_ADVANCE` ticks, which is spread over several rendered frames
+   * so that no one of them stops the page; the ticks, and the run, are the same.
    *
    * What that replaces is a pair of modes that both chased the wall clock, one of which discarded
    * elapsed time to stay with it and reported the loss as "frames are being dropped". No tick was
@@ -254,13 +293,18 @@ export class Simulation {
    * sense that mattered least and alarming in the sense that mattered most, and neither mode had
    * any business being the thing a capture for export depended on.
    *
-   * On playback this means the picture advances one output frame per display refresh: at 60 fps
-   * output on a 60 Hz display that is life speed, and at 24 it is two and a half times life. The
-   * export does not notice either way -- a keyframe's time comes from its tick index and
-   * `stepsPerSecond`, and neither of those knows what the display was doing.
+   * Watched live, this means the picture advances one output frame per display refresh: at 60 fps
+   * output on a 60 Hz display that is life speed, and at 24 it is two and a half times life.
+   * Playback of what was captured (playback.ts) is paced by the clock instead, so it takes the
+   * time the run took. The export does not notice either way -- a keyframe's time comes from its
+   * tick index and `stepsPerSecond`, and neither of those knows what the display was doing.
    */
   outputFramerate: number;
-  /** Fractional ticks carried between frames, so a non-integer ticks-per-frame averages out. */
+  /**
+   * Ticks owed to the output frames begun so far and not yet run: the fraction a non-integer
+   * ticks-per-frame leaves over, carried so it averages out, and whatever is left of a frame too
+   * big for one `advance` -- which the next `advance` runs before it begins another frame.
+   */
   private owedTicks = 0;
   /**
    * Ticks actually run per second of wall-clock time, over the last half second.
@@ -277,12 +321,15 @@ export class Simulation {
   /** Every bone's transform at every tick, for the Blender export. */
   readonly capture: BoneCapture;
   /**
-   * Every muscle ring's frame, captured alongside the bones.
+   * Every muscle ring's frame, captured on every tick the bellies were swept.
    *
-   * A belly cannot be exported the way a bone is -- it is swept anew every tick, so it is rigid
-   * in nothing -- but it is rigid ring by ring, and a ring's position, orientation and radius is
-   * all the glTF skin needs to reproduce it. Eight floats a ring against the three hundred its
-   * vertices would take.
+   * A belly cannot be exported the way a bone is -- it is swept anew along its path, so it is
+   * rigid in nothing -- but it is rigid ring by ring, and a ring's position, orientation and
+   * radius is all the PC2 vertex cache needs to rebuild every vertex of it, and all playback needs
+   * to draw it. Eight floats a ring against the three hundred its vertices would take. Taken only
+   * when the sweep ran, which is one tick in four at 500 Hz and one in eight at 1000 Hz, because a
+   * frame taken between two sweeps is a copy of the one before; `indexForTick` finds the frame a
+   * bone tick was showing.
    */
   readonly muscleCapture: MuscleRingCapture;
   /** Scratch for a tick's ring frames, sized on the first capture and reused after. */
@@ -374,14 +421,17 @@ export class Simulation {
       this.muscleDynamics = new MuscleDynamicsModule(this.articulation, this.muscles);
       // Swept at `DEFAULT_UPDATE_HZ` rather than every tick, which is a reversal and the reason
       // is arithmetic. It used to be every tick so that a stepped tick always showed its own
-      // shape, and that was cheap when it was written: 144 microseconds for fourteen units. At a
-      // hundred and forty-eight it is 1.58 ms, which is forty per cent of the whole tick -- spent
-      // on Tier V geometry that nothing reads back (M-ADR-004) and that a display showing sixty
-      // frames a second discards ninety-two per cent of.
+      // shape, and that was cheap when it was written: 144 microseconds for fourteen units. It
+      // measured 1.58 ms at a hundred and forty-eight units, when the divisor was armed -- forty
+      // per cent of the whole tick then, spent on Tier V geometry that nothing reads back
+      // (M-ADR-004) and that a display showing sixty frames a second discards ninety-two per
+      // cent of.
       //
       // What it was protecting is kept: `sweepRenderMesh` runs the sweep on demand, and the panel
       // calls it after a hand-stepped frame, so a stepped tick still shows its own shape. The
       // divisor only applies while the thing is running, where nobody can see the difference.
+      // The ring capture follows the sweep rather than the tick for the same reason: between two
+      // sweeps there is nothing new to capture.
       this.muscleVolume = new MuscleVolumeModule(this.articulation, this.muscles, {
         simulationRateHz: rate,
       });
@@ -424,6 +474,7 @@ export class Simulation {
 
     this.outputFramerate = options.outputFramerate ?? DEFAULT_OUTPUT_FRAMERATE;
     this.snapshotEvery = Math.max(1, Math.round((options.snapshotEverySeconds ?? 0.1) * rate));
+    this.restorePoints = Math.max(0, Math.floor(options.restorePoints ?? 0));
     this.recordEvery = options.recordEveryTicks ?? Math.round(rate / 50);
     this.recording = {
       scenario: options.scenario?.id ?? 'free-drop',
@@ -486,11 +537,6 @@ export class Simulation {
     return this.physics.report;
   }
 
-  /** Seconds of timeline available for scrubbing. */
-  get recordedSeconds(): number {
-    return this.ticks * this.dt;
-  }
-
   /** Simulation steps a second of simulated time is divided into. `dt` is the authority. */
   get stepsPerSecond(): number {
     return Math.round(1 / this.dt);
@@ -502,18 +548,24 @@ export class Simulation {
   }
 
   /**
-   * Advance by exactly one output frame, unless paused.
+   * Advance by one output frame, unless paused -- or by the next `MAX_TICKS_PER_ADVANCE` ticks of
+   * one, when a frame is worth more than that.
    *
    * `elapsedSeconds` is measurement and nothing else -- it feeds `achievedRateHz` and does not
    * decide how much to run. That is the whole change: how far the simulation goes this frame is a
    * function of `stepsPerSecond` and `outputFramerate`, both of which somebody chose, and of
    * nothing the machine was doing at the time. Two runs of one scenario produce the same ticks in
    * the same frames on any machine, and the capture the export reads is the same either way.
+   *
+   * A new output frame is begun only once the last is paid off, so a frame too big for one call
+   * is spread over as many as it takes and the average is still exactly one output frame's worth
+   * of ticks. When a frame fits under the cap, which is every setting the panel opens at, this is
+   * the same arithmetic as before the cap and gives the same ticks in the same calls.
    */
   advance(elapsedSeconds: number): FrameStepPlan {
     if (!this.started || this.paused) return { ticks: 0, alpha: 0, remainder: 0, clamped: false };
-    this.owedTicks += this.ticksPerOutputFrame;
-    const ticks = Math.floor(this.owedTicks);
+    if (this.owedTicks < 1) this.owedTicks += this.ticksPerOutputFrame;
+    const ticks = Math.min(Math.floor(this.owedTicks), MAX_TICKS_PER_ADVANCE);
     this.owedTicks -= ticks;
     const started = performance.now();
     let ran = 0;
@@ -563,59 +615,128 @@ export class Simulation {
     return 1 / this.dt;
   }
 
-  /** One fixed tick: script, kernel, timeline, recording. */
+  /** One fixed tick: script, kernel, captures, restore points, recording. */
   tick(): void {
     if (!this.started) return;
     if (this.scenario?.script && this.scriptApi)
       this.scenario.script(this.ticks * this.dt, this.scriptApi);
+    const sweeps = this.muscleVolume?.sweeps ?? 0;
     this.kernel.step();
     this.ticks += 1;
     const bones = this.boneTransforms();
     this.capture.append(this.ticks, bones.position, bones.orientation);
-    this.captureMuscleRings();
-    this.keepCapturesLevel();
-    if (this.ticks % this.snapshotEvery === 0) {
-      if (this.timeline.length >= this.timelineCapacity) this.timeline.splice(1, 1);
+    // The rings only when the bellies were swept this tick: on the others the mesh is the last
+    // sweep's, and so would every ring taken off it be.
+    const swept = this.muscleVolume !== undefined && this.muscleVolume.sweeps !== sweeps;
+    if (swept) this.captureMuscleRings(true);
+    this.keepCapturesLevel(swept);
+    if (this.restorePoints > 0 && this.ticks % this.snapshotEvery === 0) {
       this.timeline.push({ tick: this.ticks, snapshot: this.kernel.snapshot() });
+      if (this.timeline.length > 1 + this.restorePoints) this.timeline.splice(1, 1);
     }
     if (this.recordEvery > 0 && this.ticks % this.recordEvery === 0) this.record();
   }
 
-  /** Jump to a time on the timeline: restore the nearest earlier snapshot and step up to it. */
+  /**
+   * Jump to a time on the timeline: restore the nearest earlier snapshot and step up to it.
+   *
+   * The nearest earlier snapshot is the start of the run when there are no restore points
+   * (`SimulationOptions.restorePoints`), so a scrub is then a re-simulation from tick 0. The start
+   * is this body's, too, even after a carry: a target between tick 0 and the tick a carry started
+   * at re-simulates on the new body from tick 0, rather than finding the old body's history.
+   */
   scrubTo(seconds: number): void {
     if (!this.started) return;
     const target = Math.max(0, Math.min(Math.round(seconds / this.dt), this.ticks));
-    let best = this.timeline[0];
-    for (const entry of this.timeline) {
-      if (entry.tick <= target) best = entry;
+    let best = 0;
+    for (let i = 1; i < this.timeline.length; i++) {
+      if ((this.timeline[i]?.tick ?? Number.POSITIVE_INFINITY) <= target) best = i;
       else break;
     }
-    if (!best) return;
-    this.kernel.restore(best.snapshot);
-    this.ticks = best.tick;
-    this.capture.truncate(best.tick);
-    this.muscleCapture.truncate(best.tick);
+    this.rewind(best, target);
+  }
+
+  /** Restore timeline entry `index`, drop everything after it, and step on to `target`. */
+  private rewind(index: number, target: number): void {
+    const from = this.timeline[index];
+    if (!this.started || !from) return;
+    this.kernel.restore(from.snapshot);
+    this.ticks = from.tick;
+    this.capture.truncate(from.tick);
+    this.muscleCapture.truncate(from.tick);
     this.capturesStoppedBy = undefined;
     // Everything after the restored point is history no longer on the path; drop it.
-    const keep = this.timeline.filter((e) => e.tick <= best.tick);
-    this.timeline.splice(0, this.timeline.length, ...keep);
+    this.timeline.splice(index + 1);
     this.recording.samples.splice(
-      this.recording.samples.findIndex((s) => s.tick > best.tick) >>> 0,
+      this.recording.samples.findIndex((s) => s.tick > from.tick) >>> 0,
     );
+    this.recordingStopped = this.recordingFull();
     this.grab.release();
     while (this.ticks < target) this.tick();
     this.pose.step();
     this.metrics.step();
   }
 
+  /**
+   * Back to tick 0 of this run: the scenario's start, on the body that is running now.
+   *
+   * What the Reset button says it does, and it now does it after a carry or a session load too.
+   * Both used to replace the whole timeline with the tick they arrived at, so Reset went back to
+   * the middle of a run -- to the tick a stature change carried the body into, which is neither
+   * the start nor anywhere a person had asked for. The start of the run is kept through both, so
+   * Reset lands there: the scenario's own starting pose, at the new stature or on the loaded body.
+   * Everything captured and recorded after it is thrown away, as the button's title says.
+   *
+   * The first entry of the timeline by position rather than the newest at tick 0, because a carry
+   * into a run that was sitting at tick 0 is also at tick 0, and it is the old body's pose.
+   */
   reset(): void {
-    this.scrubTo(0);
+    this.rewind(0, 0);
   }
 
+  /** Bytes one recorded sample holds, as numbers; set on the first sample, when it is known. */
+  private sampleBytes = 0;
+
+  /**
+   * Whether the sampled recording has stopped because its next sample would pass the capture
+   * budget. It keeps the samples it has; a budget raised to make room lets it go on.
+   */
+  recordingStopped = false;
+
+  /** Roughly what the sampled recording holds, counting eight bytes a number. */
+  get recordingBytes(): number {
+    return this.recording.samples.length * this.sampleBytes;
+  }
+
+  /** Whether one more sample would pass the capture budget. */
+  private recordingFull(): boolean {
+    return (this.recording.samples.length + 1) * this.sampleBytes > this.captureBudget;
+  }
+
+  /**
+   * Take one sample of the sampled recording, unless it would pass the capture budget.
+   *
+   * Bounded by the same budget as the two captures, because it grew without any bound at all: a
+   * sample is every segment's pose and every joint coordinate as plain numbers, about ten
+   * kilobytes at L3, fifty times a simulated second, for as long as the tab stayed open -- and the
+   * Export recording button then turns all of it into one string, which a JavaScript engine
+   * refuses with a RangeError once it passes about half a billion characters. Stopped rather than
+   * rolled, like the captures, so what is held is the start of the run and still exports.
+   */
   private record(): void {
     const pose = this.channel(BODY_POSE).fields;
     const joint = this.channel(BODY_JOINT_STATE).fields;
     const energy = this.channel(DIAGNOSTICS_ENERGY).fields;
+    if (this.sampleBytes === 0) {
+      // Seven numbers a segment (position and orientation), one a joint coordinate, and the tick,
+      // the time and the two energies.
+      const segments = (pose.position as Float64Array).length / 3;
+      this.sampleBytes = (7 * segments + (joint.q as Float64Array).length + 4) * 8;
+    }
+    if (this.recordingStopped || this.recordingFull()) {
+      this.recordingStopped = true;
+      return;
+    }
     this.recording.samples.push({
       tick: this.ticks,
       time: this.ticks * this.dt,
@@ -655,11 +776,12 @@ export class Simulation {
     this.capture.clear();
     this.muscleCapture.clear();
     this.capturesStoppedBy = undefined;
-    this.timeline.splice(0, this.timeline.length, {
-      tick: ticks,
-      snapshot: this.kernel.snapshot(),
-    });
+    // After the start rather than instead of it: the start of the run is this body's own tick 0,
+    // which is where Reset goes, and the carried state is where a scrub back to now comes from.
+    this.timeline.splice(1);
+    this.timeline.push({ tick: ticks, snapshot: this.kernel.snapshot() });
     this.recording.samples.length = 0;
+    this.recordingStopped = false;
     return unmatched;
   }
 
@@ -695,13 +817,21 @@ export class Simulation {
     return this.kernel.snapshot();
   }
 
+  /**
+   * Put a started run at a saved moment: a session file's snapshot and the tick it was taken at.
+   *
+   * The start of this run stays first on the timeline, as after a carry, so Reset still goes to
+   * the scenario's tick 0 rather than to the moment the session was saved at.
+   */
   restore(snapshot: KernelSnapshot, ticks: number): void {
     this.kernel.restore(snapshot);
     this.ticks = ticks;
     this.capture.clear();
     this.muscleCapture.clear();
     this.capturesStoppedBy = undefined;
-    this.timeline.splice(0, this.timeline.length, { tick: ticks, snapshot });
+    this.timeline.splice(1);
+    this.timeline.push({ tick: ticks, snapshot });
+    this.recordingStopped = this.recordingFull();
     this.pose.step();
     this.metrics.step();
   }
@@ -731,23 +861,12 @@ export class Simulation {
   }
 
   /**
-   * The swept muscle surfaces, for the renderer.
+   * Read each ring's frame out of the swept mesh, and record it when `append` says to.
    *
-   * Every unit's vertices lie end to end in one buffer, so a muscle's own begin at
-   * `unit * verticesPerUnit`. The indices come from the module because they never change.
+   * It records rings from `extractMuscleRings` (packages/modules-muscle/src/rings.ts), which
+   * measures them off the vertices the sweep wrote; allocation-free after the first tick.
    */
-  /**
-   * Read each ring's frame out of the swept mesh and record it.
-   *
-   * Taken from the vertices rather than published by the sweep, because the sweep already put
-   * everything needed there: a ring is a circle of `segments` vertices, so its centre is their
-   * mean, its radius their mean distance from that centre, and its orientation the frame in which
-   * the first vertex lies along X and the ring's own plane is the XY plane. Nothing is fitted --
-   * these are exact for a circle, and the ring is a circle by construction.
-   *
-   * Allocation-free after the first tick, because this runs at the tick rate.
-   */
-  private captureMuscleRings(): void {
+  private captureMuscleRings(append: boolean): void {
     const mesh = this.muscleMesh();
     const volume = this.muscleVolume;
     if (!mesh || !volume) return;
@@ -762,41 +881,57 @@ export class Simulation {
       orientation: this.ringOrientation,
       radius: this.ringRadius,
     });
-    this.muscleCapture.append(this.ticks, this.ringPosition, this.ringOrientation, this.ringRadius);
+    if (append) {
+      this.muscleCapture.append(
+        this.ticks,
+        this.ringPosition,
+        this.ringOrientation,
+        this.ringRadius,
+      );
+    }
   }
 
   /**
-   * Hold the two captures to the same length, because the exporter needs them to be.
+   * Hold the two captures to the same span of ticks, because the exporter needs them to.
    *
-   * A belly is exported as a skin with one joint per cross-section and one keyframe per pose
-   * frame, so a muscle capture shorter than the bone capture has no meaning -- and the exporter,
-   * faced with that, used to drop every muscle and write the file anyway. What made it happen is
-   * that the two captures hold wildly different amounts per frame on the same budget: a hundred
-   * and ninety bones are five and a half kilobytes a frame, and a hundred and forty-eight units
-   * at twenty-four rings apiece are a hundred and eleven. The muscle capture reaches a quarter of
-   * a gigabyte after about four and three quarter seconds at five hundred hertz, the bone capture
-   * after a minute and a half, and everything between the two exported a body with no muscles in
-   * it and said nothing.
+   * The bone capture holds every tick and the ring capture every sweep, and a bone tick's bellies
+   * are the newest ring frame at or before it. So the bone capture may run on past the newest ring
+   * frame only as far as that frame is still what was showing: up to the tick before the next
+   * sweep. A bone tick past that has no bellies -- and the exporter, faced with bones and no
+   * muscles, once dropped every muscle and wrote the file anyway. What makes it happen is that the
+   * two captures hold wildly different amounts on the same budget: a ring frame is dozens of
+   * times a bone frame with the whole muscle set running, so even at one ring frame a sweep the
+   * ring capture fills first, and everything between the two stopping exported a body with no
+   * muscles in it and said nothing.
    *
-   * So whichever fills first stops both. The export is shorter than it was and it is a real
-   * export; the status line says which budget bound it.
+   * So whichever fills first stops both, at the last tick both can account for. The export is
+   * shorter than it was and it is a real export; the status line says which budget bound it.
+   * `swept` is whether the bellies were swept this tick, because a sweep the ring capture refused
+   * is a tick its newest frame no longer describes.
    */
-  private keepCapturesLevel(): void {
+  private keepCapturesLevel(swept: boolean): void {
     if (!this.muscleVolume) return;
-    const common = Math.min(this.capture.frameCount, this.muscleCapture.frameCount);
-    if (this.capture.frameCount === common && this.muscleCapture.frameCount === common) return;
-    if (common === 0) {
-      this.capture.clear();
-      this.muscleCapture.clear();
-      return;
+    const bones = this.capture;
+    const rings = this.muscleCapture;
+    // Both taking frames, or both already stopped: nothing to level.
+    if (bones.full === rings.full) return;
+    const stoppedBy = rings.full ? 'muscles' : 'bones';
+    if (rings.full) {
+      // The newest ring frame shows up to the tick before a sweep it refused, and up to this one
+      // when there was no sweep to refuse (the budget was lowered under it between ticks).
+      const end = swept ? this.ticks - 1 : this.ticks;
+      if (rings.frameCount === 0) bones.clear();
+      else bones.truncate(end);
+    } else if (bones.frameCount === 0) {
+      rings.clear();
+    } else {
+      rings.truncate(bones.firstTick + bones.frameCount - 1);
     }
-    const stoppedBy = this.muscleCapture.full ? 'muscles' : 'bones';
-    this.capture.truncate(this.capture.firstTick + common - 1);
-    this.muscleCapture.truncate(this.muscleCapture.firstTick + common - 1);
-    // `truncate` clears the full flag, because its usual caller is a rewind that makes room. Here
-    // there is no room: the capture that filled is still full, and both must stay stopped.
-    this.capture.stop();
-    this.muscleCapture.stop();
+    // `truncate` and `clear` drop the full flag, because their usual caller is a rewind that makes
+    // room. Here there is no room: the capture that filled is still full, and both must stay
+    // stopped until a raised budget lets them go on.
+    bones.stop();
+    rings.stop();
     this.capturesStoppedBy = stoppedBy;
   }
 
@@ -826,6 +961,9 @@ export class Simulation {
     this.captureBudget = bytes;
     this.capture.setBudget(bytes);
     this.muscleCapture.setBudget(bytes);
+    // The sampled recording has no promise of a sample per tick to keep, so given room it simply
+    // goes on from wherever the run is.
+    if (this.recordingStopped && !this.recordingFull()) this.recordingStopped = false;
     if (wasStopped && this.runPastCapture()) {
       this.capture.stop();
       this.muscleCapture.stop();
@@ -863,20 +1001,19 @@ export class Simulation {
   private captureBudget: number;
 
   /**
-   * Sweep the belly mesh now, whatever the divisor says.
+   * Sweep the belly mesh now, whatever the divisor says, and read its rings again.
    *
    * For a hand-stepped tick, which is the one case where the rate limit would be visible: step
-   * once and the mesh would otherwise be up to a divisor's worth of ticks behind the bones.
+   * once and the mesh would otherwise be up to a divisor's worth of ticks behind the bones. The
+   * rings are read off it too, so `muscleRings` -- what the headset and the headless publisher
+   * draw from -- shows the same shape; they are not added to the capture, which holds only the
+   * sweeps the run itself made, so a stepped run captures what a run left alone would have.
    */
   sweepRenderMesh(): void {
     this.muscleVolume?.step({ tick: this.ticks, dt: this.dt, simTime: this.ticks * this.dt });
+    this.captureMuscleRings(false);
   }
 
-  /**
-   * Every belly's rings as of the last tick: centre, orientation and radius, in the order the
-   * units are in. The same eight floats a ring the capture records, which is what a renderer that
-   * sweeps its own tubes needs and a hundred times less than the vertices.
-   */
   /**
    * Put a policy in charge of the running body, live: fitted to it by name, swapped into the
    * nerves between one control step and the next. Returns what the body could use of it.
@@ -926,6 +1063,11 @@ export class Simulation {
     this.brainActive = false;
   }
 
+  /**
+   * Every belly's rings as of the last sweep: centre, orientation and radius, in the order the
+   * units are in. The same eight floats a ring the capture records, which is what a renderer that
+   * sweeps its own tubes needs and a hundred times less than the vertices.
+   */
   muscleRings():
     | {
         readonly position: Float32Array;
@@ -948,6 +1090,12 @@ export class Simulation {
     };
   }
 
+  /**
+   * The swept muscle surfaces, for the renderer.
+   *
+   * Every unit's vertices lie end to end in one buffer, so a muscle's own begin at
+   * `unit * verticesPerUnit`. The indices come from the module because they never change.
+   */
   muscleMesh():
     | {
         readonly position: Float64Array;
@@ -1021,16 +1169,3 @@ function restClearance(model: CompiledArticulation, groundHeight: number): numbe
   for (const s of model.segments) lowest = Math.min(lowest, s.restWorld.translation.y);
   return lowest - groundHeight;
 }
-
-/**
- * A quaternion from three orthonormal basis vectors, written straight into a buffer.
- *
- * Shepperd's method: pick the largest of the four possible divisors so the square root is never
- * taken of something near zero, which is where the naive form loses its precision -- and a ring
- * whose orientation is out by a degree shows as a twist in the belly drawn from it.
- *
- * The arguments are the basis vectors, which are the *columns* of the rotation matrix: `xy` is the
- * X axis's y component, or m10. Getting that the wrong way round gives the conjugate -- a rotation
- * by the same angle the other way -- which is exactly what it did first, and what moved the
- * exported vertices 27 mm from where the sweep had put them.
- */

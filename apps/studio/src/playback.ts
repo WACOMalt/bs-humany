@@ -16,7 +16,10 @@
  * Bones come back exactly -- they are what the capture holds. Muscle bellies come back exactly
  * too, from the ring capture: a ring is a circle of vertices in the plane its frame's X and Y
  * span, at its own radius, which is how the frame was measured off the swept mesh to begin with,
- * so rebuilding it is the same arithmetic run backwards rather than an approximation.
+ * so rebuilding it is the same arithmetic run backwards rather than an approximation. The ring
+ * capture holds a frame a sweep rather than a frame a tick, because the bellies are swept on a
+ * divisor of the tick rate; a bone tick's bellies are the newest sweep at or before it
+ * (`MuscleRingCapture.indexForTick`), which is exactly what was on screen at that tick.
  *
  * What does not come back is everything that was never captured: the muscle path polylines, the
  * tension each unit was pulling with, the contact manifolds, the centre of mass. Those are live
@@ -38,6 +41,10 @@ export interface CapturedFrames {
   frameInto(index: number, position: Float32Array, orientation: Float32Array): boolean;
 }
 
+/**
+ * Ring frames by index. An index here is a ring frame's, not a bone frame's: the caller maps a
+ * bone tick to one with the capture's `indexForTick`.
+ */
 export interface CapturedRings {
   readonly frameCount: number;
   readonly ringCount: number;
@@ -169,9 +176,9 @@ export class Playback {
   }
 
   /**
-   * Every belly's rings at one capture index, as they were captured: what the headset is sent
-   * while the desktop replays, so it shows the bellies of the frame on screen rather than of the
-   * newest tick. Into arrays this keeps -- the same ones `bellyAt` sweeps -- so reading a frame
+   * Every belly's rings at one ring-capture index, as they were captured: what the headset is
+   * sent while the desktop replays, so it shows the bellies of the frame on screen rather than of
+   * the newest tick. Into arrays this keeps -- the same ones `bellyAt` sweeps -- so reading a frame
    * allocates nothing once the first has been read, and the caller consumes them before the next
    * read overwrites them.
    */
@@ -204,7 +211,7 @@ export class Playback {
   }
 
   /**
-   * Belly geometry at one capture index, rebuilt from the rings.
+   * Belly geometry at one ring-capture index, rebuilt from the rings.
    *
    * Vertex `v` of a ring is at angle `2πv / segments` from the frame's own X axis, in the plane X
    * and Y span, at the ring's radius. That is not a convention chosen here: it is how

@@ -12,6 +12,7 @@
 import { fileURLToPath } from 'node:url';
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { loadSkeletonAssetsFromDisk } from '@bs-humany/assets-anatomical';
+import { DEFAULT_UPDATE_HZ } from '@bs-humany/modules-muscle';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Playback } from './playback.js';
@@ -71,10 +72,18 @@ describe('playing a capture back', () => {
     // Single precision over a body two metres across: a few microns, not a few millimetres.
     expect(worstBone).toBeLessThan(1e-4);
 
+    // The ring capture holds a frame a sweep, so the bone frame's tick is looked up among them;
+    // the belly it finds is the one the live mesh is still showing, sweep or no sweep this tick.
+    const rings = simulation.muscleCapture;
+    const ringIndex = rings.indexForTick(simulation.capture.firstTick + last);
+    expect(rings.frameCount).toBeLessThan(simulation.capture.frameCount);
+    expect(simulation.ticks - rings.tickAt(ringIndex)).toBeLessThan(
+      simulation.stepsPerSecond / DEFAULT_UPDATE_HZ,
+    );
     const segments = live.verticesPerUnit / volume.rings;
     const belly = playback.bellyAt(
-      simulation.muscleCapture,
-      last,
+      rings,
+      ringIndex,
       { index: live.index, verticesPerUnit: live.verticesPerUnit },
       volume.rings,
       segments,

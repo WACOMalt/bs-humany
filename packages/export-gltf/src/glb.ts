@@ -2,10 +2,12 @@
  * Animated glTF 2.0 binary (.glb) writer.
  *
  * The export exists so a simulation can be inspected in Blender at full time fidelity: every
- * tick becomes a keyframe at its exact time in seconds, and nothing is resampled. The scene is
- * the bone hierarchy as nested nodes, each bone carrying its own rigid mesh in its rest frame,
- * animated by translation and rotation channels; the importer turns that into an object
- * hierarchy with baked keyframes, which is the most direct representation of rigid bones.
+ * keyframe sits at its tick's exact time in seconds, and nothing is resampled. Every tick is a
+ * keyframe unless an output frame would hold more than the caller's ceiling, in which case the
+ * caller keeps every stride-th one. The scene is the bone hierarchy as nested nodes, each bone
+ * carrying its own rigid mesh in its rest frame, animated by translation and rotation channels;
+ * the importer turns that into an object hierarchy with baked keyframes, which is the most
+ * direct representation of rigid bones.
  *
  * Written by hand rather than through a library: the format is a JSON header plus one binary
  * buffer, the subset needed here is small, and a dependency would drag a scene-graph model in
@@ -23,18 +25,17 @@ import {
 } from '@bs-humany/frames';
 
 /**
- * A rigid binding of a mesh's vertices to a chain of joints, one joint per vertex.
+ * A rigid binding of a mesh's vertices to a set of joints, one joint per vertex.
  *
- * What it is for: a muscle belly. Its mesh is swept along the path every tick, so it is not rigid
- * in any bone and cannot be exported the way a bone is -- but it is rigid ring by ring, because a
- * ring's vertices are a circle in that ring's own frame and only the ring moves. Give each ring a
- * joint and each vertex its ring, and the whole deformation -- the path bending, the belly
- * thickening -- is carried by joint transforms, which is what glTF animates and what Blender
- * imports as an armature.
+ * What it is for now: the costal cartilage. A bar of cartilage joins two segments, so it is rigid
+ * in neither and cannot be exported the way a bone is -- but each end is rigid in its own
+ * segment, so binding one end's vertices to one bone and the other end's to the other carries
+ * the bar through every pose with nothing in between to animate. The muscle bellies used to be
+ * exported this way too, one joint per ring; they are one mesh and a PC2 vertex cache now,
+ * because thousands of ring joints keyed every sample were most of what Blender had to hold.
  *
  * One joint per vertex at full weight rather than blended weights: a blend would smooth across
- * rings that the sweep already placed exactly, and smoothing an exact answer is not an
- * improvement.
+ * a binding that is already exact, and smoothing an exact answer is not an improvement.
  */
 export interface ExportSkin {
   /** Node indices of the joints, in the order `vertexJoint` addresses them. */

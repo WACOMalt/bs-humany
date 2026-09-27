@@ -256,6 +256,15 @@ let alignedSegmentBones: readonly string[] = [];
 /** The rest skeleton's box, measured once a build, for aiming the camera at a body at rest. */
 let restBounds: { min: [number, number, number]; max: [number, number, number] } | null = null;
 let simulation: Simulation | null = null;
+/**
+ * Whether an export is being built or written: both export buttons stay grey until it is done.
+ *
+ * Building the Blender export takes seconds on a long run and blocks the page while it does, and
+ * nothing used to say so: the button looked like it had done nothing, so it was pressed again, and
+ * each press queued another whole export behind the first. Declared with the run state because
+ * `setRunControls` reads it, from the first frame on.
+ */
+let exporting = false;
 // Declared up here with the run state, because the render loop reads it from its first frame
 // on, and that frame runs before the page script reaches the VR section at the bottom.
 let vrLink: VrLink | null = null;
@@ -345,19 +354,6 @@ const ui = {
   showNotes: must<HTMLInputElement>('#showNotes'),
 };
 
-/**
- * Which units flex and which extend, at each joint the panel drives, on both sides.
- *
- * Split by anatomy rather than by measuring a moment arm, because the sign of a moment arm is what
- * the validation harness checks and using it here would make the panel agree with itself by
- * construction. Each group answers to one slider on both sides at once: a muscle is a flexor on
- * either side of the body.
- *
- * The elbow and the knee have a slider apiece because they are hinges -- one axis, two directions,
- * and a person already thinks of them that way. The shoulder does not: it has three axes, and
- * "flexor" there names a different muscle depending on where the arm already is. It stays along
- * for the ride until the range-of-motion scenarios give it something better than a slider.
- */
 // The drive groups and their sliders, one an entry of `MUSCLE_GROUPS`, generated so the studio
 // and the headset's panel offer the same groups at the same ids.
 const driveInputs = new Map<string, HTMLInputElement>();
@@ -952,14 +948,6 @@ function forgetRun(): void {
   setSimulationStatus(restStatus());
 }
 
-/**
- * The two sets of buttons, which answer two different questions.
- *
- * Start and Pause are about whether the simulation is computing. Play, the frame steps and the
- * playhead are about where in what it has already computed you are looking. They were one set
- * before -- Run, Pause, Step, Reset and a timeline that re-simulated what you scrubbed over --
- * and the reason that was confusing is that it was two things wearing one set of labels.
- */
 /** The top bar's mode: at rest, a run of our own, or following the bridge. */
 function setMode(mode: 'rest' | 'running' | 'paused' | 'following'): void {
   const indicator = must<HTMLElement>('#mode-indicator');
@@ -1006,6 +994,14 @@ function setFace(button: HTMLButtonElement, face: { label: string; title: string
   if (button.title !== face.title) button.title = face.title;
 }
 
+/**
+ * The two sets of buttons, which answer two different questions.
+ *
+ * Start and Pause are about whether the simulation is computing. Play, the frame steps and the
+ * playhead are about where in what it has already computed you are looking. They were one set
+ * before -- Run, Pause, Step, Reset and a timeline that re-simulated what you scrubbed over --
+ * and the reason that was confusing is that it was two things wearing one set of labels.
+ */
 function setRunControls(running: boolean): void {
   setMode(!running ? 'rest' : simulation?.paused ? 'paused' : 'running');
   // Busy while a start compiles, so a second press cannot begin a second start and the page says
@@ -1028,8 +1024,10 @@ function setRunControls(running: boolean): void {
   );
   ui.simPause.disabled = !running || simulation?.paused === true;
   ui.reset.disabled = !running;
-  ui.exportRecording.disabled = !running;
-  ui.exportBlender.disabled = !running;
+  // Grey while an export is being written as well, because this runs every frame while the
+  // playhead is behind the live edge and would otherwise hand a second click straight back.
+  ui.exportRecording.disabled = !running || exporting;
+  ui.exportBlender.disabled = !running || exporting;
   setPlaybackControls(running);
 }
 
@@ -1558,13 +1556,6 @@ for (const input of [
   input.addEventListener('change', applyOverlayVisibility);
 }
 
-/**
- * The muscle paths and how hard each is pulling, for the overlay.
- *
- * Tension is the fraction of the unit's own maximum isometric force, so a small muscle working
- * hard reads as hard as a big one. Absolute newtons would colour the whole arm by which muscle
- * happens to be the strongest.
- */
 /** The tissue in bone frames, for the headset: a segment's frame is its anchor bone's. */
 let tissueCache: { sim: Simulation; table: VrStatus['tissue'] } | undefined;
 function tissueForBridge(sim: Simulation): VrStatus['tissue'] {
@@ -1574,6 +1565,13 @@ function tissueForBridge(sim: Simulation): VrStatus['tissue'] {
   return table;
 }
 
+/**
+ * The muscle paths and how hard each is pulling, for the overlay.
+ *
+ * Tension is the fraction of the unit's own maximum isometric force, so a small muscle working
+ * hard reads as hard as a big one. Absolute newtons would colour the whole arm by which muscle
+ * happens to be the strongest.
+ */
 function muscleOverlay(sim: Simulation) {
   const state = sim.muscleState();
   const units = sim.muscles?.units;
@@ -1590,12 +1588,6 @@ function muscleOverlay(sim: Simulation) {
   };
 }
 
-/**
- * Bone transforms for the frame the playhead is on, or nothing if it cannot be read.
- *
- * Nothing is stepped to get here: the recording already holds every tick, and the playhead's
- * output frame is one of them.
- */
 /** Segment poses from bone transforms: each segment's frame is its anchor bone's. */
 let segmentAnchorIndex: { sim: Simulation; anchors: Int32Array } | undefined;
 function segmentPosesFrom(
@@ -1629,6 +1621,12 @@ function segmentPosesFrom(
   return { position, orientation };
 }
 
+/**
+ * Bone transforms for the frame the playhead is on, or nothing if it cannot be read.
+ *
+ * Nothing is stepped to get here: the recording already holds every tick, and the playhead's
+ * output frame is one of them.
+ */
 function replayFrame(
   sim: Simulation,
 ): { position: Float64Array; orientation: Float64Array } | undefined {
@@ -1651,9 +1649,11 @@ function replayedMuscles(sim: Simulation) {
   const frames = capturedFrames();
   if (!volume || !live || units === 0 || frames <= 0) return undefined;
   const tick = Playback.tickOf(playback.clampedFrame(frames), sim.ticksPerOutputFrame);
+  // The bone capture is a frame a tick and the ring capture a frame a sweep, so the bone frame's
+  // tick is looked up among the sweeps: the newest at or before it is the belly that was showing.
   const mesh = playback.bellyAt(
     sim.muscleCapture,
-    tick,
+    sim.muscleCapture.indexForTick(sim.capture.firstTick + tick),
     { index: live.index, verticesPerUnit: live.verticesPerUnit },
     volume.rings,
     live.verticesPerUnit / volume.rings,
@@ -1718,7 +1718,8 @@ function showCaptureBudget(): void {
  *
  * The range is the platform's answer rather than a guess: `captureCeilingBytes` reads the tab's
  * heap limit where the runtime reports one and falls back to `navigator.deviceMemory`, and the
- * default is two thirds of it. Done once at startup, because neither number changes.
+ * default is a fifth of it (`defaultCaptureBudgetBytes`: the export needs about five copies live
+ * at once). Done once at startup, because neither number changes.
  */
 function sizeCaptureBudget(): void {
   const ceiling = Math.floor(captureCeilingBytes() / MEBIBYTE);
@@ -2216,36 +2217,92 @@ async function saving(what: string, write: Promise<boolean>): Promise<boolean> {
   }
 }
 
-ui.exportRecording.addEventListener('click', () => {
-  if (!simulation) return;
-  const name = `bs-humany-${simulation.recording.scenario}-${simulation.backendId}.json`;
-  void saving(name, download(name, simulation.exportRecording()));
+/**
+ * The sampled recording's part of the capture status: how much of the run it holds and what it
+ * costs, and when it has stopped, the same promise the captures make -- what is held is kept and
+ * still exports.
+ */
+function recordingStatus(sim: Simulation): string {
+  const samples = sim.recording.samples;
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+  const span = first && last ? last.time - first.time : 0;
+  const size = `${(sim.recordingBytes / MEBIBYTE).toFixed(0)} MB`;
+  return (
+    ` The recording holds ${span.toFixed(2)} s, ${size}` +
+    (sim.recordingStopped
+      ? ` — the budget reached at ${(last?.time ?? 0).toFixed(2)} s; the ${samples.length} ` +
+        'samples held are kept and still export.'
+      : '.')
+  );
+}
+
+/** Megabytes, to one decimal place: an export's size, as the event line reports it. */
+function megabytes(bytes: number): string {
+  return `${(bytes / MEBIBYTE).toFixed(1)} MB`;
+}
+
+ui.exportRecording.addEventListener('click', async () => {
+  if (!simulation || exporting) return;
+  const sim = simulation;
+  exporting = true;
+  setRunControls(true);
+  const name = `bs-humany-${sim.recording.scenario}-${sim.backendId}.json`;
+  try {
+    // The string is made inside the write, so that the RangeError a very long recording used to
+    // throw here -- before `saving` could see it -- is reported as a failed write like any other.
+    await saving(name, (async () => download(name, sim.exportRecording()))());
+  } finally {
+    exporting = false;
+    setRunControls(simulation !== null);
+  }
 });
-ui.exportBlender.addEventListener('click', () => {
-  if (!simulation || !assets) return;
-  const built = buildBlenderExport(simulation, document_, assets);
-  // All three together, because none is any use without the others: the glTF holds the bones and
-  // the belly mesh, the cache holds the bellies' movement, and the script is what wires the one
-  // to the other. One folder in the desktop shell; three downloads in a browser, which is all a
-  // page can do.
-  const files = [
-    { name: built.glbFileName, bytes: built.glb, type: 'model/gltf-binary' },
-    ...(built.pointCache
-      ? [
-          {
-            name: built.pointCache.name,
-            bytes: built.pointCache.bytes,
-            type: 'application/octet-stream',
-          },
-        ]
-      : []),
-    {
-      name: built.scriptFileName,
-      bytes: new TextEncoder().encode(built.script),
-      type: 'text/x-python',
-    },
-  ];
-  void saving(`${files.length} files for Blender`, downloadSet(files));
+ui.exportBlender.addEventListener('click', async () => {
+  if (!simulation || !assets || exporting) return;
+  const sim = simulation;
+  const pack = assets;
+  exporting = true;
+  setRunControls(true);
+  announce('Exporting for Blender\u2026');
+  try {
+    // Let the grey button and the message paint before the build takes the page for seconds.
+    await paintYield();
+    const began = performance.now();
+    const built = buildBlenderExport(sim, document_, pack);
+    const seconds = (performance.now() - began) / 1000;
+    // All three together, because none is any use without the others: the glTF holds the bones
+    // and the belly mesh, the cache holds the bellies' movement, and the script is what wires the
+    // one to the other. One folder in the desktop shell; three downloads in a browser, which is
+    // all a page can do.
+    const files = [
+      { name: built.glbFileName, bytes: built.glb, type: 'model/gltf-binary' },
+      ...(built.pointCache
+        ? [
+            {
+              name: built.pointCache.name,
+              bytes: built.pointCache.bytes,
+              type: 'application/octet-stream',
+            },
+          ]
+        : []),
+      {
+        name: built.scriptFileName,
+        bytes: new TextEncoder().encode(built.script),
+        type: 'text/x-python',
+      },
+    ];
+    const size = files.reduce((total, file) => total + file.bytes.length, 0);
+    await saving(
+      `${files.length} files for Blender, ${megabytes(size)}, built in ${seconds.toFixed(1)} s`,
+      downloadSet(files),
+    );
+  } catch (error) {
+    console.error('Building the Blender export failed.', error);
+    announce(`The Blender export failed: ${messageOf(error)}`, { error: true });
+  } finally {
+    exporting = false;
+    setRunControls(simulation !== null);
+  }
 });
 ui.save.addEventListener('click', () => {
   const file: SessionFile = {
@@ -2526,7 +2583,12 @@ function animate(): void {
         transforms.position,
         transforms.orientation,
         replay ? simulation.capture.firstTick + shownIndex : simulation.ticks,
-        replay ? (playback.ringsAt(simulation.muscleCapture, shownIndex) ?? null) : undefined,
+        replay
+          ? (playback.ringsAt(
+              simulation.muscleCapture,
+              simulation.muscleCapture.indexForTick(simulation.capture.firstTick + shownIndex),
+            ) ?? null)
+          : undefined,
       );
     }
     if (overlays) {
@@ -2552,13 +2614,15 @@ function animate(): void {
     must<HTMLElement>('#diag-cost').textContent = `${simulation.lastStepMs.toFixed(3)} ms`;
     const capture = simulation.capture;
     // Both captures, because the muscle one is what usually stops first and it used to stop
-    // invisibly: a hundred and forty-eight bellies at twenty-four rings apiece are twenty times
-    // a frame of bones, so on the same budget the rings run out after about five seconds while
-    // this line went on counting bone frames to ninety.
+    // invisibly: with the whole muscle set running, a frame of rings is dozens of times a frame
+    // of bones. It is taken once a sweep rather than once a tick -- one tick in eight at
+    // 1000 Hz, one in four at 500 Hz -- so it grows several times faster than the bone capture
+    // rather than dozens, and on the same budget it still runs out first while this line went on
+    // counting bone frames.
     const rings = simulation.muscleCapture;
     // Each capture against its own budget, not the two summed against twice it: the muscle
-    // capture is twenty times the bone capture and reaches the limit on its own, which summed
-    // reads as though the run stopped at half of what it was allowed.
+    // capture reaches the limit on its own, which summed reads as though the run stopped at a
+    // fraction of what it was allowed.
     const mb = (bytes: number) => `${(bytes / MEBIBYTE).toFixed(0)} MB`;
     const held = simulation.muscleVolume
       ? `muscles ${mb(rings.bytes)}, bones ${mb(capture.bytes)}, of ${mb(simulation.captureBudgetBytes)} each`
@@ -2580,7 +2644,8 @@ function animate(): void {
             `${stoppedAt.toFixed(2)} s; the ${capture.frameCount} frames held are kept and still ` +
             'export. For a longer capture raise the budget, then Reset and Start: the run is ' +
             'deterministic and replays the same unless you grabbed, dragged or changed ' +
-            'drive/gravity during it.'),
+            'drive/gravity during it.') +
+        recordingStatus(simulation),
     );
     const seconds = (simulation.ticks * simulation.dt).toFixed(2);
     // How fast, never whether anything was lost: nothing is. Below life speed the machine is
