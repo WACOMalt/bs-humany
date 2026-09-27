@@ -48,6 +48,33 @@ export function runsDir() {
 }
 
 /**
+ * A run's own file: `<data>/runs/<name>-centre.json`, where the search is, or
+ * `<data>/runs/<name>-latest.json`, the progress a dashboard draws. The record itself is
+ * `<data>/policies/<name>.json`; these two are the run's working state beside its history, and
+ * the studio binary reads and writes them in the same place (`checkpoint_dir` in
+ * `apps/studio/src-tauri/src/main.rs`, held to this by a test in `src/home.test.ts`).
+ *
+ * The path only; the directory is not made here. A refused run must have touched no files, and
+ * the resume that looks for a centre's recipe asks for this path before any refusal is decided.
+ * Whatever writes to it has made `runsDir()` first.
+ */
+export function runFile(name, kind) {
+  return join(dataHome(), 'runs', `${name}-${kind}.json`);
+}
+
+/**
+ * Where the studio binary used to keep a run's centre and progress: in `policies/`, beside the
+ * records, while this trainer kept them in `runs/`. A run trained in the binary before the two
+ * agreed has its centre here and nowhere else. It is read as a fallback when `runFile` has
+ * nothing, so such a run resumes from where it was rather than from its last record; nothing
+ * ever writes here again, and nothing is moved or deleted -- the file is the person's, and a
+ * tool that tidies a data directory it did not make is how a checkpoint goes missing.
+ */
+export function formerRunFile(name, kind) {
+  return join(dataHome(), 'policies', `${name}-${kind}.json`);
+}
+
+/**
  * Copy the checkpoints that ship with the repository into the data directory, once, if it has
  * none of its own. A fresh machine then has something to hand a body without training first,
  * and a person who deletes one does not get it back the next time they start the trainer.

@@ -7,7 +7,13 @@ import { dataHome, policiesDir, runsDir } from './home.mjs';
 console.log(`data     ${dataHome()}`);
 console.log(`policies ${policiesDir()}`);
 console.log(`runs     ${runsDir()}`);
-const held = readdirSync(policiesDir()).filter((f) => f.endsWith('.json'));
+// A checkpoint is a record of its own. The `-centre` and `-latest` files some runs left in
+// policies/ -- where the studio binary kept a run's working state before it and this trainer
+// agreed on runs/ -- are a run's, not checkpoints, and are left out of the count rather than
+// listed as two more names nobody trained.
+const held = readdirSync(policiesDir()).filter(
+  (f) => f.endsWith('.json') && !f.endsWith('-centre.json') && !f.endsWith('-latest.json'),
+);
 console.log(
   held.length
     ? `\n${held.length} checkpoint${held.length === 1 ? '' : 's'}: ${held.map((f) => f.replace(/\.json$/, '')).join(', ')}`

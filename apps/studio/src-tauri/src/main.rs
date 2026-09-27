@@ -464,34 +464,74 @@ fn data_home() -> Result<std::path::PathBuf, String> {
     }
 }
 
-fn checkpoint_dir() -> Result<std::path::PathBuf, String> {
-    let dir = data_home()?.join("policies");
+/// Whether `name` may name a checkpoint: the rule in `tools/train/src/checkpointName.mjs`, which
+/// the dashboard, the trainer and the studio's page all import, and which this binary cannot.
+/// Lower-case letters, digits, dashes and underscores, starting with a letter or a digit, forty
+/// at most.
+///
+/// The name becomes a file stem, so it is checked rather than trusted. This used to be looser
+/// than the JavaScript -- it took capitals and a leading dash -- which meant the binary would list
+/// and read a file the page then refused to train or resume under its own name. One rule on both
+/// sides means a name is a checkpoint everywhere or a foreign file everywhere. A test in
+/// `tools/train/src/home.test.ts` reads both files and holds them to the same answer.
+fn valid_checkpoint_name(name: &str) -> bool {
+    if name.is_empty() || name.len() > 40 {
+        return false;
+    }
+    let starts_well = name.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit());
+    starts_well
+        && !name.chars().any(|c| c.is_ascii_uppercase())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// `<data>/<sub>`, made if it is not there. The data directory is passed in rather than looked up
+/// here, so the tests below can give each case a scratch directory of its own instead of setting
+/// `BS_HUMANY_HOME`, which is one variable for the whole test process and its parallel threads.
+fn checkpoint_dir(root: &std::path::Path, sub: &str) -> Result<std::path::PathBuf, String> {
+    let dir = root.join(sub);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }
 
+/// Which directory one part of a checkpoint lives in, and what its file name ends in.
+///
+/// The record is `policies/<name>.json`; the search's centre and the run's progress are the run's
+/// working state and live beside its history, in `runs/`. That is where the command-line trainer
+/// and the dashboard have always kept them (`runFile` in `tools/train/bin/home.mjs`). This binary
+/// used to write them into `policies/`, so a run begun here and resumed from a terminal started
+/// again from its last record, and one begun in a terminal was resumed here from nothing. A test
+/// in `tools/train/src/home.test.ts` holds this table to that one.
+fn checkpoint_place(kind: &str) -> Result<(&'static str, &'static str), String> {
+    match kind {
+        "policy" => Ok(("policies", ".json")),
+        "centre" => Ok(("runs", "-centre.json")),
+        "latest" => Ok(("runs", "-latest.json")),
+        _ => Err(format!("no checkpoint part is called '{kind}'")),
+    }
+}
+
 /// A checkpoint's file name. The name is checked rather than trusted: it becomes a path.
-fn checkpoint_path(name: &str, kind: &str) -> Result<std::path::PathBuf, String> {
-    if name.is_empty()
-        || name.len() > 40
-        || !name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
+fn checkpoint_path(
+    root: &std::path::Path,
+    name: &str,
+    kind: &str,
+) -> Result<std::path::PathBuf, String> {
+    if !valid_checkpoint_name(name) {
         return Err(format!("'{name}' is not a checkpoint name"));
     }
-    let suffix = match kind {
-        "policy" => ".json",
-        "centre" => "-centre.json",
-        "latest" => "-latest.json",
-        _ => return Err(format!("no checkpoint part is called '{kind}'")),
-    };
-    Ok(checkpoint_dir()?.join(format!("{name}{suffix}")))
+    let (sub, suffix) = checkpoint_place(kind)?;
+    Ok(checkpoint_dir(root, sub)?.join(format!("{name}{suffix}")))
 }
 
 #[tauri::command]
 fn checkpoint_write(name: String, kind: String, text: String) -> Result<(), String> {
-    let path = checkpoint_path(&name, &kind)?;
+    write_part(&data_home()?, &name, &kind, &text)
+}
+
+fn write_part(root: &std::path::Path, name: &str, kind: &str, text: &str) -> Result<(), String> {
+    let path = checkpoint_path(root, name, kind)?;
     // Through a temporary and a rename, so a reader never sees half a policy: the trainer
     // rewrites the centre every generation and the studio may be listing them at the time.
     let tmp = path.with_extension("tmp");
@@ -499,26 +539,55 @@ fn checkpoint_write(name: String, kind: String, text: String) -> Result<(), Stri
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn checkpoint_read(name: String, kind: String) -> Result<Option<String>, String> {
-    let path = checkpoint_path(&name, &kind)?;
-    match std::fs::read_to_string(&path) {
+/// A file's text, or nothing when there is no such file.
+fn read_if_there(path: &std::path::Path) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(path) {
         Ok(text) => Ok(Some(text)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.to_string()),
     }
 }
 
+/// One part of a checkpoint, or nothing when it has none.
+///
+/// A centre or a progress file that is not in `runs/` is looked for where this binary used to put
+/// it, `policies/<name>-centre.json` or `-latest.json`, so a run trained here before the move
+/// resumes from where it was. That is a read and only a read: every write goes to `runs/`, and the
+/// old file is neither moved nor deleted. It is the person's file in the person's directory, and
+/// the terminal trainer reads it the same way (`formerRunFile` in `tools/train/bin/home.mjs`).
+#[tauri::command]
+fn checkpoint_read(name: String, kind: String) -> Result<Option<String>, String> {
+    read_part(&data_home()?, &name, &kind)
+}
+
+fn read_part(root: &std::path::Path, name: &str, kind: &str) -> Result<Option<String>, String> {
+    let here = read_if_there(&checkpoint_path(root, name, kind)?)?;
+    if here.is_some() || kind == "policy" {
+        return Ok(here);
+    }
+    read_if_there(&root.join("policies").join(format!("{name}-{kind}.json")))
+}
+
 /// Every checkpoint in the directory, by name: the ones with a policy file of their own.
+///
+/// This mirrors what `tools/train/bin/home.mjs` and `train-nerves.mjs` take a checkpoint to be:
+/// `policies/<name>.json`, under a name the rule allows. Anything else in the folder -- a copy a
+/// file manager called `stand (copy).json`, a note somebody saved there, the `-centre` and
+/// `-latest` files this binary once kept there -- is left out, rather than handed to the page as
+/// a name every later command refuses, which is how one foreign file used to empty the list.
 #[tauri::command]
 fn checkpoint_list() -> Result<Vec<String>, String> {
-    let dir = checkpoint_dir()?;
+    list_names(&data_home()?)
+}
+
+fn list_names(root: &std::path::Path) -> Result<Vec<String>, String> {
+    let dir = checkpoint_dir(root, "policies")?;
     let mut names = Vec::new();
     for entry in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
         let file = entry.file_name();
         let Some(file) = file.to_str() else { continue };
         let Some(stem) = file.strip_suffix(".json") else { continue };
-        if stem.ends_with("-centre") || stem.ends_with("-latest") {
+        if stem.ends_with("-centre") || stem.ends_with("-latest") || !valid_checkpoint_name(stem) {
             continue;
         }
         names.push(stem.to_string());
@@ -917,6 +986,80 @@ mod tests {
             out.extend_from_slice(bytes);
         }
         out
+    }
+
+    #[test]
+    fn a_checkpoint_name_is_the_rule_the_page_and_the_trainer_keep() {
+        // The same names `tools/train/src/checkpointName.test.ts` accepts and refuses.
+        for name in ["stand", "stand_v2-a", "my-stand_2", "0", &"a".repeat(40)] {
+            assert!(valid_checkpoint_name(name), "{name} is a checkpoint name");
+        }
+        for name in [
+            "",
+            "My Stand",
+            "stand 2",
+            "Stand",
+            "My-Stand",
+            "-x",
+            "_x",
+            "../x",
+            "stand (copy)",
+            "stand.v2",
+            &"a".repeat(41),
+        ] {
+            assert!(!valid_checkpoint_name(name), "{name:?} is not");
+        }
+        // A lower-case letter outside ASCII is refused, as the JavaScript's `[a-z]` refuses it.
+        assert!(!valid_checkpoint_name("st\u{e4}nd"));
+    }
+
+    #[test]
+    fn a_runs_centre_and_progress_live_in_runs_and_the_old_ones_are_only_read() {
+        let root = scratch("checkpoint-places");
+        write_part(&root, "stand", "policy", "{\"p\":1}").unwrap();
+        write_part(&root, "stand", "centre", "{\"c\":1}").unwrap();
+        write_part(&root, "stand", "latest", "{\"l\":1}").unwrap();
+        assert!(root.join("policies/stand.json").exists());
+        assert!(root.join("runs/stand-centre.json").exists());
+        assert!(root.join("runs/stand-latest.json").exists());
+        assert!(!root.join("policies/stand-centre.json").exists());
+
+        // A run this binary trained before the move: its centre is only in policies/.
+        std::fs::write(root.join("policies/old-centre.json"), "{\"old\":1}").unwrap();
+        assert_eq!(read_part(&root, "old", "centre").unwrap().as_deref(), Some("{\"old\":1}"));
+        assert_eq!(read_part(&root, "old", "latest").unwrap(), None);
+        assert_eq!(read_part(&root, "old", "policy").unwrap(), None);
+        // Read, and left where it was.
+        assert!(root.join("policies/old-centre.json").exists());
+        assert!(!root.join("runs/old-centre.json").exists());
+        // Where both are there, the one in runs/ is the one that counts.
+        std::fs::write(root.join("policies/stand-centre.json"), "{\"stale\":1}").unwrap();
+        assert_eq!(read_part(&root, "stand", "centre").unwrap().as_deref(), Some("{\"c\":1}"));
+
+        assert!(read_part(&root, "Stand", "policy").is_err());
+        assert!(read_part(&root, "stand", "recipe").is_err());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn the_list_is_the_records_and_leaves_foreign_files_out() {
+        let root = scratch("checkpoint-list");
+        let policies = root.join("policies");
+        std::fs::create_dir_all(&policies).unwrap();
+        for file in [
+            "stand.json",
+            "balance.json",
+            "stand-centre.json",
+            "stand-latest.json",
+            "mine (copy).json",
+            "Mine.json",
+            "notes.txt",
+            "stand.tmp",
+        ] {
+            std::fs::write(policies.join(file), "{}").unwrap();
+        }
+        assert_eq!(list_names(&root).unwrap(), vec!["balance", "stand"]);
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

@@ -46,7 +46,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
 import { REFLEX_FLAGS, formatHelp, parse, trainFlags } from './flags.mjs';
-import { dataHome, runsDir as runsHome, seedFromRepository } from './home.mjs';
+import {
+  dataHome,
+  formerRunFile,
+  runFile,
+  runsDir as runsHome,
+  seedFromRepository,
+} from './home.mjs';
 
 // When the dashboard pipes this process and exits first, a write to the closed pipe raises
 // EPIPE on the stream, and an unhandled stream error kills the trainer -- before it writes the
@@ -174,9 +180,14 @@ if (flags.recipe !== undefined) {
 } else if (flags.resume) {
   const name = flags.task;
   const fromPolicy = savedRecipe(join(dataHome(), 'policies', `${name}.json`));
+  // The centre where both sides keep it now, then where the studio binary used to, so a run the
+  // binary began before they agreed still resumes under its own recipe.
+  const centreHere = savedRecipe(runFile(name, 'centre'));
   const fromCentre = fromPolicy.recipe
     ? fromPolicy
-    : savedRecipe(join(dataHome(), 'runs', `${name}-centre.json`));
+    : centreHere.found
+      ? centreHere
+      : savedRecipe(formerRunFile(name, 'centre'));
   const saved = fromPolicy.recipe ?? fromCentre.recipe;
   if (saved) {
     recipe = { ...saved };
@@ -267,10 +278,10 @@ const runsDir = runsHome();
 const started = new Date();
 const log = join(runsDir, `${name}-${started.toISOString().replace(/[:.]/g, '-')}.jsonl`);
 // What the dashboard draws: every generation so far, and where things stand.
-const latest = join(runsDir, `${name}-latest.json`);
+const latest = runFile(name, 'latest');
 // The search's own centre, every generation, so a restart continues the search rather than
 // starting again from the last policy that beat the best.
-const centrePath = join(runsDir, `${name}-centre.json`);
+const centrePath = runFile(name, 'centre');
 const options = rigOptionsFor(recipe, { hidden, seconds });
 
 const under =
@@ -334,11 +345,21 @@ console.log(
   `  policy ${shape.sizes.join(' x ')}: ${shape.parameterCount} weights; ${shape.inputNames.length} senses, ${shape.outputNames.length} drives`,
 );
 
-/** The store, in Node: three files beside the checkpoint, and a line a generation appended. */
+/**
+ * The store, in Node: three files beside the checkpoint, and a line a generation appended.
+ *
+ * A centre or a progress file that is not in `runs/` is looked for where the studio binary used
+ * to keep them, in `policies/`, so a run begun there resumes here from where it was. Only read:
+ * every write goes to `runs/`, and the old file is left where it is.
+ */
 const store = {
   async read(kind) {
-    const path = kind === 'policy' ? out : kind === 'centre' ? centrePath : latest;
-    if (!existsSync(path)) return undefined;
+    const paths =
+      kind === 'policy'
+        ? [out]
+        : [kind === 'centre' ? centrePath : latest, formerRunFile(name, kind)];
+    const path = paths.find((p) => existsSync(p));
+    if (path === undefined) return undefined;
     try {
       return JSON.parse(readFileSync(path, 'utf8'));
     } catch {
