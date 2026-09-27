@@ -4,9 +4,13 @@
  *
  * Nothing here is invented for the controller; every number is one the simulation carries
  * anyway. Joint angles and rates are proprioception. The pelvis's sense of down and of its own
- * motion is the body's stable reference for standing, and the head's is the vestibular one --
- * the otoliths and the canals sit in the skull, and the balance task is scored on the head, so
- * the controller is given the quantity it is graded on. The feet's contact is the sole.
+ * motion is meant as the body's stable reference for standing, and the head's as a stand-in for
+ * the vestibular one, because the balance task is scored on the head. Neither is the vestibular
+ * sense proper: `down` is world -Y, an idealised, gravity-independent direction that does not
+ * follow `sim.gravity`, not the otoliths' specific force, and the otolith-accurate signal is
+ * `sense.vestibular` (the `VestibularModule`), which the policy does not read. And the rotation
+ * that is meant to carry these into the segment's own frame does not, as `rotateIntoFrame` sets
+ * out, so today they are world-frame. The feet's contact is the sole.
  *
  * The muscles give the three afferents section 14.1 of the specification names. Fibre length
  * past optimal is the spindle's group II, length-sensitive. Fibre velocity is its group Ia,
@@ -25,8 +29,9 @@
  * because the slots move between fidelity profiles and the names mostly do not: a lumbar joint
  * at L1 is the same lumbar joint at L3, with a few more vertebrae beside it. A policy is matched
  * to a body by these names, so one trained on a lower profile carries onto a higher one and the
- * senses the higher one adds start from nothing. The feet are found the same way, by name, so
- * that a foot split into talus and toes still reads as a foot.
+ * senses the higher one adds start from nothing. The feet are found by the bone they hang from
+ * rather than by the segment's name, so that a foot split into hindfoot, midfoot, forefoot and
+ * toes still reads as a foot.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
@@ -41,12 +46,18 @@ export interface Feet {
 
 /**
  * The segments of each foot, whatever the profile: a segment is a foot if it, or a segment
- * above it, is the foot itself (L0 to L2) or the talus (L3, where the foot is several bones).
+ * above it, is anchored on the talus.
+ *
+ * Every profile's root foot segment hangs from `talus_<side>` -- `foot_` at L0 and L1,
+ * `hindfoot_` at L2, `talus_` at L3 -- and everything distal to it is foot. The segment ids
+ * differ between profiles and the anchor bone does not, and bone ids are ABI, so the anchor is
+ * what is matched. Matching the ids instead (`foot_` or `talus_`) found no feet at all at L2,
+ * which left its foot senses at zero and ended every L2 training episode as airborne.
  */
 export function feetOf(articulation: CompiledArticulation): Feet {
   const segments = articulation.segments;
-  const side = (id: string): 'l' | 'r' | undefined =>
-    /^(foot|talus)_l$/.test(id) ? 'l' : /^(foot|talus)_r$/.test(id) ? 'r' : undefined;
+  const side = (s: { readonly anchor: string }): 'l' | 'r' | undefined =>
+    s.anchor === 'talus_l' ? 'l' : s.anchor === 'talus_r' ? 'r' : undefined;
   const left: string[] = [];
   const right: string[] = [];
   for (const segment of segments) {
@@ -55,7 +66,7 @@ export function feetOf(articulation: CompiledArticulation): Feet {
     while (at >= 0 && !found) {
       const s = segments[at];
       if (!s) break;
-      found = side(s.id);
+      found = side(s);
       at = s.parent;
     }
     if (found === 'l') left.push(segment.id);
@@ -75,6 +86,46 @@ export interface ObservationChannels {
 /** Root free joint first in `q` (3 + 4) and `qdot` (3 + 3), as the compiler emits it. */
 const ROOT_NQ = 7;
 const ROOT_NV = 6;
+
+/**
+ * Write `v` "into the frame" of the unit quaternion `q` at `out[at..at + 3]`.
+ *
+ * Meant as conj(q) * v * q, which is v expressed in the frame q turns the world into. It is not
+ * that. The first half is conj(q) * v; the second multiplies that by q with the cross product
+ * the wrong way round, which makes it q * (conj(q) * v) = v. So what comes out is `v` itself,
+ * to a rounding in the last bits, whatever `q` is: the pelvis's and the head's `down` read
+ * (0, -1, 0) always, and their spins and the pelvis's velocity are world-frame.
+ *
+ * It is kept exactly so -- same expression, same order of operations -- because every shipped
+ * policy was trained on these numbers, rounding and all, and the observation test pins them
+ * bit for bit. Correcting it changes what a sense means, so it belongs with the sense fixes and
+ * the retrain that goes with them, not with a refactor. Do not swap in `qRotate` from the
+ * mechanics either: it is a different formula, turning a vector the other way (q v conj(q),
+ * local into world), and not bit-identical.
+ *
+ * A function at module scope writing into the caller's array, rather than a closure returning
+ * a tuple, because `fill` runs at every control step and module-lint (rule 9) only inspects
+ * methods named `step`, so it would not see an allocation made here.
+ */
+function rotateIntoFrame(
+  out: Float64Array,
+  at: number,
+  qx: number,
+  qy: number,
+  qz: number,
+  qw: number,
+  vx: number,
+  vy: number,
+  vz: number,
+): void {
+  const ix = qw * vx - qy * vz + qz * vy;
+  const iy = qw * vy - qz * vx + qx * vz;
+  const iz = qw * vz - qx * vy + qy * vx;
+  const iw = qx * vx + qy * vy + qz * vz;
+  out[at] = ix * qw + iw * qx - iy * qz + iz * qy;
+  out[at + 1] = iy * qw + iw * qy - iz * qx + ix * qz;
+  out[at + 2] = iz * qw + iw * qz - ix * qy + iy * qx;
+}
 
 export class ObservationBuilder {
   /** Known once bound: the joints' count is the backend's. */
@@ -140,8 +191,11 @@ export class ObservationBuilder {
     names.push('pelvis.spin.x', 'pelvis.spin.y', 'pelvis.spin.z');
     names.push('pelvis.velocity.x', 'pelvis.velocity.y', 'pelvis.velocity.z');
     names.push('pelvis.height', 'head.height');
-    // The vestibular sense proper, in the head's own frame: where down is, and how the skull
-    // turns. The canals report rotation and the otoliths the pull of gravity; both are here.
+    // The head's down and spin, named for the vestibular sense they stand in for but not it:
+    // down is world -Y, not the otoliths' specific force, and it does not follow `sim.gravity`;
+    // the spin is the head's angular velocity. Both were meant to be in the head's frame and
+    // are world-frame (see `rotateIntoFrame`). The real sense is `sense.vestibular`, which the
+    // policy does not read. The names stay as they are, because policies are matched by name.
     names.push('head.down.x', 'head.down.y', 'head.down.z');
     names.push('head.spin.x', 'head.spin.y', 'head.spin.z');
     names.push('foot.left.contacts', 'foot.left.load', 'foot.right.contacts', 'foot.right.load');
@@ -164,7 +218,8 @@ export class ObservationBuilder {
     for (let i = ROOT_NQ; i < q.length; i++) out[at++] = q[i] as number;
     for (let i = ROOT_NV; i < qdot.length; i++) out[at++] = 0.1 * (qdot[i] as number);
 
-    // The pelvis: world down, its angular and linear velocity, all in its own frame.
+    // The pelvis: world down, its angular and linear velocity, meant to be in its own frame and
+    // world-frame as `rotateIntoFrame` is written. The spin is scaled after the rotation.
     const position = c.pose.fields.position as Float64Array;
     const orientation = c.pose.fields.orientation as Float64Array;
     const linear = c.velocity.fields.linear as Float64Array;
@@ -174,70 +229,62 @@ export class ObservationBuilder {
     const qy = orientation[4 * p + 1] as number;
     const qz = orientation[4 * p + 2] as number;
     const qw = orientation[4 * p + 3] as number;
-    const into = (vx: number, vy: number, vz: number): [number, number, number] => {
-      // conj(q) * v * q
-      const ix = qw * vx - qy * vz + qz * vy;
-      const iy = qw * vy - qz * vx + qx * vz;
-      const iz = qw * vz - qx * vy + qy * vx;
-      const iw = qx * vx + qy * vy + qz * vz;
-      return [
-        ix * qw + iw * qx - iy * qz + iz * qy,
-        iy * qw + iw * qy - iz * qx + ix * qz,
-        iz * qw + iw * qz - ix * qy + iy * qx,
-      ];
-    };
-    const down = into(0, -1, 0);
-    const spin = into(
+    rotateIntoFrame(out, at, qx, qy, qz, qw, 0, -1, 0);
+    at += 3;
+    rotateIntoFrame(
+      out,
+      at,
+      qx,
+      qy,
+      qz,
+      qw,
       angular[3 * p] as number,
       angular[3 * p + 1] as number,
       angular[3 * p + 2] as number,
     );
-    const move = into(
+    out[at] = 0.2 * (out[at] as number);
+    out[at + 1] = 0.2 * (out[at + 1] as number);
+    out[at + 2] = 0.2 * (out[at + 2] as number);
+    at += 3;
+    rotateIntoFrame(
+      out,
+      at,
+      qx,
+      qy,
+      qz,
+      qw,
       linear[3 * p] as number,
       linear[3 * p + 1] as number,
       linear[3 * p + 2] as number,
     );
-    out[at++] = down[0];
-    out[at++] = down[1];
-    out[at++] = down[2];
-    out[at++] = 0.2 * spin[0];
-    out[at++] = 0.2 * spin[1];
-    out[at++] = 0.2 * spin[2];
-    out[at++] = move[0];
-    out[at++] = move[1];
-    out[at++] = move[2];
+    at += 3;
     out[at++] = position[3 * p + 1] as number;
     out[at++] = position[3 * this.head + 1] as number;
 
-    // The vestibular sense: down and spin in the head's frame, by the head's own quaternion.
+    // The head: down and spin by the head's own quaternion, in the same way and with the same
+    // caveat -- a stand-in for the vestibular sense, not the sense itself.
     const h0 = this.head;
     const hqx = orientation[4 * h0] as number;
     const hqy = orientation[4 * h0 + 1] as number;
     const hqz = orientation[4 * h0 + 2] as number;
     const hqw = orientation[4 * h0 + 3] as number;
-    const intoHead = (vx: number, vy: number, vz: number): [number, number, number] => {
-      const ix = hqw * vx - hqy * vz + hqz * vy;
-      const iy = hqw * vy - hqz * vx + hqx * vz;
-      const iz = hqw * vz - hqx * vy + hqy * vx;
-      const iw = hqx * vx + hqy * vy + hqz * vz;
-      return [
-        ix * hqw + iw * hqx - iy * hqz + iz * hqy,
-        iy * hqw + iw * hqy - iz * hqx + ix * hqz,
-        iz * hqw + iw * hqz - ix * hqy + iy * hqx,
-      ];
-    };
-    const headDown = intoHead(0, -1, 0);
-    const headSpin = intoHead(
+    rotateIntoFrame(out, at, hqx, hqy, hqz, hqw, 0, -1, 0);
+    at += 3;
+    rotateIntoFrame(
+      out,
+      at,
+      hqx,
+      hqy,
+      hqz,
+      hqw,
       angular[3 * h0] as number,
       angular[3 * h0 + 1] as number,
       angular[3 * h0 + 2] as number,
     );
-    out[at++] = headDown[0];
-    out[at++] = headDown[1];
-    out[at++] = headDown[2];
-    out[at++] = 0.2 * headSpin[0];
-    out[at++] = 0.2 * headSpin[1];
-    out[at++] = 0.2 * headSpin[2];
+    out[at] = 0.2 * (out[at] as number);
+    out[at + 1] = 0.2 * (out[at + 1] as number);
+    out[at + 2] = 0.2 * (out[at + 2] as number);
+    at += 3;
 
     // The feet: how many contacts each has, and the impulse they carry, scaled.
     const pair = c.contacts.fields.pair as Int32Array;
