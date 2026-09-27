@@ -1,17 +1,18 @@
-# HumanSim — Technical Specification
+# bs-humany — Technical Specification
 
 **Phase 1: Mechanical Framework (Articulated Skeleton)**
 **Plus: interoperation contracts for future physiological modules**
 
 | | |
 |---|---|
-| Document | `humansim-spec` |
-| Version | 0.5 |
+| Document | `bs-humany-spec` |
+| Version | 0.5.1 |
+| Changes in 0.5.1 | Status header and as-built notes, 2026-09-27. The placeholder project name is replaced by `bs-humany` (ADR-010), in the title, §1.1, §2.4, §5.3 and §15.1. §15.1 and §15.2 get as-built notes. §17 records the questions that the ADRs resolved. The normative text is not rewritten. |
 | Changes in 0.5 | **Provenance posture reversed by the owner (2026-09-12): commercial viability is not a goal at all.** Anatomical mesh datasets are now the primary source of bone geometry *and* of placement, landmarks and joint centres. ADR-005 and ADR-009 rewritten, ADR-011 added, §13.6, §15.3, M1.2, M1.8, M5.8 and §17.1 revised. Skeleton data becomes CC BY-SA 4.0. |
 | Changes in 0.4 | ASD-STE100 (Issue 9) lint pass: semicolons removed, banned words replaced. Score 3.97 → 2.91 per 100 words (flavored target: under 2.50) |
 | Changes in 0.3 | Share-Alike compatibility analysis and the measurement-provenance rule added to ADR-009. Guards added to M1.2 and M5.8 |
 | Changes in 0.2 | Licensing posture resolved (ADR-009). ADR-005 revised. ANSUR II adopted for dimensional anthropometry. External validation added (§13.6). Write-vs-adopt boundary recorded (§15.4) |
-| Status | Planning complete. No code written |
+| Status | Phase 1 (M0-M5) implemented. §16 marks finished tickets with ✅ and evidence where a ticket closed with a report. Decisions revised since are recorded inline and in `docs/adr/`. |
 | Audience | Implementation agents working a Trello-style board |
 | Scope of this doc | Mechanical layer only. Later modules are specified *at the interface boundary only.* |
 
@@ -36,7 +37,7 @@ Conventions: **MUST**, **SHOULD**, **MAY** per RFC 2119. `monospace` = literal i
 
 ### 1.1 What this is
 
-HumanSim is a modular simulation framework for the human body, running in the browser with three.js as the presentation layer. It is built bottom-up from mechanical structure, with each physiological system added as a discrete, independently-versioned module that communicates only through declared data channels.
+bs-humany is a modular simulation framework for the human body, running in the browser with three.js as the presentation layer. It is built bottom-up from mechanical structure, with each physiological system added as a discrete, independently-versioned module that communicates only through declared data channels.
 
 Phase 1 delivers the mechanical substrate: a **parametric, anatomically-named, articulated human skeleton** with realistic joint types, ranges of motion, passive joint properties, and mass distribution — simulated as a rigid-body system and rendered in three.js. Its flagship demo is a ragdoll: drop the skeleton, watch it collapse in an anatomically plausible way, drag it around, reset it.
 
@@ -103,7 +104,7 @@ Caveat to document: ANSUR II sampled US military personnel, who are not represen
 
 ### 2.4 Joint coordinate conventions
 
-**ISB (International Society of Biomechanics) recommendations, Wu et al.** — 2002 for the ankle, hip, spine and pelvis. 2005 for the shoulder, elbow, wrist and hand. These define standard segment coordinate systems and joint coordinate systems from bony landmarks. Adopting them means HumanSim joint angles are directly comparable to published literature and to motion-capture pipelines, at essentially zero implementation cost beyond care in frame definition.
+**ISB (International Society of Biomechanics) recommendations, Wu et al.** — 2002 for the ankle, hip, spine and pelvis. 2005 for the shoulder, elbow, wrist and hand. These define standard segment coordinate systems and joint coordinate systems from bony landmarks. Adopting them means bs-humany joint angles are directly comparable to published literature and to motion-capture pipelines, at essentially zero implementation cost beyond care in frame definition.
 
 ### 2.5 Rendering
 
@@ -351,7 +352,7 @@ interface DofDef {
 
 - **SI units everywhere, always.** Metres, kilograms, radians, seconds, newtons. No degrees in the data model. Degrees exist only in UI display code, converted at the boundary.
 - **Every joint range of motion MUST carry a `romSource` citation.** A number without a source is a bug. This is the mechanism that keeps "research accuracy" from silently eroding into plausible-looking invention as the model grows.
-- **Right-handed coordinates, Y-up.** Aligns with three.js. Note that ISB and OpenSim conventions differ (Rajagopal uses X anterior, Y superior, Z right — which is Y-up, right-handed, so the mapping is a permutation, not a handedness flip). The conversion MUST live in exactly one documented module with exhaustive tests, `@humansim/frames`. Coordinate-convention bugs are the single most likely source of silent wrongness in this project.
+- **Right-handed coordinates, Y-up.** Aligns with three.js. Note that ISB and OpenSim conventions differ (Rajagopal uses X anterior, Y superior, Z right — which is Y-up, right-handed, so the mapping is a permutation, not a handedness flip). The conversion MUST live in exactly one documented module with exhaustive tests, `@bs-humany/frames`. Coordinate-convention bugs are the single most likely source of silent wrongness in this project.
 - **Anatomical neutral pose** is the HSDL rest pose: standing, feet parallel and slightly apart, arms at sides, palms facing anteriorly, gaze horizontal. Deviations (T-pose, A-pose) are *poses*, never the rest definition.
 
 ### 5.4 Procedural geometry recipes
@@ -846,8 +847,10 @@ These are the concrete Phase 1 requirements that exist *only* to keep the future
 
 ### 15.1 Layout
 
+*Note, 2026-09-27: this is the layout as planned in 0.1. The current package list is in `README.md` › Layout.*
+
 ```
-humansim/
+bs-humany/
 ├── packages/
 │   ├── hsdl/              schema, types, validation, JSON Schema generation
 │   ├── frames/            coordinate conventions & conversions — SMALL, PURE, EXHAUSTIVELY TESTED
@@ -855,7 +858,7 @@ humansim/
 │   ├── kernel/            scheduler, channels, event bus, delay lines, clock, state buffers
 │   ├── skeleton/          skeleton definition data (~206 bones), segmentation profiles
 │   ├── compiler/          HSDL → CompiledArticulation; MJCF emitter
-│   ├── backend-rapier/
+│   ├── backend-rapier/    (deleted 2026-09-26: MuJoCo is the only backend, ADR-003)
 │   ├── backend-mujoco/
 │   ├── modules-mechanics/ physics, passive joints, skeleton posing, grab, metrics
 │   ├── modules-sensing/   vestibular sensing; the worked example of the module contract
@@ -870,12 +873,14 @@ humansim/
 │   ├── validation/        joint-sweep and inertia-audit reports
 │   └── sources/           bibliography with every ROM and parameter citation
 └── tools/
-    └── cli/               headless scenario runner for CI
+    └── cli/               headless scenario runner for CI (scenario goldens run under vitest in packages/testkit)
 ```
 
 ### 15.2 Stack
 
 pnpm workspaces. TypeScript strict, including `noUncheckedIndexedAccess`. Vite for the app, tsup for libraries. Vitest. three.js `^0.186`. `@dimforge/rapier3d-compat`. `@mujoco/mujoco`. Zod or TypeBox for runtime validation with type inference. Biome or ESLint + Prettier. Changesets for versioning.
+
+*As built, 2026-09-27.* Vite builds the studio. The libraries have no build step and no tsup: each package exports its TypeScript source, and `tsc --build` type-checks the workspace. Runtime validation is Zod 4. Lint and format are Biome. There are no Changesets. `@mujoco/mujoco` is the only physics engine, because the Rapier backend and `@dimforge/rapier3d-compat` were deleted on 2026-09-26 (ADR-003). The studio runs its simulation single-threaded on the main thread, with shared channels off (`preferShared: false` in `apps/studio/src/simulation.ts`), so it does not use the worker of ADR-008 yet. The kernel's `WorkerHost` is kept for that move. The trainer runs its episodes in worker threads.
 
 Server requirements: the app MUST be served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` to enable `SharedArrayBuffer` and MuJoCo's multi-threaded build. Configure this in the dev server and document it for deployment — it is an easy thing to discover far too late.
 
@@ -1019,13 +1024,13 @@ Sized for board decomposition. Each ticket needs acceptance criteria written at 
 
 Blocking or near-blocking. Flagged for the human.
 
-1. ~~**Does the project need to permit commercial use?**~~ **Resolved twice.** In 0.2 the owner said commercial viability was subordinate to quality and a permissive core was kept because it seemed free. In 0.5 the owner stated commercial viability is not a goal at all, after the permissive posture proved to have a real cost in placement quality. See ADR-011. Skeleton data is CC BY-SA 4.0.
-2. **Is a Python/MuJoCo-MJX backend actually wanted, or does browser MuJoCo cover the accuracy case?** `IPhysicsBackend` accommodates a remote backend, but building one is significant work that the research findings suggest may be unnecessary. Recommend deferring until M3.19 benchmarks exist.
-3. **Target platform floor.** Desktop-only, or must `L0` run on mobile? Affects WASM budget, worker strategy, and whether cross-origin isolation can be assumed.
-4. **Should Phase 2 be nerves or muscles?** The original sketch said nerves first. Physiologically, nerves without muscles means reflex loops that act on abstract joint torques rather than on muscle activation — workable, and honestly a good way to validate the delay-line and afferent machinery cheaply, but slightly backwards. Muscles first gives nerves something real to drive. Worth a decision before M5.
+1. ~~**Does the project need to permit commercial use?**~~ **Resolved twice.** In 0.2 the owner said commercial viability was subordinate to quality and a permissive core was kept because it seemed free. In 0.5 the owner stated commercial viability is not a goal at all, after the permissive posture proved to have a real cost in placement quality. See [ADR-011](../adr/adr-011-measurement-from-datasets.md). Skeleton data is CC BY-SA 4.0.
+2. **Is a Python/MuJoCo-MJX backend actually wanted, or does browser MuJoCo cover the accuracy case?** `IPhysicsBackend` accommodates a remote backend, but building one is significant work that the research findings suggest may be unnecessary. Recommend deferring until M3.19 benchmarks exist. **Deferred.** The M3.19 benchmarks exist, and the ADR-003 reassessment of 2026-09-13 (§3, "Reassessed 2026-09-13") found browser MuJoCo fast enough to be the only backend. No remote backend is planned.
+3. ~~**Target platform floor.** Desktop-only, or must `L0` run on mobile? Affects WASM budget, worker strategy, and whether cross-origin isolation can be assumed.~~ **Resolved** in [ADR-010](../adr/adr-010-naming-and-platform-floor.md): `L0` must run on mobile, so cross-origin isolation cannot be assumed.
+4. ~~**Should Phase 2 be nerves or muscles?**~~ The original sketch said nerves first. Physiologically, nerves without muscles means reflex loops that act on abstract joint torques rather than on muscle activation — workable, and honestly a good way to validate the delay-line and afferent machinery cheaply, but slightly backwards. Muscles first gives nerves something real to drive. Worth a decision before M5. **Resolved: muscles first.** Phase 2 is the muscle module ([`bs-humany-muscle-spec`](bs-humany-muscle-spec.md)). The nerves came after it, as a policy that drives the muscles ([ADR-013](../adr/adr-013-the-nerves-a-policy-over-the-drive.md)).
 5. **Spine coupling fidelity.** MyoSkeleton's approach (per-level joints plus dozens of equality constraints) is known-good but is behind a non-commercial license. Is independently deriving coupling ratios from the published biomechanics literature in scope, or is `L2` lumped-region spine sufficient for now?
 6. **Hands.** A fully articulated pair of hands is ~54 bones and a large share of the total DoF budget, for relatively little ragdoll payoff. Recommend hands as a separate opt-in sub-profile rather than being bundled into `L3`. Confirm?
-7. **Naming.** "HumanSim" and "HSDL" are placeholders used consistently throughout. Renaming later is cheap now and expensive after M3.
+7. ~~**Naming.** The project name and "HSDL" are placeholders used consistently throughout. Renaming later is cheap now and expensive after M3.~~ **Resolved** in [ADR-010](../adr/adr-010-naming-and-platform-floor.md): the project is `bs-humany`, with the workspace scope `@bs-humany/*`. HSDL keeps its name.
 
 ---
 

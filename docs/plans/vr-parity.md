@@ -1,5 +1,8 @@
 # The headset as the studio: VR parity
 
+**Status: built, except the two headset checks in §5 and §6.** "Where things stand" is the state
+before this work.
+
 What has to happen for the OpenXR viewer to show everything the desktop studio shows and to
 offer the same panels, one to one, plus what only the headset needs. A checklist, in the order
 it is being done, so it can be picked up mid-way. `docs/plans/studio-ui-redesign.md` is the
@@ -68,7 +71,8 @@ JSON; the status carries the settings, the drive groups and the diagnostics, and
 
 ## 5. Desktop
 
-- [x] `Connect VR viewer` still unhides under Tauri in the new top bar (`main.ts:2059`).
+- [x] `Connect VR viewer` still unhides under Tauri in the new top bar (the `connectVr` button in
+      `apps/studio/src/main.ts`).
 - [x] `pnpm desktop:appimage` builds with the new sidecar (124 MB, both binaries in
       `usr/bin`) and launches.
 - [ ] In the headset: the AppImage's Connect VR shows the new muscles, the tissue and the two

@@ -1,10 +1,13 @@
 # Bridging the two datasets: a work plan
 
+**Status: in progress.**
+
 **Why.** The bones, landmarks and attachments are measured from Z-Anatomy. The four
 musculotendon scalars come from MyoSuite, fitted to a body we do not have and cannot ship.
 Two of those four are lengths on the source's bones, so they are refitted here — and both
-refits need to know how far a muscle travels on each skeleton. `tools/train/runs/datasetgap.mjs`
-measures that gap. What it found, on `l3_anatomical`:
+refits need to know how far a muscle travels on each skeleton. `pnpm measure:dataset-gap`
+measures that gap. What it found on `l3_anatomical` when this plan was written (run it for
+today's numbers):
 
 | region | units | compared | median ratio |
 |---|---|---|---|
@@ -26,9 +29,11 @@ and it sits in three places with three different causes.
 2. **The toe muscles.** `flexor_digitorum_longus` travels 47 mm here against 13 there and
    crosses one joint: `talocrural/dorsiflexion`. It is a toe flexor with no toe joint. All five
    toes are one welded segment. Fixed by **articulating the foot**, not by moving points.
-3. **Points wrong on our own terms.** `l5_s1` sits 17 mm off the midline and `c0_c1` 23 mm,
+3. **Points wrong on our own terms.** `l5_s1` sat 17 mm off the midline and `c0_c1` 23 mm,
    both taking a marker — a label anchor — as a joint centre. Hip and shoulder were already
    fixed for this. Fixed by **measuring from our own mesh**, with a manipulator to do it by eye.
+   (Fixed in d4bbb4c: the spine is now measured from its endplates and condyles, and every
+   spinal joint is on the midline.)
 
 Attachment points stay ours (ADR-011). The source is a cross-check and never a snap target.
 
@@ -39,23 +44,29 @@ Attachment points stay ours (ADR-011). The source is a cross-check and never a s
 - [x] 1.2 Their sites drawn in the viewport as a reference overlay, plainly marked as the other
       body, never a snap target
 - [x] 1.3 Correspondence picker: their muscles beside ours, click to pair, many-to-one allowed,
-      with automatic suggestions where a name or a path plainly matches
+      with automatic suggestions for bone pairs by name (`suggestBodyPairs`, including the trunk:
+      sacrum and lumbar levels); muscles are paired by filter-and-click
+- [ ] 1.3b Suggest muscle pairs where a name or a path plainly matches
 - [x] 1.4 Point inspector: our joint centres and attachment sites as pickable handles
-- [x] 1.5 A transform gizmo, XYZ, snapping off by default
+- [x] 1.5 A transform gizmo, XYZ, Off/Move/Rotate, snapping off by default
 - [x] 1.6 Write both outputs with provenance: the correspondence mapping, and an override file
       recording each moved point, how far it moved, and a required note
-- [ ] 1.7 Extend `measure:source-travel` to use the mapping and measure the 106 unmeasured units
+- [ ] 1.7 Extend `measure:source-travel` to use the mapping and measure the 106 unmeasured units.
+      The saved mapping has to be committed somewhere (for example next to the generated
+      muscle-data) before `measure:source-travel` can read it: CI runs that script with `--check`,
+      and the studio's download lands in a gitignored file.
 
 ### 2 — The spinal discs
 Two separate faults, and the first is documented rather than accidental.
-- [ ] 2.1 **Too far back, all of them.** A spine joint centre is `centroidMid` -- midway between
-      two vertebral centroids -- which `jointHelpers.ts` already records as sitting "a little
-      posterior to the disc", because a centroid includes the posterior arch. The disc is drawn at
-      the joint frame and inherits it. Decide whether the joint centre moves (changes the
-      articulation) or the drawn disc is offset from it (changes only the picture).
-- [ ] 2.2 **Top and bottom offset sideways.** `l5_s1` sits 17 mm off the midline and `c0_c1`
+- [x] 2.1 **Too far back, all of them.** A spine joint centre was midway between two vertebral
+      centroids, and a centroid includes the posterior arch, so every disc drawn at the joint
+      frame sat behind the real disc. The joint centre moved, not the drawn disc: each spinal
+      joint now sits midway between the facing endplates, and the centroid midpoint rule is
+      deleted (d4bbb4c). The disc's tilt came in e608c79.
+- [x] 2.2 **Top and bottom offset sideways.** `l5_s1` sat 17 mm off the midline and `c0_c1`
       23 mm, both taking a single marker as a joint centre. Markers are label anchors; hip and
-      shoulder were already fixed for exactly this. Every other spinal disc is at 0.0000.
+      shoulder were already fixed for exactly this. Fixed in d4bbb4c: `l5_s1` takes the sacrum's
+      S1 endplate, and the skull joint sits midway between the occipital condyles.
 
 ### 3 — Separate the toes at L3
 - [x] 3.1 Five digital rays as their own segments, rather than one welded `toes_*`
