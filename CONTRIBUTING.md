@@ -27,8 +27,14 @@ Read this file before your first change. It is short on purpose.
    landmarks and joint centres (ADR-011). Record which dataset, version and structure each value
    came from so it can be re-derived. The ISB textual definition of a landmark still defines it;
    the mesh is where it is located.
-6. **Do not write to a channel you have not declared.** Declared `reads`/`writes` are enforced at
-   runtime in development builds, not documentary.
+6. **Do not write to a channel you have not declared.** Declared `reads`/`writes` are enforced,
+   not documentary. In every build the kernel hands a module a view only for an access its
+   manifest declares, and refuses a second writer. A read view is the same memory as a write
+   view, so a write through one is caught by the kernel's audit, which hashes every channel a
+   module did not declare before and after its step and throws on a change. Every `vitest` run
+   turns the audit on through `BS_HUMANY_KERNEL_AUDIT=1` (`vitest.config.ts`); the golden
+   scenarios run unaudited at full length for speed and again audited for their first 300 ticks.
+   Other hosts -- the studio, the trainer -- opt in with `KernelOptions.audit`.
 7. **Do not use `Math.random`, `Date.now`, or `performance.now` in simulation code.** A seeded PRNG
    arrives via `ModuleInitContext`. Simulation time is `tick * dt`, never accumulated.
 8. **Do not put three.js or React types in** `kernel`, `hsdl`, `frames`, `anthropometry`, or any
@@ -143,3 +149,10 @@ pnpm cite:lint     # citation coverage
 pnpm module:lint   # banned globals and allocation in step()
 pnpm dev           # studio app
 ```
+
+`pnpm module:lint` scans `kernel`, `compiler`, `muscle-model`, `muscle-path`, `muscle-volume`,
+`scenarios`, and every `modules-*` and `backend-*` package, which it finds by name so a new one is
+covered without anyone remembering to list it. Banned globals are checked in every non-test file of
+those packages. The allocation check is narrower than rule 9: it reads only the bodies of
+functions named `step` and does not follow what they call, so a helper called every tick is held
+to rule 9 by review until the check that follows callees lands (sim-core/tick-path-allocations).

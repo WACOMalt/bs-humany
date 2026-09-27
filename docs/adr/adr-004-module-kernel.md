@@ -28,6 +28,18 @@ Declared `reads`/`writes` are **enforced**, not documentary. A module writing to
 channel throws in development builds. This is the mechanism that keeps module boundaries real over
 years of contribution, especially contribution by agents that have not read the whole codebase.
 
+**Enforcement, as of 2026-09-26.** What "enforced" means in practice, stated exactly so it is not
+read as more than it is. In every build, the kernel hands a module a channel view only for an
+access its manifest declares, and a single-writer channel refuses a second writer at init. That
+much cannot be bypassed from inside a module. What it cannot stop is a write through a *read*
+view, because JavaScript has no read-only typed array and a read view is the writer's memory. That
+write is caught by the kernel audit, which hashes every channel a module neither writes nor
+accumulates into before and after the module's step and throws on any change. Every `vitest` run
+enables the audit through the `BS_HUMANY_KERNEL_AUDIT` environment variable, so it guards every
+module test and the first 300 ticks of every golden scenario; any other host -- the studio, the
+trainer -- may opt in with `KernelOptions.audit`, and none does by default because the audit costs
+a pass over every channel per module per tick.
+
 Determinism requires: no `Math.random`, no `Date.now`/`performance.now` in simulation code, no
 iteration over unordered collections where order affects results, no `async` inside `step`.
 `simTime` is computed as `tick * dt`, never accumulated.
