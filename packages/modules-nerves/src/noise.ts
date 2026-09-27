@@ -31,11 +31,14 @@
  * gets it.
  */
 
-import type {
-  ModuleInitContext,
-  ModuleManifest,
-  ModuleStepContext,
-  SimModule,
+import {
+  type ModuleInitContext,
+  type ModuleManifest,
+  type ModuleStepContext,
+  type SimModule,
+  type Stateful,
+  packState,
+  unpackState,
 } from '@bs-humany/kernel';
 import {
   type CompiledMuscleSet,
@@ -44,36 +47,91 @@ import {
 } from '@bs-humany/modules-muscle';
 import type { DriveOutput } from './nervesModule.js';
 
-/** A seeded uniform stream on (0, 1): xorshift32, the trainer's own. */
-export function seededUniform(seed: number): () => number {
-  let s = seed >>> 0 || 1;
-  return () => {
+/** What a `XorShift32` must carry through a snapshot to draw on exactly where it left off. */
+export interface XorShift32State {
+  /** The 32-bit word the next uniform is made from. */
+  readonly s: number;
+  /** The second normal of the last Box-Muller pair, meaningful only when `hasSpare`. */
+  readonly spare: number;
+  readonly hasSpare: boolean;
+}
+
+/**
+ * The shared xorshift32 stream: uniforms on (0, 1), and standard normals from them by Box-Muller.
+ *
+ * The motor tremor and the sense grain both draw from it. It was two closures, which drew the
+ * same numbers but kept their state where nothing could reach it, so a snapshot could not capture
+ * a stream half-way through and a restored run drew different noise from the run it was restored
+ * from (spec 13.7). A class keeps the same word and the same spare where `getState` can read them.
+ *
+ * A zero seed would be a stream of zeros, which xorshift never leaves, so zero falls back to 1:
+ * seeds 0 and 1 name the same stream. The trainer's `Gaussian` in `tools/train/src/es.ts` is the
+ * same generator with a different fallback, 0x9e3779b9, so the two agree for every seed but zero.
+ *
+ * Both of a Box-Muller pair are used, so a normal costs half a logarithm and half a cosine rather
+ * than a whole one -- and the unused half is state, which is why it travels with the word.
+ */
+export class XorShift32 {
+  private s: number;
+  private spare = 0;
+  private hasSpare = false;
+
+  constructor(seed: number) {
+    this.s = seed >>> 0 || 1;
+  }
+
+  /** Start again as the stream this seed names, with no normal held over. */
+  reseed(seed: number): void {
+    this.s = seed >>> 0 || 1;
+    this.spare = 0;
+    this.hasSpare = false;
+  }
+
+  /** Uniform on (0, 1), never at either end, so a logarithm of it is finite. */
+  uniform(): number {
+    let s = this.s;
     s ^= s << 13;
     s ^= s >>> 17;
     s ^= s << 5;
     s >>>= 0;
+    this.s = s;
     return (s + 0.5) / 4294967296;
-  };
+  }
+
+  /** Standard normal, mean 0 and variance 1. */
+  normal(): number {
+    if (this.hasSpare) {
+      this.hasSpare = false;
+      return this.spare;
+    }
+    const radius = Math.sqrt(-2 * Math.log(this.uniform()));
+    const angle = 2 * Math.PI * this.uniform();
+    this.spare = radius * Math.sin(angle);
+    this.hasSpare = true;
+    return radius * Math.cos(angle);
+  }
+
+  getState(): XorShift32State {
+    return { s: this.s, spare: this.spare, hasSpare: this.hasSpare };
+  }
+
+  setState(state: XorShift32State): void {
+    this.s = state.s >>> 0;
+    this.spare = state.spare;
+    this.hasSpare = state.hasSpare;
+  }
 }
 
-/**
- * A seeded standard normal stream, by Box-Muller. Both of a pair are used, so a draw costs half
- * a logarithm and half a cosine rather than a whole one.
- */
+/** A seeded uniform stream on (0, 1): a `XorShift32`'s uniforms, as a function. */
+export function seededUniform(seed: number): () => number {
+  const stream = new XorShift32(seed);
+  return () => stream.uniform();
+}
+
+/** A seeded standard normal stream: a `XorShift32`'s normals, as a function. */
 export function seededNormal(seed: number): () => number {
-  const uniform = seededUniform(seed);
-  let spare: number | undefined;
-  return () => {
-    if (spare !== undefined) {
-      const value = spare;
-      spare = undefined;
-      return value;
-    }
-    const radius = Math.sqrt(-2 * Math.log(uniform()));
-    const angle = 2 * Math.PI * uniform();
-    spare = radius * Math.sin(angle);
-    return radius * Math.cos(angle);
-  };
+  const stream = new XorShift32(seed);
+  return () => stream.normal();
 }
 
 /**
@@ -83,7 +141,8 @@ export function seededNormal(seed: number): () => number {
 export class NoiseField {
   /** The current value of each channel. */
   readonly values: Float64Array;
-  private normal: () => number;
+  /** The stream every channel draws from, in turn; state, so a snapshot carries it. */
+  readonly stream: XorShift32;
   private level: number;
   private tau: number;
 
@@ -91,13 +150,13 @@ export class NoiseField {
     this.values = new Float64Array(channels);
     this.level = Math.max(0, level);
     this.tau = Math.max(1e-3, tau);
-    this.normal = seededNormal(seed);
+    this.stream = new XorShift32(seed);
   }
 
   /** Start again from rest with a new stream: a new episode's disturbance. */
   reseed(seed: number): void {
     this.values.fill(0);
-    this.normal = seededNormal(seed);
+    this.stream.reseed(seed);
   }
 
   set strength(value: number) {
@@ -121,7 +180,7 @@ export class NoiseField {
     const rho = Math.exp(-Math.max(0, step) / this.tau);
     const kick = Math.sqrt(Math.max(0, 1 - rho * rho)) * this.level;
     for (let i = 0; i < this.values.length; i++) {
-      this.values[i] = rho * (this.values[i] as number) + kick * this.normal();
+      this.values[i] = rho * (this.values[i] as number) + kick * this.stream.normal();
     }
   }
 }
@@ -162,7 +221,7 @@ export interface MotorNoiseOptions {
  * and clamped with everything else, instead of overriding a layer the feedforward is also
  * writing and having to be taken back afterwards.
  */
-export class MotorNoiseModule implements SimModule {
+export class MotorNoiseModule implements SimModule, Stateful {
   readonly manifest: ModuleManifest;
   readonly field: NoiseField;
   /** A steady push on an output, added with the wander; zero unless something sets it. */
@@ -225,6 +284,48 @@ export class MotorNoiseModule implements SimModule {
 
   private bind(ctx: ModuleInitContext): void {
     this.excitation = ctx.accumulate(EFFERENT_ALPHA_MOTOR).fields.excitation as Float64Array;
+  }
+
+  /**
+   * The tremor as it stands, for a snapshot: the ticks since the last draw, the stream's word,
+   * spare and whether it has one, then each output's wander and its bias.
+   *
+   * The wander is a process with a memory -- each draw is most of the last one plus a kick -- and
+   * the kicks come from a stream that has moved on by every draw so far. Neither is in a channel.
+   * Without them a restored run was pushed by a different tremor from the moment it was restored,
+   * which is a different run, and the trainer's point about noise holds here too: the same seed has
+   * to mean the same disturbance, wherever the run was picked up from.
+   */
+  getState(): Uint8Array {
+    const stream = this.field.stream.getState();
+    const outputs = this.field.values.length;
+    const values = new Float64Array(4 + 2 * outputs);
+    values[0] = this.sinceDraw;
+    values[1] = stream.s;
+    values[2] = stream.spare;
+    values[3] = stream.hasSpare ? 1 : 0;
+    values.set(this.field.values, 4);
+    values.set(this.bias, 4 + outputs);
+    return packState(values);
+  }
+
+  setState(state: unknown): void {
+    const values = unpackState(state, MOTOR_NOISE_MODULE_ID);
+    const outputs = this.field.values.length;
+    if (values.length !== 4 + 2 * outputs) {
+      throw new Error(
+        `MotorNoiseModule state has ${values.length} numbers; expected ${4 + 2 * outputs} for ` +
+          `${outputs} outputs. The snapshot was taken with a different set of drive outputs.`,
+      );
+    }
+    this.sinceDraw = values[0] as number;
+    this.field.stream.setState({
+      s: values[1] as number,
+      spare: values[2] as number,
+      hasSpare: values[3] === 1,
+    });
+    this.field.values.set(values.subarray(4, 4 + outputs));
+    this.bias.set(values.subarray(4 + outputs));
   }
 
   step(ctx: ModuleStepContext): void {

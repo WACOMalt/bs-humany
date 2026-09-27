@@ -38,11 +38,14 @@
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
-import type {
-  ModuleInitContext,
-  ModuleManifest,
-  ModuleStepContext,
-  SimModule,
+import {
+  type ModuleInitContext,
+  type ModuleManifest,
+  type ModuleStepContext,
+  type SimModule,
+  type Stateful,
+  packState,
+  unpackState,
 } from '@bs-humany/kernel';
 import {
   BODY_JOINT_STATE,
@@ -57,7 +60,7 @@ import {
   MUSCLE_CHANNEL_VERSION,
   MUSCLE_STATE,
 } from '@bs-humany/modules-muscle';
-import { seededNormal } from './noise.js';
+import { XorShift32 } from './noise.js';
 import { type Feet, ObservationBuilder } from './observation.js';
 import { MlpPolicy, type PolicyFile } from './policy.js';
 
@@ -117,7 +120,7 @@ export interface NervesOptions {
   readonly memory?: number;
 }
 
-export class NervesModule implements SimModule {
+export class NervesModule implements SimModule, Stateful {
   readonly manifest: ModuleManifest;
   readonly observation: ObservationBuilder;
   readonly outputs: readonly DriveOutput[];
@@ -138,7 +141,7 @@ export class NervesModule implements SimModule {
   private evaluations = 0;
   private unreadable = 0;
   private senseNoiseLevel: number;
-  private senseNormal: () => number;
+  private readonly senseStream: XorShift32;
   private memorySize: number;
   /** What the policy put in its context units last step, and reads back this one. */
   private context: Float64Array;
@@ -165,7 +168,7 @@ export class NervesModule implements SimModule {
     this.senseNoiseLevel = Math.max(0, options.senseNoise ?? 0);
     this.memorySize = Math.max(0, Math.round(options.memory ?? 0));
     this.context = new Float64Array(this.memorySize);
-    this.senseNormal = seededNormal(1);
+    this.senseStream = new XorShift32(1);
     this.goal = options.goal;
     this.observation = new ObservationBuilder(
       articulation,
@@ -290,7 +293,7 @@ export class NervesModule implements SimModule {
    * a pair told different lies answers with the difference between the lies.
    */
   reseedSenses(seed: number): void {
-    this.senseNormal = seededNormal(seed);
+    this.senseStream.reseed(seed);
   }
 
   /**
@@ -342,6 +345,70 @@ export class NervesModule implements SimModule {
     this.evaluations = 0;
   }
 
+  /**
+   * What the nerves carry between ticks, for a snapshot: the command they are holding, the
+   * policy's context units, how far they are through a control period, the counts, and where the
+   * sense grain's stream has got to.
+   *
+   * None of it is in a channel. The held command is added onto the muscles every tick between
+   * evaluations, the context is half of what the policy reads at the next one, and the grain is
+   * drawn from a stream that has moved on by every evaluation so far. A restore that forgot them
+   * re-evaluated at once, from a blank memory and a stream in the wrong place, and the body a
+   * policy was holding up did something else from the restored moment on.
+   *
+   * Laid out as a header of eight numbers -- the command's length, the context's, the tick within
+   * the control period, evaluations, unreadable senses, and the stream's word, spare and whether
+   * it has one -- then the command, then the context.
+   */
+  getState(): Uint8Array {
+    const stream = this.senseStream.getState();
+    const values = new Float64Array(8 + this.command.length + this.context.length);
+    values[0] = this.command.length;
+    values[1] = this.context.length;
+    values[2] = this.sinceEvaluation;
+    values[3] = this.evaluations;
+    values[4] = this.unreadable;
+    values[5] = stream.s;
+    values[6] = stream.spare;
+    values[7] = stream.hasSpare ? 1 : 0;
+    values.set(this.command, 8);
+    values.set(this.context, 8 + this.command.length);
+    return packState(values);
+  }
+
+  /**
+   * Put it back. The grain's stream always comes back; the rest only when it is the shape this
+   * module has now. `adopt` sizes the memory to the policy it is given, so a snapshot from before
+   * a checkpoint with another memory was adopted has a context of the wrong length, and holding
+   * part of it would feed the new policy a context it never wrote. Then the nerves forget, as a
+   * restore always used to make them, and the next tick evaluates afresh.
+   */
+  setState(state: unknown): void {
+    const values = unpackState(state, NERVES_MODULE_ID);
+    const commandLength = values[0] as number;
+    const contextLength = values[1] as number;
+    if (values.length < 8 || values.length !== 8 + commandLength + contextLength) {
+      throw new Error(
+        `NervesModule state has ${values.length} numbers, which is not a header and the ` +
+          'command and context it describes; the snapshot was taken by a different build.',
+      );
+    }
+    this.senseStream.setState({
+      s: values[5] as number,
+      spare: values[6] as number,
+      hasSpare: values[7] === 1,
+    });
+    if (commandLength !== this.command.length || contextLength !== this.context.length) {
+      this.forget();
+      return;
+    }
+    this.sinceEvaluation = values[2] as number;
+    this.evaluations = values[3] as number;
+    this.unreadable = values[4] as number;
+    this.command.set(values.subarray(8, 8 + commandLength));
+    this.context.set(values.subarray(8 + commandLength));
+  }
+
   step(_ctx: ModuleStepContext): void {
     const excitation = this.excitation;
     if (!excitation) return;
@@ -364,7 +431,7 @@ export class NervesModule implements SimModule {
       const base = this.obs.length - this.memorySize;
       if (this.senseNoiseLevel > 0) {
         for (let i = 0; i < base; i++) {
-          this.obs[i] = (this.obs[i] as number) + this.senseNoiseLevel * this.senseNormal();
+          this.obs[i] = (this.obs[i] as number) + this.senseNoiseLevel * this.senseStream.normal();
         }
       }
       // The context: the policy's own state, fed back from its last answer.

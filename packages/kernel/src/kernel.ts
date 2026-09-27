@@ -51,10 +51,57 @@ export interface KernelOptions {
   readonly config?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 
-/** Optional per-module state hooks, for modules with internal state worth snapshotting. */
+/**
+ * Optional per-module state hooks, for modules with internal state worth snapshotting.
+ *
+ * Anything a module keeps outside the channels and carries from one tick to the next -- a fibre
+ * length, a conduction delay's history, a noise stream half-way through -- is state, and a
+ * restore that does not bring it back starts a different run from the one that was captured
+ * (spec 13.7). `restore` calls `reset` on every module first, then `setState`, then writes the
+ * captured channels. What `setState` puts back is what the next tick starts from, and the
+ * channels that tick reads are the captured bytes, whatever either hook published into them.
+ *
+ * Return a `Uint8Array` from `getState`. A session file is JSON, and the studio's serializer
+ * carries module state across as base64 only when it is bytes; `packState` and `unpackState`
+ * turn a module's numbers into bytes and back. Only these two hooks may allocate: they run when a
+ * host asks for a snapshot, never inside `step`.
+ */
 export interface Stateful {
   getState(): unknown;
   setState(state: unknown): void;
+}
+
+/**
+ * A module's numbers as bytes, for `Stateful.getState`: each one as a float64, in the platform's
+ * byte order, as the channels in a snapshot are.
+ *
+ * Float64 for everything, counters and flags included, because every integer a module keeps --
+ * a tick count, a 32-bit generator word, a ring's head -- is exact in one, and a single element
+ * type is one less thing for a reader to get wrong.
+ */
+export function packState(values: ArrayLike<number>): Uint8Array {
+  const words = Float64Array.from(values);
+  return new Uint8Array(words.buffer);
+}
+
+/**
+ * The numbers `packState` packed, for `Stateful.setState`, copied into memory of their own.
+ *
+ * Copied rather than viewed because the bytes may come from anywhere -- a base64 decode, a slice
+ * of a larger buffer -- and a Float64Array over another buffer needs an offset that is a multiple
+ * of eight, which nothing promises. Throws with the module's name when the state is not bytes or
+ * not whole float64s, which is what a session saved by some other build of a module looks like.
+ */
+export function unpackState(state: unknown, moduleId: string): Float64Array {
+  if (!(state instanceof Uint8Array) || state.byteLength % 8 !== 0) {
+    throw new Error(
+      `Module '${moduleId}' was handed state that is not the bytes its getState produced; ` +
+        'the snapshot was probably taken by a different build of the module.',
+    );
+  }
+  const words = new Float64Array(state.byteLength / 8);
+  new Uint8Array(words.buffer).set(state);
+  return words;
 }
 
 function isStateful(m: SimModule): m is SimModule & Stateful {
@@ -438,7 +485,10 @@ export class Kernel {
    * Restore a snapshot taken from a kernel with the same modules, channels and timestep.
    *
    * Refuses a mismatch rather than partially applying it: a snapshot from a different module set
-   * would leave the simulation in a state no run could have produced.
+   * would leave the simulation in a state no run could have produced. The channels and random
+   * streams are checked before anything is touched. A module's `setState` checks its own state and
+   * may still refuse after the resets have run, and a host that sees `restore` throw should treat
+   * the simulation as spent and start it again, not step it.
    */
   restore(snapshot: KernelSnapshot): void {
     if (!this.#initialised) throw new Error('Kernel.restore called before init.');
@@ -462,27 +512,41 @@ export class Kernel {
           `Snapshot channel '${id}' is ${bytes.byteLength} bytes; expected ${storage.buffer.byteLength}.`,
         );
       }
-      new Uint8Array(storage.buffer, 0, storage.buffer.byteLength).set(bytes);
     }
-    for (const [id, prng] of this.#random) {
-      const state = snapshot.random[id];
-      if (!state) throw new Error(`Snapshot has no random state for module '${id}'.`);
-      prng.setState(state);
+    for (const [id] of this.#random) {
+      if (!snapshot.random[id]) throw new Error(`Snapshot has no random state for module '${id}'.`);
     }
-    for (const { module } of this.#schedule) {
-      if (isStateful(module) && module.manifest.id in snapshot.modules) {
-        module.setState(snapshot.modules[module.manifest.id]);
-      }
-    }
-    this.clock.restore({ tick: snapshot.tick, dt: snapshot.dt });
-    // Every module that keeps state of its own outside the channels -- fibre lengths, a filter,
-    // a counter -- is told the world has moved under it, so it rebinds and forgets. Without this
+    // Every module is told the world has moved under it, so it rebinds and forgets. Without this
     // the muscles' fibres belonged to the pose the last run ended in, and the first tick after a
     // restore pulled the body off the ground with them.
     for (const { module } of this.#schedule) {
       const random = this.#random.get(module.manifest.id);
       if (module.reset && random) module.reset(this.#initContext(module, random));
     }
+    // Then what was captured goes back, all of it after the resets so that none of them can undo
+    // any of it. A module with an entry in `snapshot.modules` gets its exact state back, and the
+    // run continues as the captured one would have (spec 13.7). A module without one -- it is not
+    // Stateful, or the snapshot is from a session file older than its state -- keeps what its
+    // reset left, which is to forget and start again from here, as every module used to.
+    for (const { module } of this.#schedule) {
+      if (isStateful(module) && module.manifest.id in snapshot.modules) {
+        module.setState(snapshot.modules[module.manifest.id]);
+      }
+    }
+    // The channels last, because a reset or a setState may publish into them, and what it
+    // publishes is not always what the captured run held. The physics module is the case that
+    // matters: it republishes from the restored backend, whose joint forces and contacts are
+    // worked out afresh at the restored pose, where the captured run's were what its last step
+    // left. The next tick reads the channels, so they have to be the captured bytes exactly.
+    for (const id of ids) {
+      const storage = this.channels.storage(id);
+      new Uint8Array(storage.buffer, 0, storage.buffer.byteLength).set(
+        snapshot.channels[id] as Uint8Array,
+      );
+    }
+    // And the random streams, after anything that might have drawn from one.
+    for (const [id, prng] of this.#random) prng.setState(snapshot.random[id] as PrngState);
+    this.clock.restore({ tick: snapshot.tick, dt: snapshot.dt });
   }
 
   /** Order-sensitive hash of every channel, for the determinism harness and golden trajectories. */

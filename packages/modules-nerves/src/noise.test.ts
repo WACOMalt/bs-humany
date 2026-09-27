@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { NoiseField, seededNormal, seededUniform } from './noise.js';
+import { NoiseField, XorShift32, seededNormal, seededUniform } from './noise.js';
 
 const deviation = (values: readonly number[]): number => {
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -33,6 +33,100 @@ describe('a seeded normal stream', () => {
       expect(u).toBeGreaterThan(0);
       expect(u).toBeLessThan(1);
     }
+  });
+});
+
+/**
+ * The two closures `XorShift32` replaced, as they were written, so the class is held to the
+ * numbers they drew rather than to itself. Kept verbatim: a copy tidied into a class would test
+ * nothing.
+ */
+function closureUniform(seed: number): () => number {
+  let s = seed >>> 0 || 1;
+  return () => {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    s >>>= 0;
+    return (s + 0.5) / 4294967296;
+  };
+}
+
+function closureNormal(seed: number): () => number {
+  const uniform = closureUniform(seed);
+  let spare: number | undefined;
+  return () => {
+    if (spare !== undefined) {
+      const value = spare;
+      spare = undefined;
+      return value;
+    }
+    const radius = Math.sqrt(-2 * Math.log(uniform()));
+    const angle = 2 * Math.PI * uniform();
+    spare = radius * Math.sin(angle);
+    return radius * Math.cos(angle);
+  };
+}
+
+/** FNV-1a over the float64 bit patterns: equal only if every draw is equal to the last bit. */
+function bitHash(values: readonly number[]): string {
+  const words = new Uint32Array(new Float64Array(values).buffer);
+  let h = 2166136261;
+  for (let i = 0; i < words.length; i++) {
+    h ^= words[i] as number;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+describe('the shared xorshift32 stream', () => {
+  const seeds = [0, 1, 7, 0x9e3779b9];
+
+  it('draws what the closures it replaced drew, to the bit, for a thousand draws', () => {
+    // Every seeded disturbance a checkpoint was trained under came from these closures, so a class
+    // that drew anything else would replay none of them.
+    for (const seed of seeds) {
+      const stream = new XorShift32(seed);
+      const uniform = closureUniform(seed);
+      for (let i = 0; i < 1000; i++) expect(Object.is(stream.uniform(), uniform())).toBe(true);
+      const normals = new XorShift32(seed);
+      const normal = closureNormal(seed);
+      for (let i = 0; i < 1000; i++) expect(Object.is(normals.normal(), normal())).toBe(true);
+    }
+  });
+
+  it('draws the numbers captured from the closures before they were replaced', () => {
+    // Hashes of the first thousand uniforms and normals, taken from the closures themselves before
+    // the class existed, so the check above cannot pass by the reference copy drifting with it.
+    // Seeds 0 and 1 are the same stream: zero falls back to 1.
+    const captured: Record<number, [string, string]> = {
+      0: ['52d11ca1', '5e466a40'],
+      1: ['52d11ca1', '5e466a40'],
+      7: ['ff2e3cca', '0336e05d'],
+      [0x9e3779b9]: ['bbe92e82', 'b69096f1'],
+    };
+    for (const seed of seeds) {
+      const uniforms = new XorShift32(seed);
+      const normals = new XorShift32(seed);
+      const u = Array.from({ length: 1000 }, () => uniforms.uniform());
+      const n = Array.from({ length: 1000 }, () => normals.normal());
+      expect([bitHash(u), bitHash(n)]).toEqual(captured[seed]);
+      expect(bitHash(Array.from({ length: 1000 }, seededUniform(seed)))).toBe(captured[seed]?.[0]);
+      expect(bitHash(Array.from({ length: 1000 }, seededNormal(seed)))).toBe(captured[seed]?.[1]);
+    }
+  });
+
+  it('picks up where its state was taken, spare normal and all', () => {
+    // An odd number of normals leaves the second of a pair held over: the case a restore that
+    // carried only the word would get wrong.
+    const stream = new XorShift32(7);
+    for (let i = 0; i < 37; i++) stream.normal();
+    const state = stream.getState();
+    expect(state.hasSpare).toBe(true);
+    const expected = Array.from({ length: 20 }, () => stream.normal());
+    const restored = new XorShift32(99);
+    restored.setState(state);
+    expect(Array.from({ length: 20 }, () => restored.normal())).toEqual(expected);
   });
 });
 
