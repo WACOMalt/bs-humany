@@ -3807,6 +3807,12 @@ const vrHost = {
         title: o.textContent?.trim() ?? o.value,
       }));
     const chosen = ui.scenario.selectedOptions[0];
+    // The studio no longer offers the limb proportions, but the headset's Body tab still says
+    // which ones the body uses, reading these keys and taking a missing one as zero. So they go
+    // out at the proportions every body now resolves at, the reference ones, from the same
+    // resolution a run is built from rather than a second copy of the numbers. The context types
+    // every parameter as optional; the resolution always fills these three.
+    const { crural, brachial, relativeLegLength } = resolveMorphology(currentMorphology()).context;
     return {
       scenario: { id: ui.scenario.value, title: chosen?.textContent?.trim() ?? ui.scenario.value },
       scenarios: option(ui.scenario),
@@ -3817,6 +3823,9 @@ const vrHost = {
         sex: Number(ui.sex.value),
         stature: Number(ui.stature.value),
         mass: Number(ui.mass.value),
+        ...(crural !== undefined ? { crural } : {}),
+        ...(brachial !== undefined ? { brachial } : {}),
+        ...(relativeLegLength !== undefined ? { legLength: relativeLegLength } : {}),
         percentile: Number(ui.percentile.value),
         dropHeight: Number(ui.dropHeight.value),
         passive: ui.passive.checked,
