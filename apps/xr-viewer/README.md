@@ -145,6 +145,19 @@ A stick whose controller is aimed at a panel's face scrolls that panel instead, 
 at all: forward brings the top of a long tab into view, back its bottom. Aim away and the stick
 walks, turns and lifts again.
 
+The headset says the same itself, as a two-column guide on the properties panel while it waits
+for a publisher and at the foot of its Health tab once one is running, from one list
+(`CONTROLS` in `src/panel.rs`):
+
+| Control                     | Does                                                  |
+| --------------------------- | ----------------------------------------------------- |
+| Left stick                  | walk, the way you are looking                         |
+| Right stick                 | turn (left / right), rise or sink (forward / back)    |
+| Grip on a bone              | grab it (the trigger, on a basic controller)          |
+| Trigger at a panel          | press                                                 |
+| Stick, aimed at a panel     | scroll it                                             |
+| Trigger on the dotted strip | carry the panel                                       |
+
 What actually happens is the other way round: the world -- body, muscles, grid, scenery and
 panel -- is moved and turned under a stage that never moves, and the hands, which belong to the
 stage, are not. A grab or a press carries the move and the turn back over, so nothing else knows
@@ -224,8 +237,11 @@ own place.
 The properties panel's tabs run down its left edge like the desktop's, and each is the desktop's
 tab, the same controls sending the same keys:
 
-- **Body** -- skeletal proportions, stature, mass, the ANSUR percentile; crural and brachial
-  index, relative leg length; what is held. The bone inspector stays on the desktop.
+- **Body** -- skeletal proportions, stature, mass, the ANSUR percentile, which reads back where
+  the body sits; what is held. The crural and brachial indices and relative leg length are not
+  applied to the measured skeleton yet, which is one subject scaled by stature, so the desktop
+  greys its sliders and the headset has none, only the note that says so. The bone inspector
+  stays on the desktop.
 - **World** -- gravity, floor; passive joint resistance, spinal redistribution; drop height;
   grab strength.
 - **Sim** -- steps a second, output frames a second; the diagnostics readout. The capture
@@ -233,7 +249,10 @@ tab, the same controls sending the same keys:
 - **Scene** -- a button per scenario and a slider per parameter the scenario has; muscles on or
   off; a button per fidelity profile.
 - **Muscles** -- a drive slider per muscle group, folded by region as the desktop folds them:
-  the same twenty-nine groups, one table in `packages/scenarios`; the readout.
+  the same twenty-nine groups, one table in `packages/scenarios`; the readout. The number
+  beside a slider is the excitation it asks for, the square of its travel, as the desktop
+  prints it (50 along reads 25%); what is sent is still the position, which the publisher
+  squares, and a number typed into the box is read as that excitation.
 - **Brain** -- the checkpoints the dashboard lists, the authority, Hand over and Release, the
   fit line; Start and Stop training, and Follow bridge, which reads Stop following once it is
   following, with the training line. Stop training stops the showcase that plays the run as well
@@ -241,12 +260,18 @@ tab, the same controls sending the same keys:
   generations, population, episode length and workers are as set on the desktop; the activity
   bitmap stays there too.
 - **Export** -- what cannot be done from a headset, disabled, with the line that says why.
-- **Health** -- this run's rates and diagnostics and the bridge's state; the compile report,
-  the inertia audit and the joint sweep stay on the desktop.
+- **Health** -- this run's rates and diagnostics and the bridge's state, and the controls
+  guide; the compile report, the inertia audit and the joint sweep stay on the desktop.
 
 The transport strip is the desktop's top bar and timeline in one: Start or Resume, Pause,
-Reset; the mode -- own run, paused, at rest, or following the bridge -- with the time and speed;
-Play, a frame back, a frame on, Live, and the playhead to scrub; then the overlays. Grid, muscle
+Reset; the mode -- own run, paused, at rest, or following the bridge -- with the speed, and
+"live" when the desktop's playhead is on the live edge; Play, a frame back, a frame on, Live,
+and the playhead to scrub; then the overlays. The timeline is the desktop's: its handle sits
+where the desktop's playhead is, scrubbed back or replaying, and runs to the end of the
+recording. Play is the desktop's play and pause: it reads Pause while the desktop plays its
+recording back, and each press sends the state it names -- `play` false to pause, true to
+play -- rather than a bare toggle. The headless publisher has no recording;
+there the timeline is the run's own time and Play resumes it. Grid, muscle
 paths, muscle volumes and connective tissue are honoured here; proxies, axes, centres of mass
 and contacts are the desktop viewport's, toggled from here all the same.
 
@@ -273,6 +298,14 @@ publisher last said -- on their own pipeline over the same render pass as the bo
 occludes them and they occlude the body like anything else in the room. The web UI itself cannot come along: there
 is no way to get a WebKit view onto a Vulkan image at headset rate, and the controls that matter
 from inside a headset are few enough to draw again.
+
+egui draws at two pixels a point, so its font atlas holds each glyph at twice the size a point
+would need; read from arm's length or further, the panel covers fewer of the headset's pixels
+than that. Each of egui's textures is therefore built with a full mip chain, blitted level by
+level on the GPU after every upload, and sampled trilinearly, so small text is averaged rather
+than shimmering as the head moves. A device that cannot blit and linearly filter
+`R8G8B8A8_SRGB` gets the single level it had before. Labels are a light grey and notes a darker
+one that still clears WCAG's 4.5:1 over the panel's fill, whatever is behind it.
 
 Two files beside the pose ring carry it. The publisher rewrites `<path>-status.json` four times a
 second -- a temporary file renamed into place, so it is never half-written -- and the viewer

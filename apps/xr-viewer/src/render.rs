@@ -145,6 +145,9 @@ struct PanelGpu {
     set_layout: vk::DescriptorSetLayout,
     pool: vk::DescriptorPool,
     sampler: vk::Sampler,
+    /// Whether this device can build egui's textures a mip chain: blit from and to the format and
+    /// filter it linearly. Asked once at start-up; without it every texture is one level, as before.
+    mipmapped: bool,
     textures: std::collections::HashMap<u64, Texture>,
     per_target: Vec<(Buffer, Buffer)>,
 }
@@ -156,7 +159,42 @@ struct Texture {
     view: vk::ImageView,
     set: vk::DescriptorSet,
     size: [usize; 2],
+    /// Levels in the image's mip chain, level 0 the pixels egui gave.
+    levels: u32,
     pixels: Vec<u8>,
+}
+
+/// The format of every egui texture: egui's colours are sRGB, and the sampler decodes them to
+/// linear before it filters, as a blit between levels does.
+const PANEL_TEXTURE_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
+
+/// How many levels a panel texture of `size` gets: the whole chain down to one texel, or just the
+/// one when the device cannot blit and filter the format.
+///
+/// The panel is drawn at two pixels a point, and read from across a room: a properties panel at
+/// arm's length or further covers fewer of the headset's pixels than its texture has, so text is
+/// minified. A single level sampled bilinearly then skips texels -- the thin strokes of a glyph
+/// are there in one frame and gone in the next as the head moves, the shimmer on the World tab's
+/// long notes. A mip chain sampled trilinearly averages them instead. Solid fills are untouched:
+/// egui paints them from one white texel with the same coordinate at every vertex, so the
+/// sampler sees no change across them and stays at level 0.
+fn mip_levels(size: [usize; 2], mipmapped: bool) -> u32 {
+    let largest = size[0].max(size[1]).max(1);
+    if mipmapped {
+        usize::BITS - largest.leading_zeros()
+    } else {
+        1
+    }
+}
+
+/// Whether a format's optimal-tiling features let a mip chain be built on the GPU and sampled
+/// trilinearly: blits from and to it, and linear filtering, which both the blit and the sampler use.
+fn can_mipmap(features: vk::FormatFeatureFlags) -> bool {
+    features.contains(
+        vk::FormatFeatureFlags::BLIT_SRC
+            | vk::FormatFeatureFlags::BLIT_DST
+            | vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR,
+    )
 }
 
 /// The panel as `draw` wants it: the matrix that stands it up, and egui's meshes, each with the
@@ -262,7 +300,19 @@ impl Renderer {
             )
         }?;
         let pipeline = build_pipeline(&device, render_pass, pipeline_layout, extent)?;
-        let panel = PanelGpu::new(&device, &memory_properties, render_pass, set_layout, extent, swapchain_images.len())?;
+        let texture_features = unsafe {
+            instance.get_physical_device_format_properties(physical, PANEL_TEXTURE_FORMAT)
+        }
+        .optimal_tiling_features;
+        let panel = PanelGpu::new(
+            &device,
+            &memory_properties,
+            render_pass,
+            set_layout,
+            extent,
+            swapchain_images.len(),
+            can_mipmap(texture_features),
+        )?;
 
         let images = swapchain_images.len() as u32;
         let descriptor_pool = unsafe {
@@ -771,9 +821,9 @@ impl Renderer {
                         existing.pixels[dst..dst + size[0] * 4]
                             .copy_from_slice(&pixels[src..src + size[0] * 4]);
                     }
-                    let (image, full_size, full_pixels) =
-                        (existing.image, existing.size, existing.pixels.clone());
-                    self.upload_texture(image, full_size, &full_pixels)?;
+                    let (image, full_size, levels, full_pixels) =
+                        (existing.image, existing.size, existing.levels, existing.pixels.clone());
+                    self.upload_texture(image, full_size, levels, &full_pixels)?;
                 }
                 _ => {
                     if let Some(old) = self.panel.textures.remove(&key) {
@@ -783,7 +833,7 @@ impl Renderer {
                         }
                     }
                     let texture = self.panel.create_texture(&self.device, &self.memory_properties, size, pixels)?;
-                    self.upload_texture(texture.image, texture.size, &texture.pixels)?;
+                    self.upload_texture(texture.image, texture.size, texture.levels, &texture.pixels)?;
                     self.panel.textures.insert(key, texture);
                 }
             }
@@ -799,8 +849,15 @@ impl Renderer {
         Ok(())
     }
 
-    /// Copy pixels into an image through a staging buffer, with the layout transitions round it.
-    fn upload_texture(&self, image: vk::Image, size: [usize; 2], pixels: &[u8]) -> Result<()> {
+    /// Copy pixels into level 0 of an image through a staging buffer, build the rest of its mip
+    /// chain from it on the GPU, and leave every level ready for the fragment shader.
+    ///
+    /// The whole image is uploaded each time, a patch included, so every level starts UNDEFINED:
+    /// what was there before is replaced, not kept. Each level below the first is a linear blit of
+    /// the one above, which must by then be written and in TRANSFER_SRC, so the barriers walk down
+    /// the chain one level at a time; each source level goes to SHADER_READ_ONLY as soon as it has
+    /// been read, and the last, which is never a source, at the end.
+    fn upload_texture(&self, image: vk::Image, size: [usize; 2], levels: u32, pixels: &[u8]) -> Result<()> {
         let device = &self.device;
         let staging = Buffer::new(
             device,
@@ -817,10 +874,29 @@ impl Renderer {
                     .command_buffer_count(1),
             )
         }?[0];
-        let range = vk::ImageSubresourceRange::default()
+        let every_level = vk::ImageSubresourceRange::default()
             .aspect_mask(vk::ImageAspectFlags::COLOR)
-            .level_count(1)
+            .level_count(levels)
             .layer_count(1);
+        let one_level = |level: u32| {
+            vk::ImageSubresourceRange::default()
+                .aspect_mask(vk::ImageAspectFlags::COLOR)
+                .base_mip_level(level)
+                .level_count(1)
+                .layer_count(1)
+        };
+        let layers = |level: u32| {
+            vk::ImageSubresourceLayers::default()
+                .aspect_mask(vk::ImageAspectFlags::COLOR)
+                .mip_level(level)
+                .layer_count(1)
+        };
+        // A level's width and height, never below one texel, as the far corner a blit takes.
+        let corner = |level: u32| vk::Offset3D {
+            x: ((size[0] as u32) >> level).max(1) as i32,
+            y: ((size[1] as u32) >> level).max(1) as i32,
+            z: 1,
+        };
         unsafe {
             device.begin_command_buffer(
                 command,
@@ -840,7 +916,7 @@ impl Renderer {
                     .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
                     .src_access_mask(vk::AccessFlags::SHADER_READ)
                     .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                    .subresource_range(range)],
+                    .subresource_range(every_level)],
             );
             device.cmd_copy_buffer_to_image(
                 command,
@@ -848,17 +924,63 @@ impl Renderer {
                 image,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,
                 &[vk::BufferImageCopy::default()
-                    .image_subresource(
-                        vk::ImageSubresourceLayers::default()
-                            .aspect_mask(vk::ImageAspectFlags::COLOR)
-                            .layer_count(1),
-                    )
+                    .image_subresource(layers(0))
                     .image_extent(vk::Extent3D {
                         width: size[0] as u32,
                         height: size[1] as u32,
                         depth: 1,
                     })],
             );
+            for level in 1..levels {
+                let source = level - 1;
+                // The level above has been written, by the copy or by the last blit, and becomes
+                // the source of this one.
+                device.cmd_pipeline_barrier(
+                    command,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[vk::ImageMemoryBarrier::default()
+                        .image(image)
+                        .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                        .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+                        .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                        .dst_access_mask(vk::AccessFlags::TRANSFER_READ)
+                        .subresource_range(one_level(source))],
+                );
+                device.cmd_blit_image(
+                    command,
+                    image,
+                    vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                    image,
+                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                    &[vk::ImageBlit::default()
+                        .src_subresource(layers(source))
+                        .src_offsets([vk::Offset3D::default(), corner(source)])
+                        .dst_subresource(layers(level))
+                        .dst_offsets([vk::Offset3D::default(), corner(level)])],
+                    vk::Filter::LINEAR,
+                );
+                // Read, and never written again: ready for the shader.
+                device.cmd_pipeline_barrier(
+                    command,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::FRAGMENT_SHADER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[vk::ImageMemoryBarrier::default()
+                        .image(image)
+                        .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+                        .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                        .src_access_mask(vk::AccessFlags::TRANSFER_READ)
+                        .dst_access_mask(vk::AccessFlags::SHADER_READ)
+                        .subresource_range(one_level(source))],
+                );
+            }
+            // The last level, written by the copy when there is only the one, else by the last blit.
             device.cmd_pipeline_barrier(
                 command,
                 vk::PipelineStageFlags::TRANSFER,
@@ -872,7 +994,7 @@ impl Renderer {
                     .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
                     .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
                     .dst_access_mask(vk::AccessFlags::SHADER_READ)
-                    .subresource_range(range)],
+                    .subresource_range(one_level(levels - 1))],
             );
             device.end_command_buffer(command)?;
             device.queue_submit(
@@ -1138,12 +1260,19 @@ impl PanelGpu {
         views_layout: vk::DescriptorSetLayout,
         extent: vk::Extent2D,
         images: usize,
+        mipmapped: bool,
     ) -> Result<Self> {
+        // Trilinear: linear within a level and between the two nearest, over the whole chain.
+        // No anisotropy, which would sharpen text seen at a slant further, because the device is
+        // created without the samplerAnisotropy feature and a sampler may not ask for it then.
         let sampler = unsafe {
             device.create_sampler(
                 &vk::SamplerCreateInfo::default()
                     .mag_filter(vk::Filter::LINEAR)
                     .min_filter(vk::Filter::LINEAR)
+                    .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
+                    .min_lod(0.0)
+                    .max_lod(vk::LOD_CLAMP_NONE)
                     .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
                     .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
                     .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE),
@@ -1207,12 +1336,14 @@ impl PanelGpu {
             set_layout,
             pool,
             sampler,
+            mipmapped,
             textures: std::collections::HashMap::new(),
             per_target,
         })
     }
 
-    /// An empty sRGB texture of `size`, with its descriptor set; `upload_texture` fills it.
+    /// An empty sRGB texture of `size` with room for its mip chain, with its descriptor set;
+    /// `upload_texture` fills it.
     fn create_texture(
         &self,
         device: &ash::Device,
@@ -1220,21 +1351,28 @@ impl PanelGpu {
         size: [usize; 2],
         pixels: Vec<u8>,
     ) -> Result<Texture> {
+        let levels = mip_levels(size, self.mipmapped);
+        // TRANSFER_SRC as well when there is a chain: each level is blitted from the one above.
+        let usage = if levels > 1 {
+            vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::TRANSFER_SRC
+        } else {
+            vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST
+        };
         let image = unsafe {
             device.create_image(
                 &vk::ImageCreateInfo::default()
                     .image_type(vk::ImageType::TYPE_2D)
-                    .format(vk::Format::R8G8B8A8_SRGB)
+                    .format(PANEL_TEXTURE_FORMAT)
                     .extent(vk::Extent3D {
                         width: size[0] as u32,
                         height: size[1] as u32,
                         depth: 1,
                     })
-                    .mip_levels(1)
+                    .mip_levels(levels)
                     .array_layers(1)
                     .samples(vk::SampleCountFlags::TYPE_1)
                     .tiling(vk::ImageTiling::OPTIMAL)
-                    .usage(vk::ImageUsageFlags::SAMPLED | vk::ImageUsageFlags::TRANSFER_DST)
+                    .usage(usage)
                     .initial_layout(vk::ImageLayout::UNDEFINED),
                 None,
             )
@@ -1247,11 +1385,11 @@ impl PanelGpu {
                 &vk::ImageViewCreateInfo::default()
                     .image(image)
                     .view_type(vk::ImageViewType::TYPE_2D)
-                    .format(vk::Format::R8G8B8A8_SRGB)
+                    .format(PANEL_TEXTURE_FORMAT)
                     .subresource_range(
                         vk::ImageSubresourceRange::default()
                             .aspect_mask(vk::ImageAspectFlags::COLOR)
-                            .level_count(1)
+                            .level_count(levels)
                             .layer_count(1),
                     ),
                 None,
@@ -1284,6 +1422,7 @@ impl PanelGpu {
             view,
             set,
             size,
+            levels,
             pixels,
         })
     }
@@ -2265,5 +2404,23 @@ mod tests {
         assert_eq!(inputs, vec![0, 1, 2]);
         assert!(inputs.iter().all(|l| out.contains(l)), "vertex out {out:?}, fragment in {inputs:?}");
         assert_eq!(offsets, vec![PANEL_CLIP_OFFSET]);
+    }
+
+    #[test]
+    fn a_panel_texture_has_its_whole_mip_chain_when_the_device_can_build_it() {
+        // egui's font atlas starts 2048 wide: twelve levels, 2048 down to 1. A texture that is
+        // not square is counted by its longer side, since its shorter one stops at a texel.
+        assert_eq!(mip_levels([2048, 64], true), 12);
+        assert_eq!(mip_levels([1000, 150], true), 10);
+        assert_eq!(mip_levels([1, 1], true), 1);
+        // A device that cannot blit or filter the format keeps the one level it always had.
+        assert_eq!(mip_levels([2048, 64], false), 1);
+        let all = vk::FormatFeatureFlags::BLIT_SRC
+            | vk::FormatFeatureFlags::BLIT_DST
+            | vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR
+            | vk::FormatFeatureFlags::SAMPLED_IMAGE;
+        assert!(can_mipmap(all));
+        assert!(!can_mipmap(all & !vk::FormatFeatureFlags::BLIT_DST));
+        assert!(!can_mipmap(all & !vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR));
     }
 }
