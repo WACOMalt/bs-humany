@@ -211,3 +211,59 @@ describe('the noise in the loop', () => {
     }
   }, 120_000);
 });
+
+describe('the rig, pinned', () => {
+  // What a do-nothing policy scored (`toBe` is `Object.is`), and where a do-nothing body had got to, before the rig was
+  // restructured. Exact, because the restructuring was meant to move nothing: a reward term read
+  // in a different order, or a reset that runs in one path and not the other, shows up here as a
+  // last digit.
+  const EPISODES = {
+    stand: [
+      [1.0541967161704775, 0.48],
+      [0.795943365554176, 0.38],
+      [1.0923401566622672, 0.5],
+    ],
+    balance: [
+      [0.5257335933426175, 0.48],
+      [0.33018317644752676, 0.38],
+      [0.4532642304673629, 0.5],
+    ],
+  } as const;
+  const TICKED = [
+    0.4725823916983268, 0.23607509670465454, 0.052260414828811844, 0.46776617519435004,
+    0.2877659283769539, 0.16284646238348371,
+  ];
+
+  for (const task of ['stand', 'balance'] as const) {
+    it(`scores ${task} and plays it tick by tick exactly as it did`, async () => {
+      const rig = await StandRig.build({
+        profileId: 'l1_standard',
+        hidden: [8],
+        seconds: 2,
+        authority: 0.3,
+        feedforward: { kind: 'none' },
+        task,
+      });
+      try {
+        const zero = new Float32Array(rig.parameterCount);
+        EPISODES[task].forEach(([fitness, alive], k) => {
+          const result = rig.episode(zero, k + 1);
+          expect(result.fitness).toBe(fitness);
+          expect(result.aliveSeconds).toBe(alive);
+        });
+        // Straight after the episodes, so a reset that only one of the two paths does would
+        // leave something behind here.
+        rig.begin(zero, 7);
+        let down = -1;
+        for (let i = 0; i < 700; i++) {
+          if (!rig.tick().up && down < 0) down = i;
+        }
+        // `toEqual` compares numbers exactly, not to a tolerance, so this is to the last bit.
+        expect(Array.from(rig.segments().position.slice(0, 6))).toEqual(TICKED);
+        expect(down).toBe(384);
+      } finally {
+        rig.dispose();
+      }
+    }, 180_000);
+  }
+});
