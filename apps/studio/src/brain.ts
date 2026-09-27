@@ -15,7 +15,13 @@
  * checkpoint the server listed is found again under its bare name when the server goes away.
  */
 
-import { DEFAULT_SPINAL_GAINS, type PolicyFile } from '@bs-humany/modules-nerves';
+import {
+  DEFAULT_SPINAL_GAINS,
+  type PolicyFile,
+  type TrainedBody,
+  compareCord,
+  summariseDifferences,
+} from '@bs-humany/modules-nerves';
 import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
 // The trainer's recipe module and nothing else of the trainer's, for the defaults and the rules:
 // it imports nothing that runs, so it adds no body to the main thread.
@@ -172,9 +178,18 @@ export interface BrainHost {
    */
   // biome-ignore lint/suspicious/noConfusingVoidType: a host that predates the result returns nothing.
   applyRecipe(recipe: TrainingRecipe): 'restarted' | 'nextRun' | void;
-  /** What the running body could use of the policy, once it is in. */
+  /**
+   * What the running body could use of the policy, once it is in. `carried.body` is the nerves'
+   * own comparison of the body the checkpoint was trained in with this one (`NervesModule.carried`),
+   * which travels with the counts; a host that does not pass it along leaves the panel silent
+   * about the body rather than guessing.
+   */
   fit():
-    | { carried: { inputs: number; outputs: number }; inputs: number; outputs: number }
+    | {
+        carried: { inputs: number; outputs: number; body?: TrainedBody };
+        inputs: number;
+        outputs: number;
+      }
     | undefined;
   /** Ticks between evaluations for the body about to run: a hundred hertz at its rate. */
   controlDivisor(): number;
@@ -876,6 +891,34 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     reconsider();
   });
 
+  /**
+   * What the panel says of the body the checkpoint in the loop was trained in: nothing when it is
+   * this one, one short sentence when it is not -- the first two differences and a count -- with
+   * every difference in the tooltip. The nerves compare everything but the cord, which is the
+   * spinal module's; the cord is compared here, against the sliders, which are what sets it.
+   */
+  const trainedBodyLine = (
+    body: TrainedBody | undefined,
+  ): { line: string; title: string } | undefined => {
+    if (!body) return undefined;
+    if (!body.recorded) {
+      return {
+        line: 'Trained before bodies were recorded.',
+        title:
+          'This checkpoint does not say which body it was trained in, so a change in what a sense ' +
+          'means since then cannot be caught. It was fitted by the names of its senses and drives.',
+      };
+    }
+    const saved = setup?.policy.body?.cord;
+    const cord = saved ? compareCord(saved, reflexFromUi()) : undefined;
+    const differences = cord ? [...body.differences, cord] : [...body.differences];
+    if (differences.length === 0) return undefined;
+    return {
+      line: `Trained in a different body: ${summariseDifferences(differences)}.`,
+      title: `Trained in a different body:\n${differences.map((d) => `- ${d}`).join('\n')}`,
+    };
+  };
+
   const showFit = () => {
     const fit = host.fit();
     if (!fit) {
@@ -887,6 +930,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         : host.musclesNextRun?.() === false
           ? 'Policy chosen, but the next run has no muscles for it to drive: tick Muscles or pick a muscle scene.'
           : 'Policy chosen; it goes in with the next run.';
+      ui.fitNote.title = '';
       // A showcase's brain is a brain in the loop, even though it is not this page's: the panel
       // draws it, so the idle note would be saying the opposite of what is on the screen.
       ui.idleNote.hidden = activity !== undefined;
@@ -900,9 +944,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       handedRow?.origin === 'shipped' && handedRow.trainedBefore
         ? ` It shipped with the studio, trained before ${handedRow.trainedBefore}; its fitness was scored in that body.`
         : '';
+    const body = trainedBodyLine(fit.carried.body);
     ui.fitNote.textContent =
       `In the loop: ${fit.carried.inputs} of ${fit.inputs} senses and ` +
-      `${fit.carried.outputs} of ${fit.outputs} drives carried from the checkpoint.${shipped}`;
+      `${fit.carried.outputs} of ${fit.outputs} drives carried from the checkpoint.${shipped}` +
+      (body ? ` ${body.line}` : '');
+    ui.fitNote.title = body?.title ?? '';
   };
 
   /**
@@ -993,6 +1040,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     // Taking a policy out of a run that has none leaves it out, so there is nothing to report.
     handOverRefused(undefined);
     ui.fitNote.textContent = '';
+    ui.fitNote.title = '';
     ui.idleNote.hidden = false;
     setButtons();
   }

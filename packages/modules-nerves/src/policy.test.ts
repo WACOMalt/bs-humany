@@ -52,3 +52,28 @@ describe('MlpPolicy.fit', () => {
     expect(Array.from(same.policy.weights)).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 });
+
+describe('PolicyFile.body', () => {
+  const body = {
+    version: 1,
+    profile: 'l1_standard',
+    dtSeconds: 0.002,
+    controlDivisor: 5,
+    senses: { count: 2, names: '00000001', schema: '00000002', meanings: {} },
+    drives: { count: 2, names: '00000003' },
+    muscles: { count: 4, hash: '00000004' },
+  };
+
+  it('is carried through a file when given, and a file without one loads and fits as before', () => {
+    const from = new MlpPolicy([2, 1, 2], Float32Array.from([1, 2, 3, 4, 5, 6, 7]));
+    const recorded = from.toFile({ task: 't', inputs: ['a', 'b'], outputs: ['x', 'y'], body });
+    expect(JSON.parse(JSON.stringify(recorded)).body).toEqual(body);
+    // Written before bodies were recorded: the same format, no `body`, and nothing refuses it.
+    const old = from.toFile({ task: 't', inputs: ['a', 'b'], outputs: ['x', 'y'] });
+    expect(old.format).toBe('bs-humany.policy/1');
+    expect(old.body).toBeUndefined();
+    expect(Array.from(MlpPolicy.fromFile(old).weights)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    const { carried } = MlpPolicy.fit(old, ['b', 'a'], ['x']);
+    expect(carried).toEqual({ inputs: 2, outputs: 1 });
+  });
+});

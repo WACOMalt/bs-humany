@@ -17,7 +17,12 @@
  * the centre has walked off a cliff and the record is sitting behind it.
  */
 
-import { MlpPolicy, type PolicyFile } from '@bs-humany/modules-nerves';
+import {
+  type BodyFingerprint,
+  MlpPolicy,
+  type PolicyFile,
+  compareBody,
+} from '@bs-humany/modules-nerves';
 import { OpenAiEs } from './es.js';
 import { describeDifferences, recipeDifferences } from './recipeDiff.js';
 import type { TrainingRecipe } from './rig.js';
@@ -30,6 +35,13 @@ export interface RigShape {
   readonly outputNames: readonly string[];
   readonly stepsPerSecond: number;
   readonly controlDivisor: number;
+  /**
+   * The body the rig built, fingerprinted with the cord under its brain, which every checkpoint
+   * the run writes carries so a body it is later handed to can say how it differs. Optional
+   * because a pool that cannot say -- a test's, or a worker from before fingerprints -- still
+   * trains; its checkpoints then read as trained before bodies were recorded.
+   */
+  readonly body?: BodyFingerprint | undefined;
 }
 
 /** One episode to score: a weight vector, and the seed that draws its disturbances. */
@@ -167,8 +179,15 @@ function seeded(seed: number): () => number {
 type Fit =
   | {
       readonly weights: Float32Array;
-      /** Whether it was this very body's, sense for sense and layer for layer. */
+      /**
+       * Whether it was this very body's, sense for sense and layer for layer, and -- where both
+       * the file and the rig record one -- fingerprint for fingerprint.
+       */
       readonly sameBody: boolean;
+      /** Whether its senses and layers were this body's, whatever the fingerprints say. */
+      readonly sameNames: boolean;
+      /** How the body it was trained in differs from this one; empty when it did not record one. */
+      readonly bodyChanges: readonly string[];
       readonly carried: { readonly inputs: number; readonly outputs: number };
       /** Where it stood when it was saved: the generation and the episodes run to get there. */
       readonly generations: number;
@@ -213,11 +232,18 @@ function fit(file: PolicyFile, want: FitTarget): Fit {
     };
   }
   const { policy, carried } = MlpPolicy.fit(file, want.shape.inputNames, want.shape.outputNames);
+  // Names alone say a sense is there, not what it means: a sense fixed since the file was written
+  // keeps its name. Where both sides have a fingerprint, the body is the same only if it agrees.
+  const bodyChanges =
+    file.body && want.shape.body ? compareBody(file.body, want.shape.body, file.inputs) : [];
+  const sameNames =
+    carried.inputs === want.shape.inputNames.length &&
+    file.sizes.join('x') === want.shape.sizes.join('x');
   return {
     weights: policy.weights,
-    sameBody:
-      carried.inputs === want.shape.inputNames.length &&
-      file.sizes.join('x') === want.shape.sizes.join('x'),
+    sameBody: sameNames && bodyChanges.length === 0,
+    sameNames,
+    bodyChanges,
     carried,
     generations: file.trained?.generations ?? 0,
     episodes: file.trained?.episodes ?? 0,
@@ -323,10 +349,22 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
       startEpisodes = from.episodes;
       note(
         `  resuming from ${centre ? 'the saved centre' : 'the saved policy'} at generation ${startGeneration}` +
-          (from.sameBody
+          (from.sameNames
             ? ''
             : `, fitted from ${fromFile.profile ?? 'another body'}: ${from.carried.inputs} of ${shape.inputNames.length} senses and ${from.carried.outputs} of ${shape.outputNames.length} drives carried`),
       );
+      // The body, before the recipe: a sense that changed meaning under its old name is the one
+      // difference the fit above cannot see, and the one a person resuming most needs to hear.
+      if (from.bodyChanges.length > 0) {
+        note(
+          `  resuming a checkpoint trained in a different body (${from.bodyChanges.join('; ')}), ` +
+            'so its record starts afresh; the checkpoint will record this body',
+        );
+      } else if (!fromFile.body && shape.body) {
+        note(
+          '  the checkpoint was trained before bodies were recorded; from here it records this one',
+        );
+      }
       // Said before a single episode is spent, field by field: a resume trains in what the
       // recipe says now, and the person resuming should know what that is not.
       const changes = recipeDifferences(fromFile.recipe, recipe);
@@ -465,6 +503,9 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
         ...scored,
       },
       recipe: carriedRecipe,
+      // The body this run trains in, from the rig that scored it, so a checkpoint handed to
+      // another body -- a later build with a sense fixed, another profile -- says it is one.
+      ...(shape.body ? { body: shape.body } : {}),
     });
 
   let episodes = startEpisodes;

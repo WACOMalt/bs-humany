@@ -35,6 +35,16 @@
  * the context starting from nothing, and one trained with it fits a body that does not.
  *
  * The context is bounded by the output layer's own tanh, so a recurrent state cannot run away.
+ *
+ * ## The body a policy was trained in
+ *
+ * A checkpoint fits any body by name, and a name is not a meaning: a sense fixed since the
+ * checkpoint was trained still has its old name, and the fit would feed it to the old weights
+ * without a word. So a policy file may carry the fingerprint of the body it was trained in
+ * (`bodyFingerprint.ts`), and when one is put in charge here it is compared with this body and
+ * the differences kept in `carried.body` for the studio to say. They never stop the handover:
+ * a policy in a slightly different body is often exactly what somebody wants to try, and what
+ * they need is to know that it is one.
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
@@ -60,9 +70,15 @@ import {
   MUSCLE_CHANNEL_VERSION,
   MUSCLE_STATE,
 } from '@bs-humany/modules-muscle';
+import {
+  type BodyFingerprint,
+  compareBody,
+  bodyFingerprint as fingerprint,
+} from './bodyFingerprint.js';
 import { XorShift32 } from './noise.js';
 import { type Feet, ObservationBuilder } from './observation.js';
 import { MlpPolicy, type PolicyFile } from './policy.js';
+import type { SpinalGains } from './spinalModule.js';
 
 export const NERVES_MODULE_ID = 'bsums.xyz.bs-humany.nerves';
 
@@ -76,6 +92,25 @@ const NO_GOAL: ArrayLike<number> = new Float64Array(0);
 export interface DriveOutput {
   readonly id: string;
   readonly units: readonly { readonly id: string; readonly weight: number }[];
+}
+
+/**
+ * What a policy file says about the body it was trained in, set against this one: that it did
+ * not record one (it predates fingerprints), or how the two differ -- an empty list when they
+ * are the same body.
+ */
+export type TrainedBody =
+  | { readonly recorded: false }
+  | { readonly recorded: true; readonly differences: readonly string[] };
+
+/**
+ * How much of a policy file this body could use -- its senses and drives carried by name -- and
+ * how the body the file was trained in differs from this one.
+ */
+export interface Carried {
+  readonly inputs: number;
+  readonly outputs: number;
+  readonly body: TrainedBody;
 }
 
 /** The names a policy is fitted by: the body's senses and drives, in order. */
@@ -125,8 +160,11 @@ export class NervesModule implements SimModule, Stateful {
   readonly observation: ObservationBuilder;
   readonly outputs: readonly DriveOutput[];
   private readonly makePolicy: (inputs: number, outputs: number, names: PolicyNames) => MlpPolicy;
-  /** How much of a fitted file this body could use; all of it when the file was its own. */
-  carried: { inputs: number; outputs: number } | undefined;
+  /**
+   * How much of a fitted file this body could use, all of it when the file was its own, and the
+   * body the file was trained in against this one. Undefined for a policy that was not a file.
+   */
+  carried: Carried | undefined;
   private policyInUse: MlpPolicy | undefined;
   private authority: number;
   private readonly controlDivisor: number;
@@ -143,6 +181,11 @@ export class NervesModule implements SimModule, Stateful {
   private senseNoiseLevel: number;
   private readonly senseStream: XorShift32;
   private memorySize: number;
+  /** What a fingerprint of this body is taken from, besides the policy's names. */
+  private readonly profileId: string;
+  private readonly muscleUnits: CompiledMuscleSet['units'];
+  /** Seconds a tick, known from `init`. */
+  private stepSeconds = 0;
   /** What the policy put in its context units last step, and reads back this one. */
   private context: Float64Array;
 
@@ -158,11 +201,13 @@ export class NervesModule implements SimModule, Stateful {
         : 'format' in given
           ? (_inputs, _outputs, names) => {
               const fitted = MlpPolicy.fit(given, names.inputs, names.outputs);
-              this.carried = fitted.carried;
+              this.carried = { ...fitted.carried, body: this.trainedIn(given) };
               return fitted.policy;
             }
           : () => given;
     this.outputs = options.outputs;
+    this.profileId = articulation.profileId;
+    this.muscleUnits = muscles.units;
     this.authority = options.authority ?? 0.5;
     this.controlDivisor = Math.max(1, Math.round(options.controlDivisor ?? 5));
     this.senseNoiseLevel = Math.max(0, options.senseNoise ?? 0);
@@ -216,6 +261,7 @@ export class NervesModule implements SimModule, Stateful {
   }
 
   private bind(ctx: ModuleInitContext): void {
+    this.stepSeconds = ctx.dt;
     this.observation.bind({
       pose: ctx.read(BODY_POSE),
       velocity: ctx.read(BODY_VELOCITY),
@@ -259,6 +305,40 @@ export class NervesModule implements SimModule, Stateful {
     return { inputs, outputs };
   }
 
+  /**
+   * This body as a checkpoint records it: the profile, the step, the policy's senses and drives as
+   * they are now (memory included), and every muscle's numbers. The cord is the spinal module's,
+   * not the nerves', so whoever holds both passes its gains in; without them the fingerprint has
+   * no cord and none is compared. Not until `init`, when the body has said what it observes.
+   */
+  bodyFingerprint(cord?: SpinalGains): BodyFingerprint {
+    if (this.stepSeconds <= 0) throw new Error('NervesModule.bodyFingerprint before init.');
+    const names = this.policyNames;
+    return fingerprint({
+      profile: this.profileId,
+      dtSeconds: this.stepSeconds,
+      controlDivisor: this.controlDivisor,
+      senses: names.inputs,
+      drives: names.outputs,
+      muscles: this.muscleUnits,
+      cord,
+    });
+  }
+
+  /** The body `file` was trained in, against this one; see `TrainedBody`. */
+  private trainedIn(file: PolicyFile): TrainedBody {
+    if (!file.body) return { recorded: false };
+    return {
+      recorded: true,
+      differences: compareBody(file.body, this.bodyFingerprint(), file.inputs),
+    };
+  }
+
+  /** What the policy in charge says of the body it was trained in; undefined with no file. */
+  get trainedBody(): TrainedBody | undefined {
+    return this.carried?.body;
+  }
+
   /** Context units the policy carries between control steps; 0 is a memoryless policy. */
   get memory(): number {
     return this.memorySize;
@@ -299,7 +379,9 @@ export class NervesModule implements SimModule, Stateful {
   /**
    * Put a policy file in charge of this body, live: fitted by the names of its senses and
    * drives, so any checkpoint fits, and swapped in between one control step and the next with
-   * nothing restarted. What the body could use of it is reported in `carried`.
+   * nothing restarted. What the body could use of it is returned; that, and how the body it was
+   * trained in differs from this one, are kept in `carried`. A different body is said, never
+   * refused.
    */
   adopt(file: PolicyFile): { inputs: number; outputs: number } {
     const inUse = this.policyInUse;
@@ -316,7 +398,7 @@ export class NervesModule implements SimModule, Stateful {
     }
     const fitted = MlpPolicy.fit(file, names.inputs, names.outputs);
     this.policyInUse = fitted.policy;
-    this.carried = fitted.carried;
+    this.carried = { ...fitted.carried, body: this.trainedIn(file) };
     this.forget();
     return fitted.carried;
   }

@@ -11,6 +11,8 @@
  * "brain" on screen is these arrays as pixels, input to output, each frame.
  */
 
+import type { BodyFingerprint } from './bodyFingerprint.js';
+
 export interface PolicyFile {
   readonly format: 'bs-humany.policy/1';
   /** What it was trained to do -- `stand`, later `walk` -- for the studio to say. */
@@ -93,6 +95,14 @@ export interface PolicyFile {
     /** Context units it carried between control steps; also readable from its drive names. */
     readonly memory?: number;
   };
+  /**
+   * The body it was trained in, as `bodyFingerprint` takes it: profile, step, what its senses
+   * meant, its drives, its muscles and its cord. Absent on a file written before checkpoints
+   * recorded their body, which still loads and fits exactly as it did; `compareBody` against the
+   * body it is handed to says what is different, and nothing refuses it for that. The format stays
+   * `bs-humany.policy/1` because a reader that does not know the field loses nothing by skipping it.
+   */
+  readonly body?: BodyFingerprint;
 }
 
 export class MlpPolicy {
