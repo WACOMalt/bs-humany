@@ -599,6 +599,49 @@ select {
   margin-top: 8px;
 }
 
+/*
+ * The keys under the two canvases. A swatch is a small square of a line's or a value's colour;
+ * the training chart's are coloured from the same constants its lines are drawn with (see
+ * `training/chart.ts`), and the activity's here, at the full-scale colours `drawNerves` in
+ * `main.ts` gives a unit at minus one and at plus one.
+ */
+.chart-key .swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 3px 0 6px;
+  border-radius: 2px;
+  vertical-align: baseline;
+}
+
+.chart-key .swatch:first-child {
+  margin-left: 0;
+}
+
+.chart-key .swatch.negative {
+  background: rgb(40, 70, 255);
+}
+
+.chart-key .swatch.positive {
+  background: rgb(255, 70, 40);
+}
+
+/* A list with a button beside it: the list takes the room, the button only what it needs. */
+#panels .buttons.select-row {
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+
+/* From no width rather than its longest option's, or a long checkpoint line pushes the button off. */
+.select-row select {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.buttons.select-row button {
+  flex: none;
+}
+
 /* --- Timeline --------------------------------------------------------------------------------- */
 
 #timeline-region {

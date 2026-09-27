@@ -70,19 +70,33 @@ function listen(
   };
 }
 
+/** What a caller may hand the pool beside the rig and the count, all of it optional. */
+export interface WorkerPoolHooks {
+  /**
+   * Told how many workers have their body, of how many, once before any has and again as each
+   * one gets it. Building a body takes seconds a worker -- compiling the articulation, loading
+   * MuJoCo, fitting every muscle -- and a window building eight of them used to say "Building 8
+   * bodies" and nothing else until the first generation, which is long enough to look stuck.
+   */
+  readonly onReady?: (ready: number, total: number) => void;
+  /** Makes one worker; a test passes one that makes a fake. */
+  readonly spawn?: () => EpisodeWorker;
+}
+
 /**
  * Build the pool and wait for every worker to have a body. Rejects if any of them cannot: a
  * generation scored by three workers out of four is a generation with a quarter of its
  * candidates unscored, which the search would read as a quarter of them being terrible.
- *
- * `spawn` makes one worker; a test passes one that makes a fake.
  */
 export async function createWorkerPool(
   options: RigOptions,
   workers: number,
-  spawn: () => EpisodeWorker = spawnEpisodeWorker,
+  hooks: WorkerPoolHooks = {},
 ): Promise<EpisodePool> {
+  const spawn = hooks.spawn ?? spawnEpisodeWorker;
   const pool: EpisodeWorker[] = [];
+  let readyCount = 0;
+  hooks.onReady?.(0, workers);
 
   /**
    * Why the pool can no longer be trusted, once it cannot: a worker that stopped, even between two
@@ -111,6 +125,8 @@ export async function createWorkerPool(
           const message = (event as MessageEvent<Outgoing>).data;
           if (message.type === 'ready') {
             off();
+            readyCount += 1;
+            hooks.onReady?.(readyCount, workers);
             resolve(message);
           } else if (message.type === 'failed') {
             off();

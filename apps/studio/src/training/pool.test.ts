@@ -76,15 +76,31 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** A pool of `count` fakes following `script`, and the fakes, for a test to look at. */
 async function pool(script: Script, count = 2) {
   const workers: FakeWorker[] = [];
-  const p = await createWorkerPool(OPTIONS, count, () => {
-    const w = new FakeWorker(script);
-    workers.push(w);
-    return w;
+  const p = await createWorkerPool(OPTIONS, count, {
+    spawn: () => {
+      const w = new FakeWorker(script);
+      workers.push(w);
+      return w;
+    },
   });
   return { pool: p, workers };
 }
 
 describe('createWorkerPool', () => {
+  it('counts the workers that have their body, from none to all of them', async () => {
+    const told: [number, number][] = [];
+    await createWorkerPool(OPTIONS, 3, {
+      spawn: () => new FakeWorker({}),
+      onReady: (ready, total) => told.push([ready, total]),
+    });
+    expect(told).toEqual([
+      [0, 3],
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ]);
+  });
+
   it('scores every episode once and resolves', async () => {
     const { pool: p } = await pool({});
     const results: EpisodeResult[] = [];
@@ -139,10 +155,12 @@ describe('createWorkerPool', () => {
   it('rejects when a worker cannot build its body, and lets every worker go', async () => {
     const workers: FakeWorker[] = [];
     await expect(
-      createWorkerPool(OPTIONS, 3, () => {
-        const w = new FakeWorker({ buildFails: true });
-        workers.push(w);
-        return w;
+      createWorkerPool(OPTIONS, 3, {
+        spawn: () => {
+          const w = new FakeWorker({ buildFails: true });
+          workers.push(w);
+          return w;
+        },
       }),
     ).rejects.toThrow('No scenario called nowhere');
     expect(workers.every((w) => w.terminated)).toBe(true);
