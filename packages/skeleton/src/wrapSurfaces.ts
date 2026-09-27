@@ -32,7 +32,7 @@
  */
 
 import radiiJson from '@bs-humany/assets-anatomical/data/wrap-radii.json' with { type: 'json' };
-import { frameFromLandmarkPoints } from '@bs-humany/frames';
+import { frameFromLandmarkPoints, multiplyQuat } from '@bs-humany/frames';
 import type { Quat } from '@bs-humany/frames';
 import { type WrappingSurfaceDef, cite, mul, param, writeExtension } from '@bs-humany/hsdl';
 import { ARTICULAR_CENTRES } from './articularCentres.js';
@@ -41,16 +41,6 @@ import { type Ref, refWorld } from './frames.js';
 import { PROVENANCE_NS } from './landmarks.js';
 
 const vec = (p: readonly [number, number, number]) => ({ x: p[0], y: p[1], z: p[2] });
-
-/** Quaternion product, for composing a surface's own orientation onto a bone frame. */
-function compose(a: Quat, b: Quat): Quat {
-  return {
-    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
-    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
-    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
-    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
-  };
-}
 
 /**
  * A quarter turn about X, which carries the frame's Z onto its Y.
@@ -361,7 +351,7 @@ export function buildWrappingSurfaces(): WrappingSurfaceDef[] {
         displayName: spec.displayName,
         transform: {
           translation: { x: scaled(0), y: scaled(1), z: scaled(2) },
-          rotation: spec.along === 'long' ? compose(frame.rotation, Z_ONTO_Y) : frame.rotation,
+          rotation: spec.along === 'long' ? multiplyQuat(frame.rotation, Z_ONTO_Y) : frame.rotation,
         },
         shape: fitted
           ? { kind: 'sphere', radius: metres(fitted.radius) }

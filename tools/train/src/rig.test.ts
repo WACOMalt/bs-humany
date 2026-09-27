@@ -323,6 +323,14 @@ describe('the twitch', () => {
       expect(output).toBeLessThan(70);
       expect(twitchSchedule(seed, 70, 6)).toEqual({ output, at });
     }
+    // What these seeds drew before the rig's private xorshift32 became the nerves' stream, exactly:
+    // a recorded score replays only if its twitch lands on the same output at the same moment.
+    // Seeds 0 and 1 are one stream.
+    expect(twitchSchedule(0, 70, 6)).toEqual({ output: 0, at: 0.5708634273032658 });
+    expect(twitchSchedule(1, 70, 6)).toEqual({ output: 0, at: 0.5708634273032658 });
+    expect(twitchSchedule(7, 70, 6)).toEqual({ output: 0, at: 0.9928446490666829 });
+    expect(twitchSchedule(0x9e3779b9, 70, 6)).toEqual({ output: 22, at: 4.440681433596183 });
+    expect(twitchSchedule(0x9e3779b9, 7, 1)).toEqual({ output: 2, at: 0.5875706985243596 });
     // An episode too short for the margin still gets its twitch after the first half second.
     const short = twitchSchedule(5, 70, 1);
     expect(short.at).toBeGreaterThanOrEqual(0.5);

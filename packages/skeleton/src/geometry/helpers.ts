@@ -9,6 +9,7 @@
  * recognize each bone and judge the proportions credible. Not medical-illustration quality.
  */
 
+import { fromAxisAngle, multiplyQuat, vec3 } from '@bs-humany/frames';
 import { type GeometryRecipe, type ScalarExpr, type TransformExpr, mul } from '@bs-humany/hsdl';
 
 export const NO_ROTATION = { x: 0, y: 0, z: 0, w: 1 } as const;
@@ -295,33 +296,13 @@ export function placedRotated2(
   first: { axis: readonly [number, number, number]; angle: number },
   second: { axis: readonly [number, number, number]; angle: number },
 ): TransformExpr {
-  const a = axisAngleQuat(first.axis, first.angle);
-  const b = axisAngleQuat(second.axis, second.angle);
+  // The quaternions are @bs-humany/frames' own, so the product is the one the rest of the body is
+  // posed with rather than a private copy that could drift from it. Every caller names an exact
+  // unit axis, so normalizing it divides by exactly 1, and the rotation is what the private copy
+  // computed, to the bit; a zero axis would now throw, where the copy quietly made no rotation.
+  const a = fromAxisAngle(vec3(...first.axis), first.angle);
+  const b = fromAxisAngle(vec3(...second.axis), second.angle);
   return { translation: { x, y, z }, rotation: multiplyQuat(a, b) };
-}
-
-function axisAngleQuat(axis: readonly [number, number, number], angle: number) {
-  const length = Math.hypot(axis[0], axis[1], axis[2]) || 1;
-  const half = angle / 2;
-  const s = Math.sin(half);
-  return {
-    x: (axis[0] / length) * s,
-    y: (axis[1] / length) * s,
-    z: (axis[2] / length) * s,
-    w: Math.cos(half),
-  };
-}
-
-function multiplyQuat(
-  a: { x: number; y: number; z: number; w: number },
-  b: { x: number; y: number; z: number; w: number },
-) {
-  return {
-    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
-    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
-    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
-    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
-  };
 }
 
 /**
