@@ -35,6 +35,8 @@
  * times the output frame rate, so a second of captured simulation takes a second to watch.
  */
 
+import { sweepRings } from './ringSweep.js';
+
 export interface CapturedFrames {
   readonly frameCount: number;
   readonly boneCount: number;
@@ -255,15 +257,9 @@ export class Playback {
   }
 
   /**
-   * Belly geometry at one ring-capture index, rebuilt from the rings.
-   *
-   * Vertex `v` of a ring is at angle `2πv / segments` from the frame's own X axis, in the plane X
-   * and Y span, at the ring's radius. That is not a convention chosen here: it is how
-   * `captureMuscleRings` measured the frame off the swept mesh -- X toward vertex zero, Z along
-   * the ring's normal -- so running it backwards puts every vertex where the sweep had it.
-   *
-   * The normal is the same direction without the radius, which for a tube is exactly the surface
-   * normal rather than an estimate of one.
+   * Belly geometry at one ring-capture index, rebuilt from the rings by `sweepRings` -- the same
+   * sweep the tubes of a followed body and the export's vertex cache use, which says why running
+   * the ring frames backwards puts every vertex where the simulation's sweep had it.
    */
   bellyAt(
     rings: CapturedRings,
@@ -284,36 +280,15 @@ export class Playback {
         verticesPerUnit: template.verticesPerUnit,
       };
     }
-    const { position, normal } = this.mesh;
-    for (let ring = 0; ring < count; ring++) {
-      const px = this.ringPosition[3 * ring] as number;
-      const py = this.ringPosition[3 * ring + 1] as number;
-      const pz = this.ringPosition[3 * ring + 2] as number;
-      const qx = this.ringOrientation[4 * ring] as number;
-      const qy = this.ringOrientation[4 * ring + 1] as number;
-      const qz = this.ringOrientation[4 * ring + 2] as number;
-      const qw = this.ringOrientation[4 * ring + 3] as number;
-      const r = this.ringRadius[ring] as number;
-      for (let v = 0; v < segments; v++) {
-        const a = (2 * Math.PI * v) / segments;
-        const lx = Math.cos(a);
-        const ly = Math.sin(a);
-        // q * (lx, ly, 0) * conj(q), written out: the ring plane has no Z component to carry.
-        const tx = 2 * (qy * 0 - qz * ly);
-        const ty = 2 * (qz * lx - qx * 0);
-        const tz = 2 * (qx * ly - qy * lx);
-        const nx = lx + qw * tx + (qy * tz - qz * ty);
-        const ny = ly + qw * ty + (qz * tx - qx * tz);
-        const nz = qw * tz + (qx * ty - qy * tx);
-        const at = 3 * (ring * segments + v);
-        position[at] = px + r * nx;
-        position[at + 1] = py + r * ny;
-        position[at + 2] = pz + r * nz;
-        normal[at] = nx;
-        normal[at + 1] = ny;
-        normal[at + 2] = nz;
-      }
-    }
+    sweepRings(
+      this.ringPosition,
+      this.ringOrientation,
+      this.ringRadius,
+      count,
+      segments,
+      this.mesh.position,
+      this.mesh.normal,
+    );
     return this.mesh;
   }
 }

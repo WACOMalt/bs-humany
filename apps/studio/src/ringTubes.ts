@@ -1,17 +1,20 @@
 /**
  * Muscle bellies from rings: the tube each ring set sweeps, as one three.js mesh.
  *
- * What the muscle bridge carries is rings -- centre, orientation, radius -- and this is the
- * studio's sweep of them, the same sweep the headset viewer does in Rust: vertex `k` of a ring
- * at angle `2 pi k / segments` in the ring's own plane, its normal the same direction, the
- * strips between consecutive rings of a unit, units not stitched to each other.
+ * What the muscle bridge carries is rings -- centre, orientation, radius -- and these are the
+ * tubes they sweep into, with the studio's one sweep (`sweepRings`), the same one the playhead and
+ * the export use and the headset viewer does in Rust: vertex `k` of a ring at angle
+ * `2 pi k / segments` in the ring's own plane, its normal the same direction, the strips between
+ * consecutive rings of a unit, units not stitched to each other.
  */
 
 import { BufferAttribute, BufferGeometry, Color, Mesh, MeshStandardMaterial } from 'three';
+import { MUSCLE_SLACK, MUSCLE_TAUT } from './palette.js';
+import { sweepRings } from './ringSweep.js';
 
-// The studio's own overlay's colours: slack to taut.
-const SLACK = new Color(0xa8c8e8);
-const TAUT = new Color(0xff3b30);
+// The studio's own overlay's colours, so a followed belly tints the way one of ours does.
+const SLACK = new Color(MUSCLE_SLACK);
+const TAUT = new Color(MUSCLE_TAUT);
 const _tint = new Color();
 
 export class RingTubes {
@@ -66,42 +69,15 @@ export class RingTubes {
     orientation: ArrayLike<number>,
     radius: ArrayLike<number>,
   ): void {
-    const pos = this.geometry.getAttribute('position').array as Float32Array;
-    const nor = this.geometry.getAttribute('normal').array as Float32Array;
-    const total = this.units * this.rings;
-    let v = 0;
-    for (let r = 0; r < total; r++) {
-      const cx = position[3 * r] ?? 0;
-      const cy = position[3 * r + 1] ?? 0;
-      const cz = position[3 * r + 2] ?? 0;
-      const qx = orientation[4 * r] ?? 0;
-      const qy = orientation[4 * r + 1] ?? 0;
-      const qz = orientation[4 * r + 2] ?? 0;
-      const qw = orientation[4 * r + 3] ?? 1;
-      const radiusR = radius[r] ?? 0;
-      // The ring frame's X and Y columns from the quaternion.
-      const x0 = 1 - 2 * (qy * qy + qz * qz);
-      const x1 = 2 * (qx * qy + qz * qw);
-      const x2 = 2 * (qx * qz - qy * qw);
-      const y0 = 2 * (qx * qy - qz * qw);
-      const y1 = 1 - 2 * (qx * qx + qz * qz);
-      const y2 = 2 * (qy * qz + qx * qw);
-      for (let k = 0; k < this.segments; k++) {
-        const angle = (2 * Math.PI * k) / this.segments;
-        const c = Math.cos(angle);
-        const s = Math.sin(angle);
-        const nx = x0 * c + y0 * s;
-        const ny = x1 * c + y1 * s;
-        const nz = x2 * c + y2 * s;
-        pos[v] = cx + radiusR * nx;
-        pos[v + 1] = cy + radiusR * ny;
-        pos[v + 2] = cz + radiusR * nz;
-        nor[v] = nx;
-        nor[v + 1] = ny;
-        nor[v + 2] = nz;
-        v += 3;
-      }
-    }
+    sweepRings(
+      position,
+      orientation,
+      radius,
+      this.units * this.rings,
+      this.segments,
+      this.geometry.getAttribute('position').array as Float32Array,
+      this.geometry.getAttribute('normal').array as Float32Array,
+    );
     this.geometry.getAttribute('position').needsUpdate = true;
     this.geometry.getAttribute('normal').needsUpdate = true;
   }

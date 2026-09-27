@@ -13,17 +13,16 @@
 import {
   BufferAttribute,
   BufferGeometry,
-  CylinderGeometry,
   Group,
   LineBasicMaterial,
   LineSegments,
   Mesh,
-  MeshBasicMaterial,
   Quaternion,
-  SphereGeometry,
   Vector3,
 } from 'three';
-import { BEAD_RADIUS, DISC_HEIGHT, DISC_RADIUS, type TissueTable } from './tissue.js';
+import { createTissueShapes } from './overlays.js';
+import { BAR_COLOUR } from './palette.js';
+import type { TissueTable } from './tissue.js';
 
 /** A shape rigid in one bone: which bone, and where it sits in it. */
 interface Rigid {
@@ -49,14 +48,9 @@ export class FollowTissue {
   readonly root = new Group();
   private readonly rigid: Rigid[] = [];
   private readonly bars: Bar[] = [];
-  private readonly discGeometry = new CylinderGeometry(DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 16);
-  private readonly beadGeometry = new SphereGeometry(BEAD_RADIUS, 8, 6);
-  private readonly discMaterial = new MeshBasicMaterial({
-    color: 0x9fe3d8,
-    transparent: true,
-    opacity: 0.85,
-  });
-  private readonly barMaterial = new LineBasicMaterial({ color: 0xf7c59f });
+  /** The overlay's own disc and bead shapes, so a followed body's tissue is drawn as ours is. */
+  private readonly shapes = createTissueShapes();
+  private readonly barMaterial = new LineBasicMaterial({ color: BAR_COLOUR });
   private readonly barPositions: Float32Array;
   private readonly barGeometry = new BufferGeometry();
 
@@ -67,8 +61,8 @@ export class FollowTissue {
       const bone = index.get(disc.bone);
       if (bone === undefined) continue;
       const mesh = new Mesh(
-        disc.kind === 'bead' ? this.beadGeometry : this.discGeometry,
-        this.discMaterial,
+        disc.kind === 'bead' ? this.shapes.beadGeometry : this.shapes.discGeometry,
+        this.shapes.discMaterial,
       );
       mesh.frustumCulled = false;
       this.root.add(mesh);
@@ -146,9 +140,9 @@ export class FollowTissue {
   /** Free the geometry and leave the scene: whoever added it need not remember where. */
   dispose(): void {
     this.root.removeFromParent();
-    this.discGeometry.dispose();
-    this.beadGeometry.dispose();
-    this.discMaterial.dispose();
+    this.shapes.discGeometry.dispose();
+    this.shapes.beadGeometry.dispose();
+    this.shapes.discMaterial.dispose();
     this.barGeometry.dispose();
     this.barMaterial.dispose();
   }

@@ -31,6 +31,7 @@ import {
 } from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { segmentComs, wholeBodyCom } from './bodyCom.js';
+import { BAR_COLOUR, COUPLING_COLOUR, DISC_COLOUR, MUSCLE_SLACK, MUSCLE_TAUT } from './palette.js';
 import { BEAD_RADIUS, DISC_HEIGHT, DISC_RADIUS, tissueOf } from './tissue.js';
 
 export interface OverlayChannels {
@@ -86,17 +87,30 @@ const _matrix = new Matrix4();
 const _cold = new Color(0x3ddc84);
 const _hot = new Color(0xff3b30);
 const _tint = new Color();
+/** A relaxed muscle and a fully loaded one; `palette.ts` says why these two. */
+const _slack = new Color(MUSCLE_SLACK);
+const _taut = new Color(MUSCLE_TAUT);
+
 /**
- * A relaxed muscle and a fully loaded one.
+ * The shapes a disc and a bead are drawn with, and the one material both wear.
  *
- * Pale blue reads as slack against bone without competing with it, and is kept light enough to
- * stay visible on a dark ground -- a muscle making no force is still a muscle, and one that
- * vanished when it relaxed would make the slack units impossible to inspect, which is exactly
- * what needs inspecting. The red is the same signal red the contact overlay uses, so a hot muscle
- * and a hard contact look like the same kind of event.
+ * Our own run's overlay and a body followed over the bridge (`FollowTissue`) draw the same
+ * tissue, and made in one place they cannot drift into two sizes or two colours. Each caller owns
+ * what it is handed and disposes of it with the rest of what it drew.
  */
-const _slack = new Color(0xa8c8e8);
-const _taut = new Color(0xff3b30);
+export interface TissueShapes {
+  readonly discGeometry: CylinderGeometry;
+  readonly beadGeometry: SphereGeometry;
+  readonly discMaterial: MeshBasicMaterial;
+}
+
+export function createTissueShapes(): TissueShapes {
+  return {
+    discGeometry: new CylinderGeometry(DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 16),
+    beadGeometry: new SphereGeometry(BEAD_RADIUS, 8, 6),
+    discMaterial: new MeshBasicMaterial({ color: DISC_COLOUR, transparent: true, opacity: 0.85 }),
+  };
+}
 
 export interface OverlayOptions {
   /** Points a muscle polyline may need, from the path solver's compile report. */
@@ -242,9 +256,7 @@ export function createOverlays(
   // between the two joints a coupling ties together. Welds are drawn between the two segments'
   // nearest hull points at rest, which for a rib and the sternum is the rib's front end and the
   // sternum's edge -- where the cartilage is.
-  const discMaterial = new MeshBasicMaterial({ color: 0x9fe3d8, transparent: true, opacity: 0.85 });
-  const discGeometry = new CylinderGeometry(DISC_RADIUS, DISC_RADIUS, DISC_HEIGHT, 16);
-  const beadGeometry = new SphereGeometry(BEAD_RADIUS, 8, 6);
+  const { discGeometry, beadGeometry, discMaterial } = createTissueShapes();
   const tissueOfModel = tissueOf(model);
   const discMeshes = tissueOfModel.discs.map((disc) => {
     const mesh = new Mesh(disc.kind === 'disc' ? discGeometry : beadGeometry, discMaterial);
@@ -264,7 +276,7 @@ export function createOverlays(
   weldGeometry.setDrawRange(0, welds.length * 2);
   const weldLines = new LineSegments(
     weldGeometry,
-    new LineBasicMaterial({ color: 0xf7c59f, linewidth: 2 }),
+    new LineBasicMaterial({ color: BAR_COLOUR, linewidth: 2 }),
   );
   weldLines.frustumCulled = false;
   tissue.add(weldLines);
@@ -284,7 +296,7 @@ export function createOverlays(
   couplingGeometry.setDrawRange(0, couplings.length * 2);
   const couplingLines = new LineSegments(
     couplingGeometry,
-    new LineBasicMaterial({ color: 0xb8a1ff, transparent: true, opacity: 0.7 }),
+    new LineBasicMaterial({ color: COUPLING_COLOUR, transparent: true, opacity: 0.7 }),
   );
   couplingLines.frustumCulled = false;
   tissue.add(couplingLines);
