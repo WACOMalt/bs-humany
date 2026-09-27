@@ -51,7 +51,12 @@ export interface EpisodeResult {
  */
 export interface EpisodePool {
   readonly shape: RigShape;
-  /** Score every task, in any order, and resolve when all of them are done. */
+  /**
+   * Score every task, in any order, and resolve when all of them are done. Reject if any episode
+   * cannot be scored -- an episode that threw, a worker that died -- rather than wait for a result
+   * that is never coming: a run that hangs looks exactly like a run that is slow, and nobody
+   * stops it. Whatever the last finished generation wrote is kept, so a resume carries on.
+   */
   run(tasks: readonly EpisodeTask[], onResult: (result: EpisodeResult) => void): Promise<void>;
   dispose(): void;
 }
@@ -64,7 +69,16 @@ export type Keep = 'policy' | 'centre' | 'latest';
 
 export interface CheckpointStore {
   read(kind: Keep): Promise<unknown | undefined>;
-  write(kind: Keep, value: unknown): Promise<void>;
+  /**
+   * Keep one of the three. Resolving `false` means the host could not keep it -- a disk that
+   * refused, a browser store that is full or forbidden -- and chose to go on training rather than
+   * end the run, because a search worth watching is still worth watching. The search then says
+   * the record was not saved instead of that it was. Anything else, `undefined` included, means
+   * it was kept, which is what every store that simply throws on failure already meant. A host
+   * that would rather the run stopped throws, and the run ends with its message.
+   */
+  // biome-ignore lint/suspicious/noConfusingVoidType: a store that predates the result returns nothing, and `undefined` would not admit its `Promise<void>`.
+  write(kind: Keep, value: unknown): Promise<boolean | void>;
   /**
    * The run's history, for whoever wants it; may do nothing. The first line a run appends is a
    * header, `{ kind: 'header', ... }`, saying what the run was: the recipe, the search's own
@@ -116,6 +130,21 @@ export interface TrainOptions {
   readonly onNote?: ((text: string) => void) | undefined;
   /** Asked between generations; true stops the run and keeps what it has. */
   readonly stopped?: (() => boolean) | undefined;
+  /**
+   * Told as each episode is scored, so a host can show a generation filling up rather than
+   * nothing for the seconds or minutes one takes. `done` of `total` in this batch; `centre` is
+   * true for the batch that scores the search's centre on fresh seeds, which follows the
+   * population's on the generations that have one. Not asked by the terminal or the dashboard,
+   * which print a line a generation and nothing between.
+   */
+  readonly onEpisode?:
+    | ((progress: {
+        readonly generation: number;
+        readonly done: number;
+        readonly total: number;
+        readonly centre: boolean;
+      }) => void)
+    | undefined;
 }
 
 export interface TrainResult {
@@ -367,11 +396,18 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
     });
     const fitness = new Array<number>(candidates.length).fill(0);
     const alive = new Array<number>(candidates.length).fill(0);
+    // A centre's evaluation is asked for with the generation negated, which is what keeps its
+    // seeds apart from the population's; the progress says which it is in plain words instead.
+    const told = Math.abs(generation);
+    const centre = generation < 0;
+    let done = 0;
     await pool.run(tasks, (result) => {
       const at = tasks[result.id] as EpisodeTask;
       fitness[at.candidate] =
         (fitness[at.candidate] as number) + result.fitness / seedsPerCandidate;
       alive[at.candidate] = (alive[at.candidate] as number) + result.alive / seedsPerCandidate;
+      done += 1;
+      options.onEpisode?.({ generation: told, done, total: tasks.length, centre });
     });
     return { fitness, alive };
   }
@@ -528,14 +564,19 @@ export async function train(options: TrainOptions): Promise<TrainResult> {
           generation: g,
           alive: centre.alive[0] as number,
         };
-        await store.write(
-          'policy',
-          fileFor(best.weights as Float32Array, g, centreFitness, episodes, {
-            scoredAt: g,
-            populationMean: mean,
-          }),
-        );
-        noteText = `  saved (centre ${centreFitness.toFixed(3)}, ${(centre.alive[0] as number).toFixed(2)} s up)`;
+        // The record stands in the search whether or not the host kept it -- a restart still
+        // goes back to it -- but the line says which, because "saved" over a write that failed
+        // is what let a run look finished while the checkpoint on disk was the old one.
+        const kept =
+          (await store.write(
+            'policy',
+            fileFor(best.weights as Float32Array, g, centreFitness, episodes, {
+              scoredAt: g,
+              populationMean: mean,
+            }),
+          )) !== false;
+        const scoredText = `centre ${centreFitness.toFixed(3)}, ${(centre.alive[0] as number).toFixed(2)} s up`;
+        noteText = kept ? `  saved (${scoredText})` : `  record not saved (${scoredText})`;
       }
     }
     // A lap runs from this point in one generation to this point in the next, so it holds the
