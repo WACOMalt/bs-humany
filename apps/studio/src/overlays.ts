@@ -18,7 +18,6 @@ import {
   Group,
   LineBasicMaterial,
   LineSegments,
-  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -83,7 +82,6 @@ const NORMAL_LENGTH = 0.05;
 const ONE = new Vector3(1, 1, 1);
 const _position = new Vector3();
 const _rotation = new Quaternion();
-const _matrix = new Matrix4();
 const _cold = new Color(0x3ddc84);
 const _hot = new Color(0xff3b30);
 const _tint = new Color();
@@ -269,15 +267,11 @@ export function createOverlays(
     onA: new Vector3(bar.onA.x, bar.onA.y, bar.onA.z),
     onB: new Vector3(bar.onB.x, bar.onB.y, bar.onB.z),
   }));
-  const welds = weldAnchors;
-  const weldPositions = new Float32Array(Math.max(1, welds.length) * 6);
+  const weldPositions = new Float32Array(Math.max(1, weldAnchors.length) * 6);
   const weldGeometry = new BufferGeometry();
   weldGeometry.setAttribute('position', new BufferAttribute(weldPositions, 3));
-  weldGeometry.setDrawRange(0, welds.length * 2);
-  const weldLines = new LineSegments(
-    weldGeometry,
-    new LineBasicMaterial({ color: BAR_COLOUR, linewidth: 2 }),
-  );
+  weldGeometry.setDrawRange(0, weldAnchors.length * 2);
+  const weldLines = new LineSegments(weldGeometry, new LineBasicMaterial({ color: BAR_COLOUR }));
   weldLines.frustumCulled = false;
   tissue.add(weldLines);
   const couplings = model.constraints.flatMap((c) =>
@@ -536,7 +530,6 @@ export function createOverlays(
         muscleGeometry.getAttribute('position').needsUpdate = true;
         muscleGeometry.getAttribute('color').needsUpdate = true;
       }
-      _matrix.identity();
     },
     dispose() {
       root.traverse((o) => {

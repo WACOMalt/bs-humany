@@ -16,7 +16,9 @@
   --panel-border: #2a2f38;
   --ink: #e6e8ec;
   --ink-dim: #98a0ae;
-  --ink-faint: #6b7280;
+  /* The faintest text still has to be read: 4.5:1 or better (WCAG AA) on the ground, the panel and
+     the raised panel alike, and still a step below --ink-dim so the two read as two levels. */
+  --ink-faint: #868e9c;
   --accent: #6aa9ff;
   --accent-dim: #2f5a99;
   --warn: #e0a44a;
@@ -57,8 +59,11 @@ body {
 #app {
   display: grid;
   height: 100%;
-  grid-template-columns: minmax(0, 1fr) var(--properties);
-  grid-template-rows: var(--topbar) minmax(0, 1fr) auto var(--statusbar);
+  /* The editor never takes the viewport below 320 px, whatever width it was dragged or remembered
+     at; `resizer.ts` holds its own number to the same limit, and this holds the stylesheet's. */
+  grid-template-columns: minmax(0, 1fr) min(var(--properties), calc(100vw - 320px));
+  /* The top bar is at least its usual height and grows when its controls wrap to a second row. */
+  grid-template-rows: minmax(var(--topbar), auto) minmax(0, 1fr) auto var(--statusbar);
   grid-template-areas:
     "topbar topbar"
     "viewport properties"
@@ -84,11 +89,14 @@ body {
 
 /* --- Top bar ---------------------------------------------------------------------------------- */
 
+/* Wraps rather than clips: at 800 px the file buttons used to be cut off mid-word. */
 #topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 18px;
-  padding: 0 14px;
+  row-gap: 6px;
+  padding: 4px 14px;
   background: var(--panel);
   border-bottom: 1px solid var(--panel-border);
 }
@@ -97,6 +105,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  white-space: nowrap;
 }
 
 #topbar h1 {
@@ -134,6 +143,10 @@ body {
   white-space: nowrap;
 }
 
+#topbar .mode .buttons button {
+  padding: 3px 10px;
+}
+
 #topbar .mode .dot {
   width: 8px;
   height: 8px;
@@ -158,14 +171,21 @@ body {
 #viewport-region {
   position: relative;
   display: grid;
+  /* One column no wider than the region: without it the column grows to the header's widest
+     line, and a header that does not fit pushed the canvas out past the window's edge. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
 }
 
+/* Wraps rather than clips, at every width: a wide editor narrows the viewport as surely as a
+   phone does. */
 #viewport-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
+  row-gap: 4px;
   padding: 5px 10px;
   background: color-mix(in srgb, var(--panel) 80%, transparent);
   border-bottom: 1px solid var(--panel-border);
@@ -184,9 +204,16 @@ body {
   font-size: 11px;
 }
 
-#viewport-header .views button {
+#viewport-header .views button,
+#viewport-header .popover-button {
   padding: 3px 10px;
   flex: none;
+}
+
+/* The Overlays button while its popover is open. */
+.popover-button[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 #viewport {
@@ -201,7 +228,8 @@ body {
   height: 100% !important;
 }
 
-/* The popover: a small panel that drops from its button and closes when the pointer leaves. */
+/* The popover: a small panel that drops from its button, and closes on a press outside it or on
+   Escape. */
 .popover-host {
   position: relative;
 }
@@ -256,6 +284,12 @@ body.resizing #viewport {
   pointer-events: none;
 }
 
+/* Focused from the keyboard, the handle shows itself as it does on hover. */
+#properties-resizer:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 #tabs {
   display: flex;
   flex-direction: column;
@@ -285,6 +319,11 @@ body.resizing #viewport {
   background: var(--panel);
   color: var(--accent);
   border-color: var(--panel-border);
+}
+
+#tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 #panels {
@@ -458,7 +497,10 @@ body:not(.notes) .note:not(.live) {
   color: var(--ink-faint);
 }
 
-select {
+/* Every field one look: the Training and Align text boxes used to be the browser's own. */
+select,
+input[type="text"],
+input[type="search"] {
   width: 100%;
   padding: 6px 8px;
   background: var(--bg);
@@ -467,6 +509,18 @@ select {
   border-radius: var(--radius);
   font-family: inherit;
   font-size: 12px;
+}
+
+select:focus-visible,
+input[type="text"]:focus-visible,
+input[type="search"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* A live line that is a failure: a profile that does not compile, and the like. */
+.note.error {
+  color: var(--warn);
 }
 
 .buttons {
@@ -478,7 +532,8 @@ select {
   flex-wrap: wrap;
 }
 
-.buttons button {
+.buttons button,
+.popover-button {
   flex: 1;
   padding: 6px 8px;
   background: var(--bg);
@@ -491,12 +546,14 @@ select {
   white-space: nowrap;
 }
 
-.buttons button:hover:not(:disabled) {
+.buttons button:hover:not(:disabled),
+.popover-button:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.buttons button:disabled {
+.buttons button:disabled,
+.popover-button:disabled {
   color: var(--ink-faint);
   cursor: default;
 }
@@ -527,6 +584,21 @@ select {
   font-size: 11.5px;
   color: var(--ink-dim);
   white-space: nowrap;
+}
+
+/* The Muscles tab with muscles off: its line and its one button. */
+#muscles-off p {
+  margin: 0 0 8px;
+}
+
+/* A grouped compile-report line opens to the notes it stands for. */
+#sim-report summary {
+  cursor: pointer;
+}
+
+#sim-report ul {
+  margin: 4px 0 0;
+  padding-left: 14px;
 }
 
 /* The drive sliders' own sections, inside the Muscles panel. */
@@ -689,10 +761,14 @@ select {
   padding: 6px 10px;
 }
 
+/* Wraps rather than clips: at a phone's width, or beside a wide editor, the note goes under the
+   scrubber and the scrubber keeps a usable length. */
 #timeline-control {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+  row-gap: 4px;
 }
 
 #timeline-control .transport button {
@@ -701,7 +777,8 @@ select {
 }
 
 #timeline-control input[type="range"] {
-  flex: 1;
+  flex: 1 1 160px;
+  min-width: 0;
   margin: 0;
 }
 
@@ -711,8 +788,10 @@ select {
 }
 
 #timeline-control #playback-note {
+  flex-basis: 100%;
+  min-width: 0;
   margin: 0;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 #timeline-region .timeline-note {

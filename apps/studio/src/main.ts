@@ -1,12 +1,14 @@
 /**
- * bs-humany studio -- milestone M1.9.
+ * bs-humany studio: the page that shows a body, runs it, and says what it is doing.
  *
- * The first visible milestone: the complete 206-bone anatomical skeleton on screen, with
- * morphology sliders that reshape it live. The specification calls this one of the two milestones
- * that prove the project.
+ * The measured skeleton on screen, reshaped live by the Body sliders; a run of this page's own on
+ * MuJoCo, with muscles, the cord and a trained policy when they are asked for; the timeline that
+ * replays and scrubs what the run captured; the exports to a recording and to Blender; sessions
+ * saved and loaded; the Align tab's reference models; and, instead of a run of its own, a run
+ * followed off the pose bridge. The Tauri shell adds the VR viewer, driven from the same controls.
  *
- * There is no physics here yet. This is the anatomical layer of ADR-001 rendered in its rest pose;
- * the dynamic layer arrives with M3.
+ * Everything here is wiring between the page and the packages that do the work: the simulation
+ * itself is `simulation.ts`, and each panel that has grown a life of its own has its own file.
  */
 
 import {
@@ -31,7 +33,9 @@ import {
   defaultCaptureBudgetBytes,
 } from '@bs-humany/export-gltf';
 import { type Morphology, SEX_PARAMETER_LABEL, SEX_PARAMETER_NOTE } from '@bs-humany/hsdl';
+import { DEFAULT_RINGS, DEFAULT_UPDATE_HZ, rateDivisorFor } from '@bs-humany/modules-muscle';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
+import { ALL_MUSCLE_UNITS } from '@bs-humany/muscle-data';
 import {
   QUALITY_HIGH,
   type SkeletonMesh,
@@ -41,14 +45,21 @@ import {
 } from '@bs-humany/render-three';
 import {
   DEFAULT_SCENARIO,
+  type ReportNote,
   SCENARIO_DEFINITIONS,
   type ScenarioDefinition,
+  groupReportNotes,
   inertiaAudit,
   jointSweep,
   profileRateHz,
 } from '@bs-humany/scenarios';
 import { type DriveSection, MUSCLE_GROUPS, driveForSlider } from '@bs-humany/scenarios';
-import { buildDocument, computeWorldTransforms, modelLimitations } from '@bs-humany/skeleton';
+import {
+  REFERENCE_PROFILE,
+  buildDocument,
+  computeWorldTransforms,
+  modelLimitations,
+} from '@bs-humany/skeleton';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import {
   AmbientLight,
@@ -326,6 +337,15 @@ let drawnHeld = false;
 // Controls
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The physics every run is built on. ADR-003 reassessment: the only enabled backend, and since
+ * 2026-09-26 the only one there is, so the top bar no longer offers a choice of one. A session
+ * still writes it, as "mujoco", and one naming Rapier is run on MuJoCo like any other.
+ */
+const BACKEND: BackendId = 'mujoco';
+/** What the Health tab calls it, beside the compile report. */
+const BACKEND_NAME = 'MuJoCo';
+
 const ui = {
   sex: must<HTMLInputElement>('#sex'),
   stature: must<HTMLInputElement>('#stature'),
@@ -347,7 +367,6 @@ const ui = {
   frameBack: must<HTMLButtonElement>('#frameBack'),
   frameForward: must<HTMLButtonElement>('#frameForward'),
   goLive: must<HTMLButtonElement>('#goLive'),
-  backend: must<HTMLSelectElement>('#backend'),
   scenario: must<HTMLSelectElement>('#scenario'),
   scenarioParameters: must<HTMLDivElement>('#scenario-parameters'),
   timeline: must<HTMLInputElement>('#timeline'),
@@ -554,8 +573,9 @@ function rebuildBody(cause = 'Body changed', options: { always?: boolean } = {})
   const resolved = resolveMorphology(currentMorphology());
 
   // Spec section 6.4 step 5. A body that fails these checks would still render; it would simply be
-  // wrong, so the failure is surfaced rather than swallowed: listed in Health, said in the event
-  // line, and kept on the console with the detail.
+  // wrong, so the failure is surfaced rather than swallowed: listed in the Health tab's Body
+  // validity panel, which shows only while there is something in it, said in the event line, and
+  // kept on the console with the detail.
   const validation = validateResolvedBody(resolved);
   showBodyValidity(validation.problems);
   if (!validation.valid) {
@@ -840,18 +860,24 @@ function applyTints(): void {
   ]);
 }
 
+/**
+ * The inspector with no bone chosen: a live line, so it shows with Explain off. It was an
+ * explanatory note, and with the notes hidden the panel was an empty box.
+ */
+const INSPECTOR_EMPTY = '<p class="note live">Click a bone to inspect it.</p>';
+
 function refreshSelection(): void {
   applyTints();
   const inspector = must<HTMLDivElement>('#inspector');
   if (!selectedBoneId || !skeletonMesh) {
-    inspector.innerHTML = '<p class="note">Click a bone.</p>';
+    inspector.innerHTML = INSPECTOR_EMPTY;
     return;
   }
 
   const bone = skeletonMesh.bones.find((b) => b.id === selectedBoneId);
   const definition = document_.bones.find((b) => b.id === selectedBoneId);
   if (!bone || !definition) {
-    inspector.innerHTML = '<p class="note">Click a bone.</p>';
+    inspector.innerHTML = INSPECTOR_EMPTY;
     return;
   }
 
@@ -971,30 +997,75 @@ window.addEventListener('unhandledrejection', (event) => {
   announce(`Something on the page failed: ${messageOf(event.reason)}`, { error: true });
 });
 
-/** What the readout says with no run: at rest, and whether the full mesh is still on its way. */
+/**
+ * What the readout says with no run: at rest, and whether the full mesh is still on its way. At
+ * rest it says what to press, because a skeleton standing still with every overlay empty is
+ * otherwise a page that looks like it has not finished loading.
+ */
 function restStatus(): string {
-  return fullDetailPending ? 'Loading full detail…' : 'At rest.';
+  return fullDetailPending
+    ? 'Loading full detail…'
+    : 'At rest. Press Start sim to see the muscles work.';
 }
 
-/** Surface every warning from the compiler and the backend (spec section 9.3). */
+/**
+ * Surface every warning from the compiler, the backend and the muscle paths (spec section 9.3).
+ *
+ * Grouped by kind, because an L3 body compiles with over a hundred warnings that are nearly all
+ * one sentence said once a vertebra and once a rib; listed flat, the warning that is about
+ * something else was somewhere in the middle of them. A kind said three times or more is one line
+ * that says how many, and opens to list them. The summary names the body the report is of -- the
+ * running one, which is not the Body select's once somebody has chosen another -- and the backend.
+ */
 function showReports(sim: Simulation): void {
   const list = must<HTMLUListElement>('#sim-report');
   list.innerHTML = '';
-  const notes = [
+  setCompileReportEmpty(false);
+  const notes: ReportNote[] = [
     ...sim.compileReport.notes.map((n) => ({ ...n, from: 'compiler' })),
     ...(sim.backendReport?.notes ?? []).map((n) => ({
       ...n,
       from: sim.backendReport?.backend ?? 'backend',
     })),
+    // What the path solver could not build: a wrap it straight-lined, a via point it treats as
+    // unconditional. Warnings and errors only, so they count with the rest.
+    ...(sim.musclePath?.compileReport.problems ?? []).map((p) => ({
+      severity: p.severity,
+      feature: 'musclePath',
+      message: `${p.path}: ${p.message}`,
+      from: 'muscle path',
+    })),
   ].filter((n) => n.severity !== 'info');
   const info = [...sim.compileReport.notes, ...(sim.backendReport?.notes ?? [])].filter(
     (n) => n.severity === 'info',
   ).length;
+  const groups = groupReportNotes(notes);
   must<HTMLElement>('#sim-report-summary').textContent =
-    `${notes.length} warning${notes.length === 1 ? '' : 's'}, ${info} note${info === 1 ? '' : 's'}`;
-  for (const note of notes) {
+    `${sim.recording.profile} on ${BACKEND_NAME} · ` +
+    `${notes.length} warning${notes.length === 1 ? '' : 's'}` +
+    (groups.length < notes.length ? ` of ${groups.length} kinds` : '') +
+    `, ${info} note${info === 1 ? '' : 's'}`;
+  for (const group of groups) {
     const item = window.document.createElement('li');
-    item.textContent = `[${note.from}] ${note.message}`;
+    const first = group.notes[0];
+    if (group.notes.length === 1 && first) {
+      item.textContent = `[${first.from}] ${first.message}`;
+    } else {
+      // One line for the kind, the first of them as its example, and the rest folded under it.
+      const details = window.document.createElement('details');
+      const summary = window.document.createElement('summary');
+      summary.textContent =
+        `[${group.from}] ${group.notes.length} × ${group.feature}` +
+        (first ? `, such as: ${first.message}` : '');
+      const inner = window.document.createElement('ul');
+      for (const note of group.notes) {
+        const line = window.document.createElement('li');
+        line.textContent = note.message;
+        inner.appendChild(line);
+      }
+      details.append(summary, inner);
+      item.appendChild(details);
+    }
     list.appendChild(item);
   }
   if (sim.passive && sim.passive.defaulted.length > 0) {
@@ -1004,6 +1075,21 @@ function showReports(sim: Simulation): void {
       'run on the default curve derived from range and inertia (OQ-008).';
     list.appendChild(item);
   }
+}
+
+/**
+ * The Health tab's compile report with no run to report on, or back from that.
+ *
+ * The report is of a run's compile, and it used to go on showing the last run's after the run
+ * had gone -- under a Body select that might by then name another profile altogether. With no
+ * run, its lists are emptied and a line says when it fills.
+ */
+function setCompileReportEmpty(empty: boolean): void {
+  must<HTMLElement>('#sim-report-empty').hidden = !empty;
+  if (!empty) return;
+  must<HTMLElement>('#capabilities').replaceChildren();
+  must<HTMLElement>('#sim-report').replaceChildren();
+  must<HTMLElement>('#sim-report-summary').textContent = '';
 }
 
 function stopSimulation(): void {
@@ -1016,6 +1102,7 @@ function stopSimulation(): void {
     if (wasStarting) {
       setRunControls(false);
       setSimulationStatus(restStatus());
+      setCompileReportEmpty(true);
     }
     return;
   }
@@ -1033,7 +1120,11 @@ function forgetRun(): void {
   clearFurniture();
   followFurnitureKey = '';
   must<HTMLElement>('#diagnostics').hidden = true;
+  must<HTMLElement>('#diagnostics-empty').hidden = false;
   must<HTMLElement>('#timeline-control').hidden = true;
+  setCompileReportEmpty(true);
+  showValidationNote();
+  showCaptureEstimate();
   // The readouts were of the run that has gone, and the headset is sent them too.
   clearMuscleReadout();
   showReadoutsLive(null, true);
@@ -1042,8 +1133,20 @@ function forgetRun(): void {
   setSimulationStatus(restStatus());
 }
 
-/** The top bar's mode: at rest, a run of our own, or following the bridge. */
+/**
+ * The top bar's mode: at rest, a run of our own, or following the bridge.
+ *
+ * Start and Pause, in the top bar beside it, are about whether this page's simulation is
+ * computing; the mode is what the viewport is showing, which while following is nobody's run on
+ * this page. So following gets its own way out beside the mode, where the eye already is: the
+ * Follow button that starts it is on the Brain tab. At rest, the Overlays popover says what fills
+ * it, because every overlay in it draws from a run and at rest they are all empty.
+ */
 function setMode(mode: 'rest' | 'running' | 'paused' | 'following'): void {
+  const stop = must<HTMLElement>('#stop-following');
+  if (stop.hidden !== (mode !== 'following')) stop.hidden = mode !== 'following';
+  const atRest = must<HTMLElement>('#overlays-at-rest');
+  if (atRest.hidden !== (mode !== 'rest')) atRest.hidden = mode !== 'rest';
   const indicator = must<HTMLElement>('#mode-indicator');
   indicator.classList.toggle('running', mode === 'running');
   indicator.classList.toggle('following', mode === 'following');
@@ -1106,6 +1209,17 @@ const START_FACES = {
   },
 } as const;
 
+/** What a grey Export button and the Export tab say with no run to export. */
+const EXPORT_NEEDS_RUN = 'Export needs a run: press Start sim';
+/** Each Export button's own title, for when there is a run. */
+const EXPORT_TITLES: readonly (readonly [HTMLButtonElement, string])[] = [
+  [ui.exportRecording, 'Write the sampled recording of this run as JSON'],
+  [
+    ui.exportBlender,
+    'Three files: the glTF, the muscle vertex cache, and the script that imports them',
+  ],
+];
+
 /** Write a button's label and title, only when they change: this runs every frame. */
 function setFace(button: HTMLButtonElement, face: { label: string; title: string }): void {
   if (button.textContent !== face.label) button.textContent = face.label;
@@ -1146,6 +1260,13 @@ function setRunControls(running: boolean): void {
   // playhead is behind the live edge and would otherwise hand a second click straight back.
   ui.exportRecording.disabled = !running || exporting;
   ui.exportBlender.disabled = !running || exporting;
+  // Grey with no run, and saying why where a grey button's reason is looked for, and on the tab.
+  for (const [button, title] of EXPORT_TITLES) {
+    const want = running ? title : EXPORT_NEEDS_RUN;
+    if (button.title !== want) button.title = want;
+  }
+  const why = must<HTMLElement>('#export-why');
+  if (why.hidden !== running) why.hidden = running;
   setPlaybackControls(running);
   showPendingChanges();
 }
@@ -1194,7 +1315,7 @@ function currentSettings(): NormalisedSettings {
     stature: Number(ui.stature.value),
     mass: Number(ui.mass.value),
     profile: ui.profile.value,
-    backend: ui.backend.value,
+    backend: BACKEND,
     scenario: ui.scenario.value,
     passive: ui.passive.checked,
     redistribute: ui.redistribute.checked,
@@ -1265,16 +1386,31 @@ function setControl(input: HTMLInputElement, value: number): void {
  * sets Passive to the one the scenario is tuned with -- and a saved or recipe value applied before
  * that was quietly overwritten, so a session saved with Passive off ran with it on, and its
  * snapshot, which had no passive module, then refused to restore.
+ *
+ * Returns what it could not put on the panels as asked, in words for the event line, or undefined:
+ * the caller says it, with whatever else it has to say, because a message given here would be
+ * replaced by the caller's own.
  */
-function applySettings(settings: NormalisedSettings): void {
+function applySettings(settings: NormalisedSettings): string | undefined {
   ui.sex.value = String(settings.sex);
   ui.stature.value = String(settings.stature);
   ui.mass.value = String(settings.mass);
-  ui.profile.value = settings.profile;
-  // Rapier was deleted on 2026-09-26 (ADR-003); a saved session naming it runs on MuJoCo.
-  ui.backend.value = settings.backend === 'rapier' ? 'mujoco' : settings.backend;
+  // A profile this studio lacks would leave the select on nothing, and the next run would be built
+  // from whatever an empty id falls back to. A loaded session is refused before it gets here
+  // (`loadSessionText`); a checkpoint's recipe is not, so it gets the reference body -- the one
+  // the page opens on -- and the caller says so.
+  let unapplied: string | undefined;
+  if ([...ui.profile.options].some((o) => o.value === settings.profile)) {
+    ui.profile.value = settings.profile;
+  } else {
+    ui.profile.value = REFERENCE_PROFILE;
+    unapplied =
+      `The body profile ${settings.profile} is not one this studio has; ` +
+      `${ui.profile.selectedOptions[0]?.textContent?.trim() ?? REFERENCE_PROFILE} is used instead.`;
+  }
+  // The session's backend is not read: MuJoCo is the only one, whatever the file says.
   ui.muscles.checked = settings.muscles;
-  must<HTMLElement>('#muscle-control').hidden = !settings.muscles;
+  showMusclesOff();
   ui.scenario.value = settings.scenario;
   if (settings.scenario && settings.scenarioParameters) {
     scenarioValues.set(settings.scenario, { ...settings.scenarioParameters });
@@ -1308,6 +1444,7 @@ function applySettings(settings: NormalisedSettings): void {
   // Always a restart when a run is going, whether or not the body changed: the settings carry the
   // profile, the scenario and the joints as well, and none of those reach a run already built.
   rebuildBody('Settings applied', { always: true });
+  return unapplied;
 }
 
 /**
@@ -1525,7 +1662,7 @@ async function startSimulation(
         const chosen = currentScenario();
         built = new Simulation(document_, resolveMorphology(currentMorphology()), {
           profileId: ui.profile.value,
-          backend: ui.backend.value as BackendId,
+          backend: BACKEND,
           passiveJoints: ui.passive.checked,
           redistribute: ui.redistribute.checked,
           scenario: chosen,
@@ -1568,6 +1705,8 @@ async function startSimulation(
         error: true,
       });
     }
+    // No run, so no report: the last one was of a run that has gone, and nothing replaced it.
+    setCompileReportEmpty(true);
     setSimulationStatus(restStatus());
   } finally {
     if (!runGate.busy) pendingStart = null;
@@ -1665,8 +1804,10 @@ function installRun(sim: Simulation, restoreFrom?: SessionFile['simulation'], ca
   align?.refresh();
   showCapabilities(sim);
   must<HTMLElement>('#diagnostics').hidden = false;
+  must<HTMLElement>('#diagnostics-empty').hidden = true;
   must<HTMLElement>('#timeline-control').hidden = false;
   showReports(sim);
+  showValidationNote();
   // A body carried into a profile with other joints leaves some of the old pose behind. That
   // is expected and not an error, but it is a difference in the body that is running, so it is
   // listed with the other things the compile had to say rather than only on the console.
@@ -2140,11 +2281,63 @@ function applyFidelity(sim: Simulation | null | undefined): void {
 
 const MEBIBYTE = 1024 * 1024;
 
-/** The slider's own reading, and the sentence under it that says where its top end came from. */
+/** The slider's own reading. */
 function showCaptureBudget(): void {
   const mib = Number(ui.captureBudget.value);
   must<HTMLOutputElement>('#captureBudget-value').textContent =
     mib >= 1024 ? `${(mib / 1024).toFixed(1)} GB` : `${mib} MB`;
+  showCaptureEstimate();
+}
+
+/** Four bytes a float: both captures store single precision. */
+const FLOAT_BYTES = 4;
+/** A bone's frame in the capture: a position and a quaternion. */
+const BONE_FLOATS = 7;
+/** A ring's frame in the muscle capture: a centre, a quaternion and a radius. */
+const RING_FLOATS = 8;
+
+/**
+ * What a tick costs each capture, and how much of a run the budget holds at that cost.
+ *
+ * The figures used to be written into the Recording note by hand -- so many kilobytes a tick, so
+ * many seconds at one rate -- and went stale with every muscle added and every change of rate. So
+ * they are worked out: during a run from what the captures actually hold, divided by the ticks
+ * they cover; before one, from what a run with the current settings would capture -- every bone's
+ * position and orientation a tick, and with muscles every unit's rings once a sweep, which is one
+ * tick in `rateDivisorFor` of the step rate. The budget is per capture, so what it holds is set by
+ * the dearer of the two, and at the step rate the run uses that is so many seconds of run.
+ */
+function showCaptureEstimate(): void {
+  const sim = simulation;
+  const rate = sim?.stepsPerSecond ?? Number(ui.stepsPerSecond.value);
+  let bones: number;
+  let muscles: number;
+  if (sim && sim.capture.frameCount > 0) {
+    // A bone frame is a tick, so the bone capture's frame count is the ticks both captures cover.
+    const ticks = sim.capture.frameCount;
+    bones = sim.capture.bytes / ticks;
+    muscles = sim.muscleVolume ? sim.muscleCapture.bytes / ticks : 0;
+  } else {
+    // Each frame also carries its tick number, as one more four-byte value.
+    bones = document_.bones.length * BONE_FLOATS * FLOAT_BYTES + FLOAT_BYTES;
+    const units = ui.muscles.checked ? ALL_MUSCLE_UNITS.length : 0;
+    muscles =
+      units > 0
+        ? (units * DEFAULT_RINGS * RING_FLOATS * FLOAT_BYTES + FLOAT_BYTES) /
+          rateDivisorFor(rate, DEFAULT_UPDATE_HZ)
+        : 0;
+  }
+  const budget = Number(ui.captureBudget.value) * MEBIBYTE;
+  const perTick = Math.max(bones, muscles);
+  const seconds = perTick > 0 && rate > 0 ? budget / perTick / rate : 0;
+  const kilobytes = (bytes: number) => `${(bytes / 1024).toFixed(1)} KB`;
+  setText(
+    must<HTMLElement>('#capture-estimate'),
+    `${sim ? 'This run captures' : 'A run would capture'} ${kilobytes(bones)} a tick for the bones` +
+      (muscles > 0 ? ` and ${kilobytes(muscles)} for the muscles` : '') +
+      `: the budget holds about ${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} s ` +
+      `at ${rate} steps a second.`,
+  );
 }
 
 /**
@@ -2180,6 +2373,7 @@ ui.outputFramerate.addEventListener('input', () => {
 ui.stepsPerSecond.addEventListener('input', () => {
   fidelityTouched = true;
   showRates();
+  showCaptureEstimate();
 });
 
 /** The step rate the chosen profile's solver was tuned for, which a run gets unless told. */
@@ -2197,6 +2391,7 @@ function profileStepRate(): number {
 function syncStepRate(): void {
   if (!fidelityTouched) ui.stepsPerSecond.value = String(profileStepRate());
   showRates();
+  showCaptureEstimate();
 }
 ui.profile.addEventListener('change', syncStepRate);
 // Once at startup, so the pair reads as a pair before anyone has touched either or started a run.
@@ -2551,16 +2746,36 @@ function showReadoutsLive(sim: Simulation | null, live: boolean): void {
   }
 }
 
+/**
+ * The Muscles tab with the Muscles box unticked: the drive and readout panels go, and a line says
+ * why and offers the box back.
+ *
+ * The whole tab used to go blank, which reads as a tab that failed to load; the box itself is on
+ * the Scene tab, out of sight. The headset's Muscles panel says the same thing in the same place.
+ */
+function showMusclesOff(): void {
+  const off = !ui.muscles.checked;
+  for (const panel of window.document.querySelectorAll<HTMLElement>('#muscle-control > .panel')) {
+    panel.hidden = off;
+  }
+  must<HTMLElement>('#muscles-off').hidden = !off;
+}
 ui.muscles.addEventListener('change', () => {
-  must<HTMLElement>('#muscle-control').hidden = !ui.muscles.checked;
+  showMusclesOff();
+  showCaptureEstimate();
   // The modules are registered when a run starts, so turning this on mid-run changes nothing
   // until the next one. Saying so beats a checkbox that appears to do nothing.
   if (simulation && ui.muscles.checked && !simulation.muscles) {
     announce('Muscles start with the next run.');
   }
 });
-// Explanatory text is off by default: the panel has thirteen paragraphs and a reader wants at
-// most one of them at a time. The notes that carry a live value are marked `live` and stay.
+must<HTMLButtonElement>('#muscles-on').addEventListener('click', () => {
+  ui.muscles.checked = true;
+  ui.muscles.dispatchEvent(new Event('change', { bubbles: true }));
+});
+// How many units a body has, from the table the runs are built from, rather than a number written
+// into the page that went stale with the next muscle added.
+must<HTMLElement>('#muscle-unit-count').textContent = String(ALL_MUSCLE_UNITS.length);
 // The brain panel is made once the follow code below exists; runs read its setup when they start.
 // biome-ignore lint/style/useConst: assigned once, but below the code that reads it, so a `const` there would be in its dead zone for the handlers above.
 let brain: ReturnType<typeof createBrainPanel> | undefined;
@@ -2568,6 +2783,12 @@ let brain: ReturnType<typeof createBrainPanel> | undefined;
 let align: AlignPanel | undefined;
 
 // --- The editors' chrome: tabs, what the page remembers, the overlays popover ------------------
+
+// Explanatory text is off by default: every panel has paragraphs of it, and a reader wants at most
+// one of them at a time. The notes that carry a live value are marked `live` and stay.
+ui.showNotes.addEventListener('change', () => {
+  window.document.body.classList.toggle('notes', ui.showNotes.checked);
+});
 const memory = createMemory();
 const tabs = createTabs(must<HTMLElement>('#tabs'), must<HTMLElement>('#panels'), memory, 'body');
 createResizer(must<HTMLElement>('#properties-resizer'), memory);
@@ -2583,31 +2804,57 @@ for (const [input, key] of [
   [ui.showMuscles, 'overlay.muscles'],
   [ui.showMuscleVolumes, 'overlay.muscleVolumes'],
 ] as const) {
+  // A remembered box is restored by dispatching `change`, so whatever listens to one -- Explain's
+  // class on the body above all -- has to be attached before this line, or the box comes back
+  // ticked and nothing it drives follows it.
   memory.checkbox(input, key);
 }
-for (const panel of window.document.querySelectorAll<HTMLDetailsElement>('details.panel')) {
-  const key = panel
-    .querySelector('summary')
-    ?.textContent?.trim()
-    .toLowerCase()
-    .replace(/\W+/g, '-');
-  if (key) memory.details(panel, `panel.${key}`);
+// As a defence as well: Explain's state and the body's class must agree whatever order the page
+// was put together in.
+window.document.body.classList.toggle('notes', ui.showNotes.checked);
+// Each panel's open or closed state, under the key the page gives it. The key used to be made from
+// the panel's heading, so the two Recording panels -- Sim's and Export's -- shared one memory and
+// collapsing either collapsed both. A panel with no key, or one another already took, is left
+// unremembered and said on the console, where whoever added it will look.
+{
+  const bound = new Set<string>();
+  for (const panel of window.document.querySelectorAll<HTMLDetailsElement>('details.panel')) {
+    const key = panel.dataset.memory;
+    if (!key || bound.has(key)) {
+      console.warn(
+        key
+          ? `Two panels share the memory key ${key}; the second is not remembered.`
+          : 'A panel has no data-memory key and is not remembered.',
+        panel,
+      );
+      continue;
+    }
+    bound.add(key);
+    memory.details(panel, `panel.${key}`);
+  }
 }
 {
   const button = must<HTMLButtonElement>('#overlays-button');
   const popover = must<HTMLElement>('#overlays-popover');
-  const open = (on: boolean) => {
+  // Opening puts focus on the first box, so a keyboard is inside what it opened; closing by
+  // Escape or by the button gives focus back to the button, rather than to the page's start. A
+  // press outside closes it and leaves focus wherever that press put it.
+  const open = (on: boolean, returnFocus = false) => {
     popover.hidden = !on;
     button.setAttribute('aria-expanded', String(on));
+    if (on) popover.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus();
+    else if (returnFocus) button.focus();
   };
-  button.addEventListener('click', () => open(popover.hidden));
+  button.addEventListener('click', () => open(popover.hidden, true));
   window.document.addEventListener('pointerdown', (event) => {
     if (popover.hidden) return;
     const target = event.target as Node;
     if (!popover.contains(target) && !button.contains(target)) open(false);
   });
   window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') open(false);
+    // Only while it is open: Escape means other things elsewhere -- the Align gizmo's Off.
+    if (event.key !== 'Escape' || popover.hidden) return;
+    open(false, true);
   });
 }
 
@@ -2669,10 +2916,6 @@ window.addEventListener('keyup', (event) => {
   if (event.key === ' ' && (event.target === ui.simStart || event.target === ui.simPause)) {
     event.preventDefault();
   }
-});
-
-ui.showNotes.addEventListener('change', () => {
-  document.body.classList.toggle('notes', ui.showNotes.checked);
 });
 
 for (const slider of driveInputs.values()) {
@@ -2903,7 +3146,7 @@ function scenarioChanged(): void {
   // leaving the panel claiming they are off while the arms move.
   if (chosen?.muscles === true) {
     ui.muscles.checked = true;
-    must<HTMLElement>('#muscle-control').hidden = false;
+    showMusclesOff();
   }
 }
 ui.scenario.addEventListener('change', scenarioChanged);
@@ -3123,6 +3366,8 @@ async function loadSessionText(text: string): Promise<void> {
       settings.checkpoint && (await chooseSessionCheckpoint(settings.checkpoint))
         ? settings.checkpoint
         : undefined;
+    // Nothing can be left unapplied here: a session naming a profile this studio lacks was
+    // refused above.
     applySettings(settings);
     if (parsed.simulation) await startSimulation(parsed.simulation);
     // Last, once the start has cleared its notices and said what it had to: beside a refused
@@ -3159,7 +3404,42 @@ ui.loadFile.addEventListener('change', async () => {
   }
 });
 
-/** Validation views (M4.8): the two report scenarios, for the current morphology and profile. */
+/** Why the Health tables are empty, while the selected profile does not compile. */
+let validationFailure: string | undefined;
+
+/**
+ * Which body the Health tables describe, above them: the selected profile, the stature and the
+ * mass, and whether that is the running body or the one the next run will build.
+ *
+ * The tables follow the Body select and the sliders, not the run, so with a run going and another
+ * profile chosen they are of a body that is not the one on screen, and the compile report above
+ * them is of the one that is. Saying which is the difference between two tables that disagree and
+ * two tables of two bodies.
+ */
+function showValidationNote(): void {
+  const note = must<HTMLElement>('#validation-note');
+  note.classList.toggle('error', validationFailure !== undefined);
+  if (validationFailure !== undefined) {
+    setText(note, validationFailure);
+    return;
+  }
+  const profile = ui.profile.selectedOptions[0]?.textContent?.trim() ?? ui.profile.value;
+  const running = simulation?.recording.profile;
+  setText(
+    note,
+    `${profile}, ${Number(ui.stature.value).toFixed(2)} m, ${Number(ui.mass.value).toFixed(1)} kg` +
+      (running !== undefined && running !== ui.profile.value
+        ? ' (selected — takes effect on the next run)'
+        : ''),
+  );
+}
+
+/**
+ * Validation views (M4.8): the two report scenarios, for the current morphology and profile.
+ *
+ * The body's own validity problems (spec section 6.4) are listed by `showBodyValidity`, in the
+ * panel above these, because they belong to the morphology whatever the profile.
+ */
 function showValidation(): void {
   const morphology = resolveMorphology(currentMorphology());
   let compiled: ReturnType<typeof compileArticulation>['articulation'];
@@ -3167,13 +3447,18 @@ function showValidation(): void {
     compiled = compileArticulation(document_, ui.profile.value, morphology).articulation;
   } catch (error) {
     // Both tables say so, rather than go on showing the last body's numbers as though they were
-    // this one's -- which is what returning quietly here used to do.
-    const why = `Validation unavailable for ${ui.profile.value}: ${messageOf(error)}`;
+    // this one's -- which is what returning quietly here used to do -- and so does the line that
+    // names the body above them.
+    const why = `Profile does not compile: ${messageOf(error)}`;
     const row = `<tbody><tr><td>${escapeHtml(why)}</td></tr></tbody>`;
     must<HTMLTableElement>('#inertia-audit').innerHTML = row;
     must<HTMLTableElement>('#joint-sweep').innerHTML = row;
+    validationFailure = `${ui.profile.value || 'No profile'}: ${why}`;
+    showValidationNote();
     return;
   }
+  validationFailure = undefined;
+  showValidationNote();
   const audit = inertiaAudit(compiled, morphology);
   const inertiaTable = must<HTMLTableElement>('#inertia-audit');
   inertiaTable.innerHTML = `
@@ -3182,7 +3467,7 @@ function showValidation(): void {
       .map(
         (r) =>
           `<tr><td>${escapeHtml(r.segment)}</td><td>${r.mass.toFixed(3)}</td><td>${r.bones}</td><td>${r.comHeight.toFixed(3)}</td>` +
-          `<td>${r.principal[0].toExponential(2)}</td><td>${r.principal[1].toExponential(2)}</td><td>${r.principal[2].toExponential(2)}</td></tr>`,
+          `<td>${r.diagonal[0].toExponential(2)}</td><td>${r.diagonal[1].toExponential(2)}</td><td>${r.diagonal[2].toExponential(2)}</td></tr>`,
       )
       .join('')}
       <tr><th>Total</th><td>${audit.totalMass.toFixed(3)}</td><td></td><td>${audit.comHeight.toFixed(3)}</td><td colspan="3">target ${audit.targetMass.toFixed(1)} kg</td></tr>
@@ -3507,6 +3792,7 @@ function runFrame(simulation: Simulation, skinned: SkinnedSkeleton, elapsed: num
           'drive/gravity during it.') +
       recordingStatus(simulation),
   );
+  showCaptureEstimate();
   const seconds = (simulation.ticks * simulation.dt).toFixed(2);
   // How fast, never whether anything was lost: nothing is. Below life speed the machine is
   // simply taking longer over the same ticks, and the run it produces is the same run.
@@ -4263,6 +4549,12 @@ function stopFollowing(): void {
   setSimulationStatus(restStatus());
 }
 
+// The mode indicator's own way out of following, which is the Follow button pressed again: one
+// path in and out, so the headset's Follow toggle (`toggleFollowing`) and this stay the same act.
+must<HTMLButtonElement>('#stop-following').addEventListener('click', (event) => {
+  blurAfterMouse(event);
+  if (bridgeFollower.active) followButton.click();
+});
 followButton.addEventListener('click', () => {
   if (bridgeFollower.active) {
     stopFollowing();
@@ -4498,7 +4790,7 @@ brain = createBrainPanel({
     // across, or waits for the next run: the message says which.
     const running = simulation !== null;
     // Its limb proportions, if it has any, are left out: nothing follows them yet.
-    applySettings({
+    const unapplied = applySettings({
       ...currentSettings(),
       sex: recipe.morphology.sex,
       stature: recipe.morphology.stature,
@@ -4522,7 +4814,9 @@ brain = createBrainPanel({
         (recipe.feedforward.kind === 'none' ? ', with the muscle sliders back to zero' : '') +
         (running
           ? '; the running body was restarted with them.'
-          : '. They take effect on the next run.'),
+          : '. They take effect on the next run.') +
+        (unapplied ? ` ${unapplied}` : ''),
+      unapplied ? { error: true } : {},
     );
   },
   fit() {
