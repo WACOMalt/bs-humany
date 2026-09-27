@@ -54,7 +54,9 @@
  *
  * The recorded list is not a way to make a failure go away. Each entry names what is wrong, why
  * it is wrong, and what would fix it; the bound in each entry is the deviation as it stands, so
- * a discrepancy that grows fails again. A sign change can never be recorded.
+ * a discrepancy that grows fails again. A sign change can never be recorded there. The owner can
+ * accept one, by name and with the reason (`OWNER_ACCEPTED`), and nobody else can: a sign change
+ * not on that list fails `--check`.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -585,55 +587,57 @@ const RECORDED = [
 ];
 
 /**
- * Sign changes found when a row was first swept, left for the owner to decide.
+ * Sign changes the owner has accepted as recorded differences, each with the reason.
  *
- * Not a bound, and not an excuse: a sign change is a hard failure and nothing in `RECORDED` can
- * make it pass. These are the ones the first sweep of each row found on 2026-09-27, before anyone
- * had looked at them, and they are listed so the gate could go in for every other muscle in the
- * same rows at once. Every one is printed on every run, `--check` included, and the report marks
- * it. The list can only shrink: an entry whose sign change has gone is refused as stale, and a
- * sign change not on it fails as it always did.
+ * Not a bound, and not something to add to: a sign change is a hard failure by muscle spec 13.2,
+ * nothing in `RECORDED` can make it pass, and an entry here is the owner's decision about one
+ * muscle in one row, not a tolerance. These are the ones the first sweep of each row found on
+ * 2026-09-27. The owner's decision of the same day was to fix the wrist's deviation convention,
+ * pronator quadratus and flexor carpi ulnaris's pronation -- all three are fixed -- and to accept
+ * the seven below. Every one is printed on every run, `--check` included, and the report lists
+ * them. An entry whose sign change has gone is refused as stale, and a sign change not here fails
+ * as it always did.
  */
-const AWAITING_THE_OWNER = [
+const OWNER_ACCEPTED = [
   [
     'Wrist flexion',
     'flexor_carpi_radialis_r',
-    'A flexor in both from -20 degrees up, but ours turns extensor past about -25 (-7 mm at -40) where the reference’s keeps 15.',
+    'A flexor in both from -20 degrees up; ours turns extensor only in the last 15 degrees of extension (-7 mm at -40), where the reference’s keeps 15. Accepted by the owner, 2026-09-27: a difference of where the tendon crosses the axis at full extension.',
   ],
   [
     'Wrist flexion',
     'flexor_carpi_ulnaris_r',
-    'As flexor carpi radialis: ours turns extensor past about -15 degrees (-5 mm at -40) where the reference’s keeps 13.',
+    'As flexor carpi radialis: ours turns extensor past about -17 degrees (-5 mm at -40) where the reference’s keeps 13. Accepted by the owner, 2026-09-27, with it.',
   ],
   [
     'Wrist flexion',
     'extensor_carpi_radialis_longus_r',
-    'An extensor in both, but ours touches +0.3 mm at -40 degrees, so it changes sign by the letter of spec 13.2; under half the reference’s arm throughout.',
+    'An extensor in both; ours touches +0.3 mm at -40 degrees, a sign change by the letter of spec 13.2 only. Accepted by the owner, 2026-09-27.',
   ],
   [
     'Hip flexion',
     'gluteus_medius_posterior_r',
-    'Ours turns from extensor to flexor at about 45 degrees; the reference’s stays an extensor to 120 (-0.3 mm there).',
+    'Ours turns from extensor to flexor at about 45 degrees; the reference’s stays an extensor to 120 (-0.3 mm there), so it too is near its turn by then. Accepted by the owner, 2026-09-27: a difference of where, not of which side.',
   ],
   [
     'Hip flexion',
     'piriformis_r',
-    'Ours turns from extensor to flexor at about 50 degrees, to +12 mm at 120; the reference’s stays an extensor and reaches zero only at 120.',
+    'Ours turns from extensor to flexor at about 50 degrees, to +12 mm at 120; the reference’s reaches zero only at 120. Accepted by the owner, 2026-09-27: piriformis really does change its action with hip flexion.',
   ],
   [
     'Hip flexion',
     'tensor_fasciae_latae_r',
-    'Within 5 mm of the reference everywhere, but ours is -4.3 mm at -30 degrees where the reference’s is +0.5, so it changes sign by the letter of spec 13.2.',
+    'Within 5 mm of the reference everywhere; ours is -4.3 mm at -30 degrees where the reference’s is +0.5. Accepted by the owner, 2026-09-27: about 4 mm either side of zero at the end of the range.',
   ],
   [
     'Knee flexion',
     'gastrocnemius_lateral_r',
-    'Ours is an extensor of 3 mm at full extension and a flexor from 10 degrees; the reference’s is a 26 mm flexor there and turns extensor past 110. The two cross zero in opposite directions.',
+    'Ours is an extensor of 3 mm at full extension and a flexor from 10 degrees; the reference’s is a 26 mm flexor there and turns extensor past 110. Accepted by the owner, 2026-09-27, as a recorded difference.',
   ],
 ].map(([row, unit, note]) => ({ row, unit, note }));
 
-/** The status an owner's entry takes in the report: a sign change, said as one. */
-const AWAITING = 'sign change, awaiting the owner';
+/** The status an accepted entry takes in the report: a sign change, said as one. */
+const ACCEPTED = 'sign change, accepted by the owner';
 
 // --- Ours ---------------------------------------------------------------------------------------
 
@@ -808,10 +812,10 @@ for (const row of ROWS) {
           'past tolerance and not recorded: fix it, or record the difference and its open question in RECORDED';
       }
     }
-    const awaiting = AWAITING_THE_OWNER.find((a) => a.row === row.name && a.unit === pair.unitId);
-    if (status === 'HARD FAILURE' && awaiting) {
-      status = AWAITING;
-      note = `${note}. ${awaiting.note}`;
+    const accepted = OWNER_ACCEPTED.find((a) => a.row === row.name && a.unit === pair.unitId);
+    if (status === 'HARD FAILURE' && accepted) {
+      status = ACCEPTED;
+      note = `${note}. ${accepted.note}`;
     }
 
     findings.push({
@@ -840,8 +844,8 @@ const stale = [
   ...RECORDED.filter((r) => findingOf(r) === undefined).map(
     (r) => `RECORDED names ${r.row} / ${r.unit}, which no row measured`,
   ),
-  ...AWAITING_THE_OWNER.filter((a) => findingOf(a)?.status !== AWAITING).map(
-    (a) => `AWAITING_THE_OWNER names ${a.row} / ${a.unit}, which no longer changes sign`,
+  ...OWNER_ACCEPTED.filter((a) => findingOf(a)?.status !== ACCEPTED).map(
+    (a) => `OWNER_ACCEPTED names ${a.row} / ${a.unit}, which no longer changes sign`,
   ),
 ];
 if (stale.length > 0) {
@@ -860,7 +864,7 @@ const signed = (radians) => {
 const hard = all.filter((f) => f.status === 'HARD FAILURE');
 const investigate = all.filter((f) => f.status === 'investigate');
 const recordedCount = all.filter((f) => f.status.startsWith('recorded')).length;
-const awaiting = all.filter((f) => f.status === AWAITING);
+const accepted = all.filter((f) => f.status === ACCEPTED);
 const named = (f) => {
   const row = results.find((r) => r.findings.includes(f)).row.name;
   return `${row} / ${f.unit}`;
@@ -903,19 +907,19 @@ lines.push(
 lines.push('');
 lines.push(
   `Generated ${new Date().toISOString().slice(0, 10)}. ${all.length} muscle sweeps, ` +
-    `${hard.length} hard failure(s), ${awaiting.length} sign change(s) awaiting the owner, ` +
+    `${hard.length} hard failure(s), ${accepted.length} sign change(s) accepted by the owner, ` +
     `${investigate.length} to investigate, ${recordedCount} recorded.`,
 );
-if (awaiting.length > 0) {
+if (accepted.length > 0) {
   lines.push('');
   lines.push(
-    'The sign changes awaiting the owner were found when their rows were first swept. Each is a ' +
-      'hard failure by muscle spec 13.2 and none is excused by a bound; they are listed in ' +
-      '`AWAITING_THE_OWNER` so the gate could go in for every other muscle in their rows, and a ' +
-      'sign change not on that list fails `--check`:',
+    'The sign changes accepted by the owner were found when their rows were first swept. Each is ' +
+      'a hard failure by muscle spec 13.2 and none is excused by a bound; on 2026-09-27 the owner ' +
+      'accepted them as recorded differences, each with the reason in its note, and they are ' +
+      'listed in `OWNER_ACCEPTED`. A sign change not on that list fails `--check`:',
   );
   lines.push('');
-  for (const f of awaiting) lines.push(`- ${named(f)}`);
+  for (const f of accepted) lines.push(`- ${named(f)}`);
 }
 lines.push('');
 lines.push(
@@ -995,11 +999,11 @@ if (check) {
   }
   console.error(
     `moment arms: ok. ${all.length} muscle sweeps over ${ROWS.length} coordinates, no sign ` +
-      `change but the ${awaiting.length} awaiting the owner, ${recordedCount} recorded ` +
+      `change but the ${accepted.length} the owner accepted, ${recordedCount} recorded ` +
       'difference(s), report current.',
   );
   // Said every time, so a pass never reads as though there were none.
-  for (const f of awaiting) console.error(`  awaiting the owner: ${named(f)}`);
+  for (const f of accepted) console.error(`  accepted by the owner: ${named(f)}`);
 } else if (reportIsCurrent(readReport(path), report)) {
   // Nothing but the date would change, and a date that moves on every run is churn in a commit.
   console.error(`${relative(ROOT, path)} is current: ${all.length} muscle sweeps.`);
@@ -1009,7 +1013,7 @@ if (check) {
     `wrote ${relative(ROOT, path)}: ${all.length} muscle sweeps, ${hard.length} hard failure(s), ` +
       `${investigate.length} to investigate.`,
   );
-  for (const f of [...hard, ...awaiting, ...investigate]) {
+  for (const f of [...hard, ...accepted, ...investigate]) {
     console.error(`  ${named(f)}: ${f.status}, ${f.note}`);
   }
 }

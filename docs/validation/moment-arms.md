@@ -5,9 +5,9 @@ with the change that moved it.
 
 7 coordinates swept, each against the vendored MyoSuite model at commit `eb327acbae` loaded into MuJoCo and measured the same way, in the pose each section names. Both sides are computed here: nothing is transcribed, and no value from the reference reaches the model (ADR-009). The shoulder is not swept until the glenohumeral coordinates are mapped, and the trunk's tendons not until the arm and torso chains are joined.
 
-Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 7 sign change(s) awaiting the owner, 0 to investigate, 48 recorded.
+Generated 2026-09-27. 71 muscle sweeps, 0 hard failure(s), 7 sign change(s) accepted by the owner, 0 to investigate, 48 recorded.
 
-The sign changes awaiting the owner were found when their rows were first swept. Each is a hard failure by muscle spec 13.2 and none is excused by a bound; they are listed in `AWAITING_THE_OWNER` so the gate could go in for every other muscle in their rows, and a sign change not on that list fails `--check`:
+The sign changes accepted by the owner were found when their rows were first swept. Each is a hard failure by muscle spec 13.2 and none is excused by a bound; on 2026-09-27 the owner accepted them as recorded differences, each with the reason in its note, and they are listed in `OWNER_ACCEPTED`. A sign change not on that list fails `--check`:
 
 - Wrist flexion / flexor_carpi_radialis_r
 - Wrist flexion / flexor_carpi_ulnaris_r
@@ -141,16 +141,16 @@ Swept from -40 to 40 degrees in 10-degree steps, elbow straight, forearm supinat
 
 | Muscle | Our peak | Reference peak | Mean | Worst | Status |
 |---|---|---|---|---|---|
-| flexor_carpi_radialis_r | 25.4 at 40° | 18.6 at 10° | 10.6 | 22.3 at -40° | sign change, awaiting the owner |
-| flexor_carpi_ulnaris_r | 10.9 at 40° | 20.2 at 30° | 14.5 | 17.8 at -40° | sign change, awaiting the owner |
-| extensor_carpi_radialis_longus_r | -5.7 at 40° | -12.3 at -20° | 7.5 | 11.5 at -40° | sign change, awaiting the owner |
+| flexor_carpi_radialis_r | 25.4 at 40° | 18.6 at 10° | 10.6 | 22.3 at -40° | sign change, accepted by the owner |
+| flexor_carpi_ulnaris_r | 10.9 at 40° | 20.2 at 30° | 14.5 | 17.8 at -40° | sign change, accepted by the owner |
+| extensor_carpi_radialis_longus_r | -5.7 at 40° | -12.3 at -20° | 7.5 | 11.5 at -40° | sign change, accepted by the owner |
 | extensor_carpi_radialis_brevis_r | -7.2 at 30° | -17.9 at -40° | 9.7 | 17.0 at -40° | recorded (OQ-015) |
 
 ### Notes
 
-- **flexor_carpi_radialis_r** — changes sign where the reference does not (muscle spec 13.2). A flexor in both from -20 degrees up, but ours turns extensor past about -25 (-7 mm at -40) where the reference’s keeps 15.
-- **flexor_carpi_ulnaris_r** — changes sign where the reference does not (muscle spec 13.2). As flexor carpi radialis: ours turns extensor past about -15 degrees (-5 mm at -40) where the reference’s keeps 13.
-- **extensor_carpi_radialis_longus_r** — changes sign where the reference does not (muscle spec 13.2). An extensor in both, but ours touches +0.3 mm at -40 degrees, so it changes sign by the letter of spec 13.2; under half the reference’s arm throughout.
+- **flexor_carpi_radialis_r** — changes sign where the reference does not (muscle spec 13.2). A flexor in both from -20 degrees up; ours turns extensor only in the last 15 degrees of extension (-7 mm at -40), where the reference’s keeps 15. Accepted by the owner, 2026-09-27: a difference of where the tendon crosses the axis at full extension.
+- **flexor_carpi_ulnaris_r** — changes sign where the reference does not (muscle spec 13.2). As flexor carpi radialis: ours turns extensor past about -17 degrees (-5 mm at -40) where the reference’s keeps 13. Accepted by the owner, 2026-09-27, with it.
+- **extensor_carpi_radialis_longus_r** — changes sign where the reference does not (muscle spec 13.2). An extensor in both; ours touches +0.3 mm at -40 degrees, a sign change by the letter of spec 13.2 only. Accepted by the owner, 2026-09-27.
 - **extensor_carpi_radialis_brevis_r** — An extensor in both, at under half the reference’s arm, and falling to 1 mm at full extension where the reference’s is largest (18 mm).
 
 ### Ours, millimetres
@@ -236,7 +236,7 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 | gluteus_maximus_inferior_r | -61.7 at 30° | -76.7 at 10° | 14.4 | 33.2 at -30° | recorded (OQ-015) |
 | gluteus_medius_anterior_r | 27.2 at 110° | -23.3 at -30° | 12.8 | 16.2 at 40° | recorded (OQ-015) |
 | gluteus_medius_middle_r | 28.1 at 110° | -23.1 at -10° | 21.5 | 28.6 at 70° | recorded (OQ-015) |
-| gluteus_medius_posterior_r | 21.8 at 120° | -23.7 at 20° | 17.6 | 26.0 at 80° | sign change, awaiting the owner |
+| gluteus_medius_posterior_r | 21.8 at 120° | -23.7 at 20° | 17.6 | 26.0 at 80° | sign change, accepted by the owner |
 | gluteus_minimus_anterior_r | 27.2 at 110° | 11.4 at 120° | 9.1 | 16.1 at 110° | recorded (OQ-015) |
 | gluteus_minimus_middle_r | 25.6 at 110° | -11.4 at -30° | 10.9 | 16.3 at 90° | recorded (OQ-015) |
 | gluteus_minimus_posterior_r | 21.1 at 110° | -12.4 at -20° | 15.5 | 19.9 at 70° | recorded (OQ-015) |
@@ -248,8 +248,8 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 | adductor_magnus_middle_r | -44.8 at 60° | -38.1 at 80° | 12.5 | 23.0 at 0° | recorded (OQ-015) |
 | adductor_magnus_distal_r | -63.3 at 40° | -51.0 at 60° | 15.8 | 30.8 at -20° | recorded (OQ-015) |
 | adductor_magnus_ischiocondylar_r | -63.4 at 40° | -61.1 at 50° | 7.2 | 14.8 at -30° | recorded (OQ-015) |
-| piriformis_r | -12.4 at -30° | -11.2 at 20° | 8.1 | 12.9 at 90° | sign change, awaiting the owner |
-| tensor_fasciae_latae_r | 98.2 at 120° | 97.1 at 120° | 2.4 | 7.7 at 10° | sign change, awaiting the owner |
+| piriformis_r | -12.4 at -30° | -11.2 at 20° | 8.1 | 12.9 at 90° | sign change, accepted by the owner |
+| tensor_fasciae_latae_r | 98.2 at 120° | 97.1 at 120° | 2.4 | 7.7 at 10° | sign change, accepted by the owner |
 | gracilis_r | 29.4 at -10° | -51.5 at 100° | 32.2 | 50.8 at 60° | recorded (OQ-015) |
 | sartorius_r | 98.9 at 70° | 71.4 at 70° | 18.5 | 28.2 at 80° | recorded (OQ-015) |
 | rectus_femoris_r | 49.6 at 60° | 51.1 at 50° | 2.5 | 5.5 at 10° | ok |
@@ -264,7 +264,7 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 - **gluteus_maximus_inferior_r** — An extensor in both, but ours is smaller throughout and falls to 3 mm at 30 degrees of extension where the reference’s is 37. First swept when its tendon joined LEG_TENDONS for the source-travel measurement, on its one carried point: the reference holds it on a pelvis point and a wrap as well, which the leg’s frames do not carry.
 - **gluteus_medius_anterior_r** — Turns from extensor to flexor in both, ours at about 5 degrees and the reference’s at about 55.
 - **gluteus_medius_middle_r** — Turns from extensor to flexor in both, ours at about 8 degrees and the reference’s at about 95.
-- **gluteus_medius_posterior_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 45 degrees; the reference’s stays an extensor to 120 (-0.3 mm there).
+- **gluteus_medius_posterior_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 45 degrees; the reference’s stays an extensor to 120 (-0.3 mm there), so it too is near its turn by then. Accepted by the owner, 2026-09-27: a difference of where, not of which side.
 - **gluteus_minimus_anterior_r** — Turns flexor in both, ours at about 5 degrees and the reference’s at about 25, and ours reaches more than twice the reference’s flexor arm.
 - **gluteus_minimus_middle_r** — Turns flexor in both, ours at about 5 degrees and the reference’s at about 50.
 - **gluteus_minimus_posterior_r** — Turns flexor in both, ours at about -15 degrees and the reference’s at about 80.
@@ -276,8 +276,8 @@ Swept from -30 to 120 degrees in 10-degree steps, knee straight, ankle neutral. 
 - **adductor_magnus_middle_r** — Flexor turning extensor in both, ours at about -20 degrees and the reference’s at about 5.
 - **adductor_magnus_distal_r** — An extensor throughout in ours; the reference’s is a flexor at full extension and turns at about -20 degrees, and ours is the larger extensor below 60.
 - **adductor_magnus_ischiocondylar_r** — An extensor in both, close from 30 degrees up; ours is up to 15 mm smaller toward full extension.
-- **piriformis_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 50 degrees, to +12 mm at 120; the reference’s stays an extensor and reaches zero only at 120.
-- **tensor_fasciae_latae_r** — changes sign where the reference does not (muscle spec 13.2). Within 5 mm of the reference everywhere, but ours is -4.3 mm at -30 degrees where the reference’s is +0.5, so it changes sign by the letter of spec 13.2.
+- **piriformis_r** — changes sign where the reference does not (muscle spec 13.2). Ours turns from extensor to flexor at about 50 degrees, to +12 mm at 120; the reference’s reaches zero only at 120. Accepted by the owner, 2026-09-27: piriformis really does change its action with hip flexion.
+- **tensor_fasciae_latae_r** — changes sign where the reference does not (muscle spec 13.2). Within 5 mm of the reference everywhere; ours is -4.3 mm at -30 degrees where the reference’s is +0.5. Accepted by the owner, 2026-09-27: about 4 mm either side of zero at the end of the range.
 - **gracilis_r** — Flexor turning extensor in both, but ours turns at about 78 degrees and the reference’s at about 15, so between the two ours is a flexor of up to 30 mm where the reference’s is an extensor of up to 50: the largest disagreement in the hip, recorded rather than failed only because both curves turn the same way.
 - **sartorius_r** — A flexor in both, with the same shape; ours is a third larger throughout, 99 mm against 71 at the peak.
 - **rectus_femoris_r** — within tolerance of the reference
@@ -344,7 +344,7 @@ Swept from 0 to 120 degrees in 10-degree steps, hip and ankle neutral. Ours: `kn
 | biceps_femoris_short_r | 49.2 at 100° | 48.7 at 70° | 17.0 | 49.7 at 120° | recorded (OQ-015) |
 | semitendinosus_r | 56.2 at 70° | 63.0 at 50° | 11.6 | 23.8 at 0° | recorded (OQ-015) |
 | semimembranosus_r | 42.2 at 90° | 54.2 at 50° | 21.2 | 38.7 at 0° | recorded (OQ-015) |
-| gastrocnemius_lateral_r | 32.3 at 100° | 26.4 at 40° | 17.9 | 40.1 at 120° | sign change, awaiting the owner |
+| gastrocnemius_lateral_r | 32.3 at 100° | 26.4 at 40° | 17.9 | 40.1 at 120° | sign change, accepted by the owner |
 | gastrocnemius_medial_r | 30.2 at 90° | 26.6 at 60° | 7.9 | 19.5 at 120° | recorded (OQ-015) |
 
 ### Notes
@@ -360,7 +360,7 @@ Swept from 0 to 120 degrees in 10-degree steps, hip and ankle neutral. Ours: `kn
 - **biceps_femoris_short_r** — A flexor throughout in ours; ours starts at 4 mm where the reference’s is 29, and at 120 degrees the reference’s crosses to -4 while ours holds 45.
 - **semitendinosus_r** — A flexor in both, half the reference’s at full extension (23 mm against 46) and larger past 90 degrees. The bound rose from 11.5 mm with the shank’s frame, as sartorius’s did.
 - **semimembranosus_r** — A flexor in both, but ours starts from 1.6 mm at full extension where the reference’s is 40.
-- **gastrocnemius_lateral_r** — pulls the other way from the reference (muscle spec 13.2). Ours is an extensor of 3 mm at full extension and a flexor from 10 degrees; the reference’s is a 26 mm flexor there and turns extensor past 110. The two cross zero in opposite directions.
+- **gastrocnemius_lateral_r** — pulls the other way from the reference (muscle spec 13.2). Ours is an extensor of 3 mm at full extension and a flexor from 10 degrees; the reference’s is a 26 mm flexor there and turns extensor past 110. Accepted by the owner, 2026-09-27, as a recorded difference.
 - **gastrocnemius_medial_r** — A flexor in both; ours grows with flexion to 30 mm where the reference’s falls from 27 to 7 at 120 degrees.
 
 ### Ours, millimetres
