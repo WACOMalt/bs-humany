@@ -391,6 +391,9 @@ pub struct GrabIntent {
     pub point: [f32; 3],
     /// Where the hand is now.
     pub target: [f32; 3],
+    /// Reserved: writers write 1, readers ignore it. The publisher's own `grabStrength` setting,
+    /// which the panel's slider sets, scales every grab; the slot keeps the field so the layout
+    /// does not change under either side.
     pub strength: f32,
     /// The hand's orientation now, xyzw, in the simulation's frame.
     pub rotation: [f32; 4],
@@ -949,7 +952,8 @@ pub struct ScenarioEntry {
     pub description: String,
 }
 
-/// What the publisher says about itself, four times a second, in `<pose path>-status.json`.
+/// What the publisher says about itself, ten times a second (every 100 ms), in
+/// `<pose path>-status.json`.
 ///
 /// The shape is `PanelStatus` in `packages/pose-bridge/src/panel.ts`, which every publisher is
 /// typed against. `fixtures/status.json` is a sample of it with every field filled, written by

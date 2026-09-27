@@ -1,24 +1,32 @@
-//! A native OpenXR viewer for the skeleton, and the first thing here that is not a web view.
+//! The studio's headset renderer: the body in the room, native, outside the web view.
 //!
-//! What this is for is deciding whether the native route is worth taking, before weeks are spent
-//! on it. The uncertain parts of that are not the drawing -- two hundred rigid meshes is nothing
-//! -- they are whether this machine's OpenXR runtime cooperates, whether the mesh pack loads
-//! cleanly outside JavaScript, and what frame budget there really is. So this answers those and
-//! stops.
+//! It draws the bones from the mesh pack, posed from the pose bridge; the muscles as tubes swept
+//! from the belly rings beside it, tinted by tension; and the connective tissue built from the
+//! bone poses. Two egui panels -- the properties panel and the transport strip -- drive the studio
+//! the way its own controls do, through the status the publisher writes and the commands this
+//! appends. The controllers grab bones through the grab channel back, press and carry the panels,
+//! and walk, turn and lift the viewer through the world. The desktop studio's **Connect VR
+//! viewer** launches it on the studio's own run; `view --follow` on a command line follows
+//! `pnpm publish:pose`, or any other publisher, instead.
 //!
 //!   bs-humany-xr-viewer check-pack [dir]   load the mesh pack, report what is in it. No XR.
 //!   bs-humany-xr-viewer probe              which runtime, which headset, which views. No session.
 //!   bs-humany-xr-viewer session [seconds]  begin a session and run the frame loop. No drawing.
-//!   bs-humany-xr-viewer view [seconds]     draw the skeleton, both eyes in one pass, until Ctrl-C.
-//!   bs-humany-xr-viewer view --follow      ...and pose it from a running `pnpm publish:pose`.
-//!   ...view --follow --pack DIR            ...with the mesh pack from DIR (or BS_HUMANY_PACK_DIR).
+//!   bs-humany-xr-viewer view [seconds]     draw the body, both eyes in one pass, until Ctrl-C.
+//!   ...view [seconds] --follow [path]      ...posed by a publisher at `path` (default
+//!                                          /dev/shm/bs-humany-pose), with its panels.
+//!   ...view [seconds] --pack dir           ...with the mesh pack from `dir`; beside --follow in
+//!                                          either order, which is how the studio launches it.
 //!
 //! With no `--pack` and no `BS_HUMANY_PACK_DIR`, the pack is `assets-anatomical/data` beside the
 //! binary if there is one there, and otherwise this checkout's. Anything on the command line that
 //! is not one of the above is refused with exit code 2, by name, before anything is opened.
 //!
-//! The first needs no hardware at all. The second needs a runtime but no headset. Only the third
-//! needs a headset, which is the order in which things stop being checkable from a terminal.
+//! The first needs no hardware at all. The second needs a runtime but no headset. The last two
+//! need a headset, which is the order in which things stop being checkable from a terminal.
+//!
+//! History: the crate began as a probe for deciding whether the native route is worth taking,
+//! and answered that it is (the measurements are in the README) before becoming the renderer.
 
 mod bridge;
 mod pack;

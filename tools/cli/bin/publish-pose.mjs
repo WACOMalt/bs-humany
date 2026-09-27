@@ -27,9 +27,9 @@
  * `<path>` is the pose ring; `<path>-muscles` the belly rings; `<path>-grab` what the hands are
  * holding, written by the renderer. Two more make the renderer's panel possible:
  *
- * - `<path>-status.json`, rewritten here four times a second by writing a temporary file and
- *   renaming it, so a reader never sees half of one: which scenario, how far along, how fast,
- *   paused or not, what is held, and which scenarios there are to choose from.
+ * - `<path>-status.json`, rewritten here ten times a second (every 100 ms) by writing a
+ *   temporary file and renaming it, so a reader never sees half of one: which scenario, how far
+ *   along, how fast, paused or not, what is held, and which scenarios there are to choose from.
  * - `<path>-commands.jsonl`, appended to by the renderer one JSON object a line, read from here
  *   from wherever the last read stopped: `pause`, `resume`, `reset`, `step` with `frames`,
  *   `scrub` with `seconds`, `drive` with a muscle `group` and a slider `value`, and `set` with a

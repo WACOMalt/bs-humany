@@ -1074,9 +1074,6 @@ impl Renderer {
         Ok(())
     }
 
-    /// Make room for the muscle tubes: `units` bellies of `rings` rings, `segments` round each.
-    /// The connectivity is fixed from these three numbers and built once here; the vertices come
-    /// every frame through `draw`.
     /// Make room for the tissue: `indices` is its fixed connectivity over `vertex_floats / 7`
     /// vertices, whose positions come every frame through `draw`.
     pub fn enable_tissue(&mut self, indices: &[u32], vertex_floats: usize) -> Result<()> {
@@ -1118,6 +1115,9 @@ impl Renderer {
         Ok(())
     }
 
+    /// Make room for the muscle tubes: `units` bellies of `rings` rings, `segments` round each.
+    /// The connectivity is fixed from these three numbers and built once here; the vertices come
+    /// every frame through `draw`.
     pub fn enable_muscles(&mut self, units: usize, rings: usize, segments: usize) -> Result<()> {
         if let Some(old) = self.muscles.take() {
             unsafe {
