@@ -9,3 +9,19 @@ docs
 *.log
 target
 **/target
+
+# Desktop build outputs (installers, the VR viewer sidecar, Tauri's schemas): the web build never reads them.
+dist-release
+apps/studio/src-tauri/binaries
+apps/studio/src-tauri/gen
+
+# Training logs, local scratch: in the context they would invalidate the install layer on every run.
+tools/train/runs
+
+# The Align tab's saved proposals, downloaded into the checkout root for somebody to review.
+bonePairing.json
+sourceCorrespondence.json
+pointOverrides.json
+
+# Stale local mesh copies: the vite refMeshes plugin ships the originals from tools/validate-external.
+apps/studio/public/refMeshes

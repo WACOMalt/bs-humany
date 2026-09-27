@@ -1,4 +1,5 @@
-# docker compose up -d --build   (or: podman compose up -d --build)
+# docker compose up -d --build   (or: podman compose up -d --build, which needs a compose
+# provider such as podman-compose or docker-compose installed)
 services:
   studio:
     build: .
@@ -7,3 +8,10 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    # The same check as the HEALTHCHECK at the end of the Dockerfile, repeated here because a
+    # compose provider that builds through podman builds in the OCI format, which drops the
+    # image's own check; declared on the service, it holds whichever format the image was built in.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s

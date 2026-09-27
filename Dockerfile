@@ -1,13 +1,19 @@
 # bs-humany studio, served as static files.
 #
 # Stage 1 builds the studio with the pinned pnpm; stage 2 is nginx with the two headers the
-# app needs (cross-origin isolation for SharedArrayBuffer, see apps/studio/vite.config.ts) and
-# long cache lifetimes for the hashed assets. The image has no server-side state.
+# app uses when available (cross-origin isolation for SharedArrayBuffer, see
+# apps/studio/vite.config.ts and docs/guides/deploy.md) and long cache lifetimes for the hashed
+# assets. The image has no server-side state and no training dashboard.
 #
 #   docker build -t bs-humany-studio .
 #   docker run -d --name bs-humany -p 8080:80 --restart unless-stopped bs-humany-studio
 #
-# `podman` accepts the same commands.
+# `podman` accepts the same run command, but builds with
+#
+#   podman build --format docker -t bs-humany-studio .
+#
+# because its default OCI image format has no field for a health check and silently drops the
+# HEALTHCHECK below; the docker format keeps it.
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /src
