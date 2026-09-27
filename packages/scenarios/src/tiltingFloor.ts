@@ -21,6 +21,7 @@
  * floor without the script keeping any state that could go stale.
  */
 
+import { seededUniform } from '@bs-humany/modules-nerves';
 import type { ScenarioApi } from './index.js';
 
 export interface TiltingFloorSettings {
@@ -51,17 +52,6 @@ export interface WorldTilt {
 const RAMP_UP = 0.1;
 const RAMP_DOWN = 0.15;
 
-function seeded(seed: number): () => number {
-  let s = Math.round(seed) >>> 0 || 1;
-  return () => {
-    s ^= s << 13;
-    s ^= s >>> 17;
-    s ^= s << 5;
-    s >>>= 0;
-    return (s + 0.5) / 4294967296;
-  };
-}
-
 interface Pulse {
   readonly at: number;
   readonly pitch: number;
@@ -71,7 +61,9 @@ interface Pulse {
 
 /** The pulses of the first `seconds` seconds, drawn from the seed. */
 export function tiltPulses(settings: TiltingFloorSettings, seconds: number): Pulse[] {
-  const random = seeded(settings.seed);
+  // The nerves' xorshift32 stream. A seed is a number a slider sets, so it is rounded first: a
+  // fractional seed names the same floor as the whole one nearest it, as it always has.
+  const random = seededUniform(Math.round(settings.seed));
   const pulses: Pulse[] = [];
   const max = (settings.tilt * Math.PI) / 180;
   let at = Math.max(0.2, settings.every * (0.7 + 0.6 * random()));

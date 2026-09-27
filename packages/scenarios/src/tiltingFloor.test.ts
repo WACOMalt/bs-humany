@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { groundRotation, tiltAt, tiltPulses, tiltingFloor } from './tiltingFloor.js';
 
+/** FNV-1a over the float64 bit patterns: equal only if every value is equal to the last bit. */
+function bitHash(values: readonly number[]): string {
+  const words = new Uint32Array(new Float64Array(values).buffer);
+  let h = 2166136261;
+  for (let i = 0; i < words.length; i++) {
+    h ^= words[i] as number;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 describe('the tilting floor', () => {
   const settings = { tilt: 5, every: 0.8, hold: 0.3, seed: 7 };
 
@@ -15,6 +26,26 @@ describe('the tilting floor', () => {
     expect(a.length).toBeLessThanOrEqual(10);
     for (let i = 1; i < a.length; i++) expect(a[i]!.at - a[i - 1]!.at).toBeGreaterThanOrEqual(0.2);
     expect(a[a.length - 1]!.at).toBeLessThan(6);
+  });
+
+  it('draws the pulses it drew before it shared the nerves stream', () => {
+    // Hashes of a minute of fifth-of-a-second pulses -- about 280 of them, over a thousand draws --
+    // taken from the private xorshift32 this scenario had before it drew from
+    // @bs-humany/modules-nerves. A fractional seed still rounds to the nearest whole one, and a
+    // zero seed is still the stream of seed 1.
+    const captured: Record<number, [number, string]> = {
+      0: [280, '2d9d99f8'],
+      1: [280, '2d9d99f8'],
+      7: [279, '9f2eda81'],
+      [0x9e3779b9]: [280, 'aa95bebd'],
+    };
+    for (const [key, [count, hash]] of Object.entries(captured)) {
+      for (const seed of [Number(key), Number(key) + 0.3]) {
+        const pulses = tiltPulses({ tilt: 5, every: 0.2, hold: 0.1, seed }, 60);
+        expect(pulses).toHaveLength(count);
+        expect(bitHash(pulses.flatMap((p) => [p.at, p.pitch, p.roll, p.hold]))).toBe(hash);
+      }
+    }
   });
 
   it('never tilts past the most asked for, and is level between pulses', () => {

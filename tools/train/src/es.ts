@@ -10,6 +10,8 @@
  * the steps. All of it seeded, so a run replays.
  */
 
+import { seededNormal } from '@bs-humany/modules-nerves';
+
 export interface EsOptions {
   readonly dimension: number;
   readonly population: number;
@@ -19,35 +21,23 @@ export interface EsOptions {
   readonly seed: number;
 }
 
-/** A seeded normal generator: xorshift32 and Box-Muller. */
+/**
+ * A seeded normal generator: the nerves' xorshift32 stream and its Box-Muller normals.
+ *
+ * This was a fourth copy of the same generator, drawing the same numbers, so it is now the one in
+ * `@bs-humany/modules-nerves` with the one difference this copy always had: a zero seed falls back
+ * to 0x9e3779b9 here, where the nerves fall back to 1. Keeping that fallback keeps every draw, and
+ * so every recorded run's perturbations, exactly what they were.
+ */
 export class Gaussian {
-  private state: number;
-  private spare: number | null = null;
+  private readonly draw: () => number;
 
   constructor(seed: number) {
-    this.state = seed >>> 0 || 0x9e3779b9;
-  }
-
-  uniform(): number {
-    let x = this.state;
-    x ^= x << 13;
-    x ^= x >>> 17;
-    x ^= x << 5;
-    this.state = x >>> 0;
-    return (this.state + 0.5) / 4294967296;
+    this.draw = seededNormal(seed >>> 0 || 0x9e3779b9);
   }
 
   normal(): number {
-    if (this.spare !== null) {
-      const s = this.spare;
-      this.spare = null;
-      return s;
-    }
-    const u = this.uniform();
-    const v = this.uniform();
-    const r = Math.sqrt(-2 * Math.log(u));
-    this.spare = r * Math.sin(2 * Math.PI * v);
-    return r * Math.cos(2 * Math.PI * v);
+    return this.draw();
   }
 }
 

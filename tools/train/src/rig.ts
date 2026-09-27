@@ -68,6 +68,7 @@ import {
   NervesModule,
   SpinalModule,
   feetOf,
+  seededUniform,
 } from '@bs-humany/modules-nerves';
 import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
@@ -133,7 +134,7 @@ export function twitchSchedule(
   outputs: number,
   seconds: number,
 ): { output: number; at: number } {
-  const random = seeded(seed);
+  const random = seededUniform(seed);
   const output = Math.floor(random() * outputs);
   const at = 0.5 + random() * Math.max(0.1, seconds - 1.5);
   return { output, at };
@@ -894,15 +895,4 @@ export class StandRig {
   dispose(): void {
     this.kernel.dispose();
   }
-}
-
-function seeded(seed: number): () => number {
-  let s = seed >>> 0 || 1;
-  return () => {
-    s ^= s << 13;
-    s ^= s >>> 17;
-    s ^= s << 5;
-    s >>>= 0;
-    return (s + 0.5) / 4294967296;
-  };
 }
