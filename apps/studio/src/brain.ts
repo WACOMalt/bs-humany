@@ -90,7 +90,7 @@ export interface CheckpointRow {
    * trained itself. A server's rows say neither, except a shipped file the server was seeded with,
    * which is marked as shipped so the list says what it is either way.
    */
-  readonly source?: 'shipped' | 'local';
+  readonly origin?: 'shipped' | 'local';
   /**
    * For a shipped checkpoint, what it was trained before -- `the current cord and the hand
    * muscles` -- when the body has changed under it since; its fitness was scored in that body.
@@ -527,7 +527,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     // fitness was scored in that body, and a list that showed it beside a checkpoint trained
     // yesterday read as if the two numbers meant the same thing.
     const shipped =
-      row.source !== 'shipped'
+      row.origin !== 'shipped'
         ? ''
         : row.trainedBefore
           ? ` (shipped; trained before ${row.trainedBefore})`
@@ -765,7 +765,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     // fits, and says so: the senses and drives it has no weights for are the ones the body
     // gained since, and the fitness in the list was scored without them.
     const shipped =
-      handedRow?.source === 'shipped' && handedRow.trainedBefore
+      handedRow?.origin === 'shipped' && handedRow.trainedBefore
         ? ` It shipped with the studio, trained before ${handedRow.trainedBefore}; its fitness was scored in that body.`
         : '';
     ui.fitNote.textContent =
@@ -1215,9 +1215,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     const held = await listLocalCheckpoints();
     const mine = new Set(held.map((row) => row.name));
     const shipped = (await shippedCheckpoints()).filter((row) => !mine.has(row.name));
-    const row = (name: string, file: unknown, source: 'shipped' | 'local'): CheckpointRow => {
+    const row = (name: string, file: unknown, origin: 'shipped' | 'local'): CheckpointRow => {
       const policy = file as PolicyFile;
-      const before = source === 'shipped' ? trainedBefore(policy) : undefined;
+      const before = origin === 'shipped' ? trainedBefore(policy) : undefined;
       return {
         id: name,
         name,
@@ -1226,7 +1226,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         sizes: policy.sizes ?? [],
         trained: policy.trained ?? null,
         recipe: (policy.recipe as TrainingRecipe | undefined) ?? null,
-        source,
+        origin,
         ...(before ? { trainedBefore: before } : {}),
       };
     };
@@ -1254,7 +1254,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       );
       if (!twin) return row;
       const before = trainedBefore(twin.file);
-      return { ...row, source: 'shipped', ...(before ? { trainedBefore: before } : {}) };
+      return { ...row, origin: 'shipped', ...(before ? { trainedBefore: before } : {}) };
     });
   }
 

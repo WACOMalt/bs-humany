@@ -166,7 +166,7 @@ describe('the verdict on a name', () => {
   });
 
   it('refuses a shipped name with no server, whatever Resume says', () => {
-    const rows = [policyRow('stand', { source: 'shipped' })];
+    const rows = [policyRow('stand', { origin: 'shipped' })];
     for (const resume of [false, true]) {
       const v = verdict('stand', rows, { resume, serverUp: false });
       expect(v.verdict).toBe('refused-shipped');
@@ -175,7 +175,7 @@ describe('the verdict on a name', () => {
       );
     }
     // Retrained here, the name is this studio's own and the ordinary rules apply.
-    const mine = [policyRow('stand', { source: 'local' })];
+    const mine = [policyRow('stand', { origin: 'local' })];
     expect(verdict('stand', mine, { resume: true, serverUp: false }).verdict).toBe('continues');
     // A server holds its copy as a file like any other, which it can continue.
     expect(verdict('stand', rows, { resume: true, serverUp: true }).verdict).toBe('continues');

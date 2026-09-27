@@ -198,7 +198,7 @@ export function nameVerdict(s: {
 
   const saved = s.rows.filter((row) => checkpointNameOf(row) === name);
   const centres = s.rows.filter((row) => centreNameOf(row) === name);
-  if (!s.serverUp && saved.length > 0 && saved.every((row) => row.source === 'shipped')) {
+  if (!s.serverUp && saved.length > 0 && saved.every((row) => row.origin === 'shipped')) {
     return refused(
       'refused-shipped',
       `${name} ships with the studio and cannot be continued in this window; choose another name`,
