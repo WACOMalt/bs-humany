@@ -237,7 +237,9 @@
                 <dt>Contacts</dt><dd id="diag-contacts">—</dd>
                 <dt>Tick rate</dt><dd id="diag-rate">—</dd>
                 <dt>Cost / tick</dt><dd id="diag-cost">—</dd>
+                <dt title="Times the solver put the body back at its reference pose after a bad acceleration; the run pauses at the first">Solver resets</dt><dd id="diag-resets">—</dd>
               </dl>
+              <p class="note live" id="readout-note" hidden></p>
             </details>
           </section>
 
@@ -273,13 +275,14 @@
               </details>
               <details class="panel" open>
                 <summary>Readout</summary>
+                <!-- A row a body section, summed over every drive group in it, is put here from the
+                     same table the sliders are made from; each slider shows its own group's pull. -->
                 <dl class="readout" id="muscle-readout">
-                  <dt title="Summed over the elbow flexors and extensors, which is what the two elbow sliders drive">Elbow, flex / ext</dt><dd id="muscle-flexion">&mdash;</dd>
-                  <dt title="Summed over the knee flexors and extensors, which is what the two knee sliders drive">Knee, flex / ext</dt><dd id="muscle-extension">&mdash;</dd>
                   <dt>Loaded</dt><dd id="muscle-loaded">&mdash;</dd>
                   <dt>Wrapping</dt><dd id="muscle-wrapping">&mdash;</dd>
                   <dt title="Units whose equilibrium did not solve cleanly this tick: their path is longer or shorter than their parameters expect, and the force shown for them is the model's fallback">Out of range</dt><dd id="muscle-strained">&mdash;</dd>
                 </dl>
+                <p class="note live" id="muscle-readout-note" hidden></p>
               </details>
             </div>
           </section>
@@ -638,12 +641,15 @@
           <output id="timeline-value">&mdash;</output>
           <span class="note live" id="playback-note"></span>
         </div>
-        <p class="note timeline-note">Everything the run has computed is here to be scrubbed, at the output
-        frame rate: Play runs it back at that rate in real time. Scrubbing pauses the simulation, because
-        the playhead is somewhere it has already been; Live jumps back to the newest frame, and so does
-        Start sim. At the end of the recording, &#9654; computes one more rather than stopping. Bones and
-        muscle bellies replay exactly; the paths, the tension colour, the contacts and the centre of mass
-        are live readings a tick wide, so those overlays hide while the playhead is off the newest frame.</p>
+        <p class="note timeline-note">The timeline holds what the capture holds, at the output frame rate:
+        Play runs it back at that rate in real time. It starts again when the body is rebuilt or a session
+        is loaded, and it stops at the capture budget, after which the run can go on but is no longer
+        recorded. Scrubbing pauses the simulation, because the playhead is somewhere it has already been;
+        Live jumps back to the newest frame, and so does Start sim. At the end of a recording that is still
+        being taken, &#9654; computes one more frame; once the capture has stopped it only goes back to live.
+        Bones and muscle bellies replay exactly; the paths, the tension colour, the contacts and the centre
+        of mass are live readings a tick wide, so those overlays hide while the playhead is off the newest
+        frame, and the readouts dim and say they are the newest frame's.</p>
       </div>
 
       <!-- The status bar. ------------------------------------------------------------------------- -->

@@ -150,4 +150,40 @@ describe('SpinalModule', () => {
     tight.kernel.run(60);
     expect(tight.spine.lastDrive[0] as number).toBeLessThan(loose.spine.lastDrive[0] as number);
   });
+
+  describe('counts what it is doing, for the Spine panel', () => {
+    it('counts nothing with the cord off', async () => {
+      const { kernel, spine } = rig({ stretch: 0, velocity: 0, setPoint: -0.5 });
+      await kernel.init();
+      kernel.run(60);
+      // A set point every unit is past, and still nothing: an off cord answers nothing.
+      expect(spine.lastPastSetPoint).toBe(0);
+      expect(spine.lastAtCeiling).toBe(0);
+      kernel.dispose();
+    });
+
+    it('counts the units past the set point while the body falls', async () => {
+      // The measured gain and a set point a little under optimal, on a body with nothing else
+      // holding it up: some muscles are stretched past it, and never more than there are.
+      const { kernel, spine } = rig({ stretch: 3.5, velocity: 0, setPoint: -0.2 });
+      await kernel.init();
+      kernel.run(150);
+      expect(spine.lastPastSetPoint).toBeGreaterThan(0);
+      expect(spine.lastPastSetPoint).toBeLessThanOrEqual(muscles.units.length);
+      kernel.dispose();
+    });
+
+    it('counts the units the cord has put at the ceiling, and changes no excitation', async () => {
+      const gains = { stretch: 8, velocity: 0, setPoint: -0.5, inhibition: 0 };
+      const { kernel, spine } = rig(gains);
+      await kernel.init();
+      kernel.run(60);
+      const excitation = kernel.channels.storage(EFFERENT_ALPHA_MOTOR).fields
+        .excitation as Float64Array;
+      expect(spine.lastAtCeiling).toBeGreaterThan(0);
+      // The count is of what is on the efferent, exactly: an observation, not a second opinion.
+      expect(spine.lastAtCeiling).toBe(Array.from(excitation).filter((e) => e >= 1).length);
+      kernel.dispose();
+    });
+  });
 });

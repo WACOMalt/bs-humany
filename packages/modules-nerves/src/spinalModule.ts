@@ -168,6 +168,14 @@ export class SpinalModule implements SimModule, Stateful {
   private line: DelayLine | undefined;
   private readonly snapshot: Float64Array;
   private readonly delayed: Float64Array;
+  /**
+   * How many units the cord saw past the set point last tick, and how many it left at full
+   * excitation. For display only -- the Spine panel's note -- and so neither is a channel, nothing
+   * downstream reads either, and counting them changes no excitation and no trajectory. Plain
+   * integers counted in place, so the step still allocates nothing.
+   */
+  private pastSetPoint = 0;
+  private atCeiling = 0;
 
   constructor(muscles: CompiledMuscleSet, options: SpinalOptions) {
     this.gainsInUse = { ...DEFAULT_SPINAL_GAINS, ...options.gains };
@@ -205,6 +213,8 @@ export class SpinalModule implements SimModule, Stateful {
   reset(ctx: ModuleInitContext): void {
     this.bind(ctx);
     this.line?.reset();
+    this.pastSetPoint = 0;
+    this.atCeiling = 0;
   }
 
   /**
@@ -291,6 +301,24 @@ export class SpinalModule implements SimModule, Stateful {
     return this.groupIds;
   }
 
+  /**
+   * Units whose delayed fibre length was past the set point on the last tick: the ones the
+   * stretch reflex was answering. Over every unit the cord reads, not per group, so a unit in no
+   * group still counts -- it is stretched whether or not anything drives it. Display only.
+   */
+  get lastPastSetPoint(): number {
+    return this.pastSetPoint;
+  }
+
+  /**
+   * Units at full excitation after the cord added its drive on the last tick. Past this the
+   * brain's correction is clamped away (see `SpinalGains.stretch`), which is why a panel shows
+   * it. The count is of the total on the efferent, whoever put it there. Display only.
+   */
+  get lastAtCeiling(): number {
+    return this.atCeiling;
+  }
+
   step(_ctx: ModuleStepContext): void {
     const excitation = this.excitation;
     const fibre = this.fibre;
@@ -299,6 +327,10 @@ export class SpinalModule implements SimModule, Stateful {
     const g = this.gainsInUse;
     if (g.stretch === 0 && g.velocity === 0) {
       this.groupDrive.fill(0);
+      // A cord that is off answers nothing, so it has nothing past its set point and has put
+      // nothing at the ceiling, whatever the brain above it is doing.
+      this.pastSetPoint = 0;
+      this.atCeiling = 0;
       return;
     }
 
@@ -328,6 +360,13 @@ export class SpinalModule implements SimModule, Stateful {
     }
     line.push(this.snapshot);
     line.read(line.maxDelayTicks, this.delayed);
+    // Counted off the delayed afferent, which is the one the reflex below answers, rather than
+    // this tick's: the panel says what the cord is doing, and the cord is always a delay behind.
+    let past = 0;
+    for (let u = 0; u < n; u++) {
+      if ((this.delayed[u] as number) - g.setPoint > 0) past += 1;
+    }
+    this.pastSetPoint = past;
 
     // Each group's drive: the mean over its units of the stretch reflex, less what the Golgi
     // organ takes back. Worked per group because that is the dimension the antagonist table is
@@ -365,5 +404,10 @@ export class SpinalModule implements SimModule, Stateful {
         excitation[u] = value < 0 ? 0 : value > 1 ? 1 : value;
       }
     }
+    let ceiling = 0;
+    for (let u = 0; u < n; u++) {
+      if ((excitation[u] as number) >= 1) ceiling += 1;
+    }
+    this.atCeiling = ceiling;
   }
 }

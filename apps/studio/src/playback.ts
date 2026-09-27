@@ -105,6 +105,37 @@ export class Playback {
   }
 
   /**
+   * The run's tick an output frame of a capture shows, for a capture whose first frame is
+   * `firstTick`. The timeline reads its time from this rather than from the frame alone, because
+   * a capture does not always begin at the run's tick 0 -- a carry or a session load starts it
+   * where the body arrived -- and a clock counted from the capture's start then disagreed with
+   * the status line's, which counts the run's own ticks.
+   */
+  static runTickOf(frame: number, firstTick: number, ticksPerOutputFrame: number): number {
+    return firstTick + Playback.tickOf(frame, ticksPerOutputFrame);
+  }
+
+  /**
+   * Whether the capture's newest frame is the run's newest tick, so that a frame computed now is
+   * recorded onto the end of it and the playhead can show it.
+   *
+   * An empty capture is at the live edge unless it has been stopped: a carry, a session load and
+   * a restore all clear the capture and leave the run where it was, and the next tick is the
+   * capture's first. It used to count as a stopped recording, for no better reason than that it
+   * had no newest frame to compare, and ▶ on a run paused after moving Stature then went "back to
+   * live" without computing anything -- frame-by-frame stepping was dead until Space. `stopped`
+   * is whatever says the capture will take no more: a budget that ran out, or a capture full.
+   */
+  static atLiveEdge(
+    capture: { readonly frameCount: number; readonly firstTick: number },
+    stopped: boolean,
+    runTick: number,
+  ): boolean {
+    if (capture.frameCount === 0) return !stopped;
+    return capture.firstTick + capture.frameCount - 1 === runTick;
+  }
+
+  /**
    * The output frame nearest a run's tick, for a capture whose first frame is `firstTick`: the
    * way back from a time somebody asked for -- the headset's timeline says seconds of the run --
    * to the playhead. The caller clamps it into the capture.
@@ -130,6 +161,19 @@ export class Playback {
       this.frame = frameCount - 1;
       this.playing = false;
     }
+  }
+
+  /**
+   * The frame on screen: the newest one while following the live edge, the playhead otherwise.
+   *
+   * While live, `frame` is wherever the playhead was last put -- by the last scrub, or by the
+   * last time live was gone back to -- and the run has moved on since, so it is not the frame on
+   * screen. Every control that acts relative to the frame on screen asks this instead: a frame
+   * back from live used to step back from that stale frame, which after a few seconds of running
+   * was the start of the capture.
+   */
+  at(frameCount: number, live: boolean): number {
+    return live ? Math.max(0, frameCount - 1) : this.clampedFrame(frameCount);
   }
 
   /** Clamp the playhead into a capture of this many frames, and return it as a whole frame. */

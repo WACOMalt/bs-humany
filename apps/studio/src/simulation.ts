@@ -610,6 +610,20 @@ export class Simulation {
     this.rateWindowTicks = 0;
   }
 
+  /**
+   * Start the rate reading afresh, for a run carrying on after a pause.
+   *
+   * A pause stops `advance` from measuring, so the half-second window it was part-way through
+   * would otherwise be finished by the first frames after the pause, and the first reading would
+   * be half of one stretch of running and half of another. The last reading goes too: it was of
+   * the run before the pause, and the status line would read it as the speed of this one.
+   */
+  resetRateWindow(): void {
+    this.rateWindowSeconds = 0;
+    this.rateWindowTicks = 0;
+    this.achievedRateHz = 0;
+  }
+
   /** The rate the fidelity profile asks the solver to step at. */
   get declaredRateHz(): number {
     return 1 / this.dt;
