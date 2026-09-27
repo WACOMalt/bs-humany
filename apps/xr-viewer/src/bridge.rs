@@ -492,7 +492,10 @@ mod tests {
             "boneB":"rib_2_r","localB":[-0.01,-0.05,-0.07]}]},
             "brain":{"serverUp":true,"active":false,"authority":0.3,"selected":"stand-7",
             "checkpoints":[{"id":"stand-7","name":"stand, generation 7"}],"fit":"","training":"",
-            "trainingRunning":true,"trainingStoppable":true,"following":false},
+            "trainingRunning":true,"trainingStoppable":true,"following":false,
+            "canStart":false,"canStop":true,"canHandOver":true,"canRelease":false,
+            "policyNote":"No dashboard server: checkpoints trained here are kept in this browser.",
+            "spineNote":"Stretch and Damping at zero is a body with no reflexes at all."},
             "training":{"task":"stand","episode":4,"generation":7,"fitness":0.812}}"#;
         let status: Status = serde_json::from_str(now).expect("parses");
         assert_eq!(status.mode, "running");
@@ -502,7 +505,10 @@ mod tests {
         assert_eq!(status.tissue.discs[0].bone, "sacrum");
         assert_eq!(status.tissue.bars[0].bone_b, "rib_2_r");
         assert_eq!(status.brain.checkpoints[0].name, "stand, generation 7");
-        assert!(status.brain.training_running && status.brain.training_stoppable);
+        assert!(!status.brain.can_start && status.brain.can_stop);
+        assert!(status.brain.can_hand_over && !status.brain.can_release);
+        assert!(status.brain.policy_note.starts_with("No dashboard server"));
+        assert!(status.brain.spine_note.contains("no reflexes"));
         assert_eq!(status.training.as_ref().map(|t| t.generation), Some(7));
         // An older publisher that says none of that is still a status: every new key defaults.
         let before = r#"{"generation":1,"scenario":{"id":"a","title":"A"},"scenarios":[],
@@ -510,7 +516,24 @@ mod tests {
             "holding":[],"grabStrength":1}"#;
         let status: Status = serde_json::from_str(before).expect("parses");
         assert!(status.overlays.is_empty() && status.tissue.discs.is_empty());
-        assert!(status.training.is_none() && !status.brain.server_up);
+        assert!(status.training.is_none() && !status.brain.active);
+        let b = &status.brain;
+        assert!(!b.can_start && !b.can_stop && !b.can_hand_over && !b.can_release);
+        assert!(b.policy_note.is_empty() && b.spine_note.is_empty());
+    }
+
+    #[test]
+    fn a_brain_from_before_the_button_flags_leaves_every_button_off() {
+        // A desktop from before the flags sends its brain without them. The rest still reads, and
+        // the headset offers no button it cannot stand behind rather than guessing at rules it no
+        // longer keeps.
+        let before = r#"{"serverUp":false,"active":true,"authority":0.3,"selected":"stand",
+            "checkpoints":[{"id":"stand","name":"stand"}],"fit":"In the loop","training":"",
+            "trainingRunning":false,"trainingStoppable":false,"following":false}"#;
+        let brain: Brain = serde_json::from_str(before).expect("parses");
+        assert!(brain.active && brain.selected == "stand");
+        assert!(!brain.can_start && !brain.can_stop && !brain.can_hand_over && !brain.can_release);
+        assert!(brain.policy_note.is_empty() && brain.spine_note.is_empty());
     }
 
 }
@@ -621,8 +644,9 @@ pub struct TissueBar {
 #[derive(serde::Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Brain {
-    #[serde(default)]
-    pub server_up: bool,
+    // The desktop also sends serverUp, trainingRunning and trainingStoppable. They are not read
+    // here: they were the inputs to a copy of the desktop's button rules that this panel used to
+    // keep, and the flags below are the desktop's own answer to the same question.
     #[serde(default)]
     pub active: bool,
     #[serde(default)]
@@ -636,11 +660,6 @@ pub struct Brain {
     #[serde(default)]
     pub training: String,
     #[serde(default)]
-    pub training_running: bool,
-    /// Whether there is anything to stop: the trainer, or the showcase that outlives it.
-    #[serde(default)]
-    pub training_stoppable: bool,
-    #[serde(default)]
     pub following: bool,
     /// The cord's gains, as the desktop's Spine panel has them.
     #[serde(default)]
@@ -648,6 +667,26 @@ pub struct Brain {
     /// Context units the policy carries between control steps; 0 is a memoryless policy.
     #[serde(default)]
     pub memory: u32,
+    /// What the desktop's own Brain tab buttons would do if pressed now. The headset draws these
+    /// rather than working them out again: the copy of the rules it used to keep here drifted
+    /// from the desktop's, and refused Hand over whenever no dashboard was running although the
+    /// desktop had long since stopped needing one. A publisher that does not send them parses to
+    /// every button disabled, which is the safe way to be wrong.
+    #[serde(default)]
+    pub can_start: bool,
+    #[serde(default)]
+    pub can_stop: bool,
+    #[serde(default)]
+    pub can_hand_over: bool,
+    #[serde(default)]
+    pub can_release: bool,
+    /// The line under the desktop's checkpoint list, said the same way here.
+    #[serde(default)]
+    pub policy_note: String,
+    /// What the desktop's Spine panel says of the cord as it is set, so a change to the cord's
+    /// defaults, or to what has been measured of it, is made in one place.
+    #[serde(default)]
+    pub spine_note: String,
 }
 
 /// The spinal reflex gains: what the cord does under the brain.

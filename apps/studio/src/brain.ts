@@ -7,15 +7,21 @@
  * saved checkpoints, serves any one of them, and starts and stops a training run the way a
  * terminal would. A checkpoint is fitted to whatever body is running by the names of its senses
  * and drives, so a policy trained on one profile drives another, and the panel says how much of
- * it carried. Handing over is a restart of the run with its state carried, the same path a
- * morphology change takes, because the nerves are a module registered at construction.
+ * it carried. Handing over is live: the nerves are in every muscle run, so the policy is swapped
+ * in between one control step and the next and nothing restarts. A run that is not going takes
+ * the policy when it starts.
+ *
+ * Handing over needs no server. The studio holds what it trained itself and ships others, and a
+ * checkpoint the server listed is found again under its bare name when the server goes away.
  */
 
-import type { PolicyFile } from '@bs-humany/modules-nerves';
+import { DEFAULT_SPINAL_GAINS, type PolicyFile } from '@bs-humany/modules-nerves';
 import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
+import { brainButtons, policyNote, spineNote, stretchLabel } from './training/buttons.js';
+import { checkpointKey, checkpointStem, reselect } from './training/checkpointKey.js';
 import { type LocalRun, startLocalTraining, suggestedWorkers } from './training/localTraining.js';
 import { shippedCheckpoint, shippedCheckpoints } from './training/shipped.js';
-import { listLocalCheckpoints, readLocalCheckpoint } from './training/store.js';
+import { holdsFilesOnDisk, listLocalCheckpoints, readLocalCheckpoint } from './training/store.js';
 
 export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
 
@@ -80,9 +86,27 @@ export interface TrainingStatus {
   } | null;
 }
 
+/**
+ * What became of a handover: in the running body now, waiting for the next run because none is
+ * going or the one going has no muscles, or refused, with the reason.
+ */
+export type HandOverResult = 'live' | 'deferred' | { readonly error: string };
+
 export interface BrainHost {
-  /** Restart the run with this policy in the loop, state carried; undefined takes it out. */
-  handOver(setup: NervesSetup | undefined): void;
+  /**
+   * Put this policy in the running body's loop, live, between one control step and the next; or
+   * take it out, with undefined. Says what became of it: `'live'` when the running body took it,
+   * `'deferred'` when there is no run for it to go into yet (it goes in with the next), and the
+   * error when the run refused it. A host that returns nothing is taken to have done it, and the
+   * panel reads what it can from `fit` instead.
+   */
+  // biome-ignore lint/suspicious/noConfusingVoidType: a host that predates the result returns nothing.
+  handOver(setup: NervesSetup | undefined): HandOverResult | void;
+  /**
+   * Whether the next run will have muscles for a policy to drive. Optional, and when a host does
+   * not say, the panel does not guess: it says the policy goes in with the next run.
+   */
+  musclesNextRun?(): boolean;
   /** Start following the bridge, where the training's showcase publishes. */
   startFollowing(): void;
   /** Follow the bridge, or stop: the headset's one button, and the desktop's. */
@@ -95,8 +119,14 @@ export interface BrainHost {
    * server did not start it.
    */
   publishedTrainingName(): string | undefined;
-  /** Set the tabs up from a checkpoint's recipe, so the body handed over is the one it knows. */
-  applyRecipe(recipe: TrainingRecipe): void;
+  /**
+   * Set the tabs up from a checkpoint's recipe, so the body handed over is the one it knows. Says
+   * what that did to the run: `'restarted'` when one was going and was restarted in the new scene
+   * and body, `'nextRun'` when there was none and the settings wait for the next. A host that
+   * returns nothing leaves the panel saying only what was set.
+   */
+  // biome-ignore lint/suspicious/noConfusingVoidType: a host that predates the result returns nothing.
+  applyRecipe(recipe: TrainingRecipe): 'restarted' | 'nextRun' | void;
   /** What the running body could use of the policy, once it is in. */
   fit():
     | { carried: { inputs: number; outputs: number }; inputs: number; outputs: number }
@@ -142,7 +172,63 @@ export interface BrainState {
   };
   /** Context units the next run will train with. */
   readonly memory: number;
+  /**
+   * What the Brain tab's buttons would do if pressed now, from the same rules the desktop's own
+   * buttons are set from, so the headset draws them rather than guessing them again in Rust.
+   */
+  readonly canStart: boolean;
+  readonly canStop: boolean;
+  readonly canHandOver: boolean;
+  readonly canRelease: boolean;
+  /** The line under the checkpoint list, as the desktop has it. */
+  readonly policyNote: string;
+  /** What the Spine panel says of the cord as it is set, for the headset to show as it is. */
+  readonly spineNote: string;
 }
+
+/** What the headset is sent when there is no panel to ask: nothing chosen, nothing offered. */
+export const IDLE_BRAIN_STATE: BrainState = {
+  serverUp: false,
+  active: false,
+  authority: 0,
+  selected: '',
+  checkpoints: [],
+  fit: '',
+  training: '',
+  trainingRunning: false,
+  trainingStoppable: false,
+  following: false,
+  reflex: {
+    stretch: DEFAULT_SPINAL_GAINS.stretch,
+    velocity: DEFAULT_SPINAL_GAINS.velocity,
+    setPoint: DEFAULT_SPINAL_GAINS.setPoint,
+    inhibition: DEFAULT_SPINAL_GAINS.inhibition,
+    delaySeconds: DEFAULT_SPINAL_GAINS.delaySeconds,
+  },
+  memory: 0,
+  canStart: false,
+  canStop: false,
+  canHandOver: false,
+  canRelease: false,
+  policyNote: '',
+  spineNote: '',
+};
+
+/** The headset's hands on the panel: every button and slider it can press or move. */
+export type BrainAction =
+  | 'select'
+  | 'handover'
+  | 'release'
+  | 'authority'
+  | 'trainStart'
+  | 'trainStop'
+  | 'follow'
+  | 'reflexStretch'
+  | 'reflexVelocity'
+  | 'reflexSetPoint'
+  | 'reflexInhibition'
+  | 'reflexDelay'
+  | 'memory';
 
 export interface BrainPanel {
   /** Refresh the checkpoint list and the training status; cheap, safe to call often. */
@@ -158,25 +244,18 @@ export interface BrainPanel {
   chosenRecipe(): TrainingRecipe | undefined;
   /** The panel as the headset sees it. */
   state(): BrainState;
-  /** The headset's hands on the panel: the same buttons the mouse presses. */
-  act(
-    action:
-      | 'select'
-      | 'handover'
-      | 'release'
-      | 'authority'
-      | 'trainStart'
-      | 'trainStop'
-      | 'follow'
-      | 'reflexStretch'
-      | 'reflexVelocity'
-      | 'reflexSetPoint'
-      | 'reflexInhibition'
-      | 'reflexDelay'
-      | 'memory',
-    id?: string,
-    value?: number,
-  ): void;
+  /** The headset's hands on the panel: what the mouse would do, without going through a click. */
+  act(action: BrainAction, id?: string, value?: number): void;
+  /** What the cord's sliders say, for the run about to start: the panel's cord is the body's. */
+  reflex(): {
+    stretch: number;
+    velocity: number;
+    setPoint: number;
+    inhibition: number;
+    forceCeiling: number;
+    forceInhibition: number;
+    delaySeconds: number;
+  };
 }
 
 const must = <T extends Element>(selector: string): T => {
@@ -222,6 +301,29 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   let serverUp = false;
   let trainingRunning = false;
   let trainingStoppable = false;
+  /** A trainer started from a terminal is up, which the server can see and cannot stop. */
+  let elsewhere = false;
+  /** A handover is loading its checkpoint: one at a time, so two presses load it once. */
+  let handingOver = false;
+  /**
+   * The chosen checkpoint by what it is rather than by what the list calls it, so the choice
+   * survives the list being replaced by the other one when a server starts or stops.
+   * @see checkpointKey
+   */
+  let chosenKey = '';
+  /** The list as last drawn: a poll that finds the same list redraws nothing. */
+  let rowsSignature: string | undefined;
+  /** Whether the chosen checkpoint went missing from the list at the last change of it. */
+  let chosenLost = false;
+  /**
+   * Asking a server that is not there, less and less often. Every poll used to try the dashboard
+   * twice and fail, every three seconds, for as long as the Brain tab was open or the bridge was
+   * followed -- two refused connections in the console each time, for a server most people never
+   * start. After a failure the next try waits three seconds, then six, doubling to a minute; an
+   * answer, or opening the Brain tab, starts the count again.
+   */
+  let probeDelayMs = 0;
+  let nextProbeAt = 0;
   /** The checkpoint the server is training, for the run files' names. */
   let trainingName: string | undefined;
   /** The checkpoint whoever is on the bridge is playing, when it is not this server's run. */
@@ -290,21 +392,34 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   ui.memory.addEventListener('input', showMemory);
   showMemory();
 
-  /** What the cord's sliders say, in the shape the recipe and the module both take. */
+  /**
+   * What the cord's sliders say, in the shape the recipe and the module both take. The two gains
+   * with no slider are the module's own, so a panel and a trainer never disagree about them.
+   */
   const reflexFromUi = () => ({
     stretch: Number(ui.spineStretch.value),
     velocity: Number(ui.spineVelocity.value),
     setPoint: Number(ui.spineSetPoint.value),
     inhibition: Number(ui.spineInhibition.value),
-    forceCeiling: 1.2,
-    forceInhibition: 0.5,
+    forceCeiling: DEFAULT_SPINAL_GAINS.forceCeiling,
+    forceInhibition: DEFAULT_SPINAL_GAINS.forceInhibition,
     delaySeconds: Number(ui.spineDelay.value),
   });
 
+  // The sliders open on the cord a run opens with, from the module's own defaults rather than
+  // from numbers typed into the page a second time. They used to open with damping at a quarter
+  // over a body whose damping was zero, so the panel described a cord no run had.
+  ui.spineStretch.value = String(DEFAULT_SPINAL_GAINS.stretch);
+  ui.spineVelocity.value = String(DEFAULT_SPINAL_GAINS.velocity);
+  ui.spineSetPoint.value = String(DEFAULT_SPINAL_GAINS.setPoint);
+  ui.spineInhibition.value = String(DEFAULT_SPINAL_GAINS.inhibition);
+  ui.spineDelay.value = String(DEFAULT_SPINAL_GAINS.delaySeconds);
+
   const showSpine = () => {
-    const stretch = Number(ui.spineStretch.value);
-    must<HTMLOutputElement>('#spine-stretch-value').textContent =
-      stretch === 0 ? 'off' : stretch.toFixed(2);
+    must<HTMLOutputElement>('#spine-stretch-value').textContent = stretchLabel(
+      Number(ui.spineStretch.value),
+      Number(ui.spineVelocity.value),
+    );
     must<HTMLOutputElement>('#spine-velocity-value').textContent = Number(
       ui.spineVelocity.value,
     ).toFixed(2);
@@ -377,7 +492,39 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   ui.task.addEventListener('change', reconsider);
   ui.resume.addEventListener('change', reconsider);
 
+  /**
+   * Every button on the tab, from the one set of rules the headset is sent as well.
+   * @see brainButtons
+   */
+  const buttons = () =>
+    brainButtons({
+      serverUp,
+      localRun: localRun !== undefined,
+      localStopping,
+      trainingRunning,
+      trainingStoppable,
+      elsewhere,
+      selected: ui.policy.value,
+      handingOver,
+      policySet: setup !== undefined,
+    });
+  const setButtons = (): void => {
+    const b = buttons();
+    ui.start.disabled = !b.canStart;
+    ui.stop.disabled = !b.canStop;
+    ui.handover.disabled = !b.canHandOver;
+    ui.release.disabled = !b.canRelease;
+  };
+
   const showRows = () => {
+    // The same list as last time draws nothing. Rebuilding the <select> every poll closed it
+    // under a person who had it open to choose from, three seconds at a time.
+    const signature = `${serverUp}\n${rows.map((r) => `${r.id}\0${describe(r)}`).join('\n')}`;
+    if (signature === rowsSignature) {
+      setButtons();
+      return;
+    }
+    rowsSignature = signature;
     const chosen = ui.policy.value;
     ui.policy.innerHTML = '';
     const none = document.createElement('option');
@@ -390,11 +537,18 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       option.textContent = describe(row);
       ui.policy.append(option);
     }
-    if (rows.some((r) => r.id === chosen)) ui.policy.value = chosen;
-    ui.policyNote.textContent = serverUp
-      ? `${rows.length} checkpoint${rows.length === 1 ? '' : 's'} on this machine.`
-      : 'No dashboard server: checkpoints trained here are kept in this browser. Run pnpm train:dashboard to list the ones on disk.';
-    ui.handover.disabled = !serverUp || ui.policy.value === '';
+    // The same checkpoint in the new list, by name when its id is not there: a server that
+    // starts or stops swaps one list for the other, and `policies/stand.json` is `stand`. No
+    // 'change' is sent, because nothing was chosen -- the tabs are already set up for it.
+    ui.policy.value = reselect(rows, chosen, chosenKey);
+    chosenLost = chosenKey !== '' && ui.policy.value === '';
+    ui.policyNote.textContent = policyNote({
+      serverUp,
+      count: rows.length,
+      filesOnDisk: holdsFilesOnDisk(),
+      lost: chosenLost,
+    });
+    setButtons();
   };
   /**
    * Choosing a checkpoint sets the tabs up the way it was trained -- its scenario, its body, its
@@ -402,10 +556,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * in the name box so Resume continues it. An older checkpoint without a recipe changes nothing.
    */
   ui.policy.addEventListener('change', () => {
-    ui.handover.disabled = !serverUp || ui.policy.value === '';
+    chosenKey = ui.policy.value === '' ? '' : checkpointKey(ui.policy.value);
+    chosenLost = false;
+    setButtons();
     const row = rows.find((r) => r.id === ui.policy.value);
     if (row?.recipe) {
-      host.applyRecipe(row.recipe);
+      const done = host.applyRecipe(row.recipe);
       ui.name.value = row.recipe.name;
       ui.feedforward.value = row.recipe.feedforward.kind;
       ui.task.value = row.recipe.task === 'balance' ? 'balance' : 'stand';
@@ -418,7 +574,22 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       for (const input of [ui.noiseMotor, ui.noiseSense]) {
         input.dispatchEvent(new Event('input', { bubbles: true }));
       }
-      ui.policyNote.textContent = `Scene, body and joints set from ${row.recipe.name}; they take effect on the next run.`;
+      // What really happened to the run, which the host knows and the panel does not: a scene
+      // or body change restarts one that is going, and only waits when none is.
+      const set = `Scene, body and joints set from ${row.recipe.name}`;
+      ui.policyNote.textContent =
+        done === 'restarted'
+          ? `${set}. The run was restarted in its scene and body.`
+          : done === 'nextRun'
+            ? `${set}. Set up for the next run.`
+            : `${set}.`;
+    } else {
+      ui.policyNote.textContent = policyNote({
+        serverUp,
+        count: rows.length,
+        filesOnDisk: holdsFilesOnDisk(),
+        lost: false,
+      });
     }
     showRecipe();
   });
@@ -426,7 +597,14 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   const showFit = () => {
     const fit = host.fit();
     if (!fit) {
-      ui.fitNote.textContent = setup ? 'Policy chosen; it goes in with the next run.' : '';
+      // Chosen and not in: say when it will be, and say plainly when it never will -- a run with
+      // no muscles has nothing for a policy to drive, and "the next run" would be a promise the
+      // next run does not keep unless something is changed first.
+      ui.fitNote.textContent = !setup
+        ? ''
+        : host.musclesNextRun?.() === false
+          ? 'Policy chosen, but the next run has no muscles for it to drive: tick Muscles or pick a muscle scene.'
+          : 'Policy chosen; it goes in with the next run.';
       // A showcase's brain is a brain in the loop, even though it is not this page's: the panel
       // draws it, so the idle note would be saying the opposite of what is on the screen.
       ui.idleNote.hidden = activity !== undefined;
@@ -438,24 +616,62 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       `${fit.carried.outputs} of ${fit.outputs} drives carried from the checkpoint.`;
   };
 
-  ui.handover.addEventListener('click', async () => {
-    const id = ui.policy.value;
-    if (!id) return;
-    ui.handover.disabled = true;
+  /**
+   * Ask the host to put a policy in, or take it out, and say why not when it would not. A host
+   * that throws is refusing as much as one that answers with an error: either way the panel must
+   * not go on to claim a policy the body never took.
+   */
+  const handOverRefused = (next: NervesSetup | undefined): string | undefined => {
     try {
-      let policy: NervesSetup['policy'];
-      if (serverUp) {
+      const result = host.handOver(next);
+      return typeof result === 'object' ? result.error : undefined;
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  };
+
+  /** The policy file for a checkpoint, from the server when there is one, else from this studio. */
+  async function loadPolicy(id: string): Promise<NervesSetup['policy']> {
+    // What this studio holds under the checkpoint's own name: the store it trains into, then the
+    // set it shipped with. A server's search centre has no copy here, so it is not looked for.
+    const held = async (): Promise<unknown> =>
+      checkpointKey(id).startsWith('policy:')
+        ? ((await readLocalCheckpoint(checkpointStem(id))) ??
+          (await shippedCheckpoint(checkpointStem(id))))
+        : undefined;
+    if (serverUp) {
+      try {
         const response = await fetch(`${dashboard}/policies/${encodeURIComponent(id)}`, {
           cache: 'no-store',
         });
         if (!response.ok) throw new Error(`${response.status}`);
-        policy = (await response.json()) as NervesSetup['policy'];
-      } else {
-        const held = (await readLocalCheckpoint(id)) ?? (await shippedCheckpoint(id));
-        if (!held) throw new Error(`this studio has no checkpoint called '${id}'`);
-        policy = held as NervesSetup['policy'];
+        return (await response.json()) as NervesSetup['policy'];
+      } catch (error) {
+        // The server went away between the list and the press, most likely. The checkpoint may
+        // well be here anyway, and a handover that could have worked should.
+        const fallback = await held();
+        if (fallback) return fallback as NervesSetup['policy'];
+        throw error;
       }
-      setup = {
+    }
+    const fallback = await held();
+    if (!fallback) throw new Error(`this studio has no checkpoint called '${checkpointStem(id)}'`);
+    return fallback as NervesSetup['policy'];
+  }
+
+  /**
+   * Hand the chosen checkpoint over. A function rather than a click, because the headset asks for
+   * it through `act`, and a button a stale status had disabled would swallow the click and say
+   * nothing about it.
+   */
+  async function handOverChosen(): Promise<void> {
+    const id = ui.policy.value;
+    if (!id || handingOver) return;
+    handingOver = true;
+    setButtons();
+    try {
+      const policy = await loadPolicy(id);
+      const next: NervesSetup = {
         policy,
         authority: Number(ui.authority.value),
         goal: 0,
@@ -464,38 +680,43 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         controlDivisor:
           rows.find((r) => r.id === id)?.recipe?.controlDivisor ?? host.controlDivisor(),
       };
-      host.handOver(setup);
-      ui.release.disabled = false;
-      window.setTimeout(showFit, 500);
+      const why = handOverRefused(next);
+      if (why !== undefined) {
+        // Refused: the panel keeps what it had before rather than claiming the new one.
+        ui.fitNote.textContent = `Could not put the policy in: ${why}`;
+      } else {
+        setup = next;
+        showFit();
+      }
     } catch (error) {
       ui.fitNote.textContent = `Could not load the checkpoint: ${String(error)}`;
     } finally {
-      ui.handover.disabled = ui.policy.value === '';
+      handingOver = false;
+      setButtons();
     }
-  });
-  ui.release.addEventListener('click', () => {
+  }
+
+  /** Take the policy out of the loop; the run carries on. A function for the same reason. */
+  function releasePolicy(): void {
     setup = undefined;
-    ui.release.disabled = true;
-    host.handOver(undefined);
+    // Taking a policy out of a run that has none leaves it out, so there is nothing to report.
+    handOverRefused(undefined);
     ui.fitNote.textContent = '';
     ui.idleNote.hidden = false;
-  });
-  ui.authority.addEventListener('change', () => {
-    if (setup) {
-      setup = { ...setup, authority: Number(ui.authority.value) };
-      host.handOver(setup);
-    }
-  });
+    setButtons();
+  }
 
-  /**
-   * Start and Stop, when the run is this window's. Without a server Start is always offered --
-   * there is nothing to ask permission of -- and Stop only while a run is going.
-   */
-  const setButtons = (): void => {
-    if (serverUp && !localRun) return;
-    ui.start.disabled = localRun !== undefined;
-    ui.stop.disabled = localRun === undefined || localStopping;
-  };
+  ui.handover.addEventListener('click', () => void handOverChosen());
+  ui.release.addEventListener('click', releasePolicy);
+  ui.authority.addEventListener('change', () => {
+    if (!setup) return;
+    const next = { ...setup, authority: Number(ui.authority.value) };
+    const why = handOverRefused(next);
+    // A refusal here used to reach the console alone, and the panel went on showing an
+    // authority the body was not running at.
+    if (why !== undefined) ui.fitNote.textContent = `Could not change the authority: ${why}`;
+    else setup = next;
+  });
 
   const drawSeries = (series: readonly (readonly [number, number, number, number])[]) => {
     ui.chart.hidden = series.length < 2;
@@ -541,10 +762,8 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     // The showcase that plays the run keeps publishing after the trainer has gone, and the studio
     // goes on following it, so Stop stays offered while there is anything left to stop.
     trainingStoppable = trainingRunning || status?.showcase === true;
-    ui.start.disabled = !serverUp || trainingRunning || status?.elsewhere === true;
-    ui.stop.disabled = !serverUp || !trainingStoppable;
-    // A run in this window overrides all of that: it needs no server, and only it can stop it.
-    if (localRun || !serverUp) setButtons();
+    elsewhere = status?.elsewhere === true;
+    setButtons();
     if (!status) {
       if (refusal) {
         ui.status.textContent = refusal;
@@ -557,7 +776,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           ? localStatus
           : localStatus ||
             `No dashboard server: Start trains in this window, in ${suggestedWorkers()} workers, ` +
-              'saving to this browser. A terminal server is faster and writes real files.';
+              (holdsFilesOnDisk()
+                ? 'saving to the data folder. A terminal server uses every core.'
+                : 'saving to this browser. A terminal server is faster and writes real files.');
       ui.chart.hidden = true;
       return;
     }
@@ -719,6 +940,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         localStatus = summary;
         ui.status.textContent = summary;
         setButtons();
+        // The run saved a checkpoint, and the list should have it now rather than at the next
+        // poll -- which, with the Brain tab closed and no headset asking, may be never.
+        void poll();
       },
       onError: (message) => {
         localRun = undefined;
@@ -818,16 +1042,62 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     });
   }
 
-  async function poll(): Promise<void> {
-    try {
-      const [policies, status] = await Promise.all([
-        fetch(`${dashboard}/policies`, { cache: 'no-store' }).then(
-          (r) => r.json() as Promise<{ policies: CheckpointRow[] }>,
-        ),
-        fetch(`${dashboard}/train/status`, { cache: 'no-store' }).then(
-          (r) => r.json() as Promise<TrainingStatus>,
-        ),
-      ]);
+  // Until the first poll answers, the list is not known either way; the page's own note used to
+  // say there was no server before anything had been asked.
+  ui.policyNote.textContent = 'Looking for checkpoints…';
+  setButtons();
+
+  /** The first wait after a server did not answer, and the longest it grows to. */
+  const PROBE_FIRST_MS = 3000;
+  const PROBE_LONGEST_MS = 60_000;
+  /** Ask the server again at the next poll, whatever the wait had grown to. */
+  const wake = (): void => {
+    probeDelayMs = 0;
+    nextProbeAt = 0;
+    void poll();
+  };
+  // Opening the Brain tab is a person looking for the server's list, so it is asked for at once
+  // rather than at the end of a wait that may have grown to a minute. The tab is watched here
+  // rather than told about, because the tab strip knows nothing of what its panels poll.
+  const section = ui.policy.closest<HTMLElement>('[data-panel]');
+  if (section && typeof MutationObserver !== 'undefined') {
+    let wasHidden = section.hidden;
+    new MutationObserver(() => {
+      if (wasHidden && !section.hidden) wake();
+      wasHidden = section.hidden;
+    }).observe(section, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  /** The poll going now, which a second caller waits on rather than starting another beside it. */
+  let polling: Promise<void> | undefined;
+  function poll(): Promise<void> {
+    polling ??= pollOnce().finally(() => {
+      polling = undefined;
+    });
+    return polling;
+  }
+
+  async function pollOnce(): Promise<void> {
+    let served: [{ policies: CheckpointRow[] }, TrainingStatus] | undefined;
+    if (serverUp || performance.now() >= nextProbeAt) {
+      try {
+        served = await Promise.all([
+          fetch(`${dashboard}/policies`, { cache: 'no-store' }).then(
+            (r) => r.json() as Promise<{ policies: CheckpointRow[] }>,
+          ),
+          fetch(`${dashboard}/train/status`, { cache: 'no-store' }).then(
+            (r) => r.json() as Promise<TrainingStatus>,
+          ),
+        ]);
+        probeDelayMs = 0;
+      } catch {
+        probeDelayMs =
+          probeDelayMs === 0 ? PROBE_FIRST_MS : Math.min(probeDelayMs * 2, PROBE_LONGEST_MS);
+        nextProbeAt = performance.now() + probeDelayMs;
+      }
+    }
+    if (served) {
+      const [policies, status] = served;
       serverUp = true;
       rows = policies.policies;
       showRows();
@@ -847,10 +1117,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       } else {
         publishedName = undefined;
       }
-    } catch {
-      // No server. The studio still has whatever it trained itself -- files in the binary, this
-      // browser's own store in a tab -- and those are checkpoints like any other, so they go in
-      // the list rather than the list going empty.
+    } else {
+      // No server, or none asked this time. The studio still has whatever it trained itself --
+      // files in the binary, this browser's own store in a tab -- and what it shipped with, and
+      // those are checkpoints like any other, so they go in the list rather than the list going
+      // empty.
       serverUp = false;
       rows = await localRows();
       showRows();
@@ -891,8 +1162,18 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           delaySeconds: Number(ui.spineDelay.value),
         },
         memory: Number(ui.memory.value),
+        canStart: !ui.start.disabled,
+        canStop: !ui.stop.disabled,
+        canHandOver: !ui.handover.disabled,
+        canRelease: !ui.release.disabled,
+        policyNote: ui.policyNote.textContent ?? '',
+        spineNote: spineNote({
+          stretch: Number(ui.spineStretch.value),
+          velocity: Number(ui.spineVelocity.value),
+        }),
       };
     },
+    reflex: reflexFromUi,
     act(action, id, value) {
       switch (action) {
         case 'select':
@@ -904,10 +1185,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
             ui.policy.value = id;
             ui.policy.dispatchEvent(new Event('change', { bubbles: true }));
           }
-          ui.handover.click();
+          // The function, not the button: see handOverChosen.
+          void handOverChosen();
           break;
         case 'release':
-          ui.release.click();
+          releasePolicy();
           break;
         case 'authority':
           ui.authority.value = String(value ?? Number(ui.authority.value));

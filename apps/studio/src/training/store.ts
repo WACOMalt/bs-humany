@@ -22,6 +22,13 @@ const inTauri = (): boolean =>
   typeof window !== 'undefined' &&
   '__TAURI_INTERNALS__' in (window as unknown as Record<string, unknown>);
 
+/**
+ * Whether what this studio trains is kept as files in the data folder, which a terminal can read
+ * too, rather than in this browser's own store. The Brain panel says which, so a person looking
+ * at the list knows where the checkpoints in it live.
+ */
+export const holdsFilesOnDisk = inTauri;
+
 const DATABASE = 'bs-humany.training';
 const STORE = 'checkpoints';
 
@@ -139,13 +146,33 @@ export async function listLocalCheckpoints(): Promise<
     const rows = await Promise.all(
       names.map(async (name) => {
         const text = await invoke<string | null>('checkpoint_read', { name, kind: 'policy' });
-        return { name, file: text ? JSON.parse(text) : undefined };
+        return { name, file: text ? parsedOnce(name, text) : undefined };
       }),
     );
+    // Forget what has gone from the folder, so the cache is never bigger than the list.
+    for (const name of parsed.keys()) if (!names.includes(name)) parsed.delete(name);
     return rows.filter((r) => r.file !== undefined);
   } catch {
     return [];
   }
+}
+
+/**
+ * The files as last parsed, by name, with the text they were parsed from.
+ *
+ * The panel asks for the list every few seconds while the Brain tab is open and no server is up,
+ * and a policy is up to a megabyte of JSON. Parsing every one of them again each time, to find
+ * them exactly as they were, was most of what that poll cost. The text is still read -- a
+ * terminal trainer writes the same folder, and a file it rewrote must be seen -- but it is only
+ * parsed when it differs from what was parsed last time.
+ */
+const parsed = new Map<string, { readonly text: string; readonly file: unknown }>();
+function parsedOnce(name: string, text: string): unknown {
+  const seen = parsed.get(name);
+  if (seen?.text === text) return seen.file;
+  const file = JSON.parse(text) as unknown;
+  parsed.set(name, { text, file });
+  return file;
 }
 
 /** Every checkpoint the window holds, newest first, for the panel's list. */
@@ -153,18 +180,38 @@ export async function listBrowserCheckpoints(): Promise<
   readonly { readonly name: string; readonly file: unknown }[]
 > {
   try {
-    const keys = (await act('readonly', (store) => store.getAllKeys())) as IDBValidKey[];
-    const names = keys
-      .map(String)
-      .filter((k) => k.endsWith(':policy'))
-      .map((k) => k.slice(0, -':policy'.length));
-    const rows = await Promise.all(
-      names.map(async (name) => ({
-        name,
-        file: await act('readonly', (store) => store.get(`${name}:policy`)),
-      })),
-    );
-    return rows.filter((r) => r.file !== undefined);
+    // One database and one transaction for the whole list. It used to open the database once
+    // for the keys and once again for every checkpoint, every few seconds, for as long as the
+    // Brain tab was open without a server.
+    const db = await open();
+    try {
+      return await new Promise((resolve, reject) => {
+        const store = db.transaction(STORE, 'readonly').objectStore(STORE);
+        const keys = store.getAllKeys();
+        keys.onerror = () => reject(keys.error ?? new Error('The checkpoint store failed.'));
+        keys.onsuccess = () => {
+          const names = keys.result
+            .map(String)
+            .filter((k) => k.endsWith(':policy'))
+            .map((k) => k.slice(0, -':policy'.length));
+          const rows: { name: string; file: unknown }[] = [];
+          if (names.length === 0) resolve(rows);
+          for (const name of names) {
+            const request = store.get(`${name}:policy`);
+            request.onerror = () =>
+              reject(request.error ?? new Error('The checkpoint store failed.'));
+            request.onsuccess = () => {
+              rows.push({ name, file: request.result });
+              // Requests in one transaction complete in the order they were made, so the last
+              // to answer is the last asked, and the list keeps the order of the keys.
+              if (rows.length === names.length) resolve(rows.filter((r) => r.file !== undefined));
+            };
+          }
+        };
+      });
+    } finally {
+      db.close();
+    }
   } catch {
     return [];
   }

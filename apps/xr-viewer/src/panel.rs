@@ -887,8 +887,11 @@ fn muscles_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &
 fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Vec<Command>) {
     let b = &s.brain;
     heading(ui, "Policy in the loop");
-    if !b.server_up {
-        note(ui, "No dashboard server: run `pnpm train:dashboard` on the desktop to list checkpoints.");
+    // The desktop's own note, said here as it says it there. This used to be a note of the
+    // headset's own sending everyone to a terminal whenever no dashboard was running, which had
+    // stopped being true: the desktop lists what it trained and shipped without one.
+    if !b.policy_note.is_empty() {
+        note(ui, &b.policy_note);
     }
     ui.label("Checkpoint");
     ui.horizontal_wrapped(|ui| {
@@ -906,12 +909,13 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
         commands.push(Command::Brain { action: "authority", id: None, value: Some(((v as f64) * 20.0).round() / 20.0) });
     }
     note(ui, "The most one output may add to or take from a group's excitation.");
+    // Every button on this tab is enabled exactly when the desktop's is, from the flags it sends:
+    // the rules live in one place on the desktop, and a copy of them kept here drifted from it.
     ui.horizontal(|ui| {
-        let can_hand_over = !b.selected.is_empty() && !b.active && s.mode != "following";
-        if ui.add_enabled(can_hand_over, egui::Button::new("Hand over control")).clicked() {
+        if ui.add_enabled(b.can_hand_over, egui::Button::new("Hand over control")).clicked() {
             commands.push(Command::Brain { action: "handover", id: None, value: None });
         }
-        if ui.add_enabled(b.active, egui::Button::new("Release")).clicked() {
+        if ui.add_enabled(b.can_release, egui::Button::new("Release")).clicked() {
             commands.push(Command::Brain { action: "release", id: None, value: None });
         }
     });
@@ -924,7 +928,7 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     // The cord, under whatever the brain is doing. The same five gains the desktop offers, with
     // the same keys, because a person in the headset is setting the same body up.
     heading(ui, "Spine");
-    note(ui, "The reflexes: a muscle pulled past its set point excites itself and inhibits its opposite. Needs no training, and it is most of what holds a body up. Stretch at zero is a body with no reflexes at all.");
+    note(ui, "The reflexes: a muscle pulled past its set point excites itself and inhibits its opposite. Needs no training, and it is most of what holds a body up. Stretch and Damping at zero is a body with no reflexes at all.");
     let r = &b.reflex;
     if let Some(v) = slider(ui, editing, "spine.stretch", "stretch", r.stretch as f32, 0.0..=8.0, 2, false) {
         commands.push(Command::Brain { action: "reflexStretch", id: None, value: Some(v as f64) });
@@ -941,7 +945,13 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
     if let Some(v) = slider(ui, editing, "spine.delay", "conduction s", r.delay_seconds as f32, 0.0..=0.12, 3, false) {
         commands.push(Command::Brain { action: "reflexDelay", id: None, value: Some(v as f64) });
     }
-    note(ui, "Stretch is a strain: 0.1 is a fibre a tenth longer than optimal. Standing still 2 of 272 muscles are past a set point of zero; falling, 61 are. Measured under the committed standing policy: no cord 0.46 s, stretch 2 gets 0.64, 3.5 gets 0.89, 5 is back to 0.85. Past the peak every muscle sits at the ceiling and the brain above goes deaf.");
+    // What depends on the cord's setting and on what has been measured of it comes from the
+    // desktop, which is the one place it is kept. The measured table that used to be copied here
+    // went stale with every change to the cord; it lives in docs/validation/reflex-gains.md.
+    note(ui, "Stretch is a strain: 0.1 is a fibre a tenth longer than optimal.");
+    if !b.spine_note.is_empty() {
+        note(ui, &b.spine_note);
+    }
 
     heading(ui, "Training");
     note(ui, "Generations, population, episode seconds and workers are as set on the desktop.");
@@ -954,12 +964,14 @@ fn brain_tab(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mu
         "Context the policy carries from one control step to the next, fed back from its own last answer."
     });
     ui.horizontal_wrapped(|ui| {
-        if ui.add_enabled(b.server_up && !b.training_running, egui::Button::new("Start training")).clicked() {
+        // Start trains in the desktop's own window when it has no server, so it is the desktop's
+        // flag that says whether it can, not whether a server is up.
+        if ui.add_enabled(b.can_start, egui::Button::new("Start training")).clicked() {
             commands.push(Command::Brain { action: "trainStart", id: None, value: None });
         }
-        // Stoppable, not running: the showcase that plays the run outlives the trainer, and
-        // until it is stopped the studio goes on following it.
-        if ui.add_enabled(b.training_stoppable, egui::Button::new("Stop training")).clicked() {
+        // The desktop's rule includes the showcase, which outlives the trainer and which the
+        // studio goes on following until it is stopped, and a run in the desktop's own window.
+        if ui.add_enabled(b.can_stop, egui::Button::new("Stop training")).clicked() {
             commands.push(Command::Brain { action: "trainStop", id: None, value: None });
         }
         // The one button says which way it goes, because the headset has no other way to stop.
