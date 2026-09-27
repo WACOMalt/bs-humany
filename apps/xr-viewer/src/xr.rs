@@ -25,13 +25,88 @@ use anyhow::{Context, Result, bail};
 use ash::vk::{self, Handle};
 use std::ffi::{CStr, CString};
 
-/// What the loader and runtime say before any hardware is involved.
-pub fn probe() -> Result<()> {
+/// Said when the runtime has neither Vulkan binding: nothing here can draw through it at all.
+const NO_VULKAN: &str = "the OpenXR runtime offers no Vulkan binding, so nothing here can render to it";
+
+/// Said when the runtime has only the first Vulkan binding. `view` and `session` build Vulkan
+/// through the runtime (`xrCreateVulkanInstanceKHR` and its device twin), which only the second
+/// one has; `probe` can still say what the runtime is, through the first.
+const VULKAN_ENABLE_ONLY: &str =
+    "this runtime offers only KHR_vulkan_enable; view and session need XR_KHR_vulkan_enable2";
+
+/// Said when the runtime answers but has no headset to offer.
+///
+/// A headset asleep, or one the runtime has not found, is the commonest reason the viewer stops
+/// at once, and the runtime's name for it, `ERROR_FORM_FACTOR_UNAVAILABLE`, says nothing to
+/// somebody who pressed Connect in the studio and is reading the reason there.
+const NO_HEADSET: &str =
+    "no headset is available to the OpenXR runtime: wake the headset and check SteamVR/Monado lists it";
+
+/// The OpenXR loader, and the extensions the runtime behind it offers.
+fn open_loader() -> Result<(openxr::Entry, openxr::ExtensionSet)> {
     let entry = unsafe { openxr::Entry::load(&()) }
         .context("opening libopenxr_loader.so.1 -- install an OpenXR runtime (SteamVR, Monado)")?;
+    // The loader has no extensions of its own to list; this is the first call that reaches the
+    // runtime, so it is where a runtime that is missing or not set active shows itself.
     let available = entry
         .enumerate_extensions()
-        .context("asking the OpenXR loader which extensions it has")?;
+        .context("asking the OpenXR runtime which extensions it has -- is one (SteamVR, Monado) installed and set active?")?;
+    Ok((entry, available))
+}
+
+/// An instance of the runtime with exactly the extensions in `wanted`.
+fn create_instance(entry: &openxr::Entry, wanted: &openxr::ExtensionSet) -> Result<openxr::Instance> {
+    entry
+        .create_instance(
+            &openxr::ApplicationInfo {
+                application_name: "bs-humany xr viewer",
+                application_version: 1,
+                engine_name: "bs-humany",
+                engine_version: 1,
+                api_version: openxr::Version::new(1, 0, 0),
+            },
+            wanted,
+            &[],
+            &(),
+        )
+        .context("creating the OpenXR instance -- is a runtime installed and active?")
+}
+
+/// The head-mounted display, or `None` when the runtime has none to offer right now. Every other
+/// refusal is an error, with its code under a sentence saying what was being asked.
+fn find_headset(xr: &openxr::Instance) -> Result<Option<openxr::SystemId>> {
+    match xr.system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY) {
+        Ok(system) => Ok(Some(system)),
+        Err(openxr::sys::Result::ERROR_FORM_FACTOR_UNAVAILABLE) => Ok(None),
+        Err(e) => Err(e).context("asking the OpenXR runtime for a head-mounted display"),
+    }
+}
+
+/// The loader, an instance with the Vulkan binding `view` and `session` draw through, and the
+/// headset: the three steps both of them take before anything is theirs alone.
+///
+/// One place, so that each way this can fail is said in one sentence, the same from either: no
+/// loader, a runtime with only the older Vulkan binding, a runtime that will not start, or no
+/// headset. The studio shows the viewer's last line when it stops, so that line is written for
+/// somebody who pressed Connect rather than for somebody reading the OpenXR specification.
+/// `probe` takes the same steps one at a time, printing between them, and uses these pieces.
+fn bring_up() -> Result<(openxr::Entry, openxr::Instance, openxr::SystemId)> {
+    let (entry, available) = open_loader()?;
+    if !available.khr_vulkan_enable2 {
+        bail!(if available.khr_vulkan_enable { VULKAN_ENABLE_ONLY } else { NO_VULKAN });
+    }
+    let mut wanted = openxr::ExtensionSet::default();
+    wanted.khr_vulkan_enable2 = true;
+    let xr = create_instance(&entry, &wanted)?;
+    let Some(system) = find_headset(&xr)? else {
+        bail!(NO_HEADSET);
+    };
+    Ok((entry, xr, system))
+}
+
+/// What the loader and runtime say before any hardware is involved.
+pub fn probe() -> Result<()> {
+    let (entry, available) = open_loader()?;
     println!("OpenXR loader: found");
     println!(
         "  KHR_vulkan_enable2: {}   KHR_vulkan_enable: {}",
@@ -41,28 +116,20 @@ pub fn probe() -> Result<()> {
         println!("  layer: {}", layer.layer_name);
     }
     if !available.khr_vulkan_enable2 && !available.khr_vulkan_enable {
-        bail!("the runtime offers no Vulkan binding, so nothing here can render to it.");
+        bail!(NO_VULKAN);
+    }
+    // A runtime with only the first binding is still worth describing, through that binding, but
+    // it is said up front that view and session will refuse it, rather than left to be found.
+    if !available.khr_vulkan_enable2 {
+        println!("  cannot run view or session: {VULKAN_ENABLE_ONLY}");
     }
 
     let mut wanted = openxr::ExtensionSet::default();
     wanted.khr_vulkan_enable2 = available.khr_vulkan_enable2;
     wanted.khr_vulkan_enable = !available.khr_vulkan_enable2 && available.khr_vulkan_enable;
-    let instance = entry
-        .create_instance(
-            &openxr::ApplicationInfo {
-                application_name: "bs-humany xr viewer",
-                application_version: 1,
-                engine_name: "bs-humany",
-                engine_version: 1,
-                api_version: openxr::Version::new(1, 0, 0),
-            },
-            &wanted,
-            &[],
-            &(),
-        )
-        .context("creating the OpenXR instance -- is a runtime installed and active?")?;
+    let instance = create_instance(&entry, &wanted)?;
 
-    let properties = instance.properties()?;
+    let properties = instance.properties().context("asking the OpenXR runtime its name")?;
     println!(
         "runtime: {} {}",
         properties.runtime_name, properties.runtime_version
@@ -70,14 +137,10 @@ pub fn probe() -> Result<()> {
 
     // From here on a headset has to exist. This is the line that tells somebody with nothing
     // plugged in that nothing is plugged in, rather than failing later and vaguely.
-    let system = match instance.system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY) {
-        Ok(system) => system,
-        Err(openxr::sys::Result::ERROR_FORM_FACTOR_UNAVAILABLE) => {
-            println!("system: no head-mounted display available to this runtime right now.");
-            println!("        (The loader and runtime are fine; there is no headset to ask.)");
-            return Ok(());
-        }
-        Err(e) => return Err(e).context("asking for a head-mounted display"),
+    let Some(system) = find_headset(&instance)? else {
+        println!("system: {NO_HEADSET}.");
+        println!("        (The loader and runtime are fine; there is no headset to ask.)");
+        return Ok(());
     };
 
     let system_properties = instance.system_properties(system)?;
@@ -112,22 +175,62 @@ pub fn probe() -> Result<()> {
         requirements.max_api_version_supported.major(),
         requirements.max_api_version_supported.minor(),
     );
+    if !available.khr_vulkan_enable2 {
+        println!("verdict: the headset is there, but view and session cannot run: {VULKAN_ENABLE_ONLY}");
+    }
     Ok(())
 }
 
-/// The head-mounted display, or an error that says in plain words that there is none.
+/// Whether the frame loop carries on, or the runtime has said this session is over.
+#[derive(Debug, PartialEq)]
+enum Flow {
+    Continue,
+    Exit,
+}
+
+/// Read every event the runtime has queued and act on the ones that change what the loop does.
 ///
-/// A headset asleep, or one the runtime has not found, is the commonest reason the viewer stops
-/// at once, and the runtime's name for it, `ERROR_FORM_FACTOR_UNAVAILABLE`, says nothing to
-/// somebody who pressed Connect in the studio and is reading the reason there.
-fn headset(xr: &openxr::Instance) -> Result<openxr::SystemId> {
-    match xr.system(openxr::FormFactor::HEAD_MOUNTED_DISPLAY) {
-        Ok(system) => Ok(system),
-        Err(openxr::sys::Result::ERROR_FORM_FACTOR_UNAVAILABLE) => bail!(
-            "no headset is available to the OpenXR runtime: wake the headset and check SteamVR/Monado lists it"
-        ),
-        Err(e) => Err(e).context("asking the OpenXR runtime for a head-mounted display"),
+/// The session state machine is the runtime's, not ours: READY means begin, STOPPING means end
+/// (the headset taken off, or another app in front), and EXITING, LOSS_PENDING or the instance
+/// itself going away mean stop altogether. `running` is whether a session is begun, which is
+/// whether there are frames to wait on. `view` and `session` walk that machine the same way,
+/// which is why there is one copy of it.
+fn pump_events(
+    xr: &openxr::Instance,
+    session: &openxr::Session<openxr::Vulkan>,
+    storage: &mut openxr::EventDataBuffer,
+    running: &mut bool,
+) -> Result<Flow> {
+    while let Some(event) = xr.poll_event(storage).context("reading the OpenXR runtime's events")? {
+        use openxr::Event::*;
+        match event {
+            SessionStateChanged(e) => {
+                println!("session: {:?}", e.state());
+                match e.state() {
+                    openxr::SessionState::READY => {
+                        session
+                            .begin(openxr::ViewConfigurationType::PRIMARY_STEREO)
+                            .context("beginning the OpenXR session the runtime said was ready")?;
+                        *running = true;
+                    }
+                    openxr::SessionState::STOPPING => {
+                        session.end().context("ending the OpenXR session the runtime is stopping")?;
+                        *running = false;
+                    }
+                    openxr::SessionState::EXITING | openxr::SessionState::LOSS_PENDING => {
+                        return Ok(Flow::Exit);
+                    }
+                    _ => {}
+                }
+            }
+            InstanceLossPending(_) => {
+                println!("session: the OpenXR runtime is going away");
+                return Ok(Flow::Exit);
+            }
+            _ => {}
+        }
     }
+    Ok(Flow::Continue)
 }
 
 /// A Vulkan instance and device built the way the runtime insists, and nothing more.
@@ -151,7 +254,9 @@ impl Graphics {
         xr: &openxr::Instance,
         system: openxr::SystemId,
     ) -> Result<Self> {
-        let requirements = xr.graphics_requirements::<openxr::Vulkan>(system)?;
+        let requirements = xr
+            .graphics_requirements::<openxr::Vulkan>(system)
+            .context("asking the OpenXR runtime which Vulkan versions it accepts")?;
         let entry = unsafe { ash::Entry::load() }.context("loading libvulkan")?;
 
         let api_version = vk::make_api_version(
@@ -188,9 +293,10 @@ impl Graphics {
             )
         };
 
-        let physical = vk::PhysicalDevice::from_raw(unsafe {
-            xr.vulkan_graphics_device(system, instance.handle().as_raw() as _)
-        }? as _);
+        let physical = vk::PhysicalDevice::from_raw(
+            unsafe { xr.vulkan_graphics_device(system, instance.handle().as_raw() as _) }
+                .context("asking the OpenXR runtime which GPU drives the headset")? as _,
+        );
 
         let families = unsafe { instance.get_physical_device_queue_family_properties(physical) };
         let queue_family = families
@@ -249,37 +355,18 @@ impl Graphics {
 /// simulation is attached to it, and retrofitting it afterwards is how a headset ends up stalling
 /// on a slow tick.
 pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::Path>) -> Result<()> {
-    let entry = unsafe { openxr::Entry::load(&()) }
-        .context("opening libopenxr_loader.so.1 -- install an OpenXR runtime (SteamVR, Monado)")?;
-    let available = entry
-        .enumerate_extensions()
-        .context("asking the OpenXR loader which extensions it has")?;
-    let mut wanted = openxr::ExtensionSet::default();
-    wanted.khr_vulkan_enable2 = available.khr_vulkan_enable2;
-    let xr = entry
-        .create_instance(
-            &openxr::ApplicationInfo {
-                application_name: "bs-humany xr viewer",
-                application_version: 1,
-                engine_name: "bs-humany",
-                engine_version: 1,
-                api_version: openxr::Version::new(1, 0, 0),
-            },
-            &wanted,
-            &[],
-            &(),
-        )
-        .context("creating the OpenXR instance -- is a runtime installed and active?")?;
-    let system = headset(&xr)?;
+    let (_entry, xr, system) = bring_up()?;
     let graphics = Graphics::for_runtime(&xr, system)?;
 
-    let configs = xr.enumerate_view_configuration_views(
-        system,
-        openxr::ViewConfigurationType::PRIMARY_STEREO,
-    )?;
+    let configs = xr
+        .enumerate_view_configuration_views(system, openxr::ViewConfigurationType::PRIMARY_STEREO)
+        .context("asking the OpenXR runtime what size to draw each eye")?;
+    let eye = configs
+        .first()
+        .context("the OpenXR runtime described a stereo headset with no views to draw")?;
     let extent = ash::vk::Extent2D {
-        width: configs[0].recommended_image_rect_width,
-        height: configs[0].recommended_image_rect_height,
+        width: eye.recommended_image_rect_width,
+        height: eye.recommended_image_rect_height,
     };
 
     let (session, mut frame_wait, mut frame_stream) = unsafe {
@@ -293,11 +380,14 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
                 queue_index: 0,
             },
         )
-    }?;
+    }
+    .context("creating the OpenXR session")?;
 
     // The runtime's preferred format, filtered to the ones this pipeline writes. Taking its first
     // choice is what keeps the compositor from converting every frame.
-    let offered = session.enumerate_swapchain_formats()?;
+    let offered = session
+        .enumerate_swapchain_formats()
+        .context("asking the OpenXR runtime which swapchain formats it offers")?;
     let format = offered
         .iter()
         .copied()
@@ -321,9 +411,11 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
         // Two, one an eye: this is what makes the swapchain a multiview target.
         array_size: 2,
         mip_count: 1,
-    })?;
+    })
+    .context("creating the two-layer swapchain both eyes are drawn into")?;
     let images: Vec<ash::vk::Image> = swapchain
-        .enumerate_images()?
+        .enumerate_images()
+        .context("asking the OpenXR runtime for the swapchain's images")?
         .into_iter()
         .map(|i| ash::vk::Image::from_raw(i))
         .collect();
@@ -440,8 +532,9 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut pointer_hand: [Option<usize>; 2] = [None, None];
     let mut carrying: [Option<(usize, Held)>; crate::bridge::HANDS] = [None, None];
 
-    let stage =
-        session.create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)?;
+    let stage = session
+        .create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)
+        .context("asking the OpenXR runtime for the room's floor (the stage space)")?;
     let mut event_storage = openxr::EventDataBuffer::new();
     let mut running = false;
     let mut frames = 0u32;
@@ -456,26 +549,10 @@ pub fn view(pack: &crate::pack::Pack, seconds: f32, follow: Option<&std::path::P
     let mut window_worst = 0f64;
 
     while started.elapsed().as_secs_f32() < seconds {
-        while let Some(event) = xr.poll_event(&mut event_storage)? {
-            use openxr::Event::*;
-            if let SessionStateChanged(e) = event {
-                println!("session: {:?}", e.state());
-                match e.state() {
-                    openxr::SessionState::READY => {
-                        session.begin(openxr::ViewConfigurationType::PRIMARY_STEREO)?;
-                        running = true;
-                    }
-                    openxr::SessionState::STOPPING => {
-                        session.end()?;
-                        running = false;
-                    }
-                    openxr::SessionState::EXITING | openxr::SessionState::LOSS_PENDING => {
-                        renderer.wait_idle();
-                        return Ok(());
-                    }
-                    _ => {}
-                }
-            }
+        if pump_events(&xr, &session, &mut event_storage, &mut running)? == Flow::Exit {
+            // Nothing is destroyed while the GPU may still be drawing into it.
+            renderer.wait_idle();
+            return Ok(());
         }
         if !running {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -1586,28 +1663,7 @@ impl Hands {
 /// pipeline. If this holds the headset's rate and reports sensible poses, everything left is
 /// ordinary Vulkan.
 pub fn run_session(seconds: f32) -> Result<()> {
-    let entry = unsafe { openxr::Entry::load(&()) }
-        .context("opening libopenxr_loader.so.1 -- install an OpenXR runtime (SteamVR, Monado)")?;
-    let available = entry
-        .enumerate_extensions()
-        .context("asking the OpenXR loader which extensions it has")?;
-    let mut wanted = openxr::ExtensionSet::default();
-    wanted.khr_vulkan_enable2 = available.khr_vulkan_enable2;
-    let xr = entry
-        .create_instance(
-            &openxr::ApplicationInfo {
-                application_name: "bs-humany xr viewer",
-                application_version: 1,
-                engine_name: "bs-humany",
-                engine_version: 1,
-                api_version: openxr::Version::new(1, 0, 0),
-            },
-            &wanted,
-            &[],
-            &(),
-        )
-        .context("creating the OpenXR instance -- is a runtime installed and active?")?;
-    let system = headset(&xr)?;
+    let (_entry, xr, system) = bring_up()?;
     let graphics = Graphics::for_runtime(&xr, system)?;
 
     let (session, mut frame_wait, mut frame_stream) = unsafe {
@@ -1624,10 +1680,9 @@ pub fn run_session(seconds: f32) -> Result<()> {
     }
     .context("creating the OpenXR session")?;
 
-    let stage = session.create_reference_space(
-        openxr::ReferenceSpaceType::STAGE,
-        openxr::Posef::IDENTITY,
-    )?;
+    let stage = session
+        .create_reference_space(openxr::ReferenceSpaceType::STAGE, openxr::Posef::IDENTITY)
+        .context("asking the OpenXR runtime for the room's floor (the stage space)")?;
 
     let mut event_storage = openxr::EventDataBuffer::new();
     let mut running = false;
@@ -1637,29 +1692,8 @@ pub fn run_session(seconds: f32) -> Result<()> {
     let mut last_display = openxr::Time::from_nanos(0);
 
     while started.elapsed().as_secs_f32() < seconds {
-        while let Some(event) = xr.poll_event(&mut event_storage)? {
-            use openxr::Event::*;
-            match event {
-                SessionStateChanged(e) => {
-                    println!("session: {:?}", e.state());
-                    match e.state() {
-                        openxr::SessionState::READY => {
-                            session.begin(openxr::ViewConfigurationType::PRIMARY_STEREO)?;
-                            running = true;
-                        }
-                        openxr::SessionState::STOPPING => {
-                            session.end()?;
-                            running = false;
-                        }
-                        openxr::SessionState::EXITING | openxr::SessionState::LOSS_PENDING => {
-                            return Ok(());
-                        }
-                        _ => {}
-                    }
-                }
-                InstanceLossPending(_) => return Ok(()),
-                _ => {}
-            }
+        if pump_events(&xr, &session, &mut event_storage, &mut running)? == Flow::Exit {
+            return Ok(());
         }
         if !running {
             std::thread::sleep(std::time::Duration::from_millis(50));
