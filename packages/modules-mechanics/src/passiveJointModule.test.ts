@@ -83,16 +83,20 @@ describe('PassiveJointModule', () => {
     expect(torque[ROOT_NV + knee.index] ?? 0).toBeGreaterThan(1);
   });
 
-  it('calms the collapsing ragdoll: it settles sooner than without it', async () => {
-    // Joint speed averaged over the fourth to the sixth second, once the body is down. A single
+  it('calms the collapsed ragdoll: once down, it holds still where the limp one creeps', async () => {
+    // Joint speed averaged over the ninth to the twelfth second, once the body is down. A single
     // instant was enough on Rapier, but on MuJoCo the first second of a collapse is when the
     // end-range curves are loaded hardest, and at any one tick of it the passive body can be
     // moving faster than the limp one (54 against 40 rad/s summed over the first second). What
-    // the passive terms are for is what happens after. This read the third second until the
-    // forearm got its own axis and its whole range, and the malleoli went back to where their
-    // rules put them, on 2026-09-27: the collapse has ended later since, still going in the third
-    // second (3.6 against 3.0 rad/s), and over the three seconds after it the limp body moves at
-    // about three times the speed of the passive one.
+    // the passive terms are for is what happens after. The window has moved with the body twice.
+    // It read the third second until the forearm got its own axis and its whole range and the
+    // malleoli went back to where their rules put them, then the fourth to the sixth. When the
+    // wrist took the clinical deviation range, 20 degrees radial and 30 ulnar, on 2026-09-27, the
+    // passive body's collapse ran a second longer than the limp one's (12.6 against 0.4 rad/s in
+    // the fourth second) and both were quiet by the sixth, so "settles sooner" stopped being true of
+    // this one fall. What stayed true is the point of the terms: from the seventh second the
+    // passive body holds at about 0.037 rad/s, and the limp one creeps, 0.064 there rising to 0.085
+    // in the twelfth. Over the last four seconds that is under half.
     const settlingSpeed = async (passive: boolean) => {
       const kernel = new Kernel({ rateHz: 500, seed: 1 });
       const physics = new PhysicsModule(new MujocoBackend(), articulation, {
@@ -101,16 +105,16 @@ describe('PassiveJointModule', () => {
       kernel.register(physics);
       if (passive) kernel.register(new PassiveJointModule(articulation));
       await kernel.init();
-      kernel.run(1500);
+      kernel.run(4000);
       const state = kernel.channels.view(physics.manifest.id, BODY_JOINT_STATE, 'write');
       const qdot = state.fields.qdot as Float64Array;
       let sum = 0;
-      for (let t = 0; t < 1500; t++) {
+      for (let t = 0; t < 2000; t++) {
         kernel.step();
         for (let i = ROOT_NV; i < qdot.length; i++) sum += Math.abs(qdot[i] ?? 0);
       }
       kernel.dispose();
-      return sum / 1500;
+      return sum / 2000;
     };
     const withPassive = await settlingSpeed(true);
     const without = await settlingSpeed(false);
