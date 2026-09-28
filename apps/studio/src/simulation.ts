@@ -55,6 +55,7 @@ import {
   MlpPolicy,
   NervesModule,
   type PolicyFile,
+  SPINAL_OFF,
   type SpinalGains,
   SpinalModule,
 } from '@bs-humany/modules-nerves';
@@ -485,7 +486,7 @@ export class Simulation {
       // body every headless caller has always run.
       this.spine = new SpinalModule(this.muscles, {
         groups: reflexGroups(),
-        gains: { stretch: 0, velocity: 0, ...options.reflex },
+        gains: { ...SPINAL_OFF, ...options.reflex },
         stepSeconds: 1 / rate,
       });
       this.kernel.register(this.spine);
