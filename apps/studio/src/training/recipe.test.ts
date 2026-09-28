@@ -24,8 +24,8 @@ import {
 import { shippedCheckpoints, trainedBefore } from './shipped.js';
 
 const input: RecipeInput = {
-  scenario: 'quiet-standing',
-  parameters: { tone: 1 },
+  scenario: 'drop-standing-collapse',
+  parameters: { clearance: 0 },
   profile: 'l3_anatomical',
   morphology: { sex: 0.5, stature: 1.7, mass: 70 },
   passive: true,
@@ -73,7 +73,7 @@ describe('the recipe Start trains', () => {
     expect(recipe.authority).toBe(0.7);
     expect(recipe.name).toBe('stand-2');
     expect(recipe.task).toBe('stand');
-    expect(recipe.scenario).toBe('quiet-standing');
+    expect(recipe.scenario).toBe('drop-standing-collapse');
     expect(recipe.noise).toEqual({ motor: 0.05, sense: 0.01, tau: DEFAULT_NOISE.tau });
     expect(recipe.noise?.tau).toBe(0.25);
     expect(recipe.reflex).toEqual(DEFAULT_REFLEX);
@@ -85,13 +85,16 @@ describe('the recipe Start trains', () => {
 
   it('maps what plays under the brain, and says it in words', () => {
     expect(feedforwardFrom('none')).toEqual({ kind: 'none' });
-    expect(feedforwardFrom('script')).toEqual({ kind: 'script' });
+    // The scenario's own muscle script, offered until 2026-09-28, is nothing now: a form state
+    // saved for an Undo from before then still turns into a recipe the trainer takes.
+    expect(feedforwardFrom('script')).toEqual({ kind: 'none' });
+    // The activation clip called quiet-standing, which stayed when the scenario of that name went.
     expect(feedforwardFrom('clip')).toEqual({ kind: 'clip', clip: 'quiet-standing' });
     expect(buildRecipe(input, { ...form, feedforward: 'clip' }).feedforward).toEqual({
       kind: 'clip',
       clip: 'quiet-standing',
     });
-    expect(feedforwardPhrase('script')).toBe("with the scenario's script under it");
+    expect(feedforwardPhrase('script')).toBe('alone');
     expect(feedforwardPhrase('clip')).toBe('over the quiet-standing clip');
     expect(feedforwardPhrase('none')).toBe('alone');
   });

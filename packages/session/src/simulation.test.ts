@@ -11,7 +11,8 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
-import { SCENARIOS } from '@bs-humany/scenarios';
+import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
+import { DEFAULT_SCENARIO } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Simulation, type SimulationOptions } from './simulation.js';
@@ -31,16 +32,15 @@ function build(extra: Partial<SimulationOptions> = {}): Simulation {
   });
 }
 
-/** The committed standing policy, with a recipe that asks for a cord of its own. */
+/** The committed balance policy, with a recipe that asks for a cord of its own. */
 function policyAskingForACord(): PolicyFile {
-  const stand = SCENARIOS.find((s) => s.id === 'nerves-stand')?.nerves?.policy;
-  if (!stand) throw new Error('the nerves-stand scenario has no policy');
+  const balance = balancePolicy as unknown as PolicyFile;
   return {
-    ...stand,
+    ...balance,
     recipe: {
       name: 'probe',
       task: 'stand',
-      scenario: 'nerves-stand',
+      scenario: DEFAULT_SCENARIO,
       parameters: {},
       profile: 'l3_anatomical',
       morphology: { sex: 0.5, stature: 1.7, mass: 70 },

@@ -4,8 +4,9 @@
  * The policy's outputs are the drive groups a side -- seventy for thirty-five groups -- in a
  * fixed order, because the training rig, the studio and the headset must agree on which output
  * is which. The goal is a one-hot over the behaviours a policy can be told to produce; only the
- * first is trained yet. `NervesSetup` is the scenario's part: which policy file, how much
- * authority, and the goal.
+ * first is trained yet. `NervesSetup` is what a hand-over gives a run: which policy file, how much
+ * authority, and the goal. It came from a scenario too until 2026-09-28, when "Standing, with the
+ * nerves" was deleted; a brain is the Brain tab's to hand over now, never a scenario's.
  */
 
 import type { DriveOutput, PolicyFile } from '@bs-humany/modules-nerves';
@@ -34,7 +35,7 @@ export function driveOutputs(): DriveOutput[] {
   return outputs;
 }
 
-/** What a scenario says when it wants the nerves in the loop. */
+/** What a hand-over says when it puts the nerves in the loop. */
 export interface NervesSetup {
   readonly policy: PolicyFile;
   /** The most one output may add to or take from a unit's excitation. */

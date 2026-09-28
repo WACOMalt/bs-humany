@@ -8,8 +8,8 @@
  * has its file, and that the committed goldens name nothing no scenario would write.
  *
  * Every scenario is checked for plausibility. Only a pinned one (`golden !== false`) is checked
- * against, or writes, a golden hash: a scenario driven by a trained policy changes with every
- * training run, so its hash would record the last run rather than the physics.
+ * against, or writes, a golden hash: a scenario built for a trained policy to stand on changes
+ * with whatever policy is on it, so its hash would record the last policy rather than the physics.
  *
  * `pnpm goldens:update` runs these files with UPDATE_GOLDENS set. Each file then reads the goldens
  * once, records what its scenarios hash to, and writes the file back once when it is done, keeping
@@ -65,17 +65,15 @@ function tolerancesFor(backend: string): PlausibilityTolerances {
  * The groups, one file each, by predicate. Balanced by stepping time as measured on 2026-09-27
  * (`docs/validation/conformance.md`): the L1 skeleton scenarios take under a second each, the
  * muscled ones at a kilohertz between seven and thirty.
+ *
+ * One group since 2026-09-28. The three others -- the range of motion, the flailing arms, and the
+ * standing scenarios -- held the seven scenarios that drove muscles, and the owner deleted those,
+ * so their files went with them; a scenario heavy enough to want its own file again gets a group
+ * of its own here and a file that pins it.
  */
 export const GOLDEN_GROUPS: Record<string, (s: Scenario) => boolean> = {
   skeleton: (s) =>
     s.profileId === 'l1_standard' || s.id === 'skull-wiggle' || s.id === 'tilting-floor',
-  rangeOfMotion: (s) => s.id === 'muscle-range-of-motion',
-  flail: (s) => s.id === 'arm-flail' || s.id === 'clip-flail-arms',
-  standing: (s) =>
-    s.id === 'quiet-standing' ||
-    s.id === 'clip-quiet-standing' ||
-    s.id === 'clip-walk-normal' ||
-    s.id === 'nerves-stand',
 };
 
 /**
@@ -291,10 +289,12 @@ export function pinScenarios(group: string): void {
    * throws: the trajectory is the goldens' business.
    *
    * Each run builds its scenario afresh from its definition rather than reusing the shared one,
-   * because a scenario's script can keep state in its closure -- the ankle strategy's last lean,
-   * the shaken head's centre -- and a second run through the same closure would start from where
-   * the golden run left it. Every scenario is audited, pinned or not: the nerves scenario is the
-   * only one that puts the nerves module in the loop.
+   * because a scenario's script can keep state in its closure -- the shaken head's centre -- and a
+   * second run through the same closure would start from where the golden run left it. Every
+   * scenario is audited, pinned or not: the tilting floor, which keeps no golden, is the one that
+   * carries the muscle set. (The nerves module was audited here too, through "Standing, with the
+   * nerves", until that scenario was deleted on 2026-09-28; its own tests audit it now, as every
+   * vitest run does.)
    */
   describe.each(scenarios.map((s) => s.id))('scenario %s under the declared-access audit', (id) => {
     const definition = SCENARIO_DEFINITIONS.find((d) => d.id === id);

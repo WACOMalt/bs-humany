@@ -19,6 +19,7 @@ import type { KernelSnapshot } from '@bs-humany/kernel';
 import { PASSIVE_JOINT_MODULE_ID } from '@bs-humany/modules-mechanics';
 import { MUSCLE_STATE } from '@bs-humany/modules-muscle';
 import { SPINAL_REGIONS, type SpinalRegion } from '@bs-humany/modules-nerves';
+import { replacementFor } from '@bs-humany/scenarios';
 import { DEFAULT_OUTPUT_FRAMERATE } from '@bs-humany/session';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
@@ -68,7 +69,7 @@ export interface SessionSettings {
   readonly floor?: boolean | undefined;
   /** The chosen scenario's parameter values, by parameter id. Absent means its defaults. */
   readonly scenarioParameters?: Readonly<Record<string, number>> | undefined;
-  /** The Muscles box. A scenario that drives muscles turns them on whatever this says. */
+  /** The Muscles box. A scenario that asks for muscles turns them on whatever this says. */
   readonly muscles?: boolean | undefined;
   /**
    * Simulation steps a second, written only when somebody chose one. Absent, the run steps at
@@ -340,6 +341,28 @@ function reflexOf(value: unknown): SessionReflex | undefined {
 // ---------------------------------------------------------------------------------------------
 // Whether a saved run fits the run built to take it
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * A session's settings with a scenario deleted on 2026-09-28 replaced by the one that stands in
+ * for it, and the sentence to say about it; the settings as they were, and no sentence, for any
+ * other scenario.
+ *
+ * A session names its scenario by id, and seven ids stopped naming anything when the scenarios
+ * that drove muscles were deleted. A file that names one is still a session somebody saved -- a
+ * body, a cord, a run -- so it loads in the default scenario, "Drop, standing" at 0 m, and the
+ * studio says once that it did. Its scenario's own parameter values are dropped, because they
+ * were the deleted scenario's and mean nothing to the one in its place; a scenario this studio
+ * never had is still refused where the session is loaded, as it was.
+ */
+export function withoutRetiredScenario(settings: NormalisedSettings): {
+  readonly settings: NormalisedSettings;
+  readonly note?: string;
+} {
+  const standIn = replacementFor(settings.scenario);
+  if (!standIn) return { settings };
+  const { scenarioParameters: _dropped, ...rest } = settings;
+  return { settings: { ...rest, scenario: standIn.id }, note: standIn.note };
+}
 
 /** A kernel's channels, as far as a fingerprint reads them: `Kernel.channels` is one. */
 export interface ChannelSource {

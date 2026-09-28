@@ -100,7 +100,6 @@ describe('the tilting floor', () => {
       grab: () => {},
       moveGrab: () => {},
       release: () => {},
-      drive: () => {},
       moveStaticBox: (_id: string, position: { y: number }, rotation: { x: number; z: number }) => {
         seen.push([position.y, rotation.x, rotation.z]);
       },

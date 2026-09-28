@@ -38,14 +38,10 @@ import {
   MuscleTestDriveModule,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
-import { NervesModule } from '@bs-humany/modules-nerves';
 import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
-  GOAL_SIZE,
   type Scenario,
-  controlDivisorFor,
   createScenarioApi,
-  driveOutputs,
   placeArticulation,
   profileRateHz,
 } from '@bs-humany/scenarios';
@@ -150,10 +146,11 @@ export async function runScenario(
   kernel.register(coupling);
   if (scenario.passiveJoints) kernel.register(new PassiveJointModule(articulation));
 
-  // Muscles, when the scenario asks for them. A scenario that drives muscles and runs without
-  // them is not a slower version of itself -- it is a different experiment, and its golden would
-  // be a record of a body doing nothing.
-  let muscleDrive: MuscleTestDriveModule | undefined;
+  // Muscles, when the scenario asks for them: the tilting floor carries the whole set, slack, so
+  // its plausibility check and its declared-access audit cover the muscle modules under a moving
+  // floor. Nothing here drives them. The scenarios that did -- a script's excitations, a policy
+  // of their own -- were deleted on 2026-09-28, and with no slider to move it the drive stays at
+  // the zero it is built with.
   if (scenario.muscles) {
     const muscles = compileMuscleSet(
       [...ALL_MUSCLES],
@@ -162,30 +159,13 @@ export async function runScenario(
       morphology.context,
       document.wrappingSurfaces ?? [],
     );
-    muscleDrive = new MuscleTestDriveModule(muscles, [
-      { units: 'all', pattern: { kind: 'constant', level: 0 } },
-    ]);
-    kernel.register(muscleDrive);
+    kernel.register(
+      new MuscleTestDriveModule(muscles, [
+        { units: 'all', pattern: { kind: 'constant', level: 0 } },
+      ]),
+    );
     kernel.register(new MusclePathModule(articulation, muscles));
     kernel.register(new MuscleDynamicsModule(articulation, muscles));
-    if (scenario.nerves) {
-      const goal = new Float64Array(GOAL_SIZE);
-      goal[Math.max(0, Math.min(GOAL_SIZE - 1, scenario.nerves.goal))] = 1;
-      kernel.register(
-        new NervesModule(articulation, muscles, {
-          policy: scenario.nerves.policy,
-          outputs: driveOutputs(),
-          goalSize: GOAL_SIZE,
-          goal: () => goal,
-          // The scenario's own when it pins one; otherwise the period the policy was trained at,
-          // at this rate -- the rule the studio and the trainer follow too.
-          controlDivisor:
-            scenario.nerves.controlDivisor ??
-            controlDivisorFor(rate, scenario.nerves.policy.recipe),
-          authority: scenario.nerves.authority,
-        }),
-      );
-    }
   }
   await kernel.init();
 
@@ -203,7 +183,6 @@ export async function runScenario(
     segmentIds: articulation.segments.map((s) => s.id),
     position,
     grab,
-    drive: (unit, level) => muscleDrive?.setOverride(unit, level),
     moveStaticBox: (id, at, rotation) => physics.setStaticBoxTransform(id, at, rotation),
   });
 

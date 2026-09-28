@@ -126,7 +126,7 @@ function boot(): void {
         scenario: chosen,
         dropHeight: Number(controls.dropHeight.value),
         groundHeight: body.groundY,
-        // A scenario that drives muscles gets them whether the box is ticked or not: the box is
+        // A scenario that asks for muscles gets them whether the box is ticked or not: the box is
         // there to keep them off the runs that do not need them, not to make a muscle scenario
         // silently run a bare skeleton.
         muscles: controls.muscles.checked || chosen?.muscles === true,

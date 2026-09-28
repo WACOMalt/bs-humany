@@ -24,16 +24,13 @@ export interface ScenarioApi {
   grab(segmentIndex: number, localPoint: Vec3, worldTarget: Vec3): void;
   moveGrab(worldTarget: Vec3): void;
   release(): void;
-  /**
-   * Drive one muscle unit, 0 to 1, until told otherwise.
-   *
-   * Excitation rather than force: what a script asks for is what a nerve would ask for, and what
-   * the muscle does with it is the muscle's business -- activation lags it, the fiber has to be
-   * at a length where it can pull, and the force arrives as a wrench at the attachment rather
-   * than as a torque at the joint (M-ADR-003). A scenario that does not run muscles ignores this
-   * rather than failing, so a script can ask without checking first.
-   */
-  drive(unit: string, level: number): void;
+  // No `drive`. A script once drove muscle units too, and seven scenarios were built on it -- the
+  // ankle strategy, the range of motion, the flailing arms, the activation clips played open loop,
+  // the trained policy over the standing clip. The owner deleted all seven on 2026-09-28: the
+  // muscles belong to the drive sliders, the cord belongs to the Spine sliders and a brain belongs
+  // to the Brain tab, so a scenario says where the body is and what the world does to it, and
+  // nothing about what its nerves ask for. A scenario may still ask for the muscle set to be
+  // there (`Scenario.muscles`), which is how the tilting floor gives a brain something to drive.
   /**
    * Put one of the scenery's boxes somewhere, by the id it was declared with.
    *
@@ -52,9 +49,11 @@ export interface Scenario {
   readonly morphology: Morphology;
   readonly durationSeconds: number;
   /**
-   * Run the muscle set, so `api.drive` reaches something.
+   * Run the muscle set, so the drive sliders, the cord and a brain have something to drive.
    *
    * Off by default: most scenarios are about the skeleton, and every unit costs a solve per tick.
+   * On forces the muscles on whatever the studio's Muscles box says, which is all a scenario may
+   * say about them: nothing here drives one.
    */
   readonly muscles?: boolean | undefined;
   /** Rotation applied to the whole rest pose about the root, before lifting. */
@@ -82,12 +81,10 @@ export interface Scenario {
    * why they are what they are, and each carries its own reason where it is set.
    */
   readonly plausibility?: Readonly<Partial<Record<PlausibilityKey, number>>> | undefined;
-  /** The nerves in the loop: a trained policy over the drive. */
-  readonly nerves?: NervesSetup | undefined;
   /**
-   * Whether a golden trajectory is kept for this scenario. Off for a scenario driven by a trained
-   * policy, whose file changes with every training run; its hash would be a record of the last
-   * run rather than of the physics.
+   * Whether a golden trajectory is kept for this scenario. Off for one built for a brain to be
+   * trained on -- the tilting floor -- whose run is whatever policy is handed over on it, so its
+   * hash would be a record of the last policy rather than of the physics.
    */
   readonly golden?: boolean | undefined;
 }
@@ -177,33 +174,6 @@ function withDefaults(
   return out;
 }
 
-/**
- * Which units a scenario script drives, by joint and direction.
- *
- * Named here rather than discovered, for the reason the studio's panel names them: the sign of a
- * moment arm is what the validation harness checks, and a scenario that grouped muscles by
- * measuring it would agree with that harness by construction rather than by being right.
- *
- * Ids, not objects: a scenario is data and must not depend on the muscle packages. What it names
- * is checked where it is used -- the runner refuses a unit the set does not have.
- */
-const both = (...names: string[]): string[] => names.flatMap((n) => [`${n}_r`, `${n}_l`]);
-
-const ELBOW_FLEXORS_R = [
-  'biceps_brachii_long_r',
-  'biceps_brachii_short_r',
-  'brachialis_r',
-  'brachioradialis_r',
-];
-const ELBOW_FLEXORS_L = ELBOW_FLEXORS_R.map((id) => id.replace(/_r$/, '_l'));
-const ELBOW_EXTENSORS_R = [
-  'triceps_brachii_long_r',
-  'triceps_brachii_lateral_r',
-  'triceps_brachii_medial_r',
-];
-const ELBOW_EXTENSORS_L = ELBOW_EXTENSORS_R.map((id) => id.replace(/_r$/, '_l'));
-
-/** The groups the range-of-motion scenario takes through their range, in order. */
 export {
   ANTAGONISTS,
   MUSCLE_GROUPS,
@@ -223,10 +193,6 @@ export {
   loadActivationClips,
   unitsNamedByClips,
 } from './activationClips.js';
-import type { PolicyFile } from '@bs-humany/modules-nerves';
-import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
-import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
-import type { NervesSetup } from './nerves.js';
 import { PLATFORM_TOP, platformBox, tiltingFloor } from './tiltingFloor.js';
 export {
   GOAL_SIZE,
@@ -243,109 +209,6 @@ export {
   isControlKey,
   snapToControl,
 } from './controls.js';
-
-/**
- * The activation clips, compiled once against the units they name. That every one of those is a
- * unit the muscle set compiles is held by `activationClips.test.ts` against the muscle data.
- */
-const CLIPS = loadActivationClips(unitsNamedByClips());
-
-function clipCalled(id: string): CompiledClip {
-  const clip = CLIPS.get(id);
-  if (!clip) throw new Error(`no activation clip called '${id}'`);
-  return clip;
-}
-
-/**
- * A script that plays a clip: each tick, every unit the clip touches is driven at its level,
- * scaled by `gain`, with the clock run at `rate`. The scenario's own layer of the drive, so a
- * person's sliders add to it rather than fight it.
- */
-function playClip(clip: CompiledClip, gain: number, rate: number): Scenario['script'] {
-  const units = clip.units;
-  return (time, api) => {
-    const levels = clip.levels(time * rate);
-    for (let i = 0; i < units.length; i++) {
-      api.drive(units[i] as string, Math.min(1, gain * (levels[i] as number)));
-    }
-  };
-}
-
-/**
- * The four groups the range-of-motion scenario cycles through. Its own list, not the full drive
- * table: the table grew to cover every unit, and this scenario's golden trajectory was baked
- * against these four.
- */
-const RANGE_OF_MOTION_GROUPS: readonly { readonly title: string; readonly units: string[] }[] = [
-  { title: 'Elbow flexors', units: [...ELBOW_FLEXORS_R, ...ELBOW_FLEXORS_L] },
-  { title: 'Elbow extensors', units: [...ELBOW_EXTENSORS_R, ...ELBOW_EXTENSORS_L] },
-  {
-    title: 'Knee flexors',
-    units: both(
-      'biceps_femoris_long',
-      'biceps_femoris_short',
-      'semitendinosus',
-      'semimembranosus',
-      'gastrocnemius_lateral',
-      'gastrocnemius_medial',
-    ),
-  },
-  {
-    title: 'Knee extensors',
-    units: both('rectus_femoris', 'vastus_lateralis', 'vastus_medialis', 'vastus_intermedius'),
-  },
-];
-
-/**
- * What a quietly standing person's muscles are actually doing, as a fraction of maximum.
- *
- * Standing still is not passive and it is not hard either. The line of gravity falls a few
- * centimetres in front of the ankle, so the calf works continuously to stop the body toppling
- * forward, and that is most of the story: soleus carries it, with gastrocnemius helping. Above
- * the ankle the joints sit near the positions their own ligaments hold -- the knee is close to
- * locked in extension and the hip near its own passive limit -- so the big muscles there are
- * nearly silent, and what is left is postural tone: a few per cent in the back extensors and the
- * abdominal wall to hold the trunk up, a few per cent in the hip abductors to keep the pelvis
- * level over one leg's worth of stance width.
- *
- * The numbers are quiet-stance EMG as a fraction of a maximal contraction, in the band the
- * textbook measurements report (Winter 2009, and Basmajian's survey before it): soleus around a
- * tenth, gastrocnemius half that, the trunk and hip stabilisers a few per cent, tibialis anterior
- * barely on -- it alternates with the calf as the body sways rather than pulling steadily.
- *
- * These are a *posture*, not a controller. Nothing here corrects a sway, so the body standing on
- * them drifts the way a person standing on a numbed leg does. The scenario says so.
- */
-export const POSTURAL_TONE: Readonly<Record<string, number>> = {
-  soleus: 0.08,
-  gastrocnemius_lateral: 0.04,
-  gastrocnemius_medial: 0.04,
-  tibialis_anterior: 0.02,
-  tibialis_posterior: 0.03,
-  fibularis_longus: 0.02,
-  erector_spinae: 0.04,
-  rectus_abdominis: 0.02,
-  external_oblique: 0.02,
-  internal_oblique: 0.02,
-  gluteus_maximus_superior: 0.02,
-  gluteus_maximus_middle: 0.02,
-  gluteus_maximus_inferior: 0.02,
-  gluteus_medius_anterior: 0.04,
-  gluteus_medius_middle: 0.04,
-  gluteus_medius_posterior: 0.04,
-  gluteus_minimus_anterior: 0.02,
-  gluteus_minimus_middle: 0.02,
-  gluteus_minimus_posterior: 0.02,
-  iliacus: 0.03,
-  psoas_major: 0.03,
-  vastus_lateralis: 0.02,
-  vastus_medialis: 0.02,
-  vastus_intermedius: 0.02,
-  rectus_femoris: 0.02,
-  biceps_femoris_long: 0.02,
-  semitendinosus: 0.02,
-  semimembranosus: 0.02,
-};
 
 function define(
   definition: Omit<ScenarioDefinition, 'build'> & {
@@ -366,120 +229,7 @@ function define(
   };
 }
 
-/** Lean, in metres, that the reflex holds the body at: gravity in front of the ankle. */
-const STANCE_LEAN = 0.04;
-/** Excitation added per metre of lean past that, and per metre per second of sway. */
-const LEAN_GAIN = 9;
-const SWAY_GAIN = 2.2;
-/**
- * Which half of the ankle strategy a muscle belongs to; anything unlisted is tone only.
- *
- * Only the ankle. A hip channel was tried on the same measurement taken at the pelvis -- hip
- * flexors against a forward overhang, extensors against a backward one, which is the hip strategy
- * as it is usually described -- and it did not help: the body went over at the same second either
- * way, and with the gain high enough to matter it went over sooner. Holding a hip needs a servo
- * that knows the joint's own angle, and a scenario script can see segment positions and nothing
- * else. OQ-024.
- */
-const REFLEX_CHANNEL: Readonly<Record<string, 'calf' | 'shin'>> = {
-  soleus: 'calf',
-  gastrocnemius_lateral: 'calf',
-  gastrocnemius_medial: 'calf',
-  tibialis_anterior: 'shin',
-};
-
-/**
- * The ankle strategy, which is how a person stands still.
- *
- * Quiet standing is not a posture held by tone alone. The body is an inverted pendulum with its
- * mass a metre up and its base the length of a foot, and the tone in `POSTURAL_TONE` is what it
- * takes to hold that *at the lean it is already at* -- change the lean and the same tone is
- * either too much or not enough, and the pendulum runs away. Driven on tone alone this body
- * stands for about seven tenths of a second and then goes over, which is the right answer to the
- * wrong question: it is what standing without the reflex that watches it looks like.
- *
- * So the calf is modulated by the sway. Lean is measured as the head over the ankles along the
- * foot's own anterior direction -- taken from the foot rather than from the world, so it stays
- * right if the body turns -- and the calf takes the forward half of it while tibialis anterior
- * takes the backward half, each with a term in the lean and a term in its rate. That is the
- * ankle strategy as the posture literature describes it, and nothing above the ankle is in the
- * loop: no hip strategy, no stepping, no vestibular anything. Push this body hard enough and it
- * falls over, which is correct.
- *
- * `reflex` at zero turns the loop off and leaves the tone, which is the comparison.
- */
-function ankleStrategy(v: Record<string, number>): (time: number, api: ScenarioApi) => void {
-  let previousLean: number | undefined;
-  let previousTime = 0;
-  return (time, api) => {
-    const settle = v.settle as number;
-    const ramp = settle <= 0 ? 1 : Math.min(1, time / settle);
-    const tone = (v.tone as number) * ramp;
-
-    const head = api.segmentPosition(api.segment('head'));
-    const heel = api.segmentPosition(api.segment('calcaneus_r'));
-    const toe = api.segmentPosition(api.segment('forefoot_r'));
-    // The foot's own forward, flattened and normalised. A foot is never exactly level, and a
-    // lean measured along a tilted axis picks up the body's height as if it were sway.
-    const ax = toe.x - heel.x;
-    const az = toe.z - heel.z;
-    const length = Math.hypot(ax, az) || 1;
-    const ankle = api.segmentPosition(api.segment('talus_r'));
-    const lean = ((head.x - ankle.x) * ax + (head.z - ankle.z) * az) / length;
-    const dt = time - previousTime;
-    const rate = previousLean === undefined || dt <= 0 ? 0 : (lean - previousLean) / dt;
-    previousLean = lean;
-    previousTime = time;
-
-    const gain = (v.reflex as number) * ramp;
-    const excess = lean - STANCE_LEAN;
-    const forward = gain * (LEAN_GAIN * Math.max(0, excess) + SWAY_GAIN * Math.max(0, rate));
-    const backward = gain * (LEAN_GAIN * Math.max(0, -excess) + SWAY_GAIN * Math.max(0, -rate));
-
-    for (const [muscle, level] of Object.entries(POSTURAL_TONE)) {
-      const reflex = REFLEX_CHANNEL[muscle];
-      const added = reflex === 'calf' ? forward : reflex === 'shin' ? backward : 0;
-      for (const unit of both(muscle)) api.drive(unit, Math.min(1, tone * level + added));
-    }
-  };
-}
-
 export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
-  define({
-    id: 'quiet-standing',
-    title: 'Standing quietly',
-    description:
-      'The rest pose on the ground with the muscles at the tone a quietly standing person holds ' +
-      'them at -- mostly calf, a few per cent everywhere else -- with the calf modulated by the ' +
-      "sway, which is the ankle strategy. That loop is the scenario's own, and it stops at the " +
-      "ankle. Above it there is only the spinal cord's stretch reflex (ADR-014), which belongs " +
-      'to the body rather than to the scenario and is switched on or off outside it. With the ' +
-      'cord off the body goes over inside a second; with the measured cord on it catches one ' +
-      'sag, stays up for about two seconds, and then goes over too. Nothing here yet holds ' +
-      'standing (OQ-024).',
-    parameters: [
-      param('tone', 'Postural tone', 1, 0, 3, 0.05, '\u00d7'),
-      param('reflex', 'Ankle reflex', 1, 0, 3, 0.05, '\u00d7'),
-      param('settle', 'Ramp in over', 0.25, 0, 2, 0.05, ' s'),
-    ],
-    make: (v) => ({
-      profileId: 'l3_anatomical',
-      morphology: REFERENCE,
-      muscles: true,
-      durationSeconds: 3,
-      // On the ground rather than above it: this one is about what the muscles hold, and a drop
-      // would be about the landing.
-      clearance: 0,
-      ground: { height: 0 },
-      passiveJoints: true,
-      // A muscle is a source of energy, so the passive-system check does not apply.
-      passiveSystem: false,
-      // It settles: nothing here holds standing yet, so by the end the body is down and still
-      // (0.04 J). A body that did stand would settle too, because the sway of quiet standing is
-      // millijoules; only a scenario that keeps something moving to its last tick is excused.
-      script: ankleStrategy(v),
-    }),
-  }),
   define({
     id: 'tilting-floor',
     title: 'Tilting floor',
@@ -750,213 +500,6 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       },
     }),
   }),
-  define({
-    id: 'muscle-range-of-motion',
-    title: 'Range of motion, muscle by muscle',
-    description:
-      'The body hangs by one wrist and each driven group takes its joint through its range in ' +
-      'turn: elbows flexed then straightened, knees the same. Nothing is scripted at the joints ' +
-      "-- the only inputs are muscle excitations, and what the joints do is what the muscles' " +
-      'own leverage makes them do.',
-    parameters: [
-      param('hold', 'Hand height', 2.2, 1.2, 2.6, 0.05),
-      param('phase', 'Seconds a group', 3, 1, 8, 0.5, ' s'),
-    ],
-    make: (v) => ({
-      profileId: 'l3_anatomical',
-      morphology: REFERENCE,
-      muscles: true,
-      durationSeconds: 2 + 4 * (v.phase as number),
-      clearance: 0.2,
-      ground: { height: 0 },
-      passiveJoints: true,
-      // A muscle is a source of energy, so the passive-system check does not apply.
-      passiveSystem: false,
-      // It settles: each group's drive is a half sine that is back to zero when its phase ends,
-      // and the run goes on a second past the last phase, so the body is left hanging from its
-      // wrist with the swing of that last group dying away (0.39 J).
-      script: (time, api) => {
-        const hand = api.segment('hand_r');
-        if (time === 0) api.grab(hand, vec3(0, 0, 0), vec3(0.2, v.hold as number, 0));
-        // A second to settle on the grab, then each group in turn. Ramped rather than switched:
-        // a step to full excitation is a transient nobody asked to look at, and a muscle that
-        // has to follow a step tells you about the step.
-        const phase = v.phase as number;
-        const since = time - 1;
-        const group = Math.floor(since / phase);
-        const within = (since - group * phase) / phase;
-        const level = since < 0 ? 0 : Math.sin(Math.PI * Math.min(1, Math.max(0, within)));
-        for (let at = 0; at < RANGE_OF_MOTION_GROUPS.length; at++) {
-          const units = RANGE_OF_MOTION_GROUPS[at]?.units ?? [];
-          for (const unit of units) api.drive(unit, at === group ? level : 0);
-        }
-      },
-    }),
-  }),
-  define({
-    id: 'arm-flail',
-    title: 'Flail the arms',
-    description:
-      'Both elbows driven by sine waves, the flexors and extensors in opposition and the two ' +
-      'arms half a cycle apart. What it is for is watching the paths and the bellies move under ' +
-      'a signal that never settles, which is where a wrap that flickers or a belly that lags ' +
-      'shows itself.',
-    parameters: [
-      param('frequency', 'Flail rate', 1.5, 0.2, 6, 0.1, ' Hz'),
-      param('depth', 'Drive depth', 0.8, 0.1, 1, 0.05),
-      param('hold', 'Hand height', 2.2, 1.2, 2.6, 0.05),
-    ],
-    make: (v) => ({
-      profileId: 'l3_anatomical',
-      morphology: REFERENCE,
-      muscles: true,
-      durationSeconds: 8,
-      clearance: 0.2,
-      ground: { height: 0 },
-      passiveJoints: true,
-      passiveSystem: false,
-      // It is still flailing when the run ends, by construction: the drive never stops and the
-      // body hangs from one wrist while two arms swing.
-      settles: false,
-      script: (time, api) => {
-        // Held by the left wrist, so the right arm is the one flailing freely.
-        const hand = api.segment('hand_l');
-        if (time === 0) api.grab(hand, vec3(0, 0, 0), vec3(-0.2, v.hold as number, 0));
-        const depth = v.depth as number;
-        const wave = 2 * Math.PI * (v.frequency as number) * time;
-        // Cosine, so the drive starts at full rather than at zero: a sine through zero at t = 0
-        // spends the first tick doing nothing, which is exactly the mistake the Nyquist test
-        // caught in the skull shake.
-        const right = (Math.cos(wave) + 1) / 2;
-        const left = (Math.cos(wave + Math.PI) + 1) / 2;
-        for (const unit of ELBOW_FLEXORS_R) api.drive(unit, depth * right);
-        for (const unit of ELBOW_EXTENSORS_R) api.drive(unit, depth * (1 - right));
-        for (const unit of ELBOW_FLEXORS_L) api.drive(unit, depth * left);
-        for (const unit of ELBOW_EXTENSORS_L) api.drive(unit, depth * (1 - left));
-      },
-    }),
-  }),
-  // --- the activation clips ---------------------------------------------------------------------
-  // Excitation authored from the literature, played open loop. What they are for is said in
-  // `docs/sources/humansim-activation-research.md`: standing is a validation of the muscle
-  // parameters, walking is the pattern of walking and not a walk, flailing is a stress test.
-  define({
-    id: 'clip-quiet-standing',
-    title: 'Quiet standing, from the clip',
-    description:
-      'The excitations of quiet standing as the literature reports them: the soleus tonic at ' +
-      'eight per cent, the medial gastrocnemius swaying near a third of a hertz, the tibialis ' +
-      'anterior near silent but for three brief bursts, and everything else a few per cent or ' +
-      'nothing. Open loop, so it stands until it does not. If it needs more than fifteen per ' +
-      'cent in the soleus to stand at all, the fault is upstream in the parameters, not here.',
-    parameters: [
-      param('gain', 'Drive gain', 1, 0, 3, 0.05, '\u00d7'),
-      param('rate', 'Playback rate', 1, 0.25, 2, 0.05, '\u00d7'),
-    ],
-    make: (v) => ({
-      profileId: 'l3_anatomical',
-      morphology: REFERENCE,
-      muscles: true,
-      durationSeconds: 6,
-      clearance: 0,
-      ground: { height: 0 },
-      passiveJoints: true,
-      passiveSystem: false,
-      // It settles, for the reason quiet-standing does: standing, it sways by millijoules, and
-      // open loop it goes over and lies still.
-      script: playClip(clipCalled('quiet-standing'), v.gain as number, v.rate as number),
-    }),
-  }),
-  define({
-    id: 'clip-walk-normal',
-    title: 'Walking, from the clip',
-    description:
-      'The muscle activity of level walking at a self-selected speed, timing from Perry and ' +
-      'from twenty-eight thousand strides, amplitudes estimated, the left leg the right leg half ' +
-      'a cycle on. It is the pattern of walking and not a walk: nothing corrects a step that ' +
-      'lands wrong, so it takes a step or two and goes over, and how long it stays up is the ' +
-      'number a reflex controller has to beat.',
-    parameters: [
-      param('gain', 'Drive gain', 1, 0, 3, 0.05, '\u00d7'),
-      param('rate', 'Playback rate', 1, 0.25, 2, 0.05, '\u00d7'),
-    ],
-    make: (v) => ({
-      profileId: 'l3_anatomical',
-      morphology: REFERENCE,
-      muscles: true,
-      durationSeconds: 6,
-      clearance: 0,
-      ground: { height: 0 },
-      passiveJoints: true,
-      passiveSystem: false,
-      // The gait plays to the last tick, and a body that walked to it would end with tens of
-      // joules of forward motion. Today it goes over and ends nearly still (0.43 J), which is
-      // the fall, not the scenario settling.
-      settles: false,
-      script: playClip(clipCalled('walk-normal'), v.gain as number, v.rate as number),
-    }),
-  }),
-  define({
-    id: 'clip-flail-arms',
-    title: 'Flailing, from the clip',
-    description:
-      'Both arms flailing: antagonists at the shoulder and elbow in counter-phase at three ' +
-      'incommensurable frequencies, the decelerating burst arriving late so each joint reaches ' +
-      'its end stop, the trunk and the hips bracing. Constructed, not measured -- nobody funds a ' +
-      'flailing study -- and the best stress test of the muscle module there is: many units ' +
-      'driven hard, reversing often.',
-    parameters: [
-      param('gain', 'Drive gain', 1, 0, 3, 0.05, '\u00d7'),
-      param('rate', 'Playback rate', 1, 0.25, 2, 0.05, '\u00d7'),
-    ],
-    make: (v) => ({
-      profileId: 'l3_anatomical',
-      morphology: REFERENCE,
-      muscles: true,
-      durationSeconds: 8,
-      clearance: 0,
-      ground: { height: 0 },
-      passiveJoints: true,
-      passiveSystem: false,
-      // The flailing plays to the last tick, so the arms are driven hard right up to the end.
-      settles: false,
-      script: playClip(clipCalled('flail-arms'), v.gain as number, v.rate as number),
-    }),
-  }),
-  // --- the nerves ------------------------------------------------------------------------------
-  define({
-    id: 'nerves-stand',
-    title: 'Standing, with the nerves',
-    description:
-      'The shipped balance behaviour in charge of a body standing on the ground: a small network ' +
-      'that reads the joints, the pelvis, the head, the feet and the muscles a hundred times a ' +
-      'second and corrects the drive of every muscle group on each side. Trained by evolution ' +
-      'strategies on this simulation, with a twitch of a random group each episode so it stands ' +
-      'through a nudge. It was trained with nothing under it, so the studio holds the ' +
-      'quiet-standing clip back while it is in charge and plays it once the brain is released.',
-    parameters: [
-      param('authority', 'Nerve authority', 0.3, 0, 1, 0.05),
-      param('gain', 'Clip gain', 1, 0, 3, 0.05, '\u00d7'),
-    ],
-    make: (v) => ({
-      profileId: 'l3_anatomical',
-      morphology: REFERENCE,
-      muscles: true,
-      durationSeconds: 10,
-      clearance: 0,
-      ground: { height: 0 },
-      passiveJoints: true,
-      passiveSystem: false,
-      golden: false,
-      // It settles: standing, it sways by millijoules, and fallen it lies still (0.00 J).
-      nerves: {
-        policy: balancePolicy as unknown as PolicyFile,
-        authority: v.authority as number,
-        goal: 0,
-      },
-      script: playClip(clipCalled('quiet-standing'), v.gain as number, 1),
-    }),
-  }),
 ];
 
 /**
@@ -968,18 +511,70 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
  * "Drop, standing", at its default drop of 0 m, since the owner's decision of 2026-09-27: it is the
  * scenario the one shipped behaviour, balance, is trained in, so the studio opens on the body that
  * behaviour was brought up in. It was `quiet-standing`, the posture a muscle module's front page
- * first showed. The training recipe module keeps the same id as `DEFAULT_BEHAVIOUR_SCENARIO`, and
- * a test there holds the two together.
+ * first showed, which was deleted on 2026-09-28 (`RETIRED_SCENARIOS`). The training recipe module
+ * keeps the same id as `DEFAULT_BEHAVIOUR_SCENARIO`, and a test there holds the two together.
  */
 export const DEFAULT_SCENARIO = 'drop-standing-collapse';
+
+/**
+ * The scenarios the owner deleted on 2026-09-28, by the ids old files still carry.
+ *
+ * Every one of them drove muscles from its script -- the ankle strategy of "Standing quietly", the
+ * range of motion muscle by muscle, the flailing elbows, the three activation clips played open
+ * loop, and "Standing, with the nerves", the shipped policy over the standing clip -- and a
+ * scenario no longer does that: the drive sliders own the muscles, the Spine sliders own the cord
+ * and the Brain tab owns a brain. The tilting floor, which forces the muscles on and drives none,
+ * stayed. The activation clips themselves stayed too, because a brain can still be trained over
+ * one (`{kind: 'clip'}` in a recipe), and one of them is called `quiet-standing` like the deleted
+ * scenario: a clip id is not a scenario id, and nothing here touches the clips.
+ *
+ * Kept as a list, not forgotten, because the files that name them outlive the code: a saved
+ * session, a training recipe, a checkpoint's own recipe. Each of those still loads, in the default
+ * scenario, and says once that it did (`replacementFor`). The training recipe module keeps its own
+ * copy of this list, for the reason it keeps its own copy of `DEFAULT_SCENARIO`, and a test holds
+ * the two together.
+ */
+export const RETIRED_SCENARIOS: readonly string[] = [
+  'quiet-standing',
+  'muscle-range-of-motion',
+  'arm-flail',
+  'clip-quiet-standing',
+  'clip-walk-normal',
+  'clip-flail-arms',
+  'nerves-stand',
+];
+
+/**
+ * What stands in for a scenario an old file names: `DEFAULT_SCENARIO` at its defaults for one of
+ * the `RETIRED_SCENARIOS`, with the sentence to say about it once; undefined for any other id,
+ * which is either a scenario that exists or one this studio never had and should be refused as
+ * one.
+ */
+export function replacementFor(
+  id: string,
+): { readonly id: string; readonly note: string } | undefined {
+  if (!RETIRED_SCENARIOS.includes(id)) return undefined;
+  return { id: DEFAULT_SCENARIO, note: retiredScenarioNote(id) };
+}
+
+/**
+ * The sentence every tool says when an old file names a deleted scenario, so the studio's event
+ * line and a command line word it the same way.
+ */
+export function retiredScenarioNote(id: string): string {
+  return (
+    `the scenario ${id} was deleted on 2026-09-28 (scenarios no longer drive muscles), so ` +
+    '"Drop, standing" at 0 m is used in its place'
+  );
+}
 
 /**
  * The committed scenario set: every definition at its default parameters (spec 13.5).
  *
  * Shared instances for listing only; call `scenario(id)` or `definition.build()` for a run. A
- * script is a closure and may keep state in it -- the shaken head's centre, the ankle strategy's
- * last lean -- so two runs through one instance are not two runs of the scenario: the second
- * starts from wherever the first left that state. The goldens run these, each once.
+ * script is a closure and may keep state in it -- the shaken head's centre -- so two runs through
+ * one instance are not two runs of the scenario: the second starts from wherever the first left
+ * that state. The goldens run these, each once.
  */
 export const SCENARIOS: readonly Scenario[] = SCENARIO_DEFINITIONS.map((d) => d.build());
 

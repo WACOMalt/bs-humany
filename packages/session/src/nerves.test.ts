@@ -3,21 +3,21 @@
  *
  * Two things the panel reads off a running body and used to read off the wrong one. The Spine
  * sliders were not passed to a new run at all, so a run started after the sliders moved had no
- * cord whatever they showed. And the brain's note named the checkpoint the scenario opened with,
- * so after handing another one over it went on reporting the first one's generations and fitness
- * under the second one's weights.
+ * cord whatever they showed. And the brain's note named the checkpoint the run opened with, so
+ * after handing another one over it went on reporting the first one's generations and fitness
+ * under the second one's weights. (The run opened with the scenario's own policy then, from
+ * "Standing, with the nerves"; that scenario was deleted on 2026-09-28, and a run opens with the
+ * panel's hand-over or with none.)
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
-import { SCENARIOS } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Simulation, type SimulationOptions } from './simulation.js';
 
 const document = buildDocument();
-const stand = SCENARIOS.find((s) => s.id === 'nerves-stand');
 
 function build(extra: Partial<SimulationOptions>): Simulation {
   return new Simulation(document, resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 }), {
@@ -49,11 +49,10 @@ describe('the cord a new run starts with', () => {
 });
 
 describe('the policy in charge', () => {
-  it('is the scenario’s, then whatever was handed over, then nothing', async () => {
-    if (!stand) throw new Error('no nerves-stand scenario');
-    const simulation = build({ scenario: stand, groundHeight: stand.ground.height });
-    await simulation.start();
+  it('is the one the run was built with, then whatever was handed over, then nothing', async () => {
     const committed = balancePolicy as unknown as PolicyFile;
+    const simulation = build({ nerves: { policy: committed, authority: 0.3, goal: 0 } });
+    await simulation.start();
     expect(simulation.policyInCharge?.trained).toEqual(committed.trained);
 
     // A copy that says it was trained differently: the weights are the same, which is fine,

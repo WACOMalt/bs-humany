@@ -10,11 +10,13 @@
  * to skip a scenery move that changes nothing.
  *
  * So the studio, run passive as the scenario asks and with no cord passed, must reproduce the
- * runner bit for bit. Checked over the opening of three scenarios at L3 with the muscles on, one
- * for each part of the script API the studio sets up differently: quiet standing drives the
- * muscles, the tilting floor moves scenery, and the shaken skull grabs. The window is short
- * because any difference in a falling body grows within a few ticks; the full runs were compared
- * too when this was written (2026-09-27) and matched the committed goldens.
+ * runner bit for bit. Checked over the opening of two scenarios at L3, one for each part of the
+ * script API the studio sets up differently: the tilting floor, with the muscles on, moves
+ * scenery, and the shaken skull grabs. The window is short because any difference in a falling
+ * body grows within a few ticks; the full runs were compared too when this was written
+ * (2026-09-27) and matched the committed goldens. A third part, a script's muscle drive, was
+ * checked on quiet standing until scenarios stopped driving muscles and it was deleted
+ * (2026-09-28); the tilting floor still carries the muscle set through the comparison.
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
@@ -75,10 +77,6 @@ async function compare(id: string, ticks: number) {
 }
 
 describe('the studio against the golden runner', () => {
-  it('drives the muscles of quiet standing to the same trajectory', async () => {
-    await compare('quiet-standing', 1000);
-  }, 120_000);
-
   it('turns the tilting floor under the same trajectory, and draws it where the solver has it', async () => {
     const simulation = await compare('tilting-floor', 1000);
     const platform = simulation.staticBoxes.find((b) => b.id === TILTING_PLATFORM);

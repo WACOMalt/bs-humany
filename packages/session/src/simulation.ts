@@ -140,9 +140,9 @@ export interface SimulationOptions {
   /** Frames a second of simulated time is divided into, for playback and for the export. */
   readonly outputFramerate?: number | undefined;
   /**
-   * A policy in the loop, handed over from the brain panel; takes precedence over the scenario's.
-   * Whether the scenario's script drives muscles under it follows from its recipe; see
-   * `scriptFeedsUnder`.
+   * A policy in the loop, handed over from the brain panel. The only way one gets into a run: a
+   * scenario carried a policy of its own until "Standing, with the nerves" was deleted on
+   * 2026-09-28, and none does now.
    */
   readonly nerves?: NervesSetup | undefined;
   /**
@@ -212,27 +212,6 @@ function makeBackend(_requested: BackendId | LegacyBackendId): IPhysicsBackend {
   return new MujocoBackend();
 }
 
-/**
- * Whether the scenario's script may drive muscles under `policy`: yes, unless the policy was
- * trained with nothing under it.
- *
- * A checkpoint whose recipe says its feedforward was `none` has never felt a scenario's tone, and
- * a run that adds one is not the run it learned, so its script's muscle drive is dropped.
- * Everything else a script does -- the floor, a grab -- happens either way, because that is the
- * scenario rather than the feedforward. A `clip` counts as fed, not only a `script`: the studio
- * plays a clip through the scenario script's drive (nerves-stand's `playClip`), so a policy
- * trained over a clip is trained over exactly what a script's drive delivers. No policy, or one
- * whose file does not say, keeps the script's drive, which is what every run did before
- * checkpoints recorded their recipe.
- *
- * Read from the policy actually in the loop -- the one the run was built with, then whichever was
- * handed over -- and never from a checkpoint merely selected in a list, which is not driving
- * anything.
- */
-function scriptFeedsUnder(policy?: PolicyFile): boolean {
-  return policy?.recipe?.feedforward.kind !== 'none';
-}
-
 export class Simulation {
   readonly articulation: CompiledArticulation;
   readonly compileReport: CompileReport;
@@ -286,11 +265,6 @@ export class Simulation {
    */
   private readonly timeline: { tick: number; snapshot: KernelSnapshot }[] = [];
   private scriptApi: ScenarioApi | undefined;
-  /**
-   * Whether the scenario's script may drive muscles, under the policy in the loop now. Set when the
-   * run is built, again on every hand-over, and back on at a release. @see scriptFeedsUnder
-   */
-  private scriptMuscleDrive: boolean;
   private gravityOn = true;
   /** Ticks run so far, and the wall-clock cost of the last frame's ticks. */
   ticks = 0;
@@ -385,11 +359,11 @@ export class Simulation {
     this.compileReport = compiled.report;
     this.resolved = morphology;
     this.scenario = options.scenario;
-    // The policy the run opens with: the panel's hand-over when there is one, else the scenario's.
-    // Whether the script feeds muscles under it is decided now, before the first tick, so a
-    // checkpoint trained with nothing under it never feels a tick of tone.
-    const setup = options.nerves ?? options.scenario?.nerves;
-    this.scriptMuscleDrive = scriptFeedsUnder(setup?.policy);
+    // The policy the run opens with: the panel's hand-over, when there is one. No scenario brings
+    // one, and no scenario's script drives a muscle under it, so there is nothing here to hold
+    // back from a checkpoint trained with nothing under the brain: the sliders are the only
+    // feedforward, and setting a checkpoint up as trained puts them where it learnt.
+    const setup = options.nerves;
     this.articulation = options.scenario
       ? placeArticulation(
           compiled.articulation,
@@ -538,12 +512,6 @@ export class Simulation {
       segmentIds: this.articulation.segments.map((s) => s.id),
       position,
       grab: this.grab,
-      // Ignored rather than refused when the run has no muscles, so a script can ask without
-      // checking first -- and so the same scenario is watchable with the muscles switched off.
-      drive: (unit, level) => {
-        if (!this.scriptMuscleDrive) return;
-        this.muscleDrive?.setOverride(unit, level, 'script');
-      },
       moveStaticBox: (id, at, rotation) => this.physics.setStaticBoxTransform(id, at, rotation),
       // The list is what the viewport draws and what the bridge publishes, so it is kept in step
       // with the solver rather than left where the scenery started. A move that changes nothing
@@ -1066,11 +1034,6 @@ export class Simulation {
    * carried, so whoever reports the hand-over can say when the two differ -- the period is kept,
    * but contacts and the muscles' own dynamics still follow the step, and only a restart matches
    * that.
-   *
-   * And the scenario's script stops feeding muscles if this policy was trained with nothing under
-   * it (`scriptFeedsUnder`), at once rather than at the next run: the script layer it already
-   * wrote is cleared here, between ticks, because the script's next drive is refused and would
-   * otherwise leave the last tone it set standing under the new brain for the rest of the run.
    */
   handOver(
     policy: PolicyFile,
@@ -1088,29 +1051,7 @@ export class Simulation {
     nerves.authorityLevel = authority;
     this.policyFile = policy;
     this.brainActive = true;
-    this.feedScript(scriptFeedsUnder(policy));
     return { carried, trainedRate: policy.recipe?.stepsPerSecond, rate: this.stepsPerSecond };
-  }
-
-  /**
-   * Let the scenario's script drive muscles, or stop it and clear what it had set.
-   *
-   * Only the script's layer: a person's slider is the person's and goes on saying what it said.
-   * Called between ticks, never from `step`, so the loop over the units allocates nothing on the
-   * tick path.
-   */
-  private feedScript(feeds: boolean): void {
-    this.scriptMuscleDrive = feeds;
-    if (feeds || !this.muscles || !this.muscleDrive) return;
-    for (const unit of this.muscles.units) this.muscleDrive.setOverride(unit.id, null, 'script');
-  }
-
-  /**
-   * Whether the scenario's script is driving muscles under the policy in the loop now: false while
-   * a policy trained with nothing under it is in charge, true otherwise.
-   */
-  get scriptDrivingMuscles(): boolean {
-    return this.scriptMuscleDrive;
   }
 
   /**
@@ -1134,13 +1075,10 @@ export class Simulation {
     this.spine?.adjust(gains);
   }
 
-  /** Take the policy out of the loop; the run carries on under the clip and the sliders. */
+  /** Take the policy out of the loop; the run carries on under the sliders and the cord. */
   releaseBrain(): void {
     this.nerves?.release();
     this.policyFile = undefined;
-    // The run carries on under the scenario, and a scenario with no brain on it feeds its muscles
-    // as it always has: its script sets the tone again on the next tick.
-    this.feedScript(true);
     // The cord stays as it was: it is the body's own, not the policy's, and a person who turned
     // the reflexes up to watch them did not ask for them to go away with the brain.
     this.brainActive = false;

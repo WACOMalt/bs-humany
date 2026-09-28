@@ -609,7 +609,7 @@ mod tests {
         assert_eq!(status.scenario.id, "drop-standing-collapse");
         assert_eq!(status.scenario.title, "Drop and collapse");
         assert_eq!(status.scenarios.len(), 2);
-        assert_eq!(status.scenarios[0].title, "Standing quietly");
+        assert_eq!(status.scenarios[0].title, "Tilting floor");
         assert!(status.scenarios[1].description.starts_with("The rest pose dropped"));
         let ids: Vec<&str> = status.profiles.iter().map(ProfileEntry::id).collect();
         assert_eq!(ids, ["l1_standard", "l3_anatomical"]);

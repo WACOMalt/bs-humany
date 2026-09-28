@@ -72,6 +72,7 @@ const {
   behaviourRecipe,
   checkRecipe,
   rigOptionsFor,
+  upgradeRecipe,
 } = await jiti.import(join(ROOT, 'tools/train/src/recipe.ts'));
 const { DEFAULT_PATH } = await jiti.import(join(ROOT, 'packages/pose-bridge/src/codec.ts'));
 
@@ -167,6 +168,11 @@ if (flags.recipe !== undefined) {
   }
   const wrong = checkRecipe(recipe);
   if (wrong.length) refuse(`${flags.recipe} is not a recipe:\n  ${wrong.join('\n  ')}`);
+  // A recipe from before 2026-09-28 may name a scenario deleted then, or the scenario's own
+  // muscle script under the brain; it plays in what stands in for each, and says so once.
+  const upgraded = upgradeRecipe(recipe);
+  recipe = upgraded.recipe;
+  for (const note of upgraded.notes) console.log(`showcase: ${note}`);
   // The trainer's rule, so the command line a run was trained with plays what it trained.
   if (given.has('authority')) recipe = { ...recipe, authority: flags.authority };
 } else {

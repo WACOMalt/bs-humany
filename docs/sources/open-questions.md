@@ -893,6 +893,13 @@ cord by default, and it does not by itself hold standing; the joint-state route 
 **Status, 2026-09-27:** `SpinalModule` and the `nerves-stand` scenario (the quiet-standing clip
 under the trained standing policy) now exist, but `quiet-standing`'s own script still has only
 the ankle loop. The cord's delay and gains are themselves chosen, not sourced: OQ-031.
+**Status, 2026-09-28:** the owner deleted `quiet-standing` and `nerves-stand`, with every other
+scenario that drove muscles from its script, and `ScenarioApi` lost `drive`: a scenario now says
+where the body is and what the world does to it, and nothing about what its nerves ask for. So
+the scenario route in "Closes when" is gone and only the second is left -- standing belongs to the
+cord and the Brain tab, whose default behaviour, balance, is trained in "Drop, standing" at 0 m.
+The ankle strategy and `POSTURAL_TONE` described above went with the scenario, and are in the
+history of `packages/scenarios/src/index.ts`. Still open: nothing yet holds standing.
 
 ### OQ-025 — The intercostals have no source for what they can pull with
 **Needed for:** muscles between the ribs, which the rib cage has none of

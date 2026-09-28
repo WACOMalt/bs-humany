@@ -105,7 +105,7 @@ How they were measured:
   RTX 3090, measured by the integrator of this pass before and after the frame-cost merge
   and reported to the owner on 2026-09-27. The audit figure is the live finding that started the
   frame-cost work.
-- *Headless.* The studio's own `Simulation` class, captures and all, in Node v22.22.2 on linux-x64: `quiet-standing` at L3, 1000 Hz, with the muscles, the default cord and a 60 fps output,
+- *Headless.* The studio's own `Simulation` class, captures and all, in Node v22.22.2 on linux-x64: `quiet-standing` (a scenario deleted on 2026-09-28) at L3, 1000 Hz, with the muscles, the default cord and a 60 fps output,
   advanced one output frame (16.67 ticks) at a time as the frame loop does; 180 frames timed after
   20 warm-up frames, the median of five alternating runs. The method and the table are in
   `docs/validation/benchmarks.md`, "The studio's frame, headless".

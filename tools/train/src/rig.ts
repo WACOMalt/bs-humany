@@ -4,11 +4,12 @@
  *
  * Built the way the golden runner builds a scenario -- physics, coupling, passive joints, the
  * full muscle set, the drive -- with a `NervesModule` on top. The body, its placement and the
- * scenery come from a scenario and a morphology when the recipe names them (the studio's own
- * Scene and Body tabs, so what is trained is what is shown), and from the reference body on the
- * ground when it does not. Under the brain there may be a feedforward: an activation clip such
- * as quiet standing played into the drive's script layer, the scenario's own muscle script, or
- * nothing at all, so the brain stands the body by itself. The kernel is snapshotted once after
+ * scenery come from a scenario and a morphology (the studio's own Scene and Body tabs, so what is
+ * trained is what is shown); a recipe that names no scenario gets the default one, "Drop,
+ * standing" at 0 m, which is the reference body let go on the ground. Under the brain there may
+ * be a feedforward: an activation clip such as quiet standing played into the drive's script
+ * layer, or nothing at all, so the brain stands the body by itself. A scenario's script moves the
+ * world and drives no muscle. The kernel is snapshotted once after
  * init and restored at the start of every episode, so an episode costs its ticks and nothing
  * else.
  *
@@ -73,6 +74,7 @@ import {
 import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
   type CompiledClip,
+  DEFAULT_SCENARIO,
   GOAL_SIZE,
   SCENARIO_DEFINITIONS,
   type Scenario,
@@ -87,7 +89,7 @@ import {
   reflexGroups,
   unitsNamedByClips,
 } from '@bs-humany/scenarios';
-import { REFERENCE_MORPHOLOGY, buildDocument } from '@bs-humany/skeleton';
+import { buildDocument } from '@bs-humany/skeleton';
 import { DEFAULT_NOISE, NO_REFLEX, type RigOptions, TASKS, type Task, isTask } from './recipe.js';
 
 // The recipe -- its types, its defaults, its limits and the rig options it turns into -- lives
@@ -302,14 +304,10 @@ export class StandRig {
     this.totalMass = this.segmentMass.reduce((a, b) => a + b, 0) || 1;
     this.restHead = this.position[3 * this.head + 1] as number;
     this.snapshot = kernel.snapshot();
-    // What a scenario's script may do here: drive muscles. A grab has no hand in a training rig.
+    // What a scenario's script may do here: move the scenery. A grab has no hand in a training rig.
     this.scriptApi = createScenarioApi({
       segmentIds,
       position: this.position,
-      // The script's muscle drive reaches the body only when it is the feedforward asked for.
-      drive: (unit, level) => {
-        if (options.feedforward.kind === 'script') this.drive.setOverride(unit, level, 'script');
-      },
       moveStaticBox: (id, position, rotation) =>
         this.physics.setStaticBoxTransform(id, position, rotation),
       // The list is what a showcase publishes, so it is kept in step with the solver rather than
@@ -330,23 +328,25 @@ export class StandRig {
     const document = buildDocument();
     const profile = document.segmentation.find((p) => p.id === options.profileId);
     if (!profile) throw new Error(`No profile '${options.profileId}'.`);
-    // The scenario, when the recipe names one: where the body starts and what it stands on.
-    let scenario: Scenario | undefined;
-    let definition: ScenarioDefinition | undefined;
-    if (options.scenario) {
-      definition = SCENARIO_DEFINITIONS.find((d) => d.id === options.scenario?.id);
-      if (!definition) throw new Error(`No scenario '${options.scenario.id}'.`);
-      scenario = definition.build(options.scenario.parameters);
-    }
-    const morphology = resolveMorphology(
-      options.morphology ?? scenario?.morphology ?? REFERENCE_MORPHOLOGY,
+    // The scenario: where the body starts and what it stands on. The default one at its defaults
+    // when the options name none, which puts the reference body on the ground exactly where the
+    // rig used to put it with no scenario at all -- that was the "reference stand", and it is
+    // "Drop, standing" at 0 m.
+    const chosen: NonNullable<RigOptions['scenario']> = options.scenario ?? {
+      id: DEFAULT_SCENARIO,
+    };
+    const definition: ScenarioDefinition | undefined = SCENARIO_DEFINITIONS.find(
+      (d) => d.id === chosen.id,
     );
+    if (!definition) throw new Error(`No scenario '${chosen.id}'.`);
+    const scenario: Scenario = definition.build(chosen.parameters);
+    const morphology = resolveMorphology(options.morphology ?? scenario.morphology);
     const compiled = compileArticulation(document, options.profileId, morphology).articulation;
-    const groundHeight = scenario?.ground.height ?? 0;
+    const groundHeight = scenario.ground.height;
     const articulation = placeArticulation(
       compiled,
-      scenario?.rootRotation,
-      scenario?.clearance ?? 0,
+      scenario.rootRotation,
+      scenario.clearance,
       groundHeight,
     );
     const soles = feetOf(articulation);
@@ -370,7 +370,7 @@ export class StandRig {
     const physics = new PhysicsModule(backend, articulation, {
       ground: { height: groundHeight },
       iterations: profile.solver?.iterations,
-      staticBoxes: scenario?.staticBoxes ?? [],
+      staticBoxes: scenario.staticBoxes ?? [],
     });
     kernel.register(physics);
     kernel.register(new CouplingModule(articulation, backend.capabilities));
@@ -465,7 +465,7 @@ export class StandRig {
       clip,
       scenario,
       definition,
-      scenery: [...(scenario?.staticBoxes ?? [])],
+      scenery: [...(scenario.staticBoxes ?? [])],
       groundHeight,
       units: muscles.units.map((u) => u.id),
       head: index.get('head') ?? 0,
@@ -756,7 +756,7 @@ export class StandRig {
     });
   }
 
-  /** What plays under the brain at this moment: the clip, the scenario's script, or nothing. */
+  /** What plays under the brain at this moment, the clip or nothing, and the scenario's script. */
   private feed(time: number): void {
     if (this.clip) {
       const at = this.clip.levels(time);

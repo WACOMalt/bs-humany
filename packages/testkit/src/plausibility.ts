@@ -72,12 +72,14 @@ export interface PlausibilityTolerances {
  *   scenario that settles is held to it (`Scenario.settles`); one whose drive never stops says so
  *   there rather than raising this.
  * - peakKinetic 700 J: the reference body's standing potential energy, m g h with m = 70 kg and
- *   the centre of mass 0.91 m above the ground it stands on (measured in quiet-standing), is
+ *   the centre of mass 0.91 m above the ground it stands on (measured in quiet-standing, which
+ *   stood the body where "Drop, standing" at 0 m does before it was deleted on 2026-09-28), is
  *   623 J, rounded up to leave room for what a muscle or a script adds. A body moving with more
  *   energy than it would gain falling flat from standing has either been thrown by something no
  *   scenario does or is running away, and a runaway is what this is for: it watches the whole
- *   run, so a scenario excused from the rest check is still held to it. The highest peaks
- *   measured are 454 J (stairs-tumble, a 1 m flight) and 430 J (clip-walk-normal).
+ *   run, so a scenario excused from the rest check is still held to it. The highest peak
+ *   measured is 454 J (stairs-tumble, a 1 m flight); the next was 430 J, from clip-walk-normal,
+ *   deleted on 2026-09-28 with the other scenarios that drove muscles.
  * - drift 0.001 m: in reduced coordinates a joint cannot separate, and none does (0.0000 mm in
  *   every scenario on 2026-09-27), so the only thing that can read here is a pose readout that
  *   disagrees with the joint coordinates. A millimetre is far above rounding and far below what

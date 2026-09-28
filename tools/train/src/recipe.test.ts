@@ -8,12 +8,17 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_SPINAL_GAINS, SPINAL_REGIONS, type SpinalGains } from '@bs-humany/modules-nerves';
-import { DEFAULT_SCENARIO, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
+import {
+  DEFAULT_SCENARIO,
+  RETIRED_SCENARIOS as SCENARIOS_RETIRED,
+  SCENARIO_DEFINITIONS,
+} from '@bs-humany/scenarios';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   DEFAULT_AUTHORITY,
   DEFAULT_BEHAVIOUR,
   DEFAULT_BEHAVIOUR_MEMORY,
+  DEFAULT_BEHAVIOUR_PARAMETERS,
   DEFAULT_BEHAVIOUR_SCENARIO,
   DEFAULT_NOISE,
   DEFAULT_PROFILE,
@@ -25,11 +30,13 @@ import {
   REFLEX_FIELDS,
   REFLEX_LIMITS,
   REFLEX_REGIONS,
+  RETIRED_SCENARIOS,
   type ReflexLevels,
   TASKS,
   type TrainingRecipe,
   behaviourRecipe,
   checkRecipe,
+  clipStandRecipe,
   cordIsOff,
   describeRecipe,
   describeStretch,
@@ -38,10 +45,10 @@ import {
   isCheckpointName,
   isTask,
   recipeChanges,
-  referenceStandRecipe,
   reflexWithFlags,
   regionStretchOf,
   rigOptionsFor,
+  upgradeRecipe,
 } from './recipe.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
@@ -55,15 +62,18 @@ function inputAttribute(id: string, attribute: string): number {
   return Number(value);
 }
 
-/** A recipe as an old file has it: no noise, no cord, no memory. */
+/**
+ * A recipe as an old file has it: no noise, no cord, no memory, and no scenario -- the reference
+ * body on the ground, which is what the flags described before 2026-09-28 named with an empty id.
+ */
 const bare: TrainingRecipe = (() => {
   const {
     noise: _n,
     reflex: _r,
     memory: _m,
     ...rest
-  } = referenceStandRecipe('stand', 'l1_standard', 0.3);
-  return rest;
+  } = clipStandRecipe('stand', 'l1_standard', 0.3);
+  return { ...rest, scenario: '', parameters: {} };
 })();
 
 describe('the cord', () => {
@@ -236,10 +246,10 @@ describe('the name and the task', () => {
     expect(TASKS).toEqual(['stand', 'balance']);
     expect(isTask('balance')).toBe(true);
     expect(isTask('walk')).toBe(false);
-    expect(() => referenceStandRecipe('walk', 'l1_standard', 0.3)).toThrow(
+    expect(() => clipStandRecipe('walk', 'l1_standard', 0.3)).toThrow(
       'unknown task "walk"; known tasks: stand, balance',
     );
-    expect(referenceStandRecipe('balance', 'l1_standard', 0.3).feedforward).toEqual({
+    expect(clipStandRecipe('balance', 'l1_standard', 0.3).feedforward).toEqual({
       kind: 'clip',
       clip: 'quiet-standing',
     });
@@ -301,7 +311,7 @@ describe('the default behaviour', () => {
 
 describe('a recipe read from a file', () => {
   it('passes when whole, old files included', () => {
-    expect(checkRecipe(referenceStandRecipe('stand', 'l3_anatomical', 0.3))).toEqual([]);
+    expect(checkRecipe(clipStandRecipe('stand', 'l3_anatomical', 0.3))).toEqual([]);
     expect(checkRecipe(bare)).toEqual([]);
   });
 
@@ -347,16 +357,26 @@ describe('what a Resume changes', () => {
     expect(recipeChanges(undefined, now)).toEqual([]);
     expect(recipeChanges(bare, bare)).toEqual([]);
     expect(formatRecipeChanges([])).toBe('');
+    // The empty scenario is compared as the default one at its drop of 0 m, the body it always
+    // was, so moving it to the tilting floor is the scenario and the default's one parameter.
     expect(formatRecipeChanges(recipeChanges(bare, { ...bare, scenario: 'tilting-floor' }))).toBe(
-      'scenario "" -> "tilting-floor"',
+      'scenario "drop-standing-collapse" -> "tilting-floor", parameters.clearance 0 -> none',
     );
+    // And named as that scenario, it is no change at all.
+    expect(
+      recipeChanges(bare, {
+        ...bare,
+        scenario: DEFAULT_BEHAVIOUR_SCENARIO,
+        parameters: DEFAULT_BEHAVIOUR_PARAMETERS,
+      }),
+    ).toEqual([]);
   });
 });
 
 describe('a recipe in one line', () => {
   it('says where, what is under the brain, the cord, the noise and the memory', () => {
-    expect(describeRecipe(referenceStandRecipe('stand', 'l3_anatomical', 0.3))).toBe(
-      'reference stand; the quiet-standing clip under the brain; authority 0.3; cord stretch arm 3.5, hand 0, leg 3.5, trunk 8.5, neck 0, damping 0.25, 30 ms; tremor 0.05, sense 0.01; no memory',
+    expect(describeRecipe(clipStandRecipe('stand', 'l3_anatomical', 0.3))).toBe(
+      'drop-standing-collapse; the quiet-standing clip under the brain; authority 0.3; cord stretch arm 3.5, hand 0, leg 3.5, trunk 8.5, neck 0, damping 0.25, 30 ms; tremor 0.05, sense 0.01; no memory',
     );
     expect(
       describeRecipe({
@@ -368,5 +388,62 @@ describe('a recipe in one line', () => {
     ).toBe(
       'tilting-floor; the brain alone; authority 0.3; no cord; tremor 0.05, sense 0.01; memory 8',
     );
+  });
+});
+
+describe('a recipe from before the seven scenarios were deleted', () => {
+  it('names the scenarios the scenario package deleted, and none that exists', () => {
+    // Two copies of one list, for the reason there are two of the default scenario's id.
+    expect([...RETIRED_SCENARIOS]).toEqual([...SCENARIOS_RETIRED]);
+    for (const id of RETIRED_SCENARIOS) {
+      expect(
+        SCENARIO_DEFINITIONS.some((d) => d.id === id),
+        id,
+      ).toBe(false);
+    }
+  });
+
+  it('reads a deleted scenario as the default one at 0 m, and says so', () => {
+    const old = { ...bare, scenario: 'quiet-standing', parameters: { tone: 1, reflex: 1 } };
+    expect(checkRecipe(old)).toEqual([]);
+    const { recipe, notes } = upgradeRecipe(old);
+    expect(recipe.scenario).toBe(DEFAULT_BEHAVIOUR_SCENARIO);
+    expect(recipe.parameters).toEqual({ clearance: 0 });
+    expect(notes).toEqual([
+      'the scenario quiet-standing was deleted on 2026-09-28 (scenarios no longer drive muscles), ' +
+        'so "Drop, standing" at 0 m is used in its place',
+    ]);
+    // The clip of the same name is a clip, and stays under the brain.
+    expect(recipe.feedforward).toEqual({ kind: 'clip', clip: 'quiet-standing' });
+    // Everything else as it came.
+    expect({ ...recipe, scenario: old.scenario, parameters: old.parameters }).toEqual(old);
+  });
+
+  it("reads the scenario's own muscle script under the brain as nothing, and says so", () => {
+    const old = { ...bare, scenario: 'tilting-floor', feedforward: { kind: 'script' as const } };
+    // The file still passes the check: it loads, it is not refused.
+    expect(checkRecipe(old)).toEqual([]);
+    const { recipe, notes } = upgradeRecipe(old);
+    expect(recipe.feedforward).toEqual({ kind: 'none' });
+    expect(recipe.scenario).toBe('tilting-floor');
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatch(/muscle script .* nothing plays under the brain in its place/);
+  });
+
+  it('reads an empty scenario as the default one, silently, and a recipe of today unchanged', () => {
+    const { recipe, notes } = upgradeRecipe(bare);
+    expect(recipe.scenario).toBe(DEFAULT_BEHAVIOUR_SCENARIO);
+    expect(recipe.parameters).toEqual(DEFAULT_BEHAVIOUR_PARAMETERS);
+    expect(notes).toEqual([]);
+    const today = upgradeRecipe(DEFAULT_BEHAVIOUR);
+    expect(today.recipe).toBe(DEFAULT_BEHAVIOUR);
+    expect(today.notes).toEqual([]);
+  });
+
+  it('sets a rig with no scenario in the default one, where the reference stand stood', () => {
+    expect(rigOptionsFor(bare, { hidden: [8], seconds: 1 }).scenario).toEqual({
+      id: DEFAULT_BEHAVIOUR_SCENARIO,
+      parameters: DEFAULT_BEHAVIOUR_PARAMETERS,
+    });
   });
 });

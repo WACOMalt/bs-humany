@@ -247,8 +247,8 @@ export function createSimPanel(host: SimPanelHost): SimPanel {
         scenarioParameters: { ...(panel.scenarioValues.get(ui.scenario.value) ?? {}) },
         passive: ui.passive.checked,
         redistribute: ui.redistribute.checked,
-        // As a run is built: a scenario that drives muscles has them, whatever the box says.
-        muscles: ui.muscles.checked || scenarioDrivesMuscles,
+        // As a run is built: a scenario that asks for muscles has them, whatever the box says.
+        muscles: ui.muscles.checked || scenarioAsksForMuscles,
         dropHeight: Number(ui.dropHeight.value),
         stepsPerSecond: panel.fidelityTouched ? Number(ui.stepsPerSecond.value) : undefined,
       };
@@ -601,16 +601,16 @@ export function createSimPanel(host: SimPanelHost): SimPanel {
   });
 
   /**
-   * Whether the chosen scenario drives muscles, and so gets them whatever the box says. Kept from
+   * Whether the chosen scenario asks for muscles, and so gets them whatever the box says. Kept from
    * the last choice rather than worked out again, because working it out builds the scenario, and
    * the Sim tab's list of pending changes asks every frame.
    */
-  let scenarioDrivesMuscles = false;
+  let scenarioAsksForMuscles = false;
 
   /**
    * The profile the chosen scenario was written and validated on, by the name the Profile picker
-   * gives it, or undefined for the free drop. Kept from the last choice, as `scenarioDrivesMuscles`
-   * is, because working it out builds the scenario.
+   * gives it, or undefined for the free drop. Kept from the last choice, as
+   * `scenarioAsksForMuscles` is, because working it out builds the scenario.
    */
   let scenarioProfile: string | undefined;
 
@@ -630,8 +630,8 @@ export function createSimPanel(host: SimPanelHost): SimPanel {
       chosen && chosen.passiveJoints !== ui.passive.checked ? chosen.passiveJoints : undefined;
     if (chosen) ui.passive.checked = chosen.passiveJoints;
     panel.showScenarioNote(turned);
-    scenarioDrivesMuscles = chosen?.muscles === true;
-    // A scenario that drives muscles turns them on, and says so by ticking the box rather than
+    scenarioAsksForMuscles = chosen?.muscles === true;
+    // A scenario that asks for muscles turns them on, and says so by ticking the box rather than
     // leaving the panel claiming they are off while the arms move.
     if (chosen?.muscles === true) {
       ui.muscles.checked = true;

@@ -33,8 +33,7 @@ const HERE: StudioSetUp = {
 
 const NAMES = {
   scenario: (id: string) =>
-    ({ 'drop-standing-collapse': 'Drop and collapse', 'quiet-standing': 'Standing quietly' })[id] ??
-    id,
+    ({ 'drop-standing-collapse': 'Drop and collapse', 'tilting-floor': 'Tilting floor' })[id] ?? id,
   profile: (id: string) => id.replace(/_.*/, '').toUpperCase(),
 };
 
@@ -46,9 +45,9 @@ describe('setUpDifferences', () => {
   });
 
   it('names a changed scene, and restarts for it', () => {
-    const list = setUpDifferences(HERE, { ...HERE, scenario: 'quiet-standing' }, NAMES);
+    const list = setUpDifferences(HERE, { ...HERE, scenario: 'tilting-floor' }, NAMES);
     expect(list).toEqual([
-      { text: 'scene Standing quietly (here Drop and collapse)', restarts: true },
+      { text: 'scene Tilting floor (here Drop and collapse)', restarts: true },
     ]);
     expect(setUpRestarts(list)).toBe(true);
   });
@@ -58,10 +57,10 @@ describe('setUpDifferences', () => {
     expect(
       setUpDifferences(
         HERE,
-        { ...HERE, scenario: 'quiet-standing', parameters: { sway: 2 } },
+        { ...HERE, scenario: 'tilting-floor', parameters: { tilt: 2 } },
         NAMES,
       ).map((d) => d.text),
-    ).toEqual(['scene Standing quietly (here Drop and collapse)']);
+    ).toEqual(['scene Tilting floor (here Drop and collapse)']);
     // A value the studio has and the recipe does not name is the scene's default.
     expect(setUpDifferences(HERE, { ...HERE, parameters: {} }, NAMES)).toEqual([]);
     expect(

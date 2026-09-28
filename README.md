@@ -214,7 +214,9 @@ way, and ADR-014 is the cord under it.
    sense fixes and were retired; a data directory seeded before then still has its copies.
 2. **What a run is.** A run trains in a **recipe** and is named by it: the scenario and its
    parameter values, the body, whether the joints resist, what plays under the brain (nothing,
-   the scenario's own muscle script, or an activation clip), the cord, and what is scored. The
+   or an activation clip), the cord, and what is scored. A recipe or checkpoint from before
+   2026-09-28 that names a scenario deleted that day, or "the scenario's own muscle script"
+   under the brain, still loads: in "Drop, standing" at 0 m with nothing under it, and says so. The
    recipe is saved into the checkpoint. `pnpm train:nerves --recipe <file>` trains one;
    `pnpm train:nerves --print-recipe > mine.json` writes one to start from (change its `name`).
    The Brain tab writes its recipes to `<data>/runs/<name>-recipe.json` through the dashboard.
@@ -261,7 +263,9 @@ Project: `bs-humany`. Workspace scope: `@bs-humany/*`. Where a globally-unique i
 - `CONTRIBUTING.md` — **read before your first change.** Especially §11.
 - `docs/sources/humansim-activation-research.md` — where the activation clips come from: the
   literature on muscle timing, why clips carry excitation and not activation, and what the
-  three shipped clips (`clip-*` scenarios) are for.
+  three shipped clips are for. They were also played open loop as the `clip-*` scenarios until
+  2026-09-28, when the owner deleted every scenario that drove muscles; a clip now plays only
+  under a brain in training (`{kind: 'clip'}` in a recipe).
 
 ## Licensing
 

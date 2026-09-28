@@ -11,7 +11,7 @@ import type { HsdlDocument } from '@bs-humany/hsdl';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import { profileRateHz } from '@bs-humany/scenarios';
 import { REFERENCE_PROFILE } from '@bs-humany/skeleton';
-import { REFLEX_REGIONS } from '@bs-humany/train/recipe';
+import { REFLEX_REGIONS, upgradeRecipe } from '@bs-humany/train/recipe';
 import {
   type BrainPanel,
   type RecipeChange,
@@ -168,8 +168,13 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
    * body, joints, step rate, cord and authority in place of theirs, each as its control would hold
    * it. A profile this studio lacks becomes the reference one, as applying it does; its limb
    * proportions, if it has any, are left out, because nothing follows them yet.
+   *
+   * Read as a recipe of today (`upgradeRecipe`): a checkpoint trained in a scenario deleted on
+   * 2026-09-28 is set up in "Drop, standing" at 0 m, and one trained over the scenario's own
+   * muscle script with nothing under it, which is how it now runs. `applyRecipe` says so.
    */
-  const settingsFor = (recipe: TrainingRecipe): NormalisedSettings => {
+  const settingsFor = (saved: TrainingRecipe): NormalisedSettings => {
+    const recipe = upgradeRecipe(saved).recipe;
     const now = host.session.currentSettings();
     const known = [...ui.profile.options].some((o) => o.value === recipe.profile);
     const cord = recipe.reflex;
@@ -302,7 +307,7 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
       }
     },
     musclesNextRun() {
-      // As a run is built: the box, or a scenario that drives muscles whatever the box says.
+      // As a run is built: the box, or a scenario that asks for muscles whatever the box says.
       return ui.muscles.checked || host.sim.currentScenario()?.muscles === true;
     },
     setReflex(gains) {
@@ -333,9 +338,12 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
     },
     // A checkpoint's recipe is a session's settings for the scene, the body and the cord; the
     // rest stays. What was there before is kept for one Undo, which goes back the same way.
-    applyRecipe(recipe) {
+    applyRecipe(saved) {
       const before = host.session.currentSettings();
-      const target = settingsFor(recipe);
+      const target = settingsFor(saved);
+      // What the checkpoint was trained in that is gone, said here and only here, once a set-up.
+      const { recipe, notes } = upgradeRecipe(saved);
+      const gone = notes.length > 0 ? ` Since it was trained, ${notes.join('; and ')}.` : '';
       const { restarts } = changeTo(target);
       const { effect, unapplied } = put(target, restarts);
       // Said once, with what could not be put on the panels as asked at the end of it and the
@@ -345,6 +353,7 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
           (recipe.stepsPerSecond ? `, and its ${recipe.stepsPerSecond} steps a second` : '') +
           (recipe.feedforward.kind === 'none' ? ', with the muscle sliders back to zero' : '') +
           effectPhrase(effect) +
+          gone +
           ' Undo on the Brain tab puts back what was there.' +
           (unapplied ? ` ${unapplied}` : ''),
         unapplied ? { error: true } : {},
@@ -376,7 +385,6 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
         outputs,
         trainedRate: simulation.policyInCharge?.recipe?.stepsPerSecond,
         rate: simulation.stepsPerSecond,
-        scriptDrives: simulation.scriptDrivingMuscles,
       };
     },
     following() {
