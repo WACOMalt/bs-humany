@@ -1,6 +1,6 @@
 {
   "name": "bs-humany",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Modular, anatomically grounded simulation framework for the human body",
   "license": "Apache-2.0",
