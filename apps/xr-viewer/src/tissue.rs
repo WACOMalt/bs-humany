@@ -4,7 +4,7 @@
 //! every held joint, in its parent bone's frame, and a bar of cartilage between two points in two
 //! bones' frames. The headset already has every bone's pose, so the shapes are built here from
 //! the poses each frame -- the same shapes the studio's overlay draws and its export writes
-//! (`apps/studio/src/tissue.ts`), so the two agree.
+//! (`packages/session/src/tissue.ts`), so the two agree.
 //!
 //! The connectivity is fixed once from the table; the vertices are rebuilt each pose. A vertex
 //! carries a colour code in its slot (`render::CODE_DISC` and so on) rather than a bone, and the
