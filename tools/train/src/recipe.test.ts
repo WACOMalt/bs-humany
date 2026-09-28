@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SPINAL_GAINS, type SpinalGains } from '@bs-humany/modules-nerves';
+import { DEFAULT_SPINAL_GAINS, SPINAL_REGIONS, type SpinalGains } from '@bs-humany/modules-nerves';
 import { DEFAULT_SCENARIO, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
@@ -24,18 +24,24 @@ import {
   NO_REFLEX,
   REFLEX_FIELDS,
   REFLEX_LIMITS,
+  REFLEX_REGIONS,
   type ReflexLevels,
   TASKS,
   type TrainingRecipe,
   behaviourRecipe,
   checkRecipe,
+  cordIsOff,
   describeRecipe,
+  describeStretch,
+  everyRegion,
   formatRecipeChanges,
   isCheckpointName,
   isTask,
   recipeChanges,
   referenceStandRecipe,
   reflexWithFlags,
+  regionStretchOf,
+  rigOptionsFor,
 } from './recipe.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
@@ -87,6 +93,99 @@ describe('the cord', () => {
   it("goes exactly as far as the studio's stretch slider", () => {
     expect(REFLEX_LIMITS.stretch.max).toBe(inputAttribute('spine-stretch', 'max'));
     expect(REFLEX_LIMITS.stretch.min).toBe(inputAttribute('spine-stretch', 'min'));
+  });
+});
+
+describe('the stretch by region', () => {
+  it("names the spinal module's regions, in its order", () => {
+    expect([...REFLEX_REGIONS]).toEqual([...SPINAL_REGIONS]);
+  });
+
+  it('gives every region of the measured cord a stretch inside the slider range', () => {
+    for (const r of REFLEX_REGIONS) {
+      const v = DEFAULT_REFLEX.regionStretch?.[r];
+      expect(v, r).toBeDefined();
+      expect(v, r).toBeGreaterThanOrEqual(REFLEX_LIMITS.stretch.min);
+      expect(v, r).toBeLessThanOrEqual(REFLEX_LIMITS.stretch.max);
+    }
+    // And the region sliders go exactly as far as the one for all regions.
+    for (const r of REFLEX_REGIONS) {
+      const id = `spine-stretch-${r.toLowerCase()}`;
+      expect(inputAttribute(id, 'max'), id).toBe(inputAttribute('spine-stretch', 'max'));
+      expect(inputAttribute(id, 'min'), id).toBe(inputAttribute('spine-stretch', 'min'));
+      expect(inputAttribute(id, 'step'), id).toBe(inputAttribute('spine-stretch', 'step'));
+    }
+  });
+
+  it('reads a recipe with only a stretch as that stretch in every region', () => {
+    // Every recipe and checkpoint saved before 2026-09-27 has one stretch and no regions, and it
+    // ran that stretch everywhere; so it loads that way, and it is no change from a cord that
+    // names the same stretch in every region.
+    const old: TrainingRecipe = { ...bare, reflex: { ...NO_REFLEX, stretch: 8.5, velocity: 0.25 } };
+    const cord = rigOptionsFor(old, { hidden: [8], seconds: 1 }).reflex;
+    expect(cord?.regionStretch).toBeUndefined();
+    for (const r of REFLEX_REGIONS) {
+      expect(regionStretchOf(old.reflex as ReflexLevels, r), r).toBe(8.5);
+    }
+    const everywhere = { ...old, reflex: everyRegion(old.reflex as ReflexLevels) };
+    expect(Object.values(everywhere.reflex.regionStretch ?? {})).toEqual([8.5, 8.5, 8.5, 8.5, 8.5]);
+    expect(recipeChanges(old, everywhere)).toEqual([]);
+    // Against the measured cord, the difference is said region by region.
+    const now = { ...old, reflex: DEFAULT_REFLEX };
+    const fields = recipeChanges(old, now).map((c) => c.field);
+    for (const r of REFLEX_REGIONS) {
+      const moved = DEFAULT_REFLEX.regionStretch?.[r] !== 8.5;
+      expect(fields.includes(`reflex.regionStretch.${r}`), r).toBe(moved);
+    }
+    expect(checkRecipe(old)).toEqual([]);
+  });
+
+  it('is checked in a recipe from a file: regions it knows, as numbers', () => {
+    const cord = (regionStretch: unknown) => ({ ...bare, reflex: { ...NO_REFLEX, regionStretch } });
+    expect(checkRecipe(cord({ Arm: 2, Leg: 8.5 }))).toEqual([]);
+    expect(checkRecipe(cord({ Tail: 2 }))).toHaveLength(1);
+    expect(checkRecipe(cord({ Arm: 'soft' }))).toHaveLength(1);
+    expect(checkRecipe(cord([2]))).toHaveLength(1);
+  });
+
+  it('is described as one stretch when it is one, and region by region when not', () => {
+    expect(describeStretch({ ...NO_REFLEX, stretch: 3.5 })).toBe('3.5');
+    expect(
+      describeStretch({ ...NO_REFLEX, stretch: 3.5, regionStretch: { Arm: 1, Neck: 5 } }),
+    ).toBe('arm 1, hand 3.5, leg 3.5, trunk 3.5, neck 5');
+    expect(describeRecipe({ ...bare, reflex: DEFAULT_REFLEX })).toContain(
+      `cord stretch ${describeStretch(DEFAULT_REFLEX)}`,
+    );
+  });
+
+  it('is on while any region has a stretch, and off only when all of it is zero', () => {
+    expect(cordIsOff(NO_REFLEX)).toBe(true);
+    expect(cordIsOff({ ...NO_REFLEX, regionStretch: { Arm: 0 } })).toBe(true);
+    expect(cordIsOff({ ...NO_REFLEX, regionStretch: { Leg: 4 } })).toBe(false);
+    expect(
+      describeRecipe({ ...bare, reflex: { ...NO_REFLEX, regionStretch: { Leg: 4 } } }),
+    ).toContain('cord stretch arm 0, hand 0, leg 4');
+  });
+
+  it('is set from the command line one region at a time, over --reflex or the recipe', () => {
+    const recipeCord: ReflexLevels = {
+      ...NO_REFLEX,
+      stretch: 5,
+      velocity: 0.25,
+      regionStretch: { Leg: 9 },
+    };
+    // A region flag over the recipe's cord keeps the regions it does not name.
+    const arm = reflexWithFlags(recipeCord, { regions: { Arm: 2 } });
+    expect(arm.levels.regionStretch).toEqual({ Leg: 9, Arm: 2 });
+    expect(arm.source).toBe("flags over the recipe's cord");
+    // `--reflex` is the stretch everywhere, so it clears them; region flags then go over it.
+    expect(reflexWithFlags(recipeCord, { stretch: 3 }).levels.regionStretch).toBeUndefined();
+    const both = reflexWithFlags(recipeCord, { stretch: 3, regions: { Neck: 1 } });
+    expect(both.levels).toMatchObject({ stretch: 3, regionStretch: { Neck: 1 } });
+    expect(() => reflexWithFlags(recipeCord, { regions: { Tail: 1 } as never })).toThrow(/Tail/);
+    expect(() => reflexWithFlags(recipeCord, { regions: { Arm: Number.NaN } })).toThrow(/Arm/);
+    // The measured cord, flag by flag, is the measured cord.
+    expect(reflexWithFlags(undefined, { preset: 'default' }).levels).toEqual(DEFAULT_REFLEX);
   });
 });
 
@@ -224,9 +323,14 @@ describe('what a Resume changes', () => {
   it('reads an old recipe as the body it was trained in', () => {
     const now = { ...bare, reflex: DEFAULT_REFLEX };
     const changes = recipeChanges(bare, now);
-    expect(changes).toContainEqual({ field: 'reflex.stretch', from: 0, to: 8.5 });
-    expect(changes).toContainEqual({ field: 'reflex.velocity', from: 0, to: 0.25 });
-    expect(changes).toHaveLength(2);
+    // No cord against the measured one, which differs by region: each region whose stretch moved,
+    // not a base stretch that no region follows.
+    expect(changes).toEqual([
+      { field: 'reflex.velocity', from: 0, to: 0.25 },
+      { field: 'reflex.regionStretch.Arm', from: 0, to: 3.5 },
+      { field: 'reflex.regionStretch.Leg', from: 0, to: 3.5 },
+      { field: 'reflex.regionStretch.Trunk', from: 0, to: 8.5 },
+    ]);
   });
 
   it('says it in one line, and ignores the name and the timescale', () => {
@@ -252,7 +356,7 @@ describe('what a Resume changes', () => {
 describe('a recipe in one line', () => {
   it('says where, what is under the brain, the cord, the noise and the memory', () => {
     expect(describeRecipe(referenceStandRecipe('stand', 'l3_anatomical', 0.3))).toBe(
-      'reference stand; the quiet-standing clip under the brain; authority 0.3; cord stretch 8.5, damping 0.25, 30 ms; tremor 0.05, sense 0.01; no memory',
+      'reference stand; the quiet-standing clip under the brain; authority 0.3; cord stretch arm 3.5, hand 0, leg 3.5, trunk 8.5, neck 0, damping 0.25, 30 ms; tremor 0.05, sense 0.01; no memory',
     );
     expect(
       describeRecipe({

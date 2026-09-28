@@ -18,6 +18,7 @@ import {
   DEFAULT_REFLEX,
   NO_REFLEX,
   REFLEX_FIELDS,
+  REFLEX_REGIONS,
   type TrainingRecipe,
   referenceStandRecipe,
 } from './recipe.js';
@@ -33,6 +34,14 @@ const SLIDERS = {
   'spine-inhibition': 'inhibition',
   'spine-delay': 'delaySeconds',
 } as const;
+
+/** The Spine panel's stretch by region, by the region each one sets. */
+const REGION_SLIDERS = Object.fromEntries(
+  REFLEX_REGIONS.map((r) => [`spine-stretch-${r.toLowerCase()}`, r]),
+);
+
+/** The measured cord less its regions: what a request that sends a stretch starts from. */
+const { regionStretch: _measuredRegions, ...UNIFORM_DEFAULT } = DEFAULT_REFLEX;
 
 function slider(id: string): { min: number; max: number } {
   const tag = STUDIO.match(new RegExp(`<input[^>]*id="${id}"[^>]*>`))?.[0] ?? '';
@@ -51,8 +60,9 @@ describe('the cord a dashboard run trains over', () => {
   it('is the cord the request sends', () => {
     expect(built({ recipe: { reflex: DEFAULT_REFLEX } }).recipe.reflex).toEqual(DEFAULT_REFLEX);
     expect(built({ recipe: { reflex: DEFAULT_REFLEX } }).clamped).toEqual([]);
+    // A stretch and no regions is that stretch everywhere, as a studio before regions sent it.
     expect(built({ recipe: { reflex: { stretch: 3.5 } } }).recipe.reflex).toEqual({
-      ...DEFAULT_REFLEX,
+      ...UNIFORM_DEFAULT,
       stretch: 3.5,
     });
     expect(built({ recipe: { reflex: { stretch: 0 } } }).recipe.reflex?.stretch).toBe(0);
@@ -72,7 +82,16 @@ describe('the cord a dashboard run trains over', () => {
       (m) => m[1],
     );
     // A new cord slider has to be added here, or this is no longer checking all of them.
-    expect(ids.sort()).toEqual(Object.keys(SLIDERS).sort());
+    expect(ids.sort()).toEqual([...Object.keys(SLIDERS), ...Object.keys(REGION_SLIDERS)].sort());
+    for (const [id, region] of Object.entries(REGION_SLIDERS)) {
+      const { min, max } = slider(id);
+      for (const value of [min, max]) {
+        const reflex = { stretch: 5, regionStretch: { [region]: value } };
+        const { recipe, clamped } = built({ recipe: { reflex } });
+        expect(recipe.reflex?.regionStretch, `${id} at ${value}`).toEqual({ [region]: value });
+        expect(clamped, `${id} at ${value}`).toEqual([]);
+      }
+    }
     for (const [id, field] of Object.entries(SLIDERS)) {
       const { min, max } = slider(id);
       expect(Number.isFinite(min) && Number.isFinite(max), id).toBe(true);
@@ -82,6 +101,22 @@ describe('the cord a dashboard run trains over', () => {
         expect(clamped, `${id} at ${value}`).toEqual([]);
       }
     }
+  });
+
+  it('passes a stretch by region through, and holds each to the stretch range', () => {
+    const regionStretch = { Arm: 2, Leg: 8.5 };
+    const { recipe, clamped } = built({ recipe: { reflex: { stretch: 5, regionStretch } } });
+    expect(recipe.reflex?.regionStretch).toEqual(regionStretch);
+    expect(clamped).toEqual([]);
+    const far = built({
+      recipe: { reflex: { stretch: 5, regionStretch: { Hand: 40, Neck: 'stiff', Tail: 3 } } },
+    });
+    // Past the range is brought into it; not a number is the base; not a region is not the cord's.
+    expect(far.recipe.reflex?.regionStretch).toEqual({ Hand: 10, Neck: 5 });
+    expect(far.clamped).toEqual([
+      { field: 'reflex.regionStretch.Hand', asked: 40, used: 10 },
+      { field: 'reflex.regionStretch.Neck', asked: 'stiff', used: 5 },
+    ]);
   });
 
   it('brings a value past its limit into it, and says so', () => {
@@ -193,7 +228,9 @@ describe('a Resume from the dashboard', () => {
 
   it('lists what the recipe changes, reading an old recipe as the body it was trained in', () => {
     expect(resumePreflight(recipe, { policy: { task: 'stand', recipe: old } })).toEqual({
-      recipeChanges: 'reflex.stretch 0 -> 8.5, reflex.velocity 0 -> 0.25',
+      recipeChanges:
+        'reflex.velocity 0 -> 0.25, reflex.regionStretch.Arm 0 -> 3.5, ' +
+        'reflex.regionStretch.Leg 0 -> 3.5, reflex.regionStretch.Trunk 0 -> 8.5',
     });
     expect(resumePreflight(recipe, { centre: { task: 'stand' } })).toEqual({
       recipeChanges: undefined,

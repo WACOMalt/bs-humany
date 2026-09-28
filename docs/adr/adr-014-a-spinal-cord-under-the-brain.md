@@ -3,7 +3,8 @@
 **Status:** accepted, 2026-09-21; amended 2026-09-22 (the gains, remeasured; see the
 [amendment](#amended-2026-09-22--the-gains-remeasured)); the run order, and the cord built per side
 and per unit and its gains remeasured, noted under "The decision" and in the amendment,
-2026-09-27; the stretch gain moved from 3.5 to 8.5 on a sweep to 10, in the amendment, 2026-09-27.
+2026-09-27; the stretch gain moved from 3.5 to 8.5 on a sweep to 10, in the amendment, 2026-09-27;
+the stretch gain by region, chosen on tremor as well as time upright, in the amendment, 2026-09-28.
 **Depends on:** ADR-013 (the nerves),
 §14.1 (the nervous system module), §10.5 (delay lines), ADR-004 (accumulators). **Related:**
 OQ-024 (standing is a reflex, `docs/sources/open-questions.md`).
@@ -155,7 +156,7 @@ and `MEASURED_SPINAL_GAINS` in the spinal module, which a test holds it to) is:
 
 | stretch | velocity | setPoint | inhibition | forceCeiling | forceInhibition | delaySeconds |
 |---|---|---|---|---|---|---|
-| 8.5 (3.5 until 2026-09-27) | 0.25 | 0 | 0.3 | 1.2 | 0.5 | 0.03 |
+| by region since 2026-09-28: arm 3.5, hand 0, leg 3.5, trunk 8.5, neck 0 (8.5 everywhere before; 3.5 until 2026-09-27) | 0.25 | 0 | 0.3 | 1.2 | 0.5 | 0.03 |
 
 Stretch and velocity are measured. The set point is where the cord stops answering a body that
 stands still. Inhibition stays at 0.3, unchanged and unclaimed, because choosing it needs two
@@ -185,6 +186,30 @@ slider and the recipe's limit went from 8 to 10 to hold it. With the policy sile
 stretch of 3 now keeps the body up 0.619 s against 0.480 with no cord. The five shipped policies
 are retrained over this cord in the next wave. The paragraph below, that time upright falls past a
 stretch of 4, is the pooled cord's finding; the cord as built has not shown it up to 10.
+
+*Amended 2026-09-28, the stretch by region.* The owner found the arms shaking at 8.5 everywhere
+and decided on 2026-09-27 that the stretch may differ by region: stiff where posture needs it,
+gentle where it only makes tremor. `SpinalGains` keeps `stretch` as the base and gains an optional
+`regionStretch`, keyed by the drive sections the muscle groups declare (arm, hand, leg, trunk,
+neck); `reflexGroups()` tags each reflex group with its section, and the module resolves each
+unit's gain once whenever the gains change, so the step still looks nothing up and allocates
+nothing. A cord that names no regions -- every recipe, checkpoint and session saved before this --
+is its one stretch everywhere. The damping stays one number: at the new defaults the arms reverse
+less often than with no stretch gain at all, so nothing measured asks for it by region.
+
+The defaults were chosen by a sweep of each region with the others at 5, measuring time upright
+under `balance` and silent and tremor (the root mean square of joint velocity less its 0.2 s moving
+average) on the studio's default scene, by one rule: the smallest gain within 20% of the region's
+tremor with its own stretch off and 2% of its best time upright, and where none keeps both, the one
+inside the tremor bound that keeps the body up longest. It gave the trunk 8.5, the arms and legs
+3.5, and the hands and neck none of their own; the base is 3.5. Against 8.5 everywhere the arms'
+tremor falls from 4.2 rad/s to 1.5 (1.2 with no cord) and the body is up 0.59 s under the committed
+policy against 0.73: the legs came out gentler than was expected of them, their tremor rising with
+their gain as their time upright does, and buying that back is left to the owner, the Leg slider
+and `--reflex-stretch-leg` setting it alone. The Spine panel and the headset have a stretch slider
+per region under the one for all regions, which sets them all; recipes, the trainer's flags, the
+dashboard and sessions carry the stretch by region; and `balance.json` was re-saved on the new cord,
+five generations as it first was. The tables are in reflex-gains.md.
 
 **What still holds.** A cord that silences the policy is worse than no cord. Past a stretch of 4
 the time upright falls again, because the brain adds its correction to an excitation the cord has

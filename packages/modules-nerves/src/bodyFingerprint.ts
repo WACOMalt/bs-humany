@@ -20,7 +20,7 @@
  */
 
 import type { CompiledMuscleUnit } from '@bs-humany/modules-muscle';
-import type { SpinalGains } from './spinalModule.js';
+import { SPINAL_REGIONS, type SpinalGains, type SpinalRegion } from './spinalModule.js';
 
 /** Bumped when the fingerprint's own fields change, so an old one is not misread as a new one. */
 export const BODY_FINGERPRINT_VERSION = 1;
@@ -215,8 +215,8 @@ function same(a: number, b: number): boolean {
   return Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
 }
 
-/** The cord gains, in the order the Spine panel lists them. */
-const CORD_FIELDS: readonly (keyof SpinalGains)[] = [
+/** The cord's single gains, in the order the Spine panel lists them. */
+const CORD_FIELDS: readonly Exclude<keyof SpinalGains, 'regionStretch'>[] = [
   'stretch',
   'velocity',
   'setPoint',
@@ -232,10 +232,31 @@ const CORD_FIELDS: readonly (keyof SpinalGains)[] = [
  * cord they sit on -- it is the spinal module's -- and the studio compares against its sliders.
  */
 export function compareCord(saved: SpinalGains, current: SpinalGains): string | undefined {
-  const changed = CORD_FIELDS.filter((f) => !same(saved[f], current[f])).map(
-    (f) => `${f} ${say(saved[f])} then, ${say(current[f])} now`,
-  );
+  // One stretch when both cords have one stretch everywhere, as it always was; each region's as
+  // the cord answers with it when either differs by region, so a policy saved over one stretch
+  // reads against a cord by region as the regions that moved, and a base stretch that no region
+  // follows is not a difference.
+  const uniform = (c: SpinalGains) => SPINAL_REGIONS.every((r) => stretchIn(c, r) === c.stretch);
+  const byRegion = !(uniform(saved) && uniform(current));
+  const changed = CORD_FIELDS.filter(
+    (f) => !(byRegion && f === 'stretch') && !same(saved[f], current[f]),
+  ).map((f) => `${f} ${say(saved[f])} then, ${say(current[f])} now`);
+  if (byRegion) {
+    const moved = SPINAL_REGIONS.filter((r) => !same(stretchIn(saved, r), stretchIn(current, r)));
+    changed.unshift(
+      ...moved.map(
+        (r) =>
+          `${r.toLowerCase()} stretch ${say(stretchIn(saved, r))} then, ${say(stretchIn(current, r))} now`,
+      ),
+    );
+  }
   return changed.length ? `cord: ${changed.join('; ')}` : undefined;
+}
+
+/** A region's stretch under a cord: its own when the cord gives one, else the base. */
+function stretchIn(cord: SpinalGains, region: SpinalRegion): number {
+  const own = cord.regionStretch?.[region];
+  return own !== undefined && Number.isFinite(own) ? own : cord.stretch;
 }
 
 /** Names past this many in one family are said as the family and a count. */

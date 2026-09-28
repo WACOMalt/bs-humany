@@ -29,7 +29,9 @@
  * is -- the spindle's group II, length-sensitive -- and in proportion to how fast it is being
  * pulled -- group Ia, velocity-sensitive. The velocity term is the damping, and it is the one that
  * stops a pure length loop from ringing. Only lengthening excites: a shortening muscle is not
- * resisted by its own spindle.
+ * resisted by its own spindle. The length gain is the unit's region's -- arm, hand, leg, trunk or
+ * neck, from the group it is in -- where the gains give one, and the base stretch where not; it is
+ * worked out per unit when the gains change, never in the step.
  *
  * **Reciprocal inhibition**, per antagonist pair of groups on one side. The Ia afferent that
  * excites a muscle also inhibits its opposite through an interneuron, so a stretched muscle does
@@ -109,7 +111,25 @@ export interface ReflexGroup {
   readonly id: string;
   readonly units: readonly string[];
   readonly antagonist?: string | undefined;
+  /**
+   * The part of the body the group is in, which picks its stretch gain out of
+   * `SpinalGains.regionStretch`. A group with none, or a region the gains do not name, takes the
+   * base `stretch`.
+   */
+  readonly region?: SpinalRegion | undefined;
 }
+
+/**
+ * The parts of the body the cord's stretch gain can differ between: the drive sections the muscle
+ * groups already declare (`DriveSection` in `packages/scenarios/src/muscleGroups.ts`, which a test
+ * holds to this list), in the order the Spine panel lists them.
+ *
+ * By section and not by group, because the reason for a second gain is a whole limb's: a stiff
+ * cord holds the legs and trunk up and makes the arms shake, and nobody has measured a reason to
+ * set the elbow's flexors apart from its extensors.
+ */
+export const SPINAL_REGIONS = ['Arm', 'Hand', 'Leg', 'Trunk', 'Neck'] as const;
+export type SpinalRegion = (typeof SPINAL_REGIONS)[number];
 
 export interface SpinalGains {
   /**
@@ -128,13 +148,15 @@ export interface SpinalGains {
    * that unit upward is clamped away, and downward only what brings the sum back under 1 counts:
    * a reflex that silences the policy is worse than no reflex. (That was measured when each
    * writer clamped its own partial sum and the brain's downward correction was lost outright; the
-   * sweep below has not been repeated since the one clamp.) On the pooled cord this replaced, where a group's
-   * mean drove every unit in it and both legs together, that was a fall-off past 4 -- 0.89 s at
+   * sweep below has not been repeated since the one clamp.) On the pooled cord this replaced,
+   * where a group's mean drove every unit in it and both legs together, that was a fall-off past 4 -- 0.89 s at
    * 3.5, 0.90 at 4, 0.85 at 5 -- and 3.5 was chosen on it. Per unit the cord drives less of the
    * body at any gain, and a second sweep, to 10, found no fall-off at all: time upright levels off
-   * from 8.5 rather than falling, so 8.5 is the default, the smallest gain within 1% of the best
+   * from 8.5 rather than falling, so 8.5 was the default, the smallest gain within 1% of the best
    * (reflex-gains.md). The policy it was measured under was trained with no cord; one trained over
-   * this cord may put the fall-off somewhere else.
+   * this cord may put the fall-off somewhere else. Time upright was all that sweep measured, and
+   * at 8.5 the arms shook; the default is now a stretch by region (`regionStretch`), and this
+   * is its base.
    *
    * This used to be five thousandths, and the reason is worth keeping: the length afferent was
    * divided by the optimal fibre length twice, so it read 2.3 to 41 instead of -0.44 to 0, and
@@ -142,6 +164,21 @@ export interface SpinalGains {
    * the numbers before and after.
    */
   readonly stretch: number;
+  /**
+   * The stretch gain per part of the body, where it differs from `stretch`: a unit in a group of
+   * one of these regions answers its own spindle with its region's gain when one is given here,
+   * and with `stretch` when not. Absent, as in every recipe, checkpoint and session saved before
+   * 2026-09-27, is `stretch` everywhere.
+   *
+   * Because one gain cannot serve the whole body. At 8.5 everywhere the arms shook: on the
+   * default scene with no policy, the arm joints' tremor -- the root mean square of joint velocity
+   * less its own 0.2 s moving average -- was 6.08 rad/s against 1.64 with no stretch gain,
+   * reversing 6.3 times a second each. Measured region by region, the trunk takes a stiff cord
+   * without shaking and stands longer for it; the arms and legs stand longer for one too, but shake
+   * in proportion; the hands and neck gain nothing either way. The measured gains and the rule that
+   * chose them are in `docs/validation/reflex-gains.md`.
+   */
+  readonly regionStretch?: Readonly<Partial<Record<SpinalRegion, number>>> | undefined;
   /**
    * Group Ia, velocity: excitation a unit of lengthening speed. The damping term.
    *
@@ -207,15 +244,18 @@ export const SPINAL_CONDUCTION_DELAY_S = 0.03;
  * decided the studio and the scripted scenarios will run with. Every number is from
  * `docs/validation/reflex-gains.md`, which has the tables and how to reproduce them;
  * `SpinalGains` says what each one is. They were chosen on the pooled cord and measured again on
- * the cord per side and per unit. That moved only the stretch gain, from 3.5 to 8.5, once a sweep
- * past 5 found where time upright levels off (`SpinalGains.stretch` says why).
+ * the cord per side and per unit, which moved the stretch from 3.5 to 8.5. Since the owner's
+ * decision of 2026-09-27 the stretch differs by region, chosen on tremor as well as time upright
+ * (`SpinalGains.regionStretch`): the trunk stiff, the arms and legs gentler, the hands and neck
+ * with no stretch gain of their own. Every region is named, so the base stretch here is what the
+ * Stretch slider for all regions opens on and nothing follows it.
  *
  * The training recipe (`tools/train/src/recipe.ts`) keeps its own copy of these as
  * `DEFAULT_REFLEX`, because it loads without this package; a test here holds the two together
  * field by field.
  */
 export const MEASURED_SPINAL_GAINS: SpinalGains = {
-  stretch: 8.5,
+  stretch: 3.5,
   velocity: 0.25,
   // Hold the fibre at its optimal length. Below this the reflex stops being a reflex: at -0.1,
   // 173 of the body's 272 muscles are past the set point standing perfectly still, so the cord
@@ -225,6 +265,7 @@ export const MEASURED_SPINAL_GAINS: SpinalGains = {
   forceCeiling: 1.2,
   forceInhibition: 0.5,
   delaySeconds: SPINAL_CONDUCTION_DELAY_S,
+  regionStretch: { Arm: 3.5, Hand: 0, Leg: 3.5, Trunk: 8.5, Neck: 0 },
 };
 
 /**
@@ -233,7 +274,15 @@ export const MEASURED_SPINAL_GAINS: SpinalGains = {
  * ones so that turning the stretch up from off gives the measured cord's inhibition, ceiling and
  * delay, not a second set of them. The recipe's `NO_REFLEX` is the same seven numbers.
  */
-export const SPINAL_OFF: SpinalGains = { ...MEASURED_SPINAL_GAINS, stretch: 0, velocity: 0 };
+export const SPINAL_OFF: SpinalGains = {
+  stretch: 0,
+  velocity: 0,
+  setPoint: MEASURED_SPINAL_GAINS.setPoint,
+  inhibition: MEASURED_SPINAL_GAINS.inhibition,
+  forceCeiling: MEASURED_SPINAL_GAINS.forceCeiling,
+  forceInhibition: MEASURED_SPINAL_GAINS.forceInhibition,
+  delaySeconds: MEASURED_SPINAL_GAINS.delaySeconds,
+};
 
 /**
  * What a module built without gains runs: off. A bare cord changes nothing, so adding the module
@@ -261,6 +310,17 @@ export class SpinalModule implements SimModule, Stateful {
   private readonly opposes: Int32Array;
   /** Every unit in at least one group, once each: the units the cord is wired to. */
   private readonly wired: Int32Array;
+  /**
+   * Per unit, the index in `SPINAL_REGIONS` of the region of the first group it is in, or -1 for
+   * none: fixed by the table the cord was built with.
+   */
+  private readonly unitRegion: Int8Array;
+  /**
+   * Per unit, the stretch gain it answers its own spindle with: its region's when the gains give
+   * one, the base `stretch` when not. Worked out whenever the gains change, so the step reads one
+   * number a unit and looks nothing up.
+   */
+  private readonly unitStretch: Float64Array;
   /**
    * Per unit, this tick: first its own reflex drive, from its own spindle and tendon organ, then
    * that less what its group's antagonist takes off -- the amount added to its excitation.
@@ -302,6 +362,15 @@ export class SpinalModule implements SimModule, Stateful {
       g.antagonist === undefined ? -1 : (at.get(g.antagonist) ?? -1),
     );
     this.wired = Int32Array.from(new Set(this.groupUnits.flatMap((units) => Array.from(units))));
+    this.unitRegion = new Int8Array(this.unitCount).fill(-1);
+    options.groups.forEach((g, gi) => {
+      const region = g.region === undefined ? -1 : SPINAL_REGIONS.indexOf(g.region);
+      for (const u of this.groupUnits[gi] as Int32Array) {
+        if (this.unitRegion[u] === -1) this.unitRegion[u] = region;
+      }
+    });
+    this.unitStretch = new Float64Array(this.unitCount);
+    this.resolveStretch();
     this.unitDrive = new Float64Array(this.unitCount);
     this.groupDrive = new Float64Array(options.groups.length);
     this.snapshot = new Float64Array(3 * this.unitCount);
@@ -405,13 +474,43 @@ export class SpinalModule implements SimModule, Stateful {
   set gains(next: SpinalGains) {
     const wasOff = SpinalModule.isOff(this.gainsInUse);
     this.gainsInUse = next;
+    this.resolveStretch();
     this.rebuildLine();
     if (wasOff && !SpinalModule.isOff(next)) this.line?.reset();
   }
 
-  /** Both spindle gains at zero is the whole cord off, the Golgi term with it (see the header). */
+  /**
+   * Every spindle gain at zero -- the base stretch, each region's and the damping -- is the whole
+   * cord off, the Golgi term with it (see the header). A region at zero under a base that is not
+   * is a cord that leaves that region alone, not a cord that is off.
+   */
   private static isOff(g: SpinalGains): boolean {
-    return g.stretch === 0 && g.velocity === 0;
+    if (g.stretch !== 0 || g.velocity !== 0) return false;
+    const regions = g.regionStretch;
+    if (!regions) return true;
+    return SPINAL_REGIONS.every((r) => {
+      const v = regions[r];
+      return v === undefined || !Number.isFinite(v) || v === 0;
+    });
+  }
+
+  /**
+   * Each unit's stretch gain, from its region and the gains in use, written in place. A region
+   * the gains leave out, or give as something that is not a number, falls back on the base.
+   */
+  private resolveStretch(): void {
+    const base = this.gainsInUse.stretch;
+    const regions = this.gainsInUse.regionStretch;
+    for (let u = 0; u < this.unitCount; u++) {
+      const r = this.unitRegion[u] as number;
+      const own = r < 0 || !regions ? undefined : regions[SPINAL_REGIONS[r] as SpinalRegion];
+      this.unitStretch[u] = own !== undefined && Number.isFinite(own) ? own : base;
+    }
+  }
+
+  /** The stretch gain one unit answers its spindle with, by index; for a test or a probe. */
+  stretchOf(unit: number): number {
+    return this.unitStretch[unit] ?? this.gainsInUse.stretch;
   }
 
   /** Change some gains and keep the rest. */
@@ -512,7 +611,7 @@ export class SpinalModule implements SimModule, Stateful {
       const load = this.delayed[2 * n + u] as number;
       // Only a lengthening muscle is excited by its own spindle.
       let drive = 0;
-      if (stretch > 0) drive += g.stretch * stretch;
+      if (stretch > 0) drive += (this.unitStretch[u] as number) * stretch;
       if (rate > 0) drive += g.velocity * rate;
       // Ib: past the ceiling the organ takes drive back off, and can drive it negative.
       if (load > g.forceCeiling) drive -= g.forceInhibition * (load - g.forceCeiling);

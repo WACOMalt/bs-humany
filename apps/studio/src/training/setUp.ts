@@ -15,13 +15,38 @@
  * 1.755 is not a difference forever after -- and this compares them.
  */
 
-/** The spinal cord's five gains, as the Spine sliders have them. */
+import type { SpinalRegion } from '@bs-humany/modules-nerves';
+import { REFLEX_REGIONS } from '@bs-humany/train/recipe';
+
+/**
+ * The spinal cord's five gains, as the Spine sliders have them, and its stretch by region: a
+ * region's own where it has one, the base stretch's where it does not.
+ */
 export interface SetUpCord {
   readonly stretch: number;
   readonly velocity: number;
   readonly setPoint: number;
   readonly inhibition: number;
   readonly delaySeconds: number;
+  readonly regionStretch?: Readonly<Partial<Record<SpinalRegion, number>>> | undefined;
+}
+
+/** A region's stretch under a cord: its own when the cord gives one, else the base. */
+function stretchIn(cord: SetUpCord, region: SpinalRegion): number {
+  const own = cord.regionStretch?.[region];
+  return own !== undefined && Number.isFinite(own) ? own : cord.stretch;
+}
+
+/**
+ * Whether two cords are one cord to the body: the five gains the same, and every region's stretch
+ * the same as the body answers with it. A cord with only a stretch is that stretch everywhere, so
+ * it is the same as one that names the stretch in every region.
+ */
+export function sameCord(a: SetUpCord, b: SetUpCord): boolean {
+  return (
+    CORD.every(([key]) => same(a[key], b[key])) &&
+    REFLEX_REGIONS.every((r) => same(stretchIn(a, r), stretchIn(b, r)))
+  );
 }
 
 /** The studio as far as a checkpoint's recipe reaches into it. */
@@ -76,13 +101,14 @@ const same = (a: number, b: number): boolean => Math.abs(a - b) <= TOLERANCE;
 const onOff = (on: boolean): string => (on ? 'on' : 'off');
 
 /** The cord's gains in the order the Spine panel lists them, with the words it uses. */
-const CORD: readonly [keyof SetUpCord, string, (v: number) => string][] = [
-  ['stretch', 'stretch', (v) => v.toFixed(2)],
-  ['velocity', 'damping', (v) => v.toFixed(2)],
-  ['setPoint', 'set point', (v) => v.toFixed(2)],
-  ['inhibition', 'reciprocal', (v) => v.toFixed(2)],
-  ['delaySeconds', 'conduction', (v) => `${Math.round(v * 1000)} ms`],
-];
+const CORD: readonly [Exclude<keyof SetUpCord, 'regionStretch'>, string, (v: number) => string][] =
+  [
+    ['stretch', 'stretch', (v) => v.toFixed(2)],
+    ['velocity', 'damping', (v) => v.toFixed(2)],
+    ['setPoint', 'set point', (v) => v.toFixed(2)],
+    ['inhibition', 'reciprocal', (v) => v.toFixed(2)],
+    ['delaySeconds', 'conduction', (v) => `${Math.round(v * 1000)} ms`],
+  ];
 
 /**
  * Everything Set up as trained would change, in the order the tabs offer it: what restarts a run
@@ -142,9 +168,14 @@ export function setUpDifferences(
     add(`${trained.stepsPerSecond} steps a second (here ${here.stepsPerSecond})`, true);
   }
   if (trained.cord && here.cord) {
+    const [a, b] = [trained.cord, here.cord];
     for (const [key, label, show] of CORD) {
-      if (!same(trained.cord[key], here.cord[key])) {
-        add(`cord ${label} ${show(trained.cord[key])} (here ${show(here.cord[key])})`, false);
+      if (key === 'stretch') {
+        addStretch(a, b, add);
+        continue;
+      }
+      if (!same(a[key], b[key])) {
+        add(`cord ${label} ${show(a[key])} (here ${show(b[key])})`, false);
       }
     }
   }
@@ -155,6 +186,31 @@ export function setUpDifferences(
     add('the muscle sliders at zero (here some are up)', false);
   }
   return out;
+}
+
+/**
+ * The stretch, compared as the body answers with it. Two cords with one stretch everywhere differ
+ * in one line, as they always did; otherwise each region that differs is a line of its own, and a
+ * base stretch that no region follows is no difference at all.
+ */
+function addStretch(
+  a: SetUpCord,
+  b: SetUpCord,
+  add: (text: string, restarts: boolean) => void,
+): void {
+  const uniform = (c: SetUpCord) => REFLEX_REGIONS.every((r) => same(stretchIn(c, r), c.stretch));
+  if (uniform(a) && uniform(b)) {
+    if (!same(a.stretch, b.stretch)) {
+      add(`cord stretch ${a.stretch.toFixed(2)} (here ${b.stretch.toFixed(2)})`, false);
+    }
+    return;
+  }
+  for (const r of REFLEX_REGIONS) {
+    const [then, now] = [stretchIn(a, r), stretchIn(b, r)];
+    if (!same(then, now)) {
+      add(`cord ${r.toLowerCase()} stretch ${then.toFixed(2)} (here ${now.toFixed(2)})`, false);
+    }
+  }
 }
 
 /** The differences as one line for a note: `scene A (here B), authority 0.30 (here 1.00)`. */

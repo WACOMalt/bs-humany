@@ -25,6 +25,7 @@
 
 import {
   type PolicyFile,
+  type SpinalRegion,
   type TrainedBody,
   compareCord,
   summariseDifferences,
@@ -37,9 +38,12 @@ import {
   DEFAULT_BEHAVIOUR,
   DEFAULT_NOISE,
   DEFAULT_REFLEX,
+  REFLEX_REGIONS,
   SEARCH_DEFAULTS,
   UI_RUN_DEFAULTS,
+  describeStretch,
   isTask,
+  regionStretchOf,
 } from '@bs-humany/train/recipe';
 import { brainButtons, policyNote, spineNote, stretchLabel } from './training/buttons.js';
 import {
@@ -255,15 +259,30 @@ export interface BrainHost {
    * Set the cord's reflex gains on the running body. Optional: a host with no muscles has no
    * cord to set, and the panel is drawn either way.
    */
-  setReflex?(gains: {
-    stretch: number;
-    velocity: number;
-    setPoint: number;
-    inhibition: number;
-    forceCeiling: number;
-    forceInhibition: number;
-    delaySeconds: number;
-  }): void;
+  setReflex?(gains: PanelCordGains): void;
+}
+
+/**
+ * The stretch gain by region on the Spine panel: a region's own where its slider has been moved,
+ * and none where it still follows Stretch, all regions -- the same meaning `SpinalGains` gives an
+ * absent region, so the panel's cord is the module's without a translation between them.
+ */
+export type SpineRegions = Readonly<Partial<Record<SpinalRegion, number>>>;
+
+/** The cord's five slider gains, and the stretch by region, as the Spine panel has them. */
+export interface SpineCord {
+  readonly stretch: number;
+  readonly velocity: number;
+  readonly setPoint: number;
+  readonly inhibition: number;
+  readonly delaySeconds: number;
+  readonly regionStretch?: SpineRegions | undefined;
+}
+
+/** The panel's cord with the two gains it has no slider for, as the module and a recipe take it. */
+export interface PanelCordGains extends SpineCord {
+  readonly forceCeiling: number;
+  readonly forceInhibition: number;
 }
 
 export interface BrainState {
@@ -279,13 +298,7 @@ export interface BrainState {
   readonly trainingStoppable: boolean;
   readonly following: boolean;
   /** The cord's gains, so the headset's Spine panel shows what the desktop has. */
-  readonly reflex: {
-    readonly stretch: number;
-    readonly velocity: number;
-    readonly setPoint: number;
-    readonly inhibition: number;
-    readonly delaySeconds: number;
-  };
+  readonly reflex: SpineCord;
   /** Context units the next run will train with. */
   readonly memory: number;
   /**
@@ -326,25 +339,25 @@ export const OPENING_CORD = DEFAULT_REFLEX;
  * Only the five gains the panel has a slider for are compared: the other two are the recipe's
  * own in both places, so they cannot differ.
  */
-export function trainingCordNote(gains: {
-  readonly stretch: number;
-  readonly velocity: number;
-  readonly setPoint: number;
-  readonly inhibition: number;
-  readonly delaySeconds: number;
-}): string {
+export function trainingCordNote(gains: SpineCord): string {
   // Within a hair rather than exactly, because a range input snaps its value to its step and a
   // browser is free to hand the snapped number back a rounding away from the one it was given.
   const same = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9;
+  // The stretch compared region by region, as the body answers with it: the panel's base is only
+  // a region's gain where the region follows it, and the measured cord gives every region its own.
+  // The panel's regions only: a region it does not name follows its base, not the default's.
+  const panel = { ...DEFAULT_REFLEX, ...gains, regionStretch: gains.regionStretch };
   const measured =
-    same(gains.stretch, DEFAULT_REFLEX.stretch) &&
+    REFLEX_REGIONS.every((r) =>
+      same(regionStretchOf(panel, r), regionStretchOf(DEFAULT_REFLEX, r)),
+    ) &&
     same(gains.velocity, DEFAULT_REFLEX.velocity) &&
     same(gains.setPoint, DEFAULT_REFLEX.setPoint) &&
     same(gains.inhibition, DEFAULT_REFLEX.inhibition) &&
     same(gains.delaySeconds, DEFAULT_REFLEX.delaySeconds);
   return measured
     ? 'A run trained here trains on this cord, the measured one the command-line trainer uses too.'
-    : `A run trained here trains on this cord as set; the command-line trainer uses the measured one (stretch ${DEFAULT_REFLEX.stretch.toFixed(2)}, damping ${DEFAULT_REFLEX.velocity.toFixed(2)}) unless told otherwise.`;
+    : `A run trained here trains on this cord as set; the command-line trainer uses the measured one (stretch ${describeStretch(DEFAULT_REFLEX)}, damping ${DEFAULT_REFLEX.velocity.toFixed(2)}) unless told otherwise.`;
 }
 
 /** What the headset is sent when there is no panel to ask: nothing chosen, nothing offered. */
@@ -365,6 +378,7 @@ export const IDLE_BRAIN_STATE: BrainState = {
     setPoint: OPENING_CORD.setPoint,
     inhibition: OPENING_CORD.inhibition,
     delaySeconds: OPENING_CORD.delaySeconds,
+    ...(OPENING_CORD.regionStretch ? { regionStretch: { ...OPENING_CORD.regionStretch } } : {}),
   },
   memory: 0,
   canStart: false,
@@ -389,6 +403,8 @@ export type BrainAction =
   | 'trainStop'
   | 'follow'
   | 'reflexStretch'
+  /** One region's stretch: `id` is the region, as `REFLEX_REGIONS` names it. */
+  | 'reflexRegionStretch'
   | 'reflexVelocity'
   | 'reflexSetPoint'
   | 'reflexInhibition'
@@ -410,15 +426,7 @@ export interface BrainPanel {
   /** The headset's hands on the panel: what the mouse would do, without going through a click. */
   act(action: BrainAction, id?: string, value?: number): void;
   /** What the cord's sliders say, for the run about to start: the panel's cord is the body's. */
-  reflex(): {
-    stretch: number;
-    velocity: number;
-    setPoint: number;
-    inhibition: number;
-    forceCeiling: number;
-    forceInhibition: number;
-    delaySeconds: number;
-  };
+  reflex(): PanelCordGains;
 }
 
 /**
@@ -489,6 +497,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     spineSetPoint: must<HTMLInputElement>('#spine-setpoint'),
     spineInhibition: must<HTMLInputElement>('#spine-inhibition'),
     spineDelay: must<HTMLInputElement>('#spine-delay'),
+    spineRegions: Object.fromEntries(
+      REFLEX_REGIONS.map((r) => [r, must<HTMLInputElement>(`#spine-stretch-${r.toLowerCase()}`)]),
+    ) as Record<SpinalRegion, HTMLInputElement>,
     resume: must<HTMLInputElement>('#train-resume'),
     name: must<HTMLInputElement>('#train-name'),
     task: must<HTMLSelectElement>('#train-task'),
@@ -697,15 +708,32 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * with no slider are the measured cord's, from the recipe module the trainer and the dashboard
    * read them from too, so a panel and a trainer never disagree about them.
    */
-  const reflexFromUi = () => ({
-    stretch: Number(ui.spineStretch.value),
-    velocity: Number(ui.spineVelocity.value),
-    setPoint: Number(ui.spineSetPoint.value),
-    inhibition: Number(ui.spineInhibition.value),
-    forceCeiling: DEFAULT_REFLEX.forceCeiling,
-    forceInhibition: DEFAULT_REFLEX.forceInhibition,
-    delaySeconds: Number(ui.spineDelay.value),
-  });
+  /**
+   * The regions whose Stretch slider has been moved since Stretch, all regions last was. The
+   * others follow it: their sliders show its value and the cord gives them no gain of their own,
+   * so they take the base. Moving Stretch, all regions puts every region back to following.
+   */
+  const ownStretch = new Set<SpinalRegion>();
+  const regionsFromUi = (): SpineRegions =>
+    Object.fromEntries(
+      REFLEX_REGIONS.filter((r) => ownStretch.has(r)).map((r) => [
+        r,
+        Number(ui.spineRegions[r].value),
+      ]),
+    );
+  const reflexFromUi = (): PanelCordGains => {
+    const regionStretch = regionsFromUi();
+    return {
+      stretch: Number(ui.spineStretch.value),
+      velocity: Number(ui.spineVelocity.value),
+      setPoint: Number(ui.spineSetPoint.value),
+      inhibition: Number(ui.spineInhibition.value),
+      forceCeiling: DEFAULT_REFLEX.forceCeiling,
+      forceInhibition: DEFAULT_REFLEX.forceInhibition,
+      delaySeconds: Number(ui.spineDelay.value),
+      ...(Object.keys(regionStretch).length > 0 ? { regionStretch } : {}),
+    };
+  };
 
   // The sliders open on the measured cord, the recipe's `DEFAULT_REFLEX` by name, because the
   // owner decided (2026-09-26) that the studio runs the cord the command-line trainer trains with.
@@ -724,12 +752,37 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   ui.spineSetPoint.value = String(OPENING_CORD.setPoint);
   ui.spineInhibition.value = String(OPENING_CORD.inhibition);
   ui.spineDelay.value = String(OPENING_CORD.delaySeconds);
+  for (const r of REFLEX_REGIONS) {
+    const own = OPENING_CORD.regionStretch?.[r];
+    ui.spineRegions[r].value = String(own ?? OPENING_CORD.stretch);
+    if (own !== undefined) ownStretch.add(r);
+  }
+
+  // Stretch, all regions sets every region: each one's slider goes to it and follows it again.
+  // Before `showSpine` below, which is added after this, so the body is handed the cord with its
+  // regions already cleared.
+  ui.spineStretch.addEventListener('input', () => {
+    ownStretch.clear();
+    for (const r of REFLEX_REGIONS) ui.spineRegions[r].value = ui.spineStretch.value;
+  });
+  for (const r of REFLEX_REGIONS) {
+    ui.spineRegions[r].addEventListener('input', () => ownStretch.add(r));
+  }
 
   const showSpine = () => {
     must<HTMLOutputElement>('#spine-stretch-value').textContent = stretchLabel(
       Number(ui.spineStretch.value),
       Number(ui.spineVelocity.value),
+      regionsFromUi(),
     );
+    for (const r of REFLEX_REGIONS) {
+      const input = ui.spineRegions[r];
+      const follows = !ownStretch.has(r);
+      input.labels?.[0]?.classList.toggle('follows', follows);
+      must<HTMLOutputElement>(`#spine-stretch-${r.toLowerCase()}-value`).textContent = follows
+        ? `${Number(input.value).toFixed(2)} (all)`
+        : Number(input.value).toFixed(2);
+    }
     must<HTMLOutputElement>('#spine-velocity-value').textContent = Number(
       ui.spineVelocity.value,
     ).toFixed(2);
@@ -748,6 +801,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   };
   for (const input of [
     ui.spineStretch,
+    ...REFLEX_REGIONS.map((r) => ui.spineRegions[r]),
     ui.spineVelocity,
     ui.spineSetPoint,
     ui.spineInhibition,
@@ -864,6 +918,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     ui.noiseMotor,
     ui.noiseSense,
     ui.spineStretch,
+    ...REFLEX_REGIONS.map((r) => ui.spineRegions[r]),
     ui.spineVelocity,
     ui.spineSetPoint,
     ui.spineInhibition,
@@ -2028,6 +2083,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
           setPoint: Number(ui.spineSetPoint.value),
           inhibition: Number(ui.spineInhibition.value),
           delaySeconds: Number(ui.spineDelay.value),
+          regionStretch: regionsFromUi(),
         },
         memory: Number(ui.memory.value),
         canStart: !ui.start.disabled,
@@ -2037,10 +2093,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         canSetUp: !ui.setUp.disabled,
         canUndoSetUp: !ui.undoSetUp.disabled,
         policyNote: ui.policyNote.textContent ?? '',
-        spineNote: `${spineNote({
-          stretch: Number(ui.spineStretch.value),
-          velocity: Number(ui.spineVelocity.value),
-        })} ${trainingCordNote(reflexFromUi())}`,
+        spineNote: `${spineNote(reflexFromUi())} ${trainingCordNote(reflexFromUi())}`,
       };
     },
     reflex: reflexFromUi,
@@ -2100,6 +2153,15 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
             reflexDelay: ui.spineDelay,
             memory: ui.memory,
           }[action];
+          if (value !== undefined) input.value = String(value);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        }
+        case 'reflexRegionStretch': {
+          const region = REFLEX_REGIONS.find((r) => r === id);
+          if (!region) break;
+          const input = ui.spineRegions[region];
           if (value !== undefined) input.value = String(value);
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));

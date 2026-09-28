@@ -256,8 +256,14 @@ export function trainFlags(recipe) {
       kind: 'number',
       ...range(recipe.REFLEX_LIMITS.stretch),
       choices: ['default', 'none'],
-      help: 'the stretch gain; `default` is the measured cord, `none` no cord at all',
+      help: 'the stretch gain in every region; `default` is the measured cord, `none` no cord at all',
     },
+    ...Object.entries(REFLEX_REGION_FLAGS).map(([name, region]) => ({
+      name,
+      kind: 'number',
+      ...range(recipe.REFLEX_LIMITS.stretch),
+      help: `the stretch gain in the ${region.toLowerCase()} region alone, over --reflex or the recipe's`,
+    })),
     ...Object.entries(REFLEX_FLAGS).map(([name, field]) => ({
       name,
       kind: 'number',
@@ -335,6 +341,19 @@ export const REFLEX_FLAGS = {
   'reflex-setpoint': 'setPoint',
   'reflex-ceiling': 'forceCeiling',
   'reflex-force-inhibition': 'forceInhibition',
+};
+
+/**
+ * The stretch gain one region at a time, each flag to the region of the cord it sets
+ * (`SpinalGains.regionStretch`). Beside `--reflex`, which is the stretch in every region: a run
+ * given both has `--reflex` everywhere and each region flag over it in its own region.
+ */
+export const REFLEX_REGION_FLAGS = {
+  'reflex-stretch-arm': 'Arm',
+  'reflex-stretch-hand': 'Hand',
+  'reflex-stretch-leg': 'Leg',
+  'reflex-stretch-trunk': 'Trunk',
+  'reflex-stretch-neck': 'Neck',
 };
 
 /** What each of those numbers is, for the help. */

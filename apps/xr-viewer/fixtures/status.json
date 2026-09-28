@@ -255,7 +255,11 @@
       "velocity": 0.125,
       "setPoint": 0.875,
       "inhibition": 0.5,
-      "delaySeconds": 0.03
+      "delaySeconds": 0.03,
+      "regionStretch": {
+        "Arm": 1.25,
+        "Leg": 6.5
+      }
     },
     "memory": 8,
     "canStart": false,

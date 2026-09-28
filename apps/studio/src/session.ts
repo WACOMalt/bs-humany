@@ -18,6 +18,7 @@
 import type { KernelSnapshot } from '@bs-humany/kernel';
 import { PASSIVE_JOINT_MODULE_ID } from '@bs-humany/modules-mechanics';
 import { MUSCLE_STATE } from '@bs-humany/modules-muscle';
+import { SPINAL_REGIONS, type SpinalRegion } from '@bs-humany/modules-nerves';
 import { DEFAULT_OUTPUT_FRAMERATE } from '@bs-humany/session';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
@@ -33,6 +34,12 @@ export interface SessionReflex {
   readonly setPoint: number;
   readonly inhibition: number;
   readonly delaySeconds: number;
+  /**
+   * The stretch of each region whose slider was moved off Stretch, all regions, by region name.
+   * A region not named follows `stretch`, so a file saved before regions -- which has none --
+   * loads as its one stretch everywhere, which is what it ran.
+   */
+  readonly regionStretch?: Readonly<Partial<Record<SpinalRegion, number>>> | undefined;
 }
 
 export interface SessionSettings {
@@ -312,7 +319,22 @@ function reflexOf(value: unknown): SessionReflex | undefined {
   ) {
     return undefined;
   }
-  return { stretch, velocity, setPoint, inhibition, delaySeconds };
+  // Only the regions the cord knows, each a finite number; anything else in the file is not a
+  // setting of this cord and is left out rather than refusing the session over it.
+  const given = numbersOf(r.regionStretch) ?? {};
+  const regionStretch: Partial<Record<SpinalRegion, number>> = {};
+  for (const region of SPINAL_REGIONS) {
+    const v = given[region];
+    if (v !== undefined) regionStretch[region] = v;
+  }
+  return {
+    stretch,
+    velocity,
+    setPoint,
+    inhibition,
+    delaySeconds,
+    ...(Object.keys(regionStretch).length > 0 ? { regionStretch } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------

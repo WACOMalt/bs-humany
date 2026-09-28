@@ -179,6 +179,20 @@ describe('bodyFingerprint', () => {
     expect(compareBody({ ...saved, version: 2 }, current)).toHaveLength(1);
   });
 
+  it('compares a cord by region as the body answers with it', () => {
+    // A policy saved over one stretch everywhere, against a cord that differs by region: the
+    // regions that moved, and nothing for the ones that did not.
+    const one = { ...DEFAULT_SPINAL_GAINS, stretch: 8.5 };
+    const byRegion = { ...one, regionStretch: { Arm: 2, Leg: 8.5 } };
+    expect(compareCord(one, byRegion)).toBe('cord: arm stretch 8.5 then, 2 now');
+    // The same stretch named in every region is the same cord.
+    const everywhere = {
+      ...one,
+      regionStretch: { Arm: 8.5, Hand: 8.5, Leg: 8.5, Trunk: 8.5, Neck: 8.5 },
+    };
+    expect(compareCord(one, everywhere)).toBeUndefined();
+  });
+
   it('shortens a long list for a panel', () => {
     expect(summariseDifferences(['a', 'b'])).toBe('a; b');
     expect(summariseDifferences(['a', 'b', 'c', 'd'])).toBe('a; b; and 2 more');

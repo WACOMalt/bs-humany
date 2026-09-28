@@ -11,6 +11,7 @@ import { resolveMorphology } from '@bs-humany/anthropometry';
 import { PASSIVE_JOINT_MODULE_ID } from '@bs-humany/modules-mechanics';
 import { DEFAULT_OUTPUT_FRAMERATE, Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
+import { REFLEX_REGIONS } from '@bs-humany/train/recipe';
 import { describe, expect, it } from 'vitest';
 import {
   type ChannelPrint,
@@ -50,7 +51,14 @@ const EVERYTHING: SessionSettings = {
   outputFramerate: 24,
   captureBudgetMiB: 512,
   drive: { 'drive-elbow-flexors': 40, 'drive-knee-extensors': 65 },
-  reflex: { stretch: 2.1, velocity: 0.35, setPoint: -0.05, inhibition: 0.55, delaySeconds: 0.045 },
+  reflex: {
+    stretch: 2.1,
+    velocity: 0.35,
+    setPoint: -0.05,
+    inhibition: 0.55,
+    delaySeconds: 0.045,
+    regionStretch: { Arm: 1.5, Leg: 7 },
+  },
   brainAuthority: 0.8,
   checkpoint: 'stand-2026-09-20',
 };
@@ -123,6 +131,34 @@ describe('a session file', () => {
     expect(settings.reflex).toBeUndefined();
     expect(settings.drive).toEqual({ a: 30 });
     expect(settings.outputFramerate).toBe(DEFAULT_OUTPUT_FRAMERATE);
+  });
+
+  it('with only a stretch, as every file before regions, loads as that stretch everywhere', () => {
+    // A cord with no `regionStretch` is its one stretch in every region, which is what it ran: a
+    // region the cord does not name follows the base, on the sliders and in the module alike.
+    const cord = { stretch: 8.5, velocity: 0.25, setPoint: 0, inhibition: 0.3, delaySeconds: 0.03 };
+    const settings = normaliseSettings({ ...FIRST_FORMAT.settings, reflex: cord });
+    expect(settings.reflex).toEqual(cord);
+    expect(settings.reflex?.regionStretch).toBeUndefined();
+    const regions = settings.reflex?.regionStretch ?? {};
+    for (const region of REFLEX_REGIONS) {
+      expect(regions[region] ?? settings.reflex?.stretch, region).toBe(8.5);
+    }
+  });
+
+  it("keeps a region's stretch only for a region the cord knows, and only as a number", () => {
+    const settings = normaliseSettings({
+      ...FIRST_FORMAT.settings,
+      reflex: {
+        stretch: 5,
+        velocity: 0.25,
+        setPoint: 0,
+        inhibition: 0.3,
+        delaySeconds: 0.03,
+        regionStretch: { Arm: 2, Leg: 'stiff', Tail: 4, Neck: 6 },
+      },
+    });
+    expect(settings.reflex?.regionStretch).toEqual({ Arm: 2, Neck: 6 });
   });
 
   it('from a newer studio is told apart from a file that is no session', () => {

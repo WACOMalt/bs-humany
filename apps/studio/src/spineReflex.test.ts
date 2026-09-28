@@ -6,8 +6,9 @@
  * described a cord no run had, and moving Damping alone left a label saying there were no
  * reflexes while there were. The panel says 'off' only when both gains are zero. Since
  * 2026-09-27 it opens on the measured cord (`OPENING_CORD` in brain.ts, the trainer's
- * `DEFAULT_REFLEX`, a stretch of 8.5) and hands that to the body, so the opening panel is the
- * opening body; a `Simulation` handed no cord at all runs the module's own default, which is off.
+ * `DEFAULT_REFLEX`, a stretch by region since 2026-09-28) and hands that to the body, so the
+ * opening panel is the opening body; a `Simulation` handed no cord at all runs the module's own
+ * default, which is off.
  * These check that default, and that what the panel sets is what the body then uses.
  */
 

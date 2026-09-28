@@ -11,6 +11,7 @@ import type { HsdlDocument } from '@bs-humany/hsdl';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import { profileRateHz } from '@bs-humany/scenarios';
 import { REFERENCE_PROFILE } from '@bs-humany/skeleton';
+import { REFLEX_REGIONS } from '@bs-humany/train/recipe';
 import {
   type BrainPanel,
   type RecipeChange,
@@ -26,6 +27,7 @@ import type { Controls, SessionWiring } from './sessionWiring.js';
 import {
   type SetUpNames,
   type StudioSetUp,
+  sameCord,
   setUpDifferences,
   setUpRestarts,
 } from './training/setUp.js';
@@ -97,6 +99,7 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
     inhibition: must<HTMLInputElement>('#spine-inhibition'),
     delaySeconds: must<HTMLInputElement>('#spine-delay'),
   };
+  const spineRegion = (r: string) => must<HTMLInputElement>(`#spine-stretch-${r.toLowerCase()}`);
   const authority = must<HTMLInputElement>('#brain-authority');
 
   /**
@@ -106,9 +109,17 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
    * gains, and every run the studio starts is built with what they show. So a checkpoint's cord
    * goes onto the sliders rather than into the body behind them, and the panel and the body cannot
    * disagree about which reflexes are running.
+   *
+   * Stretch, all regions first, which puts every region back to following it, and then each
+   * region the cord gives a stretch of its own. A cord with only a stretch, as every checkpoint
+   * and session before regions has, so leaves every region at that stretch.
    */
   const putSpine = (cord: NonNullable<NormalisedSettings['reflex']>): void => {
     setControl(spine.stretch, cord.stretch);
+    for (const r of REFLEX_REGIONS) {
+      const own = cord.regionStretch?.[r];
+      if (own !== undefined && Number.isFinite(own)) setControl(spineRegion(r), own);
+    }
     setControl(spine.velocity, cord.velocity);
     setControl(spine.setPoint, cord.setPoint);
     setControl(spine.inhibition, cord.inhibition);
@@ -191,6 +202,16 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
               setPoint: held(spine.setPoint, cord.setPoint),
               inhibition: held(spine.inhibition, cord.inhibition),
               delaySeconds: held(spine.delaySeconds, cord.delaySeconds),
+              ...(cord.regionStretch
+                ? {
+                    regionStretch: Object.fromEntries(
+                      REFLEX_REGIONS.flatMap((r) => {
+                        const own = cord.regionStretch?.[r];
+                        return own === undefined ? [] : [[r, held(spineRegion(r), own)]];
+                      }),
+                    ),
+                  }
+                : {}),
             },
           }
         : {}),
@@ -226,10 +247,7 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
     const now = host.session.currentSettings();
     if (target.reflex) {
       const cord = target.reflex;
-      const same =
-        now.reflex &&
-        (Object.keys(cord) as (keyof typeof cord)[]).every((k) => now.reflex?.[k] === cord[k]);
-      if (!same) putSpine(cord);
+      if (!now.reflex || !sameCord(now.reflex, cord)) putSpine(cord);
     }
     if (target.brainAuthority !== undefined && target.brainAuthority !== now.brainAuthority) {
       panel.act('authority', undefined, target.brainAuthority);
@@ -288,7 +306,9 @@ export function createBrain(host: BrainStudioHost): StudioBrain {
       return ui.muscles.checked || host.sim.currentScenario()?.muscles === true;
     },
     setReflex(gains) {
-      runs.simulation?.setReflex(gains);
+      // The panel leaves `regionStretch` out when every region follows the base, and the module
+      // keeps whatever a change does not name; so it is cleared unless the panel sends one.
+      runs.simulation?.setReflex({ regionStretch: undefined, ...gains });
     },
     startFollowing() {
       if (!follower.active) host.follow.toggle();

@@ -417,7 +417,10 @@ describe('train, resumed', () => {
   });
 
   it('names every changed field of the recipe before it starts', async () => {
-    const quiet: TrainingRecipe = { ...RECIPE, reflex: { ...DEFAULT_REFLEX, stretch: 0 } };
+    const quiet: TrainingRecipe = {
+      ...RECIPE,
+      reflex: { ...DEFAULT_REFLEX, stretch: 0, regionStretch: undefined },
+    };
     const store = savedRun({
       policy: fileOf(0.3, { generations: 5, fitness: 10 }, quiet),
       centre: fileOf(-0.3, { generations: 7, fitness: 1 }, quiet),
@@ -435,7 +438,7 @@ describe('train, resumed', () => {
       }),
     );
     const changed = notes.find((n) => n.includes('changed recipe'));
-    expect(changed).toContain('reflex.stretch');
+    expect(changed).toContain('reflex.regionStretch.Trunk');
     expect(notes.indexOf(changed as string)).toBeLessThan(notesBeforeFirstGeneration);
   });
 
@@ -636,9 +639,13 @@ describe('recipeDifferences', () => {
     expect(
       recipeDifferences(old, { ...RECIPE, noise: DEFAULT_NOISE, reflex: NO_REFLEX, memory: 0 }),
     ).toEqual([]);
+    // No cord against the measured one, which differs by region: the damping, and each region
+    // whose stretch is not zero, rather than a base stretch that no region follows.
     expect(recipeDifferences(old, RECIPE).map((d) => d.field)).toEqual([
-      'reflex.stretch',
       'reflex.velocity',
+      'reflex.regionStretch.Arm',
+      'reflex.regionStretch.Leg',
+      'reflex.regionStretch.Trunk',
     ]);
   });
 
