@@ -45,12 +45,12 @@ function build(profile = 'l1_standard') {
 const SENSES = [
   'angle:knee_r:flexion',
   'rate:knee_r:flexion',
-  'pelvis.spin.x',
-  'pelvis.spin.y',
-  'pelvis.spin.z',
+  'pelvis.localSpin.x',
+  'pelvis.localSpin.y',
+  'pelvis.localSpin.z',
   'head.height',
-  'foot.left.load',
-  'stretch:soleus',
+  'foot.left.weight',
+  'strain:soleus',
   'goal[0]',
 ];
 const DRIVES = ['soleus', 'tibialis'];
@@ -98,13 +98,13 @@ describe('bodyFingerprint', () => {
     const base = bodyFingerprint(body);
 
     // A sense fix bumps its family in the table; the schema changes and the names do not.
-    const bumped = bodyFingerprint(body, { ...SENSE_MEANINGS, 'pelvis.spin': 2 });
+    const bumped = bodyFingerprint(body, { ...SENSE_MEANINGS, 'pelvis.localSpin': 2 });
     expect(bumped.senses.schema).not.toBe(base.senses.schema);
     expect(bumped.senses.names).toBe(base.senses.names);
     expect(bumped.senses.meanings).toEqual({
-      'pelvis.spin.x': 2,
-      'pelvis.spin.y': 2,
-      'pelvis.spin.z': 2,
+      'pelvis.localSpin.x': 2,
+      'pelvis.localSpin.y': 2,
+      'pelvis.localSpin.z': 2,
     });
 
     expect(bodyFingerprint({ ...body, profile: 'l3_anatomical' }).profile).toBe('l3_anatomical');
@@ -136,14 +136,14 @@ describe('bodyFingerprint', () => {
     const saved = bodyFingerprint(body);
     const current = bodyFingerprint(body, {
       ...SENSE_MEANINGS,
-      'pelvis.spin': 2,
+      'pelvis.localSpin': 2,
       'angle:knee_r:flexion': 3,
     });
     const differences = compareBody(saved, current, SENSES);
     expect(differences).toHaveLength(1);
     expect(differences[0]).toContain('angle:knee_r:flexion (1 then, 3 now)');
-    expect(differences[0]).toContain('pelvis.spin.x (1 then, 2 now)');
-    expect(differences[0]).toContain('pelvis.spin.z (1 then, 2 now)');
+    expect(differences[0]).toContain('pelvis.localSpin.x (1 then, 2 now)');
+    expect(differences[0]).toContain('pelvis.localSpin.z (1 then, 2 now)');
     expect(differences[0]).not.toContain('rate:');
 
     // A sense the checkpoint never had is new, not changed: the fit starts it at zero and says so.
@@ -153,7 +153,7 @@ describe('bodyFingerprint', () => {
       SENSES.filter((s) => s !== 'angle:knee_r:flexion'),
     );
     expect(without[0]).not.toContain('angle:knee_r:flexion');
-    expect(without[0]).toContain('pelvis.spin.y');
+    expect(without[0]).toContain('pelvis.localSpin.y');
   });
 
   it('says every other difference in a sentence of its own', () => {
@@ -186,7 +186,7 @@ describe('bodyFingerprint', () => {
 
   it('reads a sense by its own entry, then its family', () => {
     expect(senseFamily('angle:knee_r:flexion')).toBe('angle');
-    expect(senseFamily('pelvis.velocity.z')).toBe('pelvis.velocity');
+    expect(senseFamily('pelvis.localVelocity.z')).toBe('pelvis.localVelocity');
     expect(senseFamily('goal[3]')).toBe('goal');
     expect(senseFamily('context[12]')).toBe('context');
     expect(senseFamily('foot.right.contacts')).toBe('foot.right.contacts');

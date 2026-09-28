@@ -2,7 +2,7 @@
 /**
  * Show the learner: the best policy so far, standing in a body the headset can watch.
  *
- *   pnpm train:showcase            # follows <data>/policies/stand.json as it changes
+ *   pnpm train:showcase            # follows <data>/policies/balance.json as it changes
  *   pnpm train:showcase --recipe <data>/runs/<name>-recipe.json   # a named checkpoint, in its scenario
  *   pnpm train:showcase --help     # every flag, and its default
  *
@@ -65,11 +65,12 @@ const {
   AUTHORITY_LIMIT,
   DEFAULT_AUTHORITY,
   DEFAULT_PROFILE,
+  DEFAULT_TASK,
   PROFILES,
   SEARCH_DEFAULTS,
   TASKS,
+  behaviourRecipe,
   checkRecipe,
-  defaultRecipe,
   rigOptionsFor,
 } = await jiti.import(join(ROOT, 'tools/train/src/recipe.ts'));
 const { DEFAULT_PATH } = await jiti.import(join(ROOT, 'packages/pose-bridge/src/codec.ts'));
@@ -92,7 +93,7 @@ const SHOWCASE_FLAGS = [
     name: 'task',
     kind: 'choice',
     choices: [...TASKS],
-    default: TASKS[0],
+    default: DEFAULT_TASK,
     help: 'without a recipe: what was scored; also the checkpoint name',
   },
   {
@@ -143,8 +144,9 @@ if (flags.help) {
 
 /**
  * What is played, in what: the recipe file, checked by the same rules the trainer and the
- * dashboard read one by -- which hold its task to the task table -- or the reference stand the
- * flags describe, whose task and body the table has already held to the recipe module's lists.
+ * dashboard read one by -- which hold its task to the task table -- or the default behaviour's
+ * body the flags describe (`behaviourRecipe`), whose task and body the table has already held to
+ * the recipe module's lists.
  */
 let recipe;
 if (flags.recipe !== undefined) {
@@ -169,7 +171,7 @@ if (flags.recipe !== undefined) {
   if (given.has('authority')) recipe = { ...recipe, authority: flags.authority };
 } else {
   try {
-    recipe = defaultRecipe(flags.task, flags.profile, flags.authority);
+    recipe = behaviourRecipe(flags.task, flags.profile, flags.authority);
   } catch (error) {
     refuse(error instanceof Error ? error.message : String(error));
   }

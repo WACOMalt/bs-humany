@@ -2,10 +2,10 @@
 /**
  * Train the nerves to stand.
  *
- *   pnpm train:nerves                              # defaults below; Ctrl-C keeps the best so far
+ *   pnpm train:nerves --resume                     # continue balance, the checkpoint that ships
+ *   pnpm train:nerves --force                      # the default behaviour afresh, over balance
  *   pnpm train:nerves --generations 400 --population 32 --workers 16 --seconds 6
- *   pnpm train:nerves --resume                     # continue the saved checkpoint of this name
- *   pnpm train:nerves --force                      # start a checkpoint that exists afresh
+ *   pnpm train:nerves --task stand                 # the default behaviour's body, scored on standing
  *   pnpm train:nerves --profile l1_standard        # a coarser body; L3, the reference, is the default
  *   pnpm train:nerves --reflex none                # no cord; `--reflex default` the measured one
  *   pnpm train:nerves --recipe <data>/runs/<name>-recipe.json  # the studio's way (pnpm train:where prints <data>)
@@ -20,9 +20,12 @@
  * values, the body, whether the joints resist, and what plays under the brain -- nothing, the
  * scenario's own muscle script, or an activation clip. The dashboard writes one from the
  * studio's Brain tab, as `<data>/runs/<name>-recipe.json`; without one, the flags describe the
- * reference body standing on the ground with the quiet-standing clip under it, saved as
- * `<task>.json`. To make a run of your own, `--print-recipe > mine.json`, change its "name", and
- * train it with `--recipe mine.json`. The recipe is written into the policy file, so a
+ * default behaviour (`behaviourRecipe` in the recipe module): the reference body let go standing
+ * on the ground in "Drop, standing" at 0 m, nothing under the brain, the measured cord and eight
+ * context units, scored on `--task` (balance unless told) and saved as `<task>.json`. The one
+ * checkpoint the studio ships, balance, is that recipe, so a plain `pnpm train:nerves` is refused
+ * until it is told to `--resume` or `--force`. To make a run of your own, `--print-recipe >
+ * mine.json`, change its "name", and train it with `--recipe mine.json`. The recipe is written into the policy file, so a
  * checkpoint says how to set the studio up before it is handed the body.
  *
  * A plain run refuses to start under the name of a checkpoint that exists: `--resume` continues
@@ -78,7 +81,7 @@ const refuse = (text) => {
 // is here before the flags are read, and a refused run is still refused at once.
 const jiti = createJiti(import.meta.url);
 const RECIPE = await jiti.import(join(ROOT, 'tools/train/src/recipe.ts'));
-const { rigOptionsFor, defaultRecipe, checkRecipe, reflexWithFlags, DEFAULT_NOISE, NO_REFLEX } =
+const { rigOptionsFor, behaviourRecipe, checkRecipe, reflexWithFlags, DEFAULT_NOISE, NO_REFLEX } =
   RECIPE;
 const TRAIN_FLAGS = trainFlags(RECIPE);
 
@@ -86,7 +89,7 @@ const TRAIN_FLAGS = trainFlags(RECIPE);
  * Every flag, read once, before anything else happens.
  *
  * A flag nobody reads used to pass silently, and the run went ahead on the default recipe -- which
- * is named `stand` and writes `stand.json`. `--name something-else` therefore looked like it was
+ * was named `stand` and wrote `stand.json`. `--name something-else` therefore looked like it was
  * naming the run and was in fact overwriting the policy of that name with three generations of a
  * fresh one. Recipes are named in their files; the flags cannot rename a run, and say so.
  */
@@ -137,7 +140,7 @@ if (flags.help) {
   console.log(
     formatHelp(
       TRAIN_FLAGS,
-      'train-nerves: evolve a policy for the body, in the recipe given or the reference stand.\n' +
+      'train-nerves: evolve a policy for the body, in the recipe given or the default behaviour.\n' +
         'A run is named by its recipe; a plain run will not replace a checkpoint that exists.',
     ),
   );
@@ -169,8 +172,8 @@ function savedRecipe(path) {
 /**
  * What is trained, in what: the recipe file; or, resuming without one, the recipe the checkpoint
  * was saved with, so a resume continues what it was rather than whatever the flags default to;
- * or the reference stand the flags describe. The task and the body the flags name have already
- * been held to the recipe module's lists by the table, so the reference stand is never asked for
+ * or the default behaviour the flags describe. The task and the body the flags name have already
+ * been held to the recipe module's lists by the table, so the default behaviour is never asked for
  * a task it does not have.
  */
 let recipe;
@@ -209,14 +212,14 @@ if (flags.recipe !== undefined) {
     if (given.has('profile')) recipe.profile = flags.profile;
     cordSource = 'checkpoint';
   } else {
-    recipe = defaultRecipe(flags.task, flags.profile, flags.authority);
+    recipe = behaviourRecipe(flags.task, flags.profile, flags.authority);
     if (fromPolicy.found || fromCentre.found) {
-      say('  the saved checkpoint records no recipe; resuming under the reference stand');
+      say('  the saved checkpoint records no recipe; resuming under the default behaviour');
     }
     cordSource = 'default';
   }
 } else {
-  recipe = defaultRecipe(flags.task, flags.profile, flags.authority);
+  recipe = behaviourRecipe(flags.task, flags.profile, flags.authority);
   cordSource = 'default';
 }
 

@@ -73,9 +73,19 @@ const { buildDocument, REFERENCE_MORPHOLOGY } = await jiti.import(
 );
 const { Kernel } = await jiti.import(join(ROOT, 'packages/kernel/src/index.ts'));
 const { MujocoBackend } = await jiti.import(join(ROOT, 'packages/backend-mujoco/src/index.ts'));
-const { scenario } = await jiti.import(join(ROOT, 'packages/scenarios/src/index.ts'));
+const { scenario, SCENARIO_DEFINITIONS } = await jiti.import(
+  join(ROOT, 'packages/scenarios/src/index.ts'),
+);
+/**
+ * "Drop, standing" from 0.3 m, the drop the skeleton rows have always timed. The scenario's own
+ * default became 0 m on 2026-09-27, when it became the studio's opening scene; a body let go
+ * standing takes no landing, so at the default these rows would time a different run from the one
+ * the tables before that date timed.
+ */
+const dropStanding = () =>
+  SCENARIO_DEFINITIONS.find((d) => d.id === 'drop-standing-collapse').build({ clearance: 0.3 });
 const { runScenario } = await jiti.import(join(ROOT, 'packages/testkit/src/index.ts'));
-const { StandRig, defaultRecipe, rigOptionsFor, DEFAULT_AUTHORITY } = await jiti.import(
+const { StandRig, referenceStandRecipe, rigOptionsFor, DEFAULT_AUTHORITY } = await jiti.import(
   join(ROOT, 'tools/train/src/rig.ts'),
 );
 
@@ -166,13 +176,13 @@ async function runnerRow(label, built) {
 
 // The first body built in a process pays for loading MuJoCo's wasm and for the JIT's first look
 // at every module; a short throwaway run of each kind puts that cost where no row sees it.
-await runScenario(new MujocoBackend(), scenario('drop-standing-collapse'), { maxTicks: 200 });
+await runScenario(new MujocoBackend(), dropStanding(), { maxTicks: 200 });
 await runScenario(new MujocoBackend(), scenario('quiet-standing'), { maxTicks: 200 });
 
 const skeletonRows = [];
 for (const profileId of PROFILES) {
   const row = await runnerRow(profileId, {
-    ...scenario('drop-standing-collapse'),
+    ...dropStanding(),
     profileId,
   });
   skeletonRows.push(row);
@@ -188,10 +198,12 @@ for (const profileId of PROFILES) {
 const SECONDS = 2;
 
 /**
- * The rig as the trainer or the studio builds it, from the recipe module's own default recipe --
- * which carries the measured cord, `DEFAULT_REFLEX`, and the quiet-standing clip under the brain
- * -- so the cord here is the one every run gets unless it asks for another (owner decision of
- * 2026-09-26: the measured cord everywhere).
+ * The rig as the trainer or the studio builds it, from the recipe module's reference stand
+ * (`referenceStandRecipe`) -- which carries the measured cord, `DEFAULT_REFLEX`, and the
+ * quiet-standing clip under the brain -- so the cord here is the one every run gets unless it asks
+ * for another (owner decision of 2026-09-26: the measured cord everywhere). The reference stand
+ * rather than the default behaviour, because it is what these rows have always timed; the clip
+ * costs the tick almost nothing either way.
  *
  * The weights are zero, which is the studio's brain before one is handed over: the policy is
  * evaluated at its control rate like a trained one, so it costs what a trained one costs, but it
@@ -199,7 +211,7 @@ const SECONDS = 2;
  */
 async function rigRow(label, profileId, poseBones) {
   freshSlots();
-  const recipe = defaultRecipe('stand', profileId, DEFAULT_AUTHORITY);
+  const recipe = referenceStandRecipe('stand', profileId, DEFAULT_AUTHORITY);
   const rig = await StandRig.build(
     rigOptionsFor(recipe, { hidden: [32, 32], seconds: SECONDS, poseBones }),
   );

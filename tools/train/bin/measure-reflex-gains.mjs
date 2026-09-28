@@ -14,14 +14,20 @@
  * which nobody else had; this is the measurement, tracked, and it prints the page's tables.
  *
  * Every number is a `StandRig` -- the trainer's own body, built by `rigOptionsFor` from the
- * reference stand's recipe, so the noise, the clip under the brain and the authority are
- * training's own -- with the cord set to `DEFAULT_REFLEX` and the one number a row is about
- * changed. A rig is built per setting, because the rig settles its body with the cord it was given
- * before it takes the snapshot every episode starts from. "Trained" is the committed standing
- * policy, `packages/modules-nerves/policies/stand.json`, fitted to this body by the names of its
+ * reference stand's recipe (`referenceStandRecipe`), so the noise, the clip under the brain and
+ * the authority are training's own -- with the cord set to `DEFAULT_REFLEX` and the one number a
+ * row is about changed. A rig is built per setting, because the rig settles its body with the cord
+ * it was given before it takes the snapshot every episode starts from. "Trained" is the shipped
+ * policy, `packages/modules-nerves/policies/balance.json`, fitted to this body by the names of its
  * senses and drives with `MlpPolicy.fit`; "silent" is the same network with every weight zero, so
  * what stands is the body, the clip and the cord. Seconds upright and fitness are the means of
  * `episode` over seeds 1 to `--seeds`.
+ *
+ * The page's trained rows were measured under `stand.json`, the standing policy that shipped until
+ * 2026-09-27, when the owner retired it with the four others for the one default behaviour,
+ * balance. Until the page is measured again, once balance has been trained further, this script's
+ * trained rows are balance's and the page's are stand's, and the two will not agree; the silent
+ * rows do not read a policy's weights and still reproduce.
  *
  * It prints to stdout and writes nothing -- no file in the repository and nothing in the data
  * directory -- so the working tree is as it was after it has run. Progress goes to stderr.
@@ -87,16 +93,22 @@ const SEEDS = flags.seeds;
 const SECONDS = flags.seconds;
 
 const jiti = createJiti(import.meta.url);
-const { StandRig, DEFAULT_REFLEX, DEFAULT_AUTHORITY, NO_REFLEX, defaultRecipe, rigOptionsFor } =
-  await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
+const {
+  StandRig,
+  DEFAULT_REFLEX,
+  DEFAULT_AUTHORITY,
+  NO_REFLEX,
+  referenceStandRecipe,
+  rigOptionsFor,
+} = await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
 const { MlpPolicy } = await jiti.import(join(ROOT, 'packages/modules-nerves/src/index.ts'));
 const { MUSCLE_STATE } = await jiti.import(join(ROOT, 'packages/modules-muscle/src/index.ts'));
 
 const POLICY = JSON.parse(
-  readFileSync(join(ROOT, 'packages/modules-nerves/policies/stand.json'), 'utf8'),
+  readFileSync(join(ROOT, 'packages/modules-nerves/policies/balance.json'), 'utf8'),
 );
 /** The reference stand the trainer runs without a recipe, on the body the policy was trained on. */
-const RECIPE = defaultRecipe('stand', 'l3_anatomical', DEFAULT_AUTHORITY);
+const RECIPE = referenceStandRecipe('stand', 'l3_anatomical', DEFAULT_AUTHORITY);
 
 /**
  * The cord every row starts from, trained and silent: the defaults with the damper at a half.

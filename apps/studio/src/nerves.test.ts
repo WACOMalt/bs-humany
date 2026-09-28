@@ -10,7 +10,7 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
-import standPolicy from '@bs-humany/modules-nerves/policies/stand.json' with { type: 'json' };
+import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
 import { SCENARIOS } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
@@ -53,7 +53,7 @@ describe('the policy in charge', () => {
     if (!stand) throw new Error('no nerves-stand scenario');
     const simulation = build({ scenario: stand, groundHeight: stand.ground.height });
     await simulation.start();
-    const committed = standPolicy as unknown as PolicyFile;
+    const committed = balancePolicy as unknown as PolicyFile;
     expect(simulation.policyInCharge?.trained).toEqual(committed.trained);
 
     // A copy that says it was trained differently: the weights are the same, which is fine,

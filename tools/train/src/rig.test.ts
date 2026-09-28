@@ -5,11 +5,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_NOISE, StandRig, defaultRecipe, rigOptionsFor, twitchSchedule } from './rig.js';
+import {
+  DEFAULT_NOISE,
+  StandRig,
+  referenceStandRecipe,
+  rigOptionsFor,
+  twitchSchedule,
+} from './rig.js';
 
 describe('a training recipe', () => {
   it('turns into rig options, and the old flags into the reference recipe', () => {
-    const recipe = defaultRecipe('stand', 'l1_standard', 0.3);
+    const recipe = referenceStandRecipe('stand', 'l1_standard', 0.3);
     expect(recipe.feedforward).toEqual({ kind: 'clip', clip: 'quiet-standing' });
     expect(recipe.scenario).toBe('');
     const options = rigOptionsFor(
@@ -216,16 +222,19 @@ describe('the rig, pinned', () => {
   // What a do-nothing policy scored (`toBe` is `Object.is`), and where a do-nothing body had got to, before the rig was
   // restructured. Exact, because the restructuring was meant to move nothing: a reward term read
   // in a different order, or a reset that runs in one path and not the other, shows up here as a
-  // last digit.
+  // last digit. The second episode of each was re-pinned on 2026-09-27, on purpose, when a
+  // contact's impulse became its whole normal impulse rather than one edge of the friction
+  // pyramid: a foot touching down on a contact whose first edge carried nothing now reads as a
+  // foot on the ground, and in that episode it scored a little more for it.
   const EPISODES = {
     stand: [
       [1.0489139069589684, 0.48],
-      [0.7940957259001081, 0.38],
+      [0.8160889521542368, 0.38],
       [1.0705944539440073, 0.49],
     ],
     balance: [
       [0.5224579271787515, 0.48],
-      [0.328937419723672, 0.38],
+      [0.3441297963963935, 0.38],
       [0.4464036873674729, 0.49],
     ],
   } as const;

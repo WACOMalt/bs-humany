@@ -8,6 +8,13 @@
  * of walking -- and the nerves are the feedback that corrects it, which is how a spinal cord and
  * a pattern generator divide the work.
  *
+ * It does not clamp what it adds. The channel is a sum, and the one reader, the muscle dynamics,
+ * clamps the sum to [0, 1] once as it turns it into activation. A writer that clamped its own
+ * partial sum made the total depend on which writer ran first -- the brain's inhibition clamped
+ * to zero before the cord's excitation arrived could not cancel it -- and the order was the
+ * alphabet of the module ids. Unclamped, the brain can take a reflex back, and the order the
+ * control phase runs its writers in changes nothing but the last bit of a sum.
+ *
  * The policy runs every `controlDivisor` ticks and its command is held between, because a
  * hundred hertz is plenty for muscles with forty-millisecond deactivation and the network is the
  * costly part of the tick. But the command is added every tick, since the accumulator is zeroed
@@ -263,13 +270,16 @@ export class NervesModule implements SimModule, Stateful {
 
   private bind(ctx: ModuleInitContext): void {
     this.stepSeconds = ctx.dt;
-    this.observation.bind({
-      pose: ctx.read(BODY_POSE),
-      velocity: ctx.read(BODY_VELOCITY),
-      joints: ctx.read(BODY_JOINT_STATE),
-      contacts: ctx.read(CONTACT_MANIFOLDS),
-      muscles: ctx.read(MUSCLE_STATE),
-    });
+    this.observation.bind(
+      {
+        pose: ctx.read(BODY_POSE),
+        velocity: ctx.read(BODY_VELOCITY),
+        joints: ctx.read(BODY_JOINT_STATE),
+        contacts: ctx.read(CONTACT_MANIFOLDS),
+        muscles: ctx.read(MUSCLE_STATE),
+      },
+      ctx.dt,
+    );
     this.excitation = ctx.accumulate(EFFERENT_ALPHA_MOTOR).fields.excitation as Float64Array;
     // The observation's size is known once the joints are: the policy is checked, or made, now.
     const names = this.policyNames;
@@ -547,8 +557,7 @@ export class NervesModule implements SimModule, Stateful {
       const weights = this.outputWeights[o] as Float64Array;
       for (let k = 0; k < units.length; k++) {
         const at = units[k] as number;
-        const next = (excitation[at] as number) + delta * (weights[k] as number);
-        excitation[at] = next < 0 ? 0 : next > 1 ? 1 : next;
+        excitation[at] = (excitation[at] as number) + delta * (weights[k] as number);
       }
     }
   }

@@ -113,7 +113,7 @@ describe("train-nerves' flags", () => {
   it('takes every default from the recipe module, not from a copy of it', () => {
     const { values } = parse([], TRAIN_FLAGS);
     expect(values).toEqual({
-      task: recipe.TASKS[0],
+      task: recipe.DEFAULT_TASK,
       profile: recipe.DEFAULT_PROFILE,
       authority: recipe.DEFAULT_AUTHORITY,
       generations: recipe.CLI_RUN_DEFAULTS.generations,

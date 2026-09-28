@@ -13,12 +13,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { recipeFrom, resumePreflight } from '../bin/recipe.mjs';
 import {
+  DEFAULT_BEHAVIOUR,
   DEFAULT_NOISE,
   DEFAULT_REFLEX,
   NO_REFLEX,
   REFLEX_FIELDS,
   type TrainingRecipe,
-  defaultRecipe,
+  referenceStandRecipe,
 } from './recipe.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
@@ -101,7 +102,9 @@ describe('the cord a dashboard run trains over', () => {
 
   it('holds the noise, the memory and the authority the same way', () => {
     expect(built({}).recipe.noise).toEqual(DEFAULT_NOISE);
-    expect(built({}).recipe.memory).toBe(0);
+    // The default behaviour's memory, for a request that says nothing of it.
+    expect(built({}).recipe.memory).toBe(DEFAULT_BEHAVIOUR.memory);
+    expect(built({ recipe: { memory: 0 } }).recipe.memory).toBe(0);
     expect(built({}).recipe.authority).toBe(0.3);
     const { recipe, clamped } = built({
       authority: 0.7,
@@ -120,10 +123,26 @@ describe('the cord a dashboard run trains over', () => {
 });
 
 describe('the name and the task of a dashboard run', () => {
-  it('defaults to the task, and the task to standing', () => {
-    expect(built({}).recipe).toMatchObject({ name: 'stand', task: 'stand' });
-    expect(built({ task: 'balance' }).recipe).toMatchObject({ name: 'balance', task: 'balance' });
-    expect(built({ name: 'c1', task: '' }).recipe).toMatchObject({ name: 'c1', task: 'stand' });
+  it('defaults to the task, and the task to the default behaviour, balance', () => {
+    expect(built({}).recipe).toMatchObject({ name: 'balance', task: 'balance' });
+    expect(built({ task: 'stand' }).recipe).toMatchObject({ name: 'stand', task: 'stand' });
+    expect(built({ name: 'c1', task: '' }).recipe).toMatchObject({ name: 'c1', task: 'balance' });
+  });
+
+  it("sets a request that names no scenario in the default behaviour's, and keeps one sent empty", () => {
+    expect(built({}).recipe).toMatchObject({
+      scenario: DEFAULT_BEHAVIOUR.scenario,
+      parameters: DEFAULT_BEHAVIOUR.parameters,
+    });
+    // Empty is the reference stand, as it always was, and parameters sent are the request's.
+    expect(built({ recipe: { scenario: '' } }).recipe).toMatchObject({
+      scenario: '',
+      parameters: {},
+    });
+    expect(
+      built({ recipe: { scenario: 'drop-standing-collapse', parameters: { clearance: 0.4 } } })
+        .recipe.parameters,
+    ).toEqual({ clearance: 0.4 });
   });
 
   it('refuses a name that is not one rather than training another', () => {
@@ -144,10 +163,15 @@ describe('the name and the task of a dashboard run', () => {
 });
 
 describe('a Resume from the dashboard', () => {
-  const recipe = built({ name: 'stand', recipe: { reflex: DEFAULT_REFLEX } }).recipe;
+  // The reference stand, as a stand checkpoint from before the default behaviour was trained in.
+  const recipe = built({
+    name: 'stand',
+    task: 'stand',
+    recipe: { scenario: '', memory: 0, reflex: DEFAULT_REFLEX },
+  }).recipe;
   /** A saved recipe as an old file has it: no cord. */
   const old: TrainingRecipe = (() => {
-    const { reflex: _r, ...rest } = defaultRecipe('stand', 'l3_anatomical', 0.3);
+    const { reflex: _r, ...rest } = referenceStandRecipe('stand', 'l3_anatomical', 0.3);
     return { ...rest, feedforward: { kind: 'none' } };
   })();
 

@@ -216,7 +216,7 @@ export function trainFlags(recipe) {
       name: 'task',
       kind: 'choice',
       choices: [...recipe.TASKS],
-      default: recipe.TASKS[0],
+      default: recipe.DEFAULT_TASK,
       help: 'without a recipe: what is scored; also the run name',
     },
     {

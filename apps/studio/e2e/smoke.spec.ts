@@ -149,11 +149,11 @@ test('a shipped checkpoint takes charge of a run with no dashboard', async ({ st
   const { page } = studio;
   await page.locator('#tabs button[data-tab="brain"]').click();
 
-  // The shipped standing policy, which the studio carries in its bundle: with the dashboard
-  // refused, the list is what this studio holds itself.
+  // The shipped balance behaviour, the one checkpoint the studio carries in its bundle: with the
+  // dashboard refused, the list is what this studio holds itself.
   const policy = page.locator('#brain-policy');
-  await expect(policy.locator('option[value="stand"]')).toHaveCount(1);
-  await policy.selectOption('stand');
+  await expect(policy.locator('option[value="balance"]')).toHaveCount(1);
+  await policy.selectOption('balance');
   await expect(page.locator('#brain-handover')).toBeEnabled();
 
   await startRun(page);

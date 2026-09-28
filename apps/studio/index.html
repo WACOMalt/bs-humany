@@ -148,8 +148,8 @@
             <details class="panel" data-memory="start-pose" open>
               <summary>Start pose</summary>
               <div class="control" id="dropHeight-control">
-                <label for="dropHeight">Drop height <output id="dropHeight-value">0.30 m</output></label>
-                <input type="range" id="dropHeight" min="0" max="1.5" step="0.05" value="0.3" />
+                <label for="dropHeight">Drop height <output id="dropHeight-value">0.00 m</output></label>
+                <input type="range" id="dropHeight" min="0" max="1.5" step="0.05" value="0" />
                 <p class="note">For a free drop only; a scenario places the body itself.</p>
               </div>
             </details>
@@ -322,8 +322,8 @@
               the time to the cord and back, about thirty milliseconds in a leg, without which a
               modelled arc oscillates. The panel opens with the measured cord, the one the
               command-line trainer uses; every run, and every training run started here, takes the
-              cord these sliders show. Under the committed standing policy time upright levels off
-              from a stretch of 8.5; see
+              cord these sliders show. Under the standing policy that shipped until 2026-09-27,
+              time upright levels off from a stretch of 8.5; see
               docs/validation/reflex-gains.md.</p>
               <div id="spine-activity-wrap" hidden>
                 <canvas id="spine-activity" width="320" height="40"></canvas>
@@ -350,6 +350,7 @@
                   <button type="button" id="brain-undo-setup" disabled title="Nothing to undo: Set up as trained has not been used">Undo set-up</button>
                 </div>
                 <p class="note">Choosing a checkpoint only shows it: the line above says how it was trained and what differs from the tabs. Set up as trained makes that change, and Undo takes it back once. Hand over makes it first when anything differs, because a policy only makes sense in the body it was trained in.</p>
+                <p class="note">The studio ships one checkpoint, balance: the default behaviour, trained in Drop, standing at 0 m with nothing under the brain, the measured cord and eight units of memory. It has been trained only far enough to save, so expect it to fall; train it on, or a copy of it, from the Training tab.</p>
               </div>
               <div class="control">
                 <label for="brain-authority">Authority <output id="brain-authority-value">0.30</output></label>
@@ -380,14 +381,14 @@
               <summary>Training</summary>
               <div class="control">
                 <label for="train-name">Checkpoint name</label>
-                <input type="text" id="train-name" value="stand" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" autocomplete="off" />
+                <input type="text" id="train-name" value="balance" maxlength="40" pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" autocomplete="off" />
                 <p class="note">A new name starts a new checkpoint, trained in the scenario on the Scene tab with the body on the Body tab and the joints as the World tab has them. A name is lower-case letters, digits, dashes and underscores, up to forty, and the panel offers one nothing is called yet. A name that exists is refused unless Resume is ticked. Resume continues the checkpoint's search in whatever the tabs say now, not as it was trained, and the line below lists anything that differs from how it was trained; it continues only the task the checkpoint was trained on. With no dashboard server running, a name the studio ships with is refused, Resume or not: those checkpoints are part of the studio, not this window's to continue, so choose another name.</p>
               </div>
               <div class="control">
                 <label for="train-task">Scored on</label>
                 <select id="train-task" title="What the trainer rewards">
-                  <option value="stand" selected>Standing: up, still, cheap</option>
-                  <option value="balance">Balance: the head still and level</option>
+                  <option value="stand">Standing: up, still, cheap</option>
+                  <option value="balance" selected>Balance: the head still and level</option>
                 </select>
                 <p class="note">Standing scores every hundredth of a second the head is near its resting height with a foot on the ground, a little for the pelvis staying level and put, a little off for moving and for effort. Balance scores the same moments but by the head: most of the point is lost to a head that is thrown about or turned, so on the tilting floor a body that rides the pulses out with its head still is what wins.</p>
               </div>
@@ -414,8 +415,8 @@
                 <input type="range" id="train-noise-motor" min="0" max="0.3" step="0.01" value="0.05" />
                 <label for="train-noise-sense">Sense grain <output id="train-noise-sense-value">0.01</output></label>
                 <input type="range" id="train-noise-sense" min="0" max="0.1" step="0.005" value="0.01" />
-                <label for="train-memory">Memory <output id="train-memory-value">none</output></label>
-                <input type="range" id="train-memory" min="0" max="32" step="4" value="0" />
+                <label for="train-memory">Memory <output id="train-memory-value">8</output></label>
+                <input type="range" id="train-memory" min="0" max="32" step="4" value="8" />
               </div>
               <p class="note">Memory is context the policy carries from one control step to the
               next: extra senses it reads and extra drives it writes, fed back from its own last
@@ -423,7 +424,8 @@
               it cannot tell a body leaning from one that has leant and come back, cannot average
               a noisy sense over time, and cannot predict, which is what a nervous system does
               with the time it spends waiting for its own afferents. Every unit costs a row and a
-              column of weights, and the search's cost grows with the vector it searches.</p>
+              column of weights, and the search's cost grows with the vector it searches. The form
+              opens on the default behaviour's eight.</p>
               <p class="note">A silent body trains a brain with nothing to answer: it picks a posture, holds it, and every episode runs the same, so two candidates score the same and the search cannot rank them. The tremor is a slow random wander on every muscle group, the grain is the error on every sense. Both are drawn from the episode's seed, so a mirrored pair meets the same disturbance and the difference in their scores is the difference in their brains. Zero on both makes a run repeatable.</p>
               <label for="train-resume" class="checkbox"><input type="checkbox" id="train-resume" /> Resume the named checkpoint where it stopped</label>
               <div class="buttons">

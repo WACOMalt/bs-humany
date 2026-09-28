@@ -71,10 +71,14 @@
  * It adds onto `efferent.alphaMotor` like every other driver, so a zero gain changes nothing. It
  * runs last of the loop's three writers in the `control` phase: the tremor, then the nerves, then
  * this, because none of them declares a dependency on another and the kernel breaks the tie by
- * module id (`motor-noise` < `nerves` < `spinal`). Each writer adds and clamps to [0, 1] in turn,
- * so the cord's drive lands on top of what the brain has already asked for, and the order decides
- * what each clamp eats; `SpinalGains.stretch` says what that costs the brain. A test pins the
- * order.
+ * module id (`motor-noise` < `nerves` < `spinal`). A test pins the order. It no longer decides
+ * anything: no writer clamps, and the one reader, the muscle dynamics, clamps the whole sum to
+ * [0, 1] once as it turns it into activation. Until 2026-09-27 each writer clamped the running
+ * sum after it added, so the order decided what each clamp ate -- a brain asking a reflexing
+ * muscle to let go was clamped at zero before the cord's drive arrived, and the cord's drive then
+ * stood untouched. Now the brain's inhibition and the cord's excitation meet in one sum, and only
+ * what is left past either end is lost; `SpinalGains.stretch` says what that still costs the
+ * brain.
  */
 
 import type {
@@ -118,18 +122,19 @@ export interface SpinalGains {
    * a unit answering its own spindle, 2 is worth 0.66 s upright, 5 is worth 0.86 and 8.5 is worth
    * 0.95, against 0.43 with no reflex at all; past 8.5 it is level, 0.96 at 9.5 and at 10.
    *
-   * The ceiling still matters at the top of that range. The cord runs after the brain in the
-   * control phase (see the header), so it adds its drive on top of the correction the brain has
-   * just made and clamps the total at 1. Once the cord alone is enough to take a unit to the
-   * ceiling, whatever the brain asked of that unit, up or down, is clamped away: a reflex that
-   * silences the policy is worse than no reflex. On the pooled cord this replaced, where a group's
+   * The ceiling still matters at the top of that range. The cord's drive and the brain's
+   * correction are summed and the total is clamped at 1 where the muscles read it (see the
+   * header). Once the cord alone takes a unit well past the ceiling, whatever the brain asks of
+   * that unit upward is clamped away, and downward only what brings the sum back under 1 counts:
+   * a reflex that silences the policy is worse than no reflex. (That was measured when each
+   * writer clamped its own partial sum and the brain's downward correction was lost outright; the
+   * sweep below has not been repeated since the one clamp.) On the pooled cord this replaced, where a group's
    * mean drove every unit in it and both legs together, that was a fall-off past 4 -- 0.89 s at
    * 3.5, 0.90 at 4, 0.85 at 5 -- and 3.5 was chosen on it. Per unit the cord drives less of the
    * body at any gain, and a second sweep, to 10, found no fall-off at all: time upright levels off
    * from 8.5 rather than falling, so 8.5 is the default, the smallest gain within 1% of the best
    * (reflex-gains.md). The policy it was measured under was trained with no cord; one trained over
-   * this cord may put the fall-off somewhere else. (A correction that would take a unit below 0 is
-   * lost earlier, at the brain's own clamp, before the cord adds anything.)
+   * this cord may put the fall-off somewhere else.
    *
    * This used to be five thousandths, and the reason is worth keeping: the length afferent was
    * divided by the optimal fibre length twice, so it read 2.3 to 41 instead of -0.44 to 0, and
@@ -437,9 +442,10 @@ export class SpinalModule implements SimModule, Stateful {
   }
 
   /**
-   * Units at full excitation after the cord added its drive on the last tick. Past this the
-   * brain's correction is clamped away (see `SpinalGains.stretch`), which is why a panel shows
-   * it. The count is of the total on the efferent, whoever put it there. Display only.
+   * Units whose total drive was at or past full excitation after the cord added its own on the
+   * last tick. Past this the brain's upward correction is clamped away where the muscles read the
+   * sum (see `SpinalGains.stretch`), which is why a panel shows it. The count is of the total on
+   * the efferent, whoever put it there. Display only.
    */
   get lastAtCeiling(): number {
     return this.atCeiling;
@@ -538,11 +544,12 @@ export class SpinalModule implements SimModule, Stateful {
       }
     }
 
-    // And onto the efferent, once per unit, clamped to what a motor neuron can be asked for.
+    // And onto the efferent, once per unit. Not clamped: the muscle dynamics clamp the whole
+    // sum, so a brain asking a unit to let go can cancel the reflex rather than be clamped at zero
+    // before it arrives (see the header).
     for (let k = 0; k < wired.length; k++) {
       const u = wired[k] as number;
-      const value = (excitation[u] as number) + (unitDrive[u] as number);
-      excitation[u] = value < 0 ? 0 : value > 1 ? 1 : value;
+      excitation[u] = (excitation[u] as number) + (unitDrive[u] as number);
     }
     let ceiling = 0;
     for (let u = 0; u < n; u++) {

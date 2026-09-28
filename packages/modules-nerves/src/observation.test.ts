@@ -5,7 +5,10 @@
  * The pinned vector is there because the observation is what every checkpoint was trained on. A
  * refactor of `fill` that moves a rounding moves every input a shipped policy reads, and nothing
  * else would notice: the policies still run, just a little worse. So the numbers are compared
- * with `Object.is`, not to a tolerance.
+ * with `Object.is`, not to a tolerance. The sense list is pinned beside it, because a policy is
+ * matched to a body by name: a sense renamed, dropped or moved is a checkpoint that silently
+ * carries less, and a sense whose meaning changes without a new name is one that carries the
+ * wrong thing.
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
@@ -17,6 +20,7 @@ import {
   BODY_VELOCITY,
   PassiveJointModule,
   PhysicsModule,
+  qRotate,
 } from '@bs-humany/modules-mechanics';
 import {
   MuscleDynamicsModule,
@@ -28,16 +32,17 @@ import { ANKLE_MUSCLES, KNEE_MUSCLES } from '@bs-humany/muscle-data';
 import { SEGMENTATION_PROFILES, buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { NervesModule } from './nervesModule.js';
-import { feetOf } from './observation.js';
+import { feetOf, rotateIntoFrame } from './observation.js';
 import { MlpPolicy } from './policy.js';
 
 const document = buildDocument();
 const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
 
 /**
- * What `fill` produced for the state below before it was refactored to allocate nothing: joint
- * angles and rates, the pelvis and head senses, the feet, four senses for each of the two groups,
- * and the goal.
+ * What `fill` produces for the state below: joint angles and rates, the pelvis and head senses,
+ * the feet, four senses for each of the two groups, and the goal. Re-pinned on 2026-09-27, on
+ * purpose, when the sense fixes changed four of those senses (see `SENSES` below); every other
+ * number in it is what it was.
  */
 const PINNED: readonly number[] = [
   0.002696905010758737, 0.00003844354684820074, 0.0000016925390963538307, 0.0011912992784703193,
@@ -152,59 +157,192 @@ const PINNED: readonly number[] = [
   0.2102281168904071, 0.04589334047348346, 0.0033612015995043245, 0.0007449632899211929,
   0.2072570015970786, -0.05410143327759801, -0.00024126059799539764, 0.010449061929023586,
   0.27046929216148513, -0.0836682679687132, 0.0030001118834177953, 0.001464734527506738,
-  0.23940543662981173, -0.07627001369483213, 0.0021443923439997785, 0.001484617122453654, 0,
-  -1.0000000000000004, 0, 0.14000000000000007, -0.2600000000000002, 0.09000000000000004,
-  0.3100000000000001, -0.12000000000000004, -0.4400000000000001, 0.917565628514858,
-  1.584172094680214, 2.0816681711721685e-17, -0.9999999999999999, 0, -0.42000000000000004,
-  0.11999999999999994, 0.37999999999999995, 0.625, 0.058589947641739006, 0.5, 0.0567421992381773,
-  0.0851356371975856, 0.0851356371975856, 2, 2, -0.1810084896727814, -0.048521199456807315,
-  0.02945450134176898, 0.06045290562925708, 1, 0,
+  0.23940543662981173, -0.07627001369483213, 0.0021443923439997785, 0.001484617122453654,
+  -0.08095828170177616, -0.9549772821148289, 0.28541924824452714, 0.14355638166047097,
+  -0.255192069392813, 0.09781908302354403, 0.07935563816604713, -0.27351920693928145,
+  -0.4722180916976458, 0.917565628514858, 1.584172094680214, -0.5305613305613306,
+  -0.5987525987525987, -0.5999999999999999, -0.40188773388773386, 0.1797505197505198,
+  0.37599999999999995, 0.625, 0.2040502588447427, 0.5, 0.20459104689787636, 0.0851356371975856,
+  0.0851356371975856, -0.09096716476138002, -0.16025312287459292, -0.1810084896727814,
+  -0.048521199456807315, 0.02945450134176898, 0.06045290562925708, 1, 0,
 ];
+
+/**
+ * Every sense the reference body's policy reads besides the joints, in order, for the two groups
+ * the test below drives and a goal of two. The joints come first, an angle and then a rate for
+ * every degree of freedom, and are checked by count and pattern rather than listed.
+ *
+ * Four of these were renamed on 2026-09-27 when what they measured was corrected, so a checkpoint
+ * trained before reports them as not carried rather than reading them with the wrong weights:
+ * `localDown`, `localSpin` and `localVelocity` (in the segment's frame; they were world-frame and
+ * named without `local`), `foot.<side>.weight` (a share of body weight; it was `load`, one edge of
+ * a friction pyramid's impulse) and `strain:<group>` (it was `stretch`, divided by the optimal
+ * length twice). A change to this list is a change to what every checkpoint can carry.
+ */
+const SENSES: readonly string[] = [
+  'pelvis.localDown.x',
+  'pelvis.localDown.y',
+  'pelvis.localDown.z',
+  'pelvis.localSpin.x',
+  'pelvis.localSpin.y',
+  'pelvis.localSpin.z',
+  'pelvis.localVelocity.x',
+  'pelvis.localVelocity.y',
+  'pelvis.localVelocity.z',
+  'pelvis.height',
+  'head.height',
+  'head.localDown.x',
+  'head.localDown.y',
+  'head.localDown.z',
+  'head.localSpin.x',
+  'head.localSpin.y',
+  'head.localSpin.z',
+  'foot.left.contacts',
+  'foot.left.weight',
+  'foot.right.contacts',
+  'foot.right.weight',
+  'activation:plantar',
+  'activation:flexors',
+  'strain:plantar',
+  'strain:flexors',
+  'shorten:plantar',
+  'shorten:flexors',
+  'load:plantar',
+  'load:flexors',
+  'goal[0]',
+  'goal[1]',
+];
+
+/** The reference body with the ankle and knee muscles, run twenty ticks, and nerves on it. */
+async function referenceBody() {
+  const { articulation } = compileArticulation(document, 'l3_anatomical', morphology);
+  const muscles = compileMuscleSet(
+    [...ANKLE_MUSCLES, ...KNEE_MUSCLES],
+    document.attachmentSites,
+    articulation,
+    morphology.context,
+    document.wrappingSurfaces ?? [],
+  );
+  const kernel = new Kernel({ rateHz: 1000, seed: 1 });
+  kernel.register(new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }));
+  kernel.register(new PassiveJointModule(articulation));
+  kernel.register(
+    new MuscleTestDriveModule(muscles, [
+      { units: 'all', pattern: { kind: 'constant', level: 0.1 } },
+    ]),
+  );
+  kernel.register(new MusclePathModule(articulation, muscles));
+  kernel.register(new MuscleDynamicsModule(articulation, muscles));
+  const plantar = muscles.units.filter((u) => /soleus|gastrocnemius/.test(u.id));
+  const flexors = muscles.units.filter((u) => /biceps_femoris|semi/.test(u.id));
+  const nerves = new NervesModule(articulation, muscles, {
+    policy: (inputs, outputs) => new MlpPolicy([inputs, 4, outputs]),
+    outputs: [
+      { id: 'plantar', units: plantar.map((u) => ({ id: u.id, weight: 1 })) },
+      { id: 'flexors', units: flexors.map((u) => ({ id: u.id, weight: 1 })) },
+    ],
+    goalSize: 2,
+    goal: () => [1, 0],
+  });
+  kernel.register(nerves);
+  await kernel.init();
+  // A few ticks, so the joints, the contacts and the muscles hold what a running body holds.
+  kernel.run(20);
+  return { articulation, kernel, nerves };
+}
+
+/** The value of the sense called `name` in `out`. */
+function sense(nerves: NervesModule, out: Float64Array, name: string): number {
+  const at = nerves.observation.names.indexOf(name);
+  if (at < 0) throw new Error(`no sense ${name}`);
+  return out[at] as number;
+}
+
+describe('the senses', () => {
+  it('are the list every checkpoint is matched by', async () => {
+    const { articulation, kernel, nerves } = await referenceBody();
+    const names = nerves.observation.names;
+    const dofs = articulation.joints.reduce((n, j) => n + j.dofs.length, 0);
+    const joints = names.slice(0, 2 * dofs);
+    expect(joints.slice(0, dofs).every((n) => /^angle:[^:]+:[^:]+$/.test(n))).toBe(true);
+    expect(joints.slice(dofs).every((n) => /^rate:[^:]+:[^:]+$/.test(n))).toBe(true);
+    expect(joints.slice(dofs).map((n) => n.slice('rate:'.length))).toEqual(
+      joints.slice(0, dofs).map((n) => n.slice('angle:'.length)),
+    );
+    expect(names.slice(2 * dofs)).toEqual(SENSES);
+    expect(nerves.observation.size).toBe(names.length);
+    kernel.dispose();
+  }, 60_000);
+
+  it("feel down tip when the pelvis tips, in the pelvis's own frame", () => {
+    // A pelvis pitched forward by 0.3 rad about the world's Z axis (its own Z, to start with): in
+    // its own frame, world down swings back by the same angle. Before 2026-09-27 the rotation
+    // returned the vector it was given, and down read (0, -1, 0) however the pelvis lay.
+    const out = new Float64Array(3);
+    const half = 0.15;
+    rotateIntoFrame(out, 0, 0, 0, Math.sin(half), Math.cos(half), 0, -1, 0);
+    expect(out[0]).toBeCloseTo(-Math.sin(0.3), 14);
+    expect(out[1]).toBeCloseTo(-Math.cos(0.3), 14);
+    expect(out[2]).toBeCloseTo(0, 14);
+    // And for any orientation it is the inverse of the mechanics' own rotation, which turns a
+    // segment's axes into the world's: into the frame and back out is where it started.
+    const q = new Float64Array([0.13, -0.21, 0.07, 0.95]);
+    const n = Math.hypot(...q);
+    for (let i = 0; i < 4; i++) q[i] = (q[i] as number) / n;
+    const v = new Float64Array([0.31, -1.2, 0.44]);
+    const local = new Float64Array(3);
+    rotateIntoFrame(
+      local,
+      0,
+      q[0] as number,
+      q[1] as number,
+      q[2] as number,
+      q[3] as number,
+      0.31,
+      -1.2,
+      0.44,
+    );
+    const back = new Float64Array(3);
+    qRotate(back, 0, q, 0, local, 0);
+    for (let i = 0; i < 3; i++) expect(back[i]).toBeCloseTo(v[i] as number, 14);
+    // A rotation, so a length is kept.
+    expect(Math.hypot(...local)).toBeCloseTo(Math.hypot(...v), 14);
+  });
+
+  it('read a body standing on both feet as about half its weight a foot, and its muscles near optimal', async () => {
+    const { kernel, nerves } = await referenceBody();
+    // Let it settle on its feet: a tenth of a second more, so the landing has passed.
+    kernel.run(100);
+    const out = new Float64Array(nerves.observation.size);
+    nerves.observation.fill(out, [1, 0]);
+    const left = sense(nerves, out, 'foot.left.weight');
+    const right = sense(nerves, out, 'foot.right.weight');
+    // The two soles together carry the body, whatever it weighs or however fast it is stepped. Not
+    // exactly 1, because the body is still settling and a little of it may be on something else,
+    // but nowhere near the quarter that one edge of the friction pyramid used to report.
+    expect(left + right).toBeGreaterThan(0.8);
+    expect(left + right).toBeLessThan(1.25);
+    expect(left).toBeGreaterThan(0.2);
+    expect(right).toBeGreaterThan(0.2);
+    // A strain is a fibre's length past optimal: a body standing still has its muscles within a
+    // few tenths of it, not at the clamp of 2 the double division held them at.
+    for (const group of ['plantar', 'flexors']) {
+      const strain = sense(nerves, out, `strain:${group}`);
+      expect(strain, group).toBeGreaterThan(-0.5);
+      expect(strain, group).toBeLessThan(0.2);
+    }
+    kernel.dispose();
+  }, 60_000);
+});
 
 describe('the observation', () => {
   it('is, for one fixed state of the reference body, exactly what it was', async () => {
-    const { articulation } = compileArticulation(document, 'l3_anatomical', morphology);
-    const muscles = compileMuscleSet(
-      [...ANKLE_MUSCLES, ...KNEE_MUSCLES],
-      document.attachmentSites,
-      articulation,
-      morphology.context,
-      document.wrappingSurfaces ?? [],
-    );
-    const kernel = new Kernel({ rateHz: 1000, seed: 1 });
-    kernel.register(
-      new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }),
-    );
-    kernel.register(new PassiveJointModule(articulation));
-    kernel.register(
-      new MuscleTestDriveModule(muscles, [
-        { units: 'all', pattern: { kind: 'constant', level: 0.1 } },
-      ]),
-    );
-    kernel.register(new MusclePathModule(articulation, muscles));
-    kernel.register(new MuscleDynamicsModule(articulation, muscles));
-    const plantar = muscles.units.filter((u) => /soleus|gastrocnemius/.test(u.id));
-    const flexors = muscles.units.filter((u) => /biceps_femoris|semi/.test(u.id));
-    const nerves = new NervesModule(articulation, muscles, {
-      policy: (inputs, outputs) => new MlpPolicy([inputs, 4, outputs]),
-      outputs: [
-        { id: 'plantar', units: plantar.map((u) => ({ id: u.id, weight: 1 })) },
-        { id: 'flexors', units: flexors.map((u) => ({ id: u.id, weight: 1 })) },
-      ],
-      goalSize: 2,
-      goal: () => [1, 0],
-    });
-    kernel.register(nerves);
-    await kernel.init();
-    // A few ticks, so the joints, the contacts and the muscles hold what a running body holds.
-    kernel.run(20);
+    const { articulation, kernel, nerves } = await referenceBody();
 
     // Then a pelvis and a head turned well away from upright and spinning, so the rotation into
     // each segment's frame -- the arithmetic most easily reordered by a refactor -- runs on
-    // every component rather than on the identity. What it gives back is pinned as it is, not
-    // endorsed: as written that rotation returns the vector it was given, to a rounding, so the
-    // pinned down is world down and the pinned spins are the world spins scaled (see the note
-    // on the rotation in observation.ts). Those last bits of rounding are what a reorder moves.
+    // every component rather than on the identity. Those last bits of rounding are what a
+    // reorder moves.
     const segments = articulation.segments;
     const pelvis = segments.findIndex((s) => s.id === 'pelvis');
     const head = segments.findIndex((s) => s.id === 'head');

@@ -85,7 +85,7 @@ const isCentre = (row: Pick<CheckpointRow, 'id' | 'name'>): boolean =>
  * The name a row's policy is saved under, or undefined for a search centre, which is the middle
  * of a run rather than a checkpoint. From the file rather than from the recipe inside it, because
  * the file's name is what the dashboard and the studio's store both look for when a name is
- * asked for: `stand.json` from a server and `stand` from this studio are the same checkpoint.
+ * asked for: `balance.json` from a server and `balance` from this studio are the same checkpoint.
  */
 export function checkpointNameOf(row: Pick<CheckpointRow, 'id' | 'name'>): string | undefined {
   if (isCentre(row)) return undefined;
@@ -111,8 +111,10 @@ function heldNames(rows: readonly Pick<CheckpointRow, 'id' | 'name'>[]): Set<str
  * The name the form offers when nobody has typed one: the task, or the task with the first
  * number after it that nothing in the list is called.
  *
- * The form used to open on `stand`, which is the name of a checkpoint the studio ships -- so the
- * first press of Start was refused, or with Resume ticked continued a policy nobody had chosen.
+ * The form used to open on `stand`, which was the name of a checkpoint the studio shipped -- so
+ * the first press of Start was refused, or with Resume ticked continued a policy nobody had
+ * chosen. It opens on the task, balance, which is again the name of the one shipped checkpoint, so
+ * the offer is `balance-2` until somebody types another.
  */
 export function freeCheckpointName(
   rows: readonly Pick<CheckpointRow, 'id' | 'name'>[],

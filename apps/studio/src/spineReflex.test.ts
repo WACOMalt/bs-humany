@@ -4,9 +4,11 @@
  * The panel used to open with Damping at a quarter over a body whose damping was zero, and to
  * print Stretch 'off' whenever stretch was zero, damping or no damping. So the opening panel
  * described a cord no run had, and moving Damping alone left a label saying there were no
- * reflexes while there were. The panel now opens on the module's own defaults and says 'off'
- * only when both gains are zero; these check that those defaults are the body a run opens with,
- * and that what the panel sets is what the body then uses.
+ * reflexes while there were. The panel says 'off' only when both gains are zero. Since
+ * 2026-09-27 it opens on the measured cord (`OPENING_CORD` in brain.ts, the trainer's
+ * `DEFAULT_REFLEX`, a stretch of 8.5) and hands that to the body, so the opening panel is the
+ * opening body; a `Simulation` handed no cord at all runs the module's own default, which is off.
+ * These check that default, and that what the panel sets is what the body then uses.
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
@@ -39,15 +41,17 @@ async function running(): Promise<Simulation> {
 describe('the Spine panel and the body', () => {
   it('opens on the cord a run opens with', async () => {
     const simulation = await running();
-    // Every muscle run has a cord under it, dormant or not.
+    // Every muscle run has a cord under it, dormant or not. This one is handed none, as a
+    // headless caller is, so it runs the module's default: off.
     expect(simulation.spine).toBeDefined();
     const gains = simulation.spine?.gains;
     expect(gains?.stretch).toBe(0);
     expect(gains?.velocity).toBe(0);
-    // The panel's sliders start from these, so the opening panel is the opening body.
+    // That default is the module's own, and the studio does not open on it: it passes the
+    // measured cord, which its sliders start from (brain.ts, `OPENING_CORD`).
     expect(DEFAULT_SPINAL_GAINS.stretch).toBe(gains?.stretch);
     expect(DEFAULT_SPINAL_GAINS.velocity).toBe(gains?.velocity);
-    // And it says what that body is.
+    // What the panel says of a body with no cord.
     expect(stretchLabel(DEFAULT_SPINAL_GAINS.stretch, DEFAULT_SPINAL_GAINS.velocity)).toBe('off');
     expect(spineNote(DEFAULT_SPINAL_GAINS)).toContain('no reflexes at all');
     simulation.dispose();

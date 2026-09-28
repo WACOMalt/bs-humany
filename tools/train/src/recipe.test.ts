@@ -8,10 +8,17 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_SPINAL_GAINS, type SpinalGains } from '@bs-humany/modules-nerves';
+import { DEFAULT_SCENARIO, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
+  DEFAULT_AUTHORITY,
+  DEFAULT_BEHAVIOUR,
+  DEFAULT_BEHAVIOUR_MEMORY,
+  DEFAULT_BEHAVIOUR_SCENARIO,
   DEFAULT_NOISE,
+  DEFAULT_PROFILE,
   DEFAULT_REFLEX,
+  DEFAULT_TASK,
   MEMORY_LIMIT,
   NOISE_LIMITS,
   NO_REFLEX,
@@ -20,13 +27,14 @@ import {
   type ReflexLevels,
   TASKS,
   type TrainingRecipe,
+  behaviourRecipe,
   checkRecipe,
-  defaultRecipe,
   describeRecipe,
   formatRecipeChanges,
   isCheckpointName,
   isTask,
   recipeChanges,
+  referenceStandRecipe,
   reflexWithFlags,
 } from './recipe.js';
 
@@ -43,7 +51,12 @@ function inputAttribute(id: string, attribute: string): number {
 
 /** A recipe as an old file has it: no noise, no cord, no memory. */
 const bare: TrainingRecipe = (() => {
-  const { noise: _n, reflex: _r, memory: _m, ...rest } = defaultRecipe('stand', 'l1_standard', 0.3);
+  const {
+    noise: _n,
+    reflex: _r,
+    memory: _m,
+    ...rest
+  } = referenceStandRecipe('stand', 'l1_standard', 0.3);
   return rest;
 })();
 
@@ -124,19 +137,72 @@ describe('the name and the task', () => {
     expect(TASKS).toEqual(['stand', 'balance']);
     expect(isTask('balance')).toBe(true);
     expect(isTask('walk')).toBe(false);
-    expect(() => defaultRecipe('walk', 'l1_standard', 0.3)).toThrow(
+    expect(() => referenceStandRecipe('walk', 'l1_standard', 0.3)).toThrow(
       'unknown task "walk"; known tasks: stand, balance',
     );
-    expect(defaultRecipe('balance', 'l1_standard', 0.3).feedforward).toEqual({
+    expect(referenceStandRecipe('balance', 'l1_standard', 0.3).feedforward).toEqual({
       kind: 'clip',
       clip: 'quiet-standing',
     });
   });
 });
 
+describe('the default behaviour', () => {
+  it("is balance, in Drop, standing at 0 m, on the module's own defaults", () => {
+    // The owner's decision of 2026-09-27: one default behaviour, called balance, in the falling
+    // standing scenario at no drop, with the cord and the training settings at their defaults.
+    expect(DEFAULT_TASK).toBe('balance');
+    expect(TASKS).toContain(DEFAULT_TASK);
+    expect(DEFAULT_BEHAVIOUR).toEqual({
+      name: 'balance',
+      task: 'balance',
+      scenario: 'drop-standing-collapse',
+      parameters: { clearance: 0 },
+      profile: DEFAULT_PROFILE,
+      morphology: { sex: 0.5, stature: 1.7, mass: 70 },
+      passive: true,
+      redistribute: true,
+      feedforward: { kind: 'none' },
+      authority: DEFAULT_AUTHORITY,
+      noise: DEFAULT_NOISE,
+      reflex: DEFAULT_REFLEX,
+      memory: DEFAULT_BEHAVIOUR_MEMORY,
+    });
+    // The cord by name, so a re-measured cord reaches it without a second edit.
+    expect(DEFAULT_BEHAVIOUR.reflex).toBe(DEFAULT_REFLEX);
+    expect(checkRecipe(DEFAULT_BEHAVIOUR)).toEqual([]);
+    expect(() => behaviourRecipe('walk', DEFAULT_PROFILE, 0.3)).toThrow('unknown task "walk"');
+    expect(behaviourRecipe('stand', 'l1_standard', 0.5)).toMatchObject({
+      name: 'stand',
+      task: 'stand',
+      scenario: DEFAULT_BEHAVIOUR_SCENARIO,
+      profile: 'l1_standard',
+      authority: 0.5,
+    });
+  });
+
+  it('is set in the scenario the studio opens on, whose drop height defaults to 0', () => {
+    // Two copies of one id, because this module loads nothing that runs: held together here.
+    expect(DEFAULT_BEHAVIOUR_SCENARIO).toBe(DEFAULT_SCENARIO);
+    const drop = SCENARIO_DEFINITIONS.find((d) => d.id === DEFAULT_BEHAVIOUR_SCENARIO);
+    const clearance = drop?.parameters.find((p) => p.id === 'clearance');
+    expect(clearance?.value).toBe(0);
+    expect(DEFAULT_BEHAVIOUR.parameters).toEqual({ clearance: clearance?.value });
+  });
+
+  it("has a memory the studio's Memory slider can show, and the slider opens on it", () => {
+    const memory = DEFAULT_BEHAVIOUR.memory ?? 0;
+    expect(memory).toBeGreaterThan(0);
+    expect(memory % inputAttribute('train-memory', 'step')).toBe(0);
+    expect(memory).toBeLessThanOrEqual(inputAttribute('train-memory', 'max'));
+    expect(memory).toBeLessThanOrEqual(MEMORY_LIMIT.max);
+    expect(inputAttribute('train-memory', 'value')).toBe(memory);
+  });
+});
+
 describe('a recipe read from a file', () => {
   it('passes when whole, old files included', () => {
-    expect(checkRecipe(defaultRecipe('stand', 'l3_anatomical', 0.3))).toEqual([]);
+    expect(checkRecipe(referenceStandRecipe('stand', 'l3_anatomical', 0.3))).toEqual([]);
     expect(checkRecipe(bare)).toEqual([]);
   });
 
@@ -185,7 +251,7 @@ describe('what a Resume changes', () => {
 
 describe('a recipe in one line', () => {
   it('says where, what is under the brain, the cord, the noise and the memory', () => {
-    expect(describeRecipe(defaultRecipe('stand', 'l3_anatomical', 0.3))).toBe(
+    expect(describeRecipe(referenceStandRecipe('stand', 'l3_anatomical', 0.3))).toBe(
       'reference stand; the quiet-standing clip under the brain; authority 0.3; cord stretch 8.5, damping 0.25, 30 ms; tremor 0.05, sense 0.01; no memory',
     );
     expect(

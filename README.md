@@ -205,16 +205,26 @@ way, and ADR-014 is the cord under it.
    `%APPDATA%\bs-humany\policies` on Windows. Each run's history goes beside it, in `runs/`.
    `pnpm train:where` prints the paths and what is in them, and `BS_HUMANY_HOME` moves the whole
    directory. The first time the trainer or the dashboard starts, it copies in the checkpoints
-   that ship in `packages/modules-nerves/policies`, once; that directory is only the seed.
+   that ship in `packages/modules-nerves/policies`, once; that directory is only the seed. One
+   ships: `balance`, the default behaviour below. The five shipped before 2026-09-27 (stand,
+   stand-l1, balance, balance2 and balance_tiltingfloor) were trained before the cord and the
+   sense fixes and were retired; a data directory seeded before then still has its copies.
 2. **What a run is.** A run trains in a **recipe** and is named by it: the scenario and its
    parameter values, the body, whether the joints resist, what plays under the brain (nothing,
    the scenario's own muscle script, or an activation clip), the cord, and what is scored. The
    recipe is saved into the checkpoint. `pnpm train:nerves --recipe <file>` trains one;
    `pnpm train:nerves --print-recipe > mine.json` writes one to start from (change its `name`).
    The Brain tab writes its recipes to `<data>/runs/<name>-recipe.json` through the dashboard.
-3. **A plain run.** With no recipe, the flags describe the reference stand -- the reference body
-   on the ground with the quiet-standing clip under it -- saved as `stand.json`. A run never
-   silently replaces a checkpoint: because `stand.json` is among the seeded ones, a plain
+3. **The default behaviour, and a plain run.** One behaviour is the default: **balance**, the
+   reference body let go standing on the ground in "Drop, standing" at 0 m (the scenario the
+   studio opens on), scored on keeping the head still and level, with nothing under the brain,
+   the measured cord, the tremor and the sense grain at their defaults, and eight units of
+   memory (`DEFAULT_BEHAVIOUR` in `tools/train/src/recipe.ts`). It is what the Training tab, the
+   dashboard and `pnpm train:nerves` start from when nothing else is chosen, and `balance.json`,
+   the one checkpoint that ships, was trained in it -- only far enough to save a checkpoint, so it
+   is there to be trained on, not yet to stand. With no recipe, the flags describe that body,
+   scored on `--task` (balance unless told), saved as `<task>.json`. A run never silently
+   replaces a checkpoint: because `balance.json` is among the seeded ones, a plain
    `pnpm train:nerves` is refused. `--resume` continues the checkpoint, under the recipe it was
    saved with unless you give another; `--force` starts it afresh. `pnpm train:nerves --help`
    lists every flag and its default.

@@ -152,6 +152,11 @@ export class MujocoBackend implements IPhysicsBackend {
   private wrench = new Float64Array(0);
   private grabs = new Set<MujocoGrab>();
   private substepTimestep = 0;
+  /**
+   * Whether the model's friction cone is elliptic, read once at compile: a contact's normal force
+   * is then its first constraint row, where a pyramidal cone spreads it over every edge.
+   */
+  private ellipticCone = false;
 
   async init(config: BackendConfig): Promise<void> {
     this.mujoco = await loadMujoco();
@@ -190,6 +195,7 @@ export class MujocoBackend implements IPhysicsBackend {
     this.mjData = mjData;
     this.model = model;
     this.substepTimestep = config.dt;
+    this.ellipticCone = mjModel.opt.cone === 1;
     this.resets = 0;
 
     // Name resolution, once.
@@ -329,7 +335,7 @@ export class MujocoBackend implements IPhysicsBackend {
     if (Math.abs(mjData.time - (t0 + n * dt)) > dt / 2) this.resets += 1;
     // mj_step integrates after computing poses, so xpos and cvel describe the state before the
     // last integration. Bring the derived quantities up to the integrated qpos; contacts and
-    // efc_force stay those of the last solve, which is what the step's impulses were.
+    // efc_force stay those of the last solve, which is what the step's impulses are taken from.
     mujoco.mj_kinematics(mjModel, mjData);
     mujoco.mj_comPos(mjModel, mjData);
     mujoco.mj_comVel(mjModel, mjData);
@@ -586,11 +592,19 @@ export class MujocoBackend implements IPhysicsBackend {
       out.normal[3 * i] = (frame[0] as number) * sign;
       out.normal[3 * i + 1] = (frame[1] as number) * sign;
       out.normal[3 * i + 2] = (frame[2] as number) * sign;
-      // The first constraint row of the contact, times the substep: with the default pyramidal
-      // cone that is one edge of the friction pyramid, about a quarter of the normal impulse,
-      // not the normal impulse the field is named for (ContactBuffer.impulse says why it stays).
-      const force = c.efc_address >= 0 ? ((efcForce[c.efc_address] as number) ?? 0) : 0;
-      out.impulse[i] = force * this.substepTimestep;
+      // The normal force, times the whole tick. With the default pyramidal cone a contact of
+      // dimension d has 2(d - 1) constraint rows, one a pyramid edge, and each edge's direction
+      // has a normal component of exactly 1, so the normal force is the sum of the rows; with an
+      // elliptic cone, or a frictionless contact, it is the first row alone. This used to be the
+      // first row alone on a pyramid -- one edge, about a quarter of the normal force -- and times
+      // the substep rather than the tick, so it moved with the substeps as well.
+      const address = c.efc_address;
+      let force = 0;
+      if (address >= 0) {
+        const rows = this.ellipticCone || c.dim <= 1 ? 1 : 2 * (c.dim - 1);
+        for (let r = 0; r < rows; r++) force += (efcForce[address + r] as number) ?? 0;
+      }
+      out.impulse[i] = force * config.dt;
       out.depth[i] = -c.dist;
       (c as { delete?: () => void }).delete?.();
     }
