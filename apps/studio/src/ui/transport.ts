@@ -119,7 +119,7 @@ export function createStatusLine(): StatusLine {
  * It is a toggle: Start with no run, Resume on a paused one, Pause on a live one. It used to be
  * Start, Resume and Restart, with Pause a button of its own beside it, and the Restart face threw
  * the run and its recording away -- a press that on every other face keeps everything. Restarting
- * with the current settings is now the Sim tab's pending-changes strip's, beside the list of what a
+ * with the current settings is now the top bar's pending-changes strip's, beside the list of what a
  * restart would change, and a restart there, like Reset, asks before it discards a long recording.
  * Space does what a press does, so each face names it.
  */
@@ -284,7 +284,7 @@ export interface Transport {
     /** Start, Resume and Pause: the one toggle. */
     readonly start: HTMLButtonElement;
     readonly reset: HTMLButtonElement;
-    /** The Sim tab's pending-changes strip's "Restart with current settings". */
+    /** The top bar's pending-changes strip's "Restart with changes", shown on every tab. */
     readonly restart: HTMLButtonElement;
     readonly stopFollowing: HTMLButtonElement;
   };

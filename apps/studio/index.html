@@ -27,6 +27,10 @@
           <button type="button" id="simStart" title="Start a run with the current settings (Space)">&#9654; Start sim</button>
           <button type="button" id="reset" disabled title="Back to the starting pose; the recording is thrown away, after asking when it is longer than a few seconds">&#8634; Reset</button>
         </div>
+        <div class="pending" id="pending-changes" hidden role="status">
+          <span class="note live">Changed: <span id="pending-changes-list"></span></span>
+          <span class="buttons"><button type="button" id="pending-restart" title="Start a new run with the settings as they are now; this run and its recording are thrown away, after asking when the recording is longer than a few seconds">&#10227; Restart with changes</button></span>
+        </div>
         <div class="mode" id="mode-indicator" title="Whether the viewport shows a run of your own, or follows a run published to the bridge">
           <span class="dot"></span><span id="mode-label">Own run</span>
           <span class="buttons"><button type="button" id="stop-following" hidden title="Stop following the bridge and go back to a run of this studio's own">Stop following</button></span>
@@ -216,16 +220,13 @@
             </details>
             <details class="panel" open data-memory="simulation.readout">
               <summary>Readout</summary>
-              <div class="note live" id="pending-changes" hidden>
-                Changed since this run started: <span id="pending-changes-list"></span>.
-                <button type="button" id="pending-restart" title="Start a new run with the settings as they are now; this run and its recording are thrown away, after asking when the recording is longer than a few seconds">Restart with current settings</button>
-              </div>
               <p class="note">The first button in the top bar starts a run, pauses it, and carries it on
               from wherever it was left; pausing stops computing and leaves everything that has been
               computed where it is, and nothing that button does throws anything away. Reset takes the
               body back to the pose it started in and throws the recording away. When a setting has
-              changed since the run started, a line above lists it, with the button that restarts the
-              run with the settings as they now are. Reset, that restart,
+              changed since the run started -- another scenario, profile or body -- the top bar lists it
+              beside Restart with changes, which builds a new run with the settings as they now are;
+              Reset only rewinds the run already built. Reset, that restart,
               Load session, Follow bridge and a checkpoint's Set up as trained each ask first when the
               recording they would throw away is longer than a few seconds.</p>
               <p class="note live" id="diagnostics-empty">Start a run to see energy, joint drift, contacts and tick rate.</p>
