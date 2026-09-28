@@ -8,10 +8,10 @@
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
+import { Simulation, type SimulationOptions } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { isSessionFile } from './session.js';
-import { Simulation, type SimulationOptions } from './simulation.js';
 
 /** A session file as the studio wrote them before the deletion, settings only. */
 const SAVED = JSON.stringify({

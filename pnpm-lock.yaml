@@ -77,6 +77,9 @@ importers:
       '@bs-humany/scenarios':
         specifier: workspace:*
         version: link:../../packages/scenarios
+      '@bs-humany/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../../packages/skeleton
@@ -385,6 +388,55 @@ importers:
         specifier: workspace:*
         version: link:../muscle-data
 
+  packages/session:
+    dependencies:
+      '@bs-humany/anthropometry':
+        specifier: workspace:*
+        version: link:../anthropometry
+      '@bs-humany/backend-mujoco':
+        specifier: workspace:*
+        version: link:../backend-mujoco
+      '@bs-humany/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@bs-humany/export-gltf':
+        specifier: workspace:*
+        version: link:../export-gltf
+      '@bs-humany/frames':
+        specifier: workspace:*
+        version: link:../frames
+      '@bs-humany/hsdl':
+        specifier: workspace:*
+        version: link:../hsdl
+      '@bs-humany/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@bs-humany/modules-mechanics':
+        specifier: workspace:*
+        version: link:../modules-mechanics
+      '@bs-humany/modules-muscle':
+        specifier: workspace:*
+        version: link:../modules-muscle
+      '@bs-humany/modules-nerves':
+        specifier: workspace:*
+        version: link:../modules-nerves
+      '@bs-humany/muscle-data':
+        specifier: workspace:*
+        version: link:../muscle-data
+      '@bs-humany/pose-bridge':
+        specifier: workspace:*
+        version: link:../pose-bridge
+      '@bs-humany/scenarios':
+        specifier: workspace:*
+        version: link:../scenarios
+    devDependencies:
+      '@bs-humany/skeleton':
+        specifier: workspace:*
+        version: link:../skeleton
+      '@bs-humany/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/skeleton:
     dependencies:
       '@bs-humany/assets-anatomical':
@@ -444,7 +496,11 @@ importers:
         specifier: workspace:*
         version: link:../modules-sensing
 
-  tools/cli: {}
+  tools/cli:
+    dependencies:
+      '@bs-humany/session':
+        specifier: workspace:*
+        version: link:../../packages/session
 
   tools/ingest:
     dependencies:
@@ -506,6 +562,9 @@ importers:
       '@bs-humany/scenarios':
         specifier: workspace:*
         version: link:../../packages/scenarios
+      '@bs-humany/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@bs-humany/skeleton':
         specifier: workspace:*
         version: link:../../packages/skeleton

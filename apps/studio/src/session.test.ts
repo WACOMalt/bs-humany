@@ -9,6 +9,7 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { PASSIVE_JOINT_MODULE_ID } from '@bs-humany/modules-mechanics';
+import { DEFAULT_OUTPUT_FRAMERATE, Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import {
@@ -28,7 +29,6 @@ import {
   serializeSnapshot,
   sessionFormatOf,
 } from './session.js';
-import { DEFAULT_OUTPUT_FRAMERATE, Simulation } from './simulation.js';
 
 /** Every field a session of the second format can carry, none of them at its default. */
 const EVERYTHING: SessionSettings = {

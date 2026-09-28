@@ -15,7 +15,7 @@
  * looking at the same bytes: three bones, three slots, five frames, a fixed clock.
  *
  * The panel's status travels as JSON rather than as a layout, and gets the same treatment:
- * `status.json` is the typed sample in `apps/studio/src/vrStatusSample.ts`, which has to fill
+ * `status.json` is the typed sample in `packages/session/src/vrStatusSample.ts`, which has to fill
  * every field of `PanelStatus` (`packages/pose-bridge/src/panel.ts`) to compile, written out as
  * it stands. The Rust side's status test parses that file, so a field renamed or dropped on this
  * side reaches the Rust test through the regenerated fixture, instead of reaching the headset as
@@ -38,7 +38,9 @@ const jiti = createJiti(import.meta.url);
 const { openPoseBridge, openMuscleBridge } = await jiti.import(
   join(ROOT, 'packages/pose-bridge/src/index.ts'),
 );
-const { PANEL_STATUS_SAMPLE } = await jiti.import(join(ROOT, 'apps/studio/src/vrStatusSample.ts'));
+const { PANEL_STATUS_SAMPLE } = await jiti.import(
+  join(ROOT, 'packages/session/src/vrStatusSample.ts'),
+);
 
 /** Every file this writes into the fixtures directory, and so every file `--check` compares. */
 const FILES = [
@@ -55,9 +57,9 @@ const README =
   '`pnpm generate:pose-bridge-fixture` from the TypeScript writer, and read by the Rust ' +
   "reader's tests.\n\n" +
   '`status.json` is the panel status with every field of the contract filled, written by the ' +
-  'same generator from `apps/studio/src/vrStatusSample.ts`, which is typed against `PanelStatus` ' +
-  "in `packages/pose-bridge/src/panel.ts`. The Rust side's status test parses it and pins a " +
-  'value from every field the headset reads.\n\n' +
+  'same generator from `packages/session/src/vrStatusSample.ts`, which is typed against ' +
+  "`PanelStatus` in `packages/pose-bridge/src/panel.ts`. The Rust side's status test parses it " +
+  'and pins a value from every field the headset reads.\n\n' +
   "None of them is edited by hand; the generator's `--check` is a CI gate.\n";
 
 /** Everything, into `dir`: the rings under `pose-bridge.bin`, the status, and the README. */

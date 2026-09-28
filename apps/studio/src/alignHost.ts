@@ -9,6 +9,7 @@
  * helpers -- it asks for through the host made here.
  */
 
+import type { Simulation } from '@bs-humany/session';
 import {
   type AlignHost,
   type AlignPanel,
@@ -19,7 +20,6 @@ import { attachmentSites, jointsOnSegment } from './align/ourBody.js';
 import type { StudioRuns } from './runController.js';
 import type { StudioScene } from './scene.js';
 import { download, openTextFile, usesNativeFilePickers } from './session.js';
-import type { Simulation } from './simulation.js';
 import type { BodyPanel } from './ui/bodyPanel.js';
 import { must } from './ui/dom.js';
 import type { StatusLine } from './ui/transport.js';

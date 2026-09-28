@@ -3,10 +3,10 @@
  * poses, and it has to land where the bones do.
  */
 
+import type { TissueTable } from '@bs-humany/session';
 import { Group, LineSegments, Mesh } from 'three';
 import { describe, expect, it } from 'vitest';
 import { FollowTissue } from './followTissue.js';
-import type { TissueTable } from './tissue.js';
 
 const table: TissueTable = {
   discs: [

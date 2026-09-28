@@ -6,8 +6,8 @@
  * Without either the panel hides and says so.
  */
 
+import type { Simulation } from '@bs-humany/session';
 import type { BrainPanel } from './brain.js';
-import type { Simulation } from './simulation.js';
 import { must } from './ui/dom.js';
 
 export interface NervesView {

@@ -32,6 +32,9 @@
     },
     {
       "path": "../../packages/export-gltf"
+    },
+    {
+      "path": "../../packages/session"
     }
   ]
 }

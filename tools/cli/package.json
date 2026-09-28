@@ -7,5 +7,8 @@
   "type": "module",
   "bin": {
     "cite-lint": "./bin/cite-lint.mjs"
+  },
+  "dependencies": {
+    "@bs-humany/session": "workspace:*"
   }
 }

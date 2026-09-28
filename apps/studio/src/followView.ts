@@ -6,13 +6,13 @@
  * run it is.
  */
 
+import type { TissueTable } from '@bs-humany/session';
 import type { BridgeFollower } from './follow.js';
 import { FollowTissue } from './followTissue.js';
 import { RingTubes } from './ringTubes.js';
 import type { StudioRuns } from './runController.js';
 import type { StudioScene } from './scene.js';
 import type { Controls } from './sessionWiring.js';
-import type { TissueTable } from './tissue.js';
 import type { BodyPanel } from './ui/bodyPanel.js';
 import { blurAfterMouse, must } from './ui/dom.js';
 import type { StatusLine, Transport } from './ui/transport.js';

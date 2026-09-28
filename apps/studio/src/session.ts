@@ -18,8 +18,8 @@
 import type { KernelSnapshot } from '@bs-humany/kernel';
 import { PASSIVE_JOINT_MODULE_ID } from '@bs-humany/modules-mechanics';
 import { MUSCLE_STATE } from '@bs-humany/modules-muscle';
+import { DEFAULT_OUTPUT_FRAMERATE } from '@bs-humany/session';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { DEFAULT_OUTPUT_FRAMERATE } from './simulation.js';
 
 /** The format this studio writes. */
 export const SESSION_FORMAT = 'bs-humany.session/2';

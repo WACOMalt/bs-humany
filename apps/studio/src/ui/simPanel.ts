@@ -18,12 +18,12 @@ import {
   type ScenarioDefinition,
   profileRateHz,
 } from '@bs-humany/scenarios';
+import type { Simulation } from '@bs-humany/session';
 import { SEGMENTATION_PROFILES } from '@bs-humany/skeleton';
 import { type RunSettings, pendingChanges } from '../pending.js';
 import type { StudioRuns } from '../runController.js';
 import { clampToStep, controlKind, isChanged } from '../scenarioControls.js';
 import type { Controls } from '../sessionWiring.js';
-import type { Simulation } from '../simulation.js';
 import { must, setText } from './dom.js';
 
 const MEBIBYTE = 1024 * 1024;

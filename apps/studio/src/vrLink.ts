@@ -33,12 +33,11 @@ import {
   grabWritten,
   readGrabIntents,
 } from '@bs-humany/pose-bridge/codec';
+import { GrabIntents, type Simulation } from '@bs-humany/session';
 import { invoke } from '@tauri-apps/api/core';
 import type { BrainAction, BrainState } from './brain.js';
 import type { BridgeFollower, FollowedMuscles, FollowedShape } from './follow.js';
-import { GrabIntents } from './grabIntents.js';
 import { type EchoedCommand, PanelEcho } from './panelEcho.js';
-import type { Simulation } from './simulation.js';
 
 /** What the panel can ask for; the shapes the viewer writes, parsed. */
 export type VrCommand = PanelCommand;

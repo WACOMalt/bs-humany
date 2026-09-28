@@ -17,6 +17,7 @@
     "@bs-humany/muscle-data": "workspace:*",
     "@bs-humany/pose-bridge": "workspace:*",
     "@bs-humany/scenarios": "workspace:*",
+    "@bs-humany/session": "workspace:*",
     "@bs-humany/skeleton": "workspace:*",
     "jiti": "^2.4.2"
   },

@@ -139,7 +139,7 @@ was measured, and what follows is what the rest of the body changes.
   nine tenths of the tick, and the whole body runs at about real time at L1 and at four fifths of
   it or a little better at L2, where the skeleton alone runs four to nine times faster than life.
   The claim that L0 to L2 run in real time with room to spare is a claim about the skeleton.
-- **The bellies are the cost `apps/studio/src/simulation.ts` sweeps less often to avoid.**
+- **The bellies are the cost `packages/session/src/simulation.ts` sweeps less often to avoid.**
   `MuscleVolumeModule` sweeps at 120 Hz, one tick in about eight at 1000 Hz and one in about four
   at 500 Hz, so its row is a sweep's cost spread over those ticks: about 3 ms a sweep on every
   profile in these runs, more than the 1.58 ms the comment there records. Swept every tick it

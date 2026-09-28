@@ -14,7 +14,7 @@
  * showing the newest tick's answer against a body that is somewhere else.
  */
 
-import type { Simulation } from '../simulation.js';
+import type { Simulation } from '@bs-humany/session';
 
 /**
  * The panel's elements, found on first use rather than at module scope: the frame loop draws

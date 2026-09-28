@@ -3,13 +3,14 @@
  * overlay draws for a run of our own, built from somebody else's poses.
  *
  * A followed body is bones and belly rings and nothing else, so the tissue has to come from the
- * publisher's status: a table of frames in bone names (`tissueTable` in `tissue.ts`), which is
- * static for a run and small enough to ride along with the status. Given that and a pose, every
- * shape is placed the way the overlay places its own -- a disc or a bead rigid in one bone, a
- * bar of cartilage between points in two -- so a training run watched from here shows what a run
- * of our own shows. The headset does the same thing in `apps/xr-viewer/src/tissue.rs`.
+ * publisher's status: a table of frames in bone names (`tissueTable` in `@bs-humany/session`),
+ * which is static for a run and small enough to ride along with the status. Given that and a
+ * pose, every shape is placed the way the overlay places its own -- a disc or a bead rigid in one
+ * bone, a bar of cartilage between points in two -- so a training run watched from here shows
+ * what a run of our own shows. The headset does the same thing in `apps/xr-viewer/src/tissue.rs`.
  */
 
+import type { TissueTable } from '@bs-humany/session';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -22,7 +23,6 @@ import {
 } from 'three';
 import { createTissueShapes } from './overlays.js';
 import { BAR_COLOUR } from './palette.js';
-import type { TissueTable } from './tissue.js';
 
 /** A shape rigid in one bone: which bone, and where it sits in it. */
 interface Rigid {

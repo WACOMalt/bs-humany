@@ -192,7 +192,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
   join(ROOT, 'packages/assets-anatomical/src/index.ts'),
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
-const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
+const { tissueTable } = await jiti.import('@bs-humany/session');
 const { showcaseStatus } = await jiti.import(join(ROOT, 'tools/train/src/showcaseStatus.ts'));
 const {
   openPoseBridge,

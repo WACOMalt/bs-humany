@@ -19,10 +19,10 @@
  * quietly, and a start that fails disposes what it built before the error goes any further.
  */
 
+import type { Simulation } from '@bs-humany/session';
 import type { RunSettings } from './pending.js';
 import { Playback } from './playback.js';
 import type { SessionFile } from './session.js';
-import type { Simulation } from './simulation.js';
 import { messageOf } from './ui/dom.js';
 
 /** What a start builds: something that starts asynchronously and can be thrown away. */

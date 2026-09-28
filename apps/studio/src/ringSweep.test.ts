@@ -9,10 +9,10 @@
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
+import { Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { sweepRings } from './ringSweep.js';
-import { Simulation } from './simulation.js';
 
 function worst(a: ArrayLike<number>, b: ArrayLike<number>): number {
   let out = 0;

@@ -1,7 +1,7 @@
 /**
- * The studio's simulation session: one compiled and placed articulation, one kernel, the
- * mechanical and muscle modules, the two captures the export and the playback read, and a few
- * kernel snapshots to go back to.
+ * The simulation session: one compiled and placed articulation, one kernel, the mechanical,
+ * muscle and nerve modules, the two captures the export and the playback read, and a few kernel
+ * snapshots to go back to.
  *
  * The snapshots are the start of the run, always, which is what Reset returns to, and as many
  * restore points after it as the caller asks for, which is none in the studio: its timeline plays
@@ -9,8 +9,14 @@
  * that nothing restores. The headless publisher asks for a minute of them, because its headset
  * scrub does re-simulate.
  *
- * Runs on the main thread. The worker host (M2.6) exists and is where this moves once the
- * transport is worth its cost (ADR-008); on the main thread a scrub is a synchronous restore.
+ * It lived in the studio's source until the owner's decision of 2026-09-27 (ADR-008), and
+ * `publish-pose` reached into the app to get it. It is a package now so that the studio, the
+ * publisher and the training showcase share one session that needs no DOM, which is also what a
+ * worker needs before the session can move into one.
+ *
+ * Runs on the caller's thread, which in the studio is the main thread. The worker host (M2.6)
+ * exists and is where this moves in a later pass (ADR-008); on the main thread a scrub is a
+ * synchronous restore.
  */
 
 import type { ResolvedMorphology } from '@bs-humany/anthropometry';
@@ -189,7 +195,7 @@ export const DEFAULT_OUTPUT_FRAMERATE = 60;
  *
  * A count of ticks and never a budget of milliseconds, because a budget would make how far a
  * frame gets depend on how fast the machine was, and the run would stop being the same run on
- * two machines (blenderExport.test.ts pins that it is).
+ * two machines (the studio's `blenderExport.test.ts` pins that it is).
  */
 export const MAX_TICKS_PER_ADVANCE = 60;
 
@@ -324,9 +330,10 @@ export class Simulation {
    *
    * Watched live, this means the picture advances one output frame per display refresh: at 60 fps
    * output on a 60 Hz display that is life speed, and at 24 it is two and a half times life.
-   * Playback of what was captured (playback.ts) is paced by the clock instead, so it takes the
-   * time the run took. The export does not notice either way -- a keyframe's time comes from its
-   * tick index and `stepsPerSecond`, and neither of those knows what the display was doing.
+   * Playback of what was captured (the studio's `playback.ts`) is paced by the clock instead, so
+   * it takes the time the run took. The export does not notice either way -- a keyframe's time
+   * comes from its tick index and `stepsPerSecond`, and neither of those knows what the display
+   * was doing.
    */
   outputFramerate: number;
   /**

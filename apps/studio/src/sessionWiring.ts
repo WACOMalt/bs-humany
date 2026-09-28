@@ -7,6 +7,7 @@
  */
 
 import type { HsdlDocument } from '@bs-humany/hsdl';
+import type { BackendId } from '@bs-humany/session';
 import { REFERENCE_PROFILE } from '@bs-humany/skeleton';
 import { buildBlenderExport } from './blenderExport.js';
 import type { BrainPanel } from './brain.js';
@@ -25,7 +26,6 @@ import {
   sessionFormatOf,
   usesNativeFilePickers,
 } from './session.js';
-import type { BackendId } from './simulation.js';
 import type { BodyPanel } from './ui/bodyPanel.js';
 import { messageOf, must, paintYield, setControl } from './ui/dom.js';
 import type { MusclePanel } from './ui/musclePanel.js';

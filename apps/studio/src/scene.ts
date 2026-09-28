@@ -7,6 +7,7 @@
  * body. What the run is and where its playhead sits are the run controller's; this only draws.
  */
 
+import type { Simulation } from '@bs-humany/session';
 import {
   AmbientLight,
   BoxGeometry,
@@ -28,7 +29,6 @@ import { type OrbitControls, createOrbitControls } from './orbit.js';
 import { type Overlays, createOverlays } from './overlays.js';
 import { Playback } from './playback.js';
 import type { StudioRuns } from './runController.js';
-import type { Simulation } from './simulation.js';
 import type { SkinnedSkeleton } from './skinning.js';
 
 /**

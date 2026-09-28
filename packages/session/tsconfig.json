@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../anthropometry" },
+    { "path": "../backend-mujoco" },
+    { "path": "../compiler" },
+    { "path": "../export-gltf" },
+    { "path": "../frames" },
+    { "path": "../hsdl" },
+    { "path": "../kernel" },
+    { "path": "../modules-mechanics" },
+    { "path": "../modules-muscle" },
+    { "path": "../modules-nerves" },
+    { "path": "../muscle-data" },
+    { "path": "../pose-bridge" },
+    { "path": "../scenarios" },
+    { "path": "../skeleton" },
+    { "path": "../testkit" }
+  ]
+}

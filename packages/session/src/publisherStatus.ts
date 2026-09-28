@@ -5,8 +5,8 @@
  * Here rather than in the script, so that it is typechecked: the status is a `PanelStatus`, the
  * contract the studio's own link and the training showcase write too, and a field the contract
  * gains or renames fails to compile here instead of going missing from the headset's panel
- * whenever it follows the headless publisher. The script loads this through the same jiti it
- * loads the simulation with.
+ * whenever it follows the headless publisher. The script loads it from this package, with the
+ * simulation it describes.
  *
  * Only types come from the simulation; nothing here runs a body or touches a file.
  */

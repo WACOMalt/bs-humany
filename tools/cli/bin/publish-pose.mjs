@@ -40,8 +40,12 @@
  *   status so the renderer knows to reopen them; the rest apply in place.
  *
  * Both shapes are `PanelStatus` and `PanelCommand` in `packages/pose-bridge/src/panel.ts`, the
- * one contract every publisher and the viewer keep. The status is built by
- * `apps/studio/src/publisherStatus.ts`, where it is typechecked against that contract.
+ * one contract every publisher and the viewer keep. The status is built by `publisherStatus` in
+ * `@bs-humany/session` (`packages/session/src/publisherStatus.ts`), where it is typechecked
+ * against that contract.
+ *
+ * The simulation is that package's `Simulation`, the one the studio runs, loaded by package name
+ * through this workspace rather than out of the studio's source.
  *
  * ## Which body
  *
@@ -74,9 +78,14 @@ const profileId = flag('profile', DEFAULT_PROFILE);
 const seconds = Number(flag('seconds', Number.POSITIVE_INFINITY));
 
 const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropometry/src/index.ts'));
-const { publisherStatus, publisherMorphology, scenarioDefinition } = await jiti.import(
-  join(ROOT, 'apps/studio/src/publisherStatus.ts'),
-);
+const {
+  Simulation,
+  GrabIntents,
+  tissueTable,
+  publisherStatus,
+  publisherMorphology,
+  scenarioDefinition,
+} = await jiti.import('@bs-humany/session');
 const { buildDocument, computeWorldTransforms, SEGMENTATION_PROFILES } = await jiti.import(
   join(ROOT, 'packages/skeleton/src/index.ts'),
 );
@@ -84,8 +93,6 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
   join(ROOT, 'packages/assets-anatomical/src/index.ts'),
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
-const { Simulation } = await jiti.import(join(ROOT, 'apps/studio/src/simulation.ts'));
-const { tissueTable } = await jiti.import(join(ROOT, 'apps/studio/src/tissue.ts'));
 const {
   SCENARIO_DEFINITIONS,
   DEFAULT_SCENARIO,
@@ -119,7 +126,7 @@ const PROFILES = SEGMENTATION_PROFILES.map((p) => ({ id: p.id, title: p.displayN
 const PROFILE_IDS = PROFILES.map((p) => p.id);
 
 /**
- * Everything the panel can set; `PublisherSettings` in publisherStatus.ts says what each is.
+ * Everything the panel can set; `PublisherSettings` in the session package says what each is.
  * `null` means "as the scenario says" -- its morphology, its passive joints, whether it wants
  * muscles -- which is what the studio's controls start at too. The profile is not one of those:
  * it is `--profile` or L1, whatever the scenario was written on (see the header). The ones marked
@@ -349,7 +356,6 @@ console.log('  Ctrl-C to stop');
 // ---------------------------------------------------------------------------------------------
 // Grabs, coming the other way: read every tick, applied by the same code the studio uses.
 // ---------------------------------------------------------------------------------------------
-const { GrabIntents } = await jiti.import(join(ROOT, 'apps/studio/src/grabIntents.ts'));
 let grabs = GrabIntentReader.open(`${path}-grab`);
 const intents = new GrabIntents();
 let grabStrength = 1;

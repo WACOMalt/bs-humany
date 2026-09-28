@@ -49,8 +49,8 @@ worker would hand to modules it builds, is reserved in the same way; no module r
 
 - The studio runs its one kernel on the main thread, in a lock-step frame loop that advances one
   output frame per rendered frame (the exemption ADR-012 records for the studio's own canvas
-  loop), with shared channels off (`preferShared: false` in `apps/studio/src/simulation.ts`). It
-  loads MuJoCo's single-threaded build.
+  loop), with shared channels off (`preferShared: false` in
+  `packages/session/src/simulation.ts`). It loads MuJoCo's single-threaded build.
 - Training runs whole kernels inside workers of its own, without `WorkerHost`: in the studio,
   `apps/studio/src/training/pool.ts` starts Web Workers on `episodeWorker.ts`; on the command
   line, `tools/train/src/nodePool.ts` starts Node worker threads. An episode is self-contained and
@@ -71,9 +71,10 @@ on the main thread and would each become a round trip, or a copy, across a worke
 Moving the kernel means turning each of these into a message and deciding where the captures
 live. That is worth doing once it pays, and the owner asked for numbers before deciding it.
 
-**Until then.** The studio, the trainer and the tests do not share a session object. Each
-assembles its own run -- the studio in `apps/studio/src/simulation.ts`, the trainer in
-`tools/train/src/rig.ts`, the tests in the testkit's runner -- and what they have in common goes
+**Until then.** The studio and `publish-pose` share one session, `packages/session/src/simulation.ts`
+(since 2026-09-27; below), but the trainer and the tests do not share it. Each of those assembles
+its own run -- the trainer in `tools/train/src/rig.ts`, the tests in the testkit's runner, and the
+session is held to that runner bit for bit by its own test -- and what they have in common goes
 into narrow helpers only, such as the scenario API factory in `packages/scenarios/src/scenarioApi.ts`
 and the frames package's maths. `WorkerHost`, `KernelProxy`, the
 transport and the `config` plumbing stay in the kernel, tested and reserved for the move; they are
@@ -130,7 +131,7 @@ The path, in order:
    `apps/studio/src/simulation.ts` into a package with no DOM, which the studio, `publish-pose`
    and the training showcase import, so nothing outside the studio reaches into its source.
    Behaviour, threading and every golden are unchanged. This is the first step, and the only one
-   scheduled.
+   scheduled. It landed on 2026-09-27 as `@bs-humany/session` (`packages/session`).
 2. **The worker move** -- a later pass, not yet planned in detail. The session runs in a worker
    behind `WorkerHost`, or behind a session-level host over the same transport, and the studio
    drives it through a proxy. Each synchronous call listed above becomes a request, and the
