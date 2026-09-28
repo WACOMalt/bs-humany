@@ -206,8 +206,9 @@ desktop's other developer's tab, Align, opens and saves files and is not drawn h
   squares, and a number typed into the box is read as that excitation. The readout is the
   desktop's: the pull of each body section -- arm, hand, leg, trunk, neck, every drive group in
   it summed over both sides -- then how many units are loaded, wrapping and out of range. Under
-  them the Spine: the cord's stretch, damping, set point, reciprocal inhibition and conduction
-  delay, and the desktop's line on the cord as it is set. With muscles off the drive and the
+  them the Spine: the cord's stretch for all regions, then one stretch a region (arm, hand, leg,
+  trunk, neck, each saying "as all" while it follows the first), damping, set point, reciprocal
+  inhibition and conduction delay, and the desktop's line on the cord as it is set. With muscles off the drive and the
   readout go and the Spine stays, as its gains are the next run's.
 - **Brain** -- the checkpoints the studio's Brain tab lists: the dashboard's while it runs,
   otherwise the ones this studio trained or shipped with. It ships one, `balance`, the default

@@ -11,6 +11,9 @@
  * No DOM here, so the rules can be tested in Node and read by anything that has the facts.
  */
 
+import type { SpinalRegion } from '@bs-humany/modules-nerves';
+import { DEFAULT_REFLEX, cordIsOff, describeStretch } from '@bs-humany/train/recipe';
+
 export interface BrainButtonInputs {
   /** Whether the dashboard server answered the last poll. */
   readonly serverUp: boolean;
@@ -91,8 +94,14 @@ export function policyNote(s: {
  * a stretch whatever the stretch gain is, so a stretch of zero with damping on is still a cord,
  * and saying 'off' there told a person the body had no reflexes when it had.
  */
-export function stretchLabel(stretch: number, velocity: number): string {
-  return stretch === 0 && velocity === 0 ? 'off' : stretch.toFixed(2);
+export function stretchLabel(
+  stretch: number,
+  velocity: number,
+  regions: Readonly<Partial<Record<string, number>>> = {},
+): string {
+  // A region with a stretch of its own is a cord that answers there, whatever the base says.
+  const regionOn = Object.values(regions).some((v) => v !== undefined && v !== 0);
+  return stretch === 0 && velocity === 0 && !regionOn ? 'off' : stretch.toFixed(2);
 }
 
 /**
@@ -101,10 +110,22 @@ export function stretchLabel(stretch: number, velocity: number): string {
  * measurement itself lives in its own document rather than in a table copied into two panels,
  * where it went stale the day the afferent's scale was fixed.
  */
-export function spineNote(gains: { readonly stretch: number; readonly velocity: number }): string {
-  const now =
-    gains.stretch === 0 && gains.velocity === 0
-      ? 'Stretch and Damping at zero is a body with no reflexes at all, the body every checkpoint before the cord was trained in.'
-      : `The cord is on: stretch ${gains.stretch.toFixed(2)}, damping ${gains.velocity.toFixed(2)}.`;
-  return `${now} Under the committed standing policy time upright levels off from a stretch of 8.5; see docs/validation/reflex-gains.md.`;
+export function spineNote(gains: {
+  readonly stretch: number;
+  readonly velocity: number;
+  readonly regionStretch?: Readonly<Partial<Record<SpinalRegion, number>>> | undefined;
+}): string {
+  // The regions the panel names and no others: one it leaves out follows its stretch.
+  const cord = { ...DEFAULT_REFLEX, ...gains, regionStretch: gains.regionStretch };
+  const now = cordIsOff(cord)
+    ? 'Stretch and Damping at zero is a body with no reflexes at all, the body every checkpoint before the cord was trained in.'
+    : `The cord is on: stretch ${describeStretch(cord)}, damping ${gains.velocity.toFixed(2)}.`;
+  return `${now} ${MEASURED_CORD_NOTE}`;
 }
+
+/**
+ * What the measured cord is and why, in the words both Spine panels end on: the reason the stretch
+ * differs by region. The numbers are the recipe's `DEFAULT_REFLEX`, so a re-measured cord changes
+ * the sentence by itself; the why is `docs/validation/reflex-gains.md`'s.
+ */
+export const MEASURED_CORD_NOTE = `The measured cord is stiff where it holds the body up and gentle where it only shakes it -- stretch ${describeStretch(DEFAULT_REFLEX)} -- because one stretch of 8.5 everywhere made the arms shake at nearly four times their tremor with no cord; see docs/validation/reflex-gains.md.`;

@@ -1,6 +1,7 @@
 # What the cord's gains are worth, measured
 
-The spinal module has seven numbers and not one of them is trained. Evolution Strategies searches
+The spinal module has seven numbers, and a stretch gain for each region of the body, and not one
+of them is trained. Evolution Strategies searches
 the policy's weights -- 27142 of them for a 742 x 32 x 32 x 70 network -- and the cord is part of
 the body those weights are searched against, fixed for the whole run by the recipe or the
 `--reflex*` flags and saved with the checkpoint so the studio can set itself up the same way.
@@ -34,6 +35,11 @@ the standing policy the owner retired that day with the four other shipped check
 the sense fixes (the policy's frame rotation, its strain and foot-weight senses, and the one clamp
 on the summed drive); the numbers stand as measured, and the page is to be measured again, with
 `pnpm measure:reflex-gains`, under the shipped `balance` once it has been trained further.
+
+*2026-09-28:* the stretch differs by region, the owner's decision of 2026-09-27 after the arms
+shook at 8.5 everywhere. The section [The stretch by region](#the-stretch-by-region-chosen-on-tremor-too)
+has the sweep, the rule that chose each region's gain, and the cord so chosen beside the old one;
+the tables above and below it are of one stretch everywhere, as they were measured.
 
 The delay, 0.03 s throughout, was not measured here and is not sourced either: it is
 `SPINAL_CONDUCTION_DELAY_S`, and OQ-031 in `docs/sources/open-questions.md` records that it and
@@ -154,6 +160,138 @@ anatomy data fixes had merged (a1c7e9f), and 0.788 after the wrist's clinical ra
 0.945 on a1c7e9f against 0.953 now. So nearly all of the drop in the low rows is the data fixes,
 the wrist gives back a little of it, and neither moves where the curve levels off.
 
+## The stretch by region, chosen on tremor too
+
+The owner watched the arms shake at the default of 8.5 everywhere, and asked whether 8.5 was too
+high. Measured on the studio's default scene -- "Drop, standing" at 0 m, L3, the muscles, no
+policy, seconds 0.5 to 3 -- with tremor as the root mean square of each joint velocity less its own
+0.2 s moving average, it was: the arms' tremor rose with the stretch from 1.64 rad/s with no stretch
+gain to 6.08 at 8.5, their joints reversing 6.3 times a second each against 3.4, while the legs'
+hardly moved past 2 (0.82 to 0.89). 8.5 had been chosen on time upright alone, under the retired
+standing policy, and time upright cannot see a limb shaking. The owner chose a stretch by region:
+stiff where posture needs it, gentle where it only makes tremor. The regions are the drive
+sections the muscle groups already declare -- arm, hand, leg, trunk, neck -- and a unit answers its
+spindle with its region's gain (`SpinalGains.regionStretch`); a cord that names no regions, as every
+recipe, checkpoint and session before this does, is its one stretch everywhere.
+
+**How it was measured.** Each region's stretch was swept from 0 to 10 with every other region at 5,
+the middle of the range. Time upright is the rig's, on the default behaviour's body -- "Drop,
+standing" at 0 m, L3, with training's tremor, grain and twitch -- over eight seeds of six seconds,
+under `balance.json` as committed before this change (trained five generations on 8.5 everywhere)
+and silent. Tremor is the studio's own session on the same scene, with none of those disturbances,
+silent and with `balance.json` handed over; the region's joints are the arm's shoulder girdle,
+shoulder, elbow, forearm and wrist, the hand's finger and thumb joints, the leg's hip, knee,
+kneecap, ankle, foot and toes, the trunk's lumbar and thoracic joints, and the neck's cervical ones.
+
+**The rule.** Of the gains whose tremor, trained and silent, stays within 20% of the region's
+tremor with its own stretch at 0, and whose time upright, trained and silent, is within 2% of the
+region's best, take the smallest: the least cord that holds the body up as well as any does
+without shaking it, for the reason the single stretch was the smallest gain within 1% of the best.
+Where no gain meets both, tremor wins: of the gains inside the tremor bound, the one that keeps the
+trained body up longest. The script applies it and prints the verdict below.
+
+### The stretch gain by region, 8 seeds, others at 5
+
+| region | stretch | trained: seconds upright | silent: seconds upright | trained: tremor rad/s | silent: tremor rad/s |
+|---|---|---|---|---|---|
+| Arm | 0 | 0.500 | 0.470 | 1.804 | 1.848 |
+| Arm | 1 | 0.566 | 0.473 | 1.803 | 1.695 |
+| Arm | 2 | 0.576 | 0.475 | 2.055 | 2.124 |
+| Arm | 3.5 | 0.589 | 0.553 | 1.781 | 1.652 |
+| Arm | 5 | 0.595 | 0.555 | 2.273 | 2.311 |
+| Arm | 6.5 | 0.599 | 0.563 | 3.583 | 3.721 |
+| Arm | 8.5 | 0.606 | 0.570 | 4.637 | 4.081 |
+| Arm | 10 | 0.606 | 0.571 | 4.979 | 4.636 |
+| Hand | 0 | 0.594 | 0.554 | 0.807 | 1.181 |
+| Hand | 1 | 0.594 | 0.555 | 0.727 | 0.888 |
+| Hand | 2 | 0.594 | 0.555 | 0.756 | 0.832 |
+| Hand | 3.5 | 0.595 | 0.555 | 0.756 | 1.079 |
+| Hand | 5 | 0.595 | 0.555 | 0.837 | 0.952 |
+| Hand | 6.5 | 0.594 | 0.555 | 0.844 | 0.839 |
+| Hand | 8.5 | 0.594 | 0.556 | 0.838 | 0.932 |
+| Hand | 10 | 0.594 | 0.556 | 0.824 | 0.937 |
+| Leg | 0 | 0.443 | 0.424 | 0.980 | 0.945 |
+| Leg | 1 | 0.455 | 0.436 | 1.143 | 0.969 |
+| Leg | 2 | 0.469 | 0.446 | 0.727 | 0.918 |
+| Leg | 3.5 | 0.576 | 0.464 | 1.051 | 1.052 |
+| Leg | 5 | 0.595 | 0.555 | 1.218 | 1.132 |
+| Leg | 6.5 | 0.610 | 0.571 | 1.248 | 1.112 |
+| Leg | 8.5 | 0.625 | 0.585 | 1.356 | 1.323 |
+| Leg | 10 | 0.714 | 0.589 | 1.519 | 1.366 |
+| Trunk | 0 | 0.495 | 0.465 | 0.105 | 0.099 |
+| Trunk | 1 | 0.497 | 0.470 | 0.106 | 0.104 |
+| Trunk | 2 | 0.568 | 0.471 | 0.106 | 0.099 |
+| Trunk | 3.5 | 0.584 | 0.479 | 0.106 | 0.101 |
+| Trunk | 5 | 0.595 | 0.555 | 0.109 | 0.101 |
+| Trunk | 6.5 | 0.601 | 0.561 | 0.109 | 0.099 |
+| Trunk | 8.5 | 0.608 | 0.569 | 0.110 | 0.100 |
+| Trunk | 10 | 0.611 | 0.576 | 0.107 | 0.103 |
+| Neck | 0 | 0.595 | 0.556 | 0.169 | 0.178 |
+| Neck | 1 | 0.596 | 0.556 | 0.161 | 0.172 |
+| Neck | 2 | 0.595 | 0.555 | 0.156 | 0.178 |
+| Neck | 3.5 | 0.595 | 0.556 | 0.155 | 0.182 |
+| Neck | 5 | 0.595 | 0.555 | 0.158 | 0.185 |
+| Neck | 6.5 | 0.594 | 0.555 | 0.165 | 0.191 |
+| Neck | 8.5 | 0.594 | 0.555 | 0.157 | 0.188 |
+| Neck | 10 | 0.593 | 0.555 | 0.175 | 0.191 |
+
+### The gains the rule chooses
+
+- **Arm 3.5**: no gain keeps both. Of those within 20% of the tremor with no cord, this one keeps the trained body up longest (0.589 s trained, 0.553 silent); its tremor with no cord of its own is 1.804 trained and 1.848 silent, and its best time upright 0.606 s trained and 0.571 silent.
+- **Hand 0**: the smallest gain within 20% of that tremor and 2% of that time upright (0.594 s trained, 0.554 silent); its tremor with no cord of its own is 0.807 trained and 1.181 silent, and its best time upright 0.595 s trained and 0.556 silent.
+- **Leg 3.5**: no gain keeps both. Of those within 20% of the tremor with no cord, this one keeps the trained body up longest (0.576 s trained, 0.464 silent); its tremor with no cord of its own is 0.980 trained and 0.945 silent, and its best time upright 0.714 s trained and 0.589 silent.
+- **Trunk 8.5**: the smallest gain within 20% of that tremor and 2% of that time upright (0.608 s trained, 0.569 silent); its tremor with no cord of its own is 0.105 trained and 0.099 silent, and its best time upright 0.611 s trained and 0.576 silent.
+- **Neck 0**: the smallest gain within 20% of that tremor and 2% of that time upright (0.595 s trained, 0.556 silent); its tremor with no cord of its own is 0.169 trained and 0.178 silent, and its best time upright 0.596 s trained and 0.556 silent.
+
+### The cord so chosen, beside none and the old one
+
+Tremor in rad/s, trained / silent.
+
+| cord | trained: seconds upright | silent: seconds upright | Arm | Hand | Leg | Trunk | Neck |
+|---|---|---|---|---|---|---|---|
+| no cord | 0.413 | 0.399 | 1.157 / 1.237 | 0.668 / 0.538 | 0.823 / 0.675 | 0.089 / 0.077 | 0.192 / 0.211 |
+| 8.5 everywhere | 0.734 | 0.607 | 4.155 / 4.296 | 1.545 / 1.648 | 1.338 / 1.277 | 0.116 / 0.141 | 0.228 / 0.214 |
+| by region, as chosen | 0.585 | 0.469 | 1.521 / 1.712 | 0.680 / 0.597 | 1.106 / 1.052 | 0.089 / 0.085 | 0.121 / 0.122 |
+
+**What the numbers say.** The trunk is where a stiff cord is free: its tremor does not move with
+its gain at all, and its time upright climbs to 8.5 and levels, so it keeps 8.5. The hands and the
+neck are where the cord buys nothing either way -- time upright and tremor flat across the whole
+range -- so they get none of their own, and their damping still answers. The arms and the legs are
+the hard ones: in both, a stiffer cord holds the body up longer and shakes the limb more, and no
+gain does both inside the bounds. The arms' tremor is flat to 3.5 and then rises steeply, nearly
+three times over by 10, so 3.5 is where the rule stops. The legs, contrary to what was expected of
+them, came out the same way: their time upright climbs all the way to 10, but their tremor rises with it,
+reaching 38% over their tremor with no stretch at 8.5, and by the rule tremor wins there too. That
+rise is partly a body that stays up longer moving more in the window the tremor is read over rather
+than a leg that shakes, which the measure cannot tell apart; the owner's probe of the old cord shows
+the legs reversing twice as often at 8.5 as at the new defaults (2.1 against 1.1 a second), so it
+is not all of it.
+
+**What it costs.** Against 8.5 everywhere, the cord by region brings the arms' tremor from 4.2 rad/s
+to 1.5, 31% over the tremor with no cord at all where 8.5 was 259% over; the legs' from 1.3 to
+1.1, and the trunk's and neck's to or below where they are with no cord. It gives back time
+upright, 0.585 s under the committed policy against 0.734, most of it the legs' 3.5. Whether to buy that back with a stiffer
+leg, at the price of the legs' tremor, is a choice the rule does not make and the owner can: the
+Spine panel's Leg slider, or `--reflex-stretch-leg`, sets it alone.
+
+The owner's own probe, the table that started this (arm = elbow, forearm and wrist; leg = hip and
+knee; no redistribution), at the new defaults:
+
+| cord | arm tremor rad/s | arm reversals /s/DoF | leg tremor rad/s | leg reversals /s/DoF |
+|---|---|---|---|---|
+| no stretch, damping 0.25 | 1.64 | 3.4 | 0.59 | 0.9 |
+| 8.5 everywhere | 6.08 | 6.3 | 0.89 | 2.1 |
+| **by region** | **2.39** | **2.8** | **0.85** | **1.1** |
+
+The damping stays one number. The arms' reversals at the new defaults are fewer than with no
+stretch gain at all, so nothing here asks for a damping by region.
+
+**The balance checkpoint** was trained over 8.5 everywhere, and was re-saved on this cord the way
+it first was: five generations of the default behaviour, `pnpm train:nerves --force --generations
+5` into a scratch data directory, centre 0.536 at 0.83 s up. It is still only there to be trained
+on. These tables were measured under the checkpoint as it was before, the policy committed when
+they were taken; the next measurement of this page is under the re-saved one.
+
 ## The damper
 
 The velocity afferent is `fiberVelocity`, a fraction of the unit's maximum contraction velocity (10
@@ -224,8 +362,15 @@ down, and the pooled columns never needed it.
 It does what follows. Build a `StandRig` per setting with `reflex: { ...DEFAULT_REFLEX, ... }`, run
 `episode` over several seeds, and read `aliveSeconds`. For a trained body, `MlpPolicy.fit` the
 checkpoint against `rig.inputNames` and `rig.outputNames` first. The flags do the same for a real
-run: `--reflex`, `--reflex-velocity`, `--reflex-setpoint`, `--reflex-inhibition`,
-`--reflex-ceiling`, `--reflex-force-inhibition`, `--reflex-delay`.
+run: `--reflex` (the stretch in every region), `--reflex-stretch-arm`, `--reflex-stretch-hand`,
+`--reflex-stretch-leg`, `--reflex-stretch-trunk`, `--reflex-stretch-neck`, `--reflex-velocity`,
+`--reflex-setpoint`, `--reflex-inhibition`, `--reflex-ceiling`, `--reflex-force-inhibition`,
+`--reflex-delay`.
+
+The region tables are `--tables regions`. They read tremor off the studio's own session
+(`Simulation` in `packages/session`) rather than the rig, because the rig's episodes carry
+training's tremor, grain and twitch and the studio's run carries none of them: what shook was the
+studio's body, and that is the body the tremor is measured on.
 
 ## Making them trainable
 

@@ -41,7 +41,9 @@ export {
   SPINAL_CONDUCTION_DELAY_S,
   SPINAL_MODULE_ID,
   SPINAL_OFF,
+  SPINAL_REGIONS,
   SpinalModule,
   type SpinalGains,
+  type SpinalRegion,
   type SpinalOptions,
 } from './spinalModule.js';

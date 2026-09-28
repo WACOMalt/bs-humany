@@ -407,7 +407,9 @@ export class StandRig {
     const noise = options.noise ?? DEFAULT_NOISE;
     const reflex = options.reflex ?? NO_REFLEX;
     const divisor = options.controlDivisor ?? defaultControlDivisor(rate);
-    // The cord, one side of one drive group a reflex group, each unit answering its own spindle.
+    // The cord, one side of one drive group a reflex group, each unit answering its own spindle
+    // with its region's stretch gain: `reflexGroups()` tags each group with its section, and a
+    // cord with no `regionStretch`, as every recipe before 2026-09-27, is its stretch everywhere.
     // Registered first, but it runs last of the control phase's three writers -- the kernel
     // orders them by module id, so the tremor, then the brain, then the cord (SpinalModule's
     // header). None of the three clamps, so its drive and the brain's correction meet in one sum

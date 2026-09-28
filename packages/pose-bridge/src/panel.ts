@@ -161,11 +161,18 @@ export interface PanelTissue {
 
 /** The spinal cord's gains, as the desktop's Spine panel has them. */
 export interface PanelReflex {
+  /** The stretch gain for all regions: what a region takes while it follows. */
   readonly stretch: number;
   readonly velocity: number;
   readonly setPoint: number;
   readonly inhibition: number;
   readonly delaySeconds: number;
+  /**
+   * The stretch of each region with one of its own, by the region's name (`Arm`, `Hand`, `Leg`,
+   * `Trunk`, `Neck`); a region not named follows `stretch`. Absent from a publisher that has no
+   * regions, which reads as every region following.
+   */
+  readonly regionStretch?: Readonly<Record<string, number>> | undefined;
 }
 
 /**
@@ -287,6 +294,8 @@ export type PanelBrainAction =
   | 'trainStop'
   | 'follow'
   | 'reflexStretch'
+  /** One region's stretch: `id` names the region, `value` is its stretch. */
+  | 'reflexRegionStretch'
   | 'reflexVelocity'
   | 'reflexSetPoint'
   | 'reflexInhibition'

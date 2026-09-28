@@ -12,7 +12,7 @@ import {
   MuscleTestDriveModule,
   compileMuscleSet,
 } from '@bs-humany/modules-muscle';
-import { ANKLE_MUSCLES, KNEE_MUSCLES } from '@bs-humany/muscle-data';
+import { ANKLE_MUSCLES, ELBOW_MUSCLES, KNEE_MUSCLES } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { type DriveOutput, NERVES_MODULE_ID, NervesModule } from './nervesModule.js';
@@ -392,12 +392,124 @@ describe('a stretched right soleus, one tick of the cord with nothing in the way
   });
 });
 
+describe('a stretch gain by region', () => {
+  // An elbow and an ankle in one cord, the elbow's flexors tagged as the arm and the ankle's
+  // plantarflexors as the leg, the way `reflexGroups()` tags every group with its section. The
+  // brachialis and the soleus are stretched by the same amount; with nothing else stretched,
+  // moving or loaded, and no antagonist to inhibit, each one's excitation is its own gain times
+  // the stretch, which says which gain the cord gave it.
+  const limbs = compileMuscleSet(
+    [...ELBOW_MUSCLES, ...ANKLE_MUSCLES],
+    document.attachmentSites,
+    articulation,
+    morphology.context,
+    document.wrappingSurfaces ?? [],
+  );
+  const index = new Map(limbs.units.map((u, i) => [u.id, i]));
+  const at = (id: string): number => {
+    const u = index.get(id);
+    if (u === undefined) throw new Error(`no unit ${id}`);
+    return u;
+  };
+  const STRETCH = 0.05;
+  const GROUPS = [
+    { id: 'elbowFlexorDrive:r', units: ['brachialis_r'], region: 'Arm' as const },
+    { id: 'anklePlantarflexorDrive:r', units: ['soleus_r'], region: 'Leg' as const },
+    // A group from a caller's table that names no region: it takes the base gain.
+    { id: 'untagged:r', units: ['tibialis_anterior_r'] },
+  ];
+
+  function tick(gains: Partial<SpinalGains>, stretched = ['brachialis_r', 'soleus_r']) {
+    const n = limbs.units.length;
+    const fiberLength = new Float64Array(n).fill(1);
+    for (const id of stretched) fiberLength[at(id)] = 1 + STRETCH;
+    const excitation = new Float64Array(n);
+    const spine = new SpinalModule(limbs, {
+      groups: GROUPS,
+      gains: { ...MEASURED_SPINAL_GAINS, delaySeconds: 0, ...gains },
+      stepSeconds: 1 / 500,
+    });
+    const fake = {
+      read: () => ({
+        fields: {
+          fiberLength,
+          fiberVelocity: new Float64Array(n),
+          tendonForce: new Float64Array(n),
+        },
+        spec: {},
+        count: n,
+      }),
+      accumulate: () => ({ fields: { excitation }, spec: {}, count: n }),
+      write: () => {
+        throw new Error('unexpected');
+      },
+      random: undefined as never,
+      dt: 1 / 500,
+      config: {},
+    };
+    spine.init(fake as never);
+    spine.step({} as never);
+    return { excitation, spine, step: () => spine.step({} as never) };
+  }
+
+  it('gives an arm unit the arm stretch and a leg unit the leg stretch', () => {
+    const { excitation, spine } = tick({ stretch: 5, regionStretch: { Arm: 1.5, Leg: 9 } });
+    expect(excitation[at('brachialis_r')]).toBeCloseTo(1.5 * STRETCH, 12);
+    expect(excitation[at('soleus_r')]).toBeCloseTo(9 * STRETCH, 12);
+    expect(spine.stretchOf(at('brachialis_r'))).toBe(1.5);
+    expect(spine.stretchOf(at('soleus_r'))).toBe(9);
+  });
+
+  it('gives the base stretch to a region the gains leave out, and to a group with no region', () => {
+    const { excitation } = tick({ stretch: 5, regionStretch: { Leg: 9 } }, [
+      'brachialis_r',
+      'soleus_r',
+      'tibialis_anterior_r',
+    ]);
+    expect(excitation[at('brachialis_r')]).toBeCloseTo(5 * STRETCH, 12);
+    expect(excitation[at('tibialis_anterior_r')]).toBeCloseTo(5 * STRETCH, 12);
+    expect(excitation[at('soleus_r')]).toBeCloseTo(9 * STRETCH, 12);
+  });
+
+  it('reads gains with only a stretch, as every file before regions has, as that stretch everywhere', () => {
+    // A recipe, checkpoint or session saved before 2026-09-27 has no `regionStretch`, and its one
+    // stretch was the whole body's.
+    const { regionStretch: _, ...old } = MEASURED_SPINAL_GAINS;
+    const { excitation, spine } = tick({ ...old, regionStretch: undefined, stretch: 3.5 });
+    expect(excitation[at('brachialis_r')]).toBeCloseTo(3.5 * STRETCH, 12);
+    expect(excitation[at('soleus_r')]).toBeCloseTo(3.5 * STRETCH, 12);
+    expect(spine.stretchOf(at('brachialis_r'))).toBe(3.5);
+  });
+
+  it('takes a new region gain live, the way a Spine slider sets it', () => {
+    const { excitation, spine, step } = tick({ stretch: 5, regionStretch: { Arm: 1 } });
+    expect(excitation[at('brachialis_r')]).toBeCloseTo(1 * STRETCH, 12);
+    excitation.fill(0);
+    spine.adjust({ regionStretch: { Arm: 4 } });
+    step();
+    expect(excitation[at('brachialis_r')]).toBeCloseTo(4 * STRETCH, 12);
+    expect(excitation[at('soleus_r')]).toBeCloseTo(5 * STRETCH, 12);
+  });
+
+  it('is on while any region has a stretch, even with the base and the damping at zero', () => {
+    const { excitation } = tick({ stretch: 0, velocity: 0, regionStretch: { Arm: 2 } });
+    expect(excitation[at('brachialis_r')]).toBeCloseTo(2 * STRETCH, 12);
+    expect(excitation[at('soleus_r')]).toBe(0);
+    const { excitation: off } = tick({ stretch: 0, velocity: 0, regionStretch: { Arm: 0 } });
+    expect(Array.from(off).every((e) => e === 0)).toBe(true);
+  });
+});
+
 describe('the cord its gains describe', () => {
   it('is off unless asked, and the measured cord is the off one with the reflexes turned up', () => {
     expect(DEFAULT_SPINAL_GAINS).toBe(SPINAL_OFF);
     expect(SPINAL_OFF.stretch).toBe(0);
     expect(SPINAL_OFF.velocity).toBe(0);
-    expect(SPINAL_OFF).toEqual({ ...MEASURED_SPINAL_GAINS, stretch: 0, velocity: 0 });
+    // Off in every region too: the measured cord's stretch by region is not carried into it, or
+    // it would keep the cord on.
+    const { regionStretch: _, ...uniform } = MEASURED_SPINAL_GAINS;
+    expect(SPINAL_OFF).toEqual({ ...uniform, stretch: 0, velocity: 0 });
+    expect(SPINAL_OFF.regionStretch).toBeUndefined();
     expect(MEASURED_SPINAL_GAINS.delaySeconds).toBe(SPINAL_CONDUCTION_DELAY_S);
     expect(SPINAL_OFF.delaySeconds).toBe(SPINAL_CONDUCTION_DELAY_S);
   });

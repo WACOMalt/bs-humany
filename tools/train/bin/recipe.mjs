@@ -36,6 +36,7 @@ const {
   REFERENCE_MORPHOLOGY,
   REFLEX_FIELDS,
   REFLEX_LIMITS,
+  REFLEX_REGIONS,
   SEARCH_DEFAULTS: searchDefaults,
   TASKS,
   UI_RUN_DEFAULTS: uiRunDefaults,
@@ -73,7 +74,9 @@ const numberIn = (v) =>
  * checkpoint trained before the spinal module is still reloaded -- so a request without one gets a
  * recipe without one. A request with one gets every missing number from `DEFAULT_REFLEX`, so
  * asking for a stretch of 3.5 is the measured cord with a stretch of 3.5 rather than a stretch of
- * 3.5 on a cord of guesses.
+ * 3.5 on a cord of guesses. Its stretch by region is the exception once a stretch is sent: a
+ * region the request leaves out then follows that stretch, so a request with a stretch and no
+ * regions is that stretch everywhere.
  */
 export function recipeFrom(body) {
   const task = body.task === undefined || body.task === '' ? DEFAULT_TASK : body.task;
@@ -147,6 +150,25 @@ export function recipeFrom(body) {
     for (const k of REFLEX_FIELDS) {
       reflex[k] = bounded(`reflex.${k}`, r.reflex[k], DEFAULT_REFLEX[k], REFLEX_LIMITS[k]);
     }
+    // The stretch by region, held to the stretch's own range. A request that sends a stretch and no
+    // regions -- every request from a studio before regions -- means that stretch everywhere, as a
+    // cord with only `stretch` has always been read, so a region it leaves out follows the base.
+    // One that sends no stretch either gets the measured regions with the measured stretch, like
+    // every other number it leaves out. A region that is not a number falls back on the base, and
+    // a name that is not a region is not a setting of the cord and is left out.
+    const regions = isObject(r.reflex.regionStretch) ? r.reflex.regionStretch : {};
+    const regionStretch =
+      r.reflex.stretch === undefined ? { ...(DEFAULT_REFLEX.regionStretch ?? {}) } : {};
+    for (const region of REFLEX_REGIONS) {
+      if (regions[region] === undefined) continue;
+      regionStretch[region] = bounded(
+        `reflex.regionStretch.${region}`,
+        regions[region],
+        reflex.stretch,
+        REFLEX_LIMITS.stretch,
+      );
+    }
+    if (Object.keys(regionStretch).length > 0) reflex.regionStretch = regionStretch;
   }
   const scenario =
     r.scenario === undefined

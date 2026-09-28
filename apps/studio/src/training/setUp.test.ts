@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type StudioSetUp,
   describeSetUpDifferences,
+  sameCord,
   setUpDifferences,
   setUpRestarts,
 } from './setUp.js';
@@ -115,6 +116,30 @@ describe('setUpDifferences', () => {
         'authority 1.00 (here 0.30), the muscle sliders at zero (here some are up)',
     );
     expect(setUpRestarts(list)).toBe(false);
+  });
+
+  it('compares the stretch region by region, as the body answers with it', () => {
+    const cord = HERE.cord as NonNullable<StudioSetUp['cord']>;
+    const byRegion = { ...cord, stretch: 8.5, regionStretch: { Arm: 2, Hand: 2 } };
+    // Trained over a stretch by region, here one stretch everywhere: the regions that differ.
+    const list = setUpDifferences(
+      { ...HERE, cord: { ...cord, stretch: 8.5 } },
+      { ...HERE, cord: byRegion },
+      NAMES,
+    );
+    expect(describeSetUpDifferences(list)).toBe(
+      'cord arm stretch 2.00 (here 8.50), cord hand stretch 2.00 (here 8.50)',
+    );
+    expect(setUpRestarts(list)).toBe(false);
+    // A cord that names its one stretch in every region is that cord: no difference, and the
+    // sliders are left alone.
+    const everywhere = {
+      ...cord,
+      regionStretch: { Arm: 3.5, Hand: 3.5, Leg: 3.5, Trunk: 3.5, Neck: 3.5 },
+    };
+    expect(setUpDifferences(HERE, { ...HERE, cord: everywhere }, NAMES)).toEqual([]);
+    expect(sameCord(cord, everywhere)).toBe(true);
+    expect(sameCord(cord, byRegion)).toBe(false);
   });
 
   it('leaves alone what the recipe does not say', () => {

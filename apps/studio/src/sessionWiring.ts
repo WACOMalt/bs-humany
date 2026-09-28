@@ -26,6 +26,7 @@ import {
   sessionFormatOf,
   usesNativeFilePickers,
 } from './session.js';
+import { sameCord } from './training/setUp.js';
 import type { BodyPanel } from './ui/bodyPanel.js';
 import { messageOf, must, paintYield, setControl } from './ui/dom.js';
 import type { MusclePanel } from './ui/musclePanel.js';
@@ -253,8 +254,20 @@ export function createSessionWiring(host: SessionHost): SessionWiring {
         ['reflexInhibition', state.reflex.inhibition, cord.inhibition],
         ['reflexDelay', state.reflex.delaySeconds, cord.delaySeconds],
       ] as const;
+      // Stretch, all regions is moved again when the cord differs, even to the value it has:
+      // moving it is what puts every region back to following it, before each region the cord
+      // names is set. A file with no regions, from before them, so runs its stretch everywhere.
+      const regions = cord.regionStretch ?? {};
+      const differs = !sameCord(state.reflex, cord);
       for (const [action, was, value] of moves) {
-        if (was !== value) brain.act(action, undefined, value);
+        if (was !== value || (action === 'reflexStretch' && differs)) {
+          brain.act(action, undefined, value);
+        }
+      }
+      if (differs) {
+        for (const [region, value] of Object.entries(regions)) {
+          brain.act('reflexRegionStretch', region, value);
+        }
       }
     }
     if (settings.brainAuthority !== undefined && settings.brainAuthority !== state.authority) {

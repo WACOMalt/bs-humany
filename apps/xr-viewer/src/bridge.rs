@@ -675,6 +675,10 @@ mod tests {
         assert!(b.training.starts_with("generation 7"));
         assert_eq!((b.reflex.stretch, b.reflex.velocity, b.reflex.set_point), (2.5, 0.125, 0.875));
         assert_eq!((b.reflex.inhibition, b.reflex.delay_seconds), (0.5, 0.03));
+        // Two regions with a stretch of their own, and the rest following the one for all.
+        assert_eq!((b.reflex.stretch_in("Arm"), b.reflex.stretch_in("Leg")), (1.25, 6.5));
+        assert_eq!(b.reflex.stretch_in("Hand"), 2.5);
+        assert!(!b.reflex.follows("Arm") && b.reflex.follows("Trunk"));
         assert_eq!(b.memory, 8);
         assert!(!b.can_start && b.can_stop && b.can_hand_over && !b.can_release);
         assert!(b.can_set_up && b.can_undo_set_up);
@@ -698,6 +702,9 @@ mod tests {
         assert!(!b.can_start && !b.can_stop && !b.can_hand_over && !b.can_release);
         assert!(!b.can_set_up && !b.can_undo_set_up);
         assert!(b.policy_note.is_empty() && b.spine_note.is_empty());
+        // A cord from before regions is its one stretch everywhere.
+        assert!(Reflex::REGIONS.iter().all(|r| b.reflex.follows(r)));
+        assert!(Reflex::REGIONS.iter().all(|r| b.reflex.stretch_in(r) == b.reflex.stretch));
     }
 
     #[test]
@@ -1147,8 +1154,14 @@ pub struct Brain {
 #[derive(serde::Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Reflex {
+    /// The stretch gain for all regions, which a region takes while it follows it.
     #[serde(default)]
     pub stretch: f64,
+    /// The stretch of each region with one of its own, by the region's name (`Arm`, `Hand`,
+    /// `Leg`, `Trunk`, `Neck`). A region not named follows `stretch`, so a publisher from before
+    /// regions, which sends none, reads as every region following it.
+    #[serde(default)]
+    pub region_stretch: std::collections::BTreeMap<String, f64>,
     #[serde(default)]
     pub velocity: f64,
     #[serde(default)]
@@ -1157,6 +1170,22 @@ pub struct Reflex {
     pub inhibition: f64,
     #[serde(default)]
     pub delay_seconds: f64,
+}
+
+impl Reflex {
+    /// The regions the cord's stretch can differ between, in the order the desktop lists them:
+    /// `REFLEX_REGIONS` in tools/train/src/recipe.ts, whose names are the wire's.
+    pub const REGIONS: [&'static str; 5] = ["Arm", "Hand", "Leg", "Trunk", "Neck"];
+
+    /// Whether a region follows the stretch for all regions, having none of its own.
+    pub fn follows(&self, region: &str) -> bool {
+        !self.region_stretch.get(region).is_some_and(|v| v.is_finite())
+    }
+
+    /// The stretch a region answers with: its own when it has one, else the one for all regions.
+    pub fn stretch_in(&self, region: &str) -> f64 {
+        self.region_stretch.get(region).copied().filter(|v| v.is_finite()).unwrap_or(self.stretch)
+    }
 }
 
 /// A checkpoint the dashboard lists, as the studio's brain panel names it.

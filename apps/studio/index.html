@@ -302,8 +302,18 @@
               the cord, and the brain only decides where to put the set points. Stretch and
               Damping both at zero is the body every checkpoint before the cord was trained in.</p>
               <div class="control grid2">
-                <label for="spine-stretch">Stretch <output id="spine-stretch-value">off</output></label>
+                <label for="spine-stretch" title="The stretch gain in every region at once: moving it sets each region's below to it">Stretch, all regions <output id="spine-stretch-value">off</output></label>
                 <input type="range" id="spine-stretch" min="0" max="10" step="0.1" value="0" />
+                <label for="spine-stretch-arm" class="spine-region" title="The stretch gain in the arm region alone; it follows Stretch, all regions until it is moved">Arm <output id="spine-stretch-arm-value">off</output></label>
+                <input type="range" id="spine-stretch-arm" class="spine-region" min="0" max="10" step="0.1" value="0" />
+                <label for="spine-stretch-hand" class="spine-region" title="The stretch gain in the hand region alone; it follows Stretch, all regions until it is moved">Hand <output id="spine-stretch-hand-value">off</output></label>
+                <input type="range" id="spine-stretch-hand" class="spine-region" min="0" max="10" step="0.1" value="0" />
+                <label for="spine-stretch-leg" class="spine-region" title="The stretch gain in the leg region alone; it follows Stretch, all regions until it is moved">Leg <output id="spine-stretch-leg-value">off</output></label>
+                <input type="range" id="spine-stretch-leg" class="spine-region" min="0" max="10" step="0.1" value="0" />
+                <label for="spine-stretch-trunk" class="spine-region" title="The stretch gain in the trunk region alone; it follows Stretch, all regions until it is moved">Trunk <output id="spine-stretch-trunk-value">off</output></label>
+                <input type="range" id="spine-stretch-trunk" class="spine-region" min="0" max="10" step="0.1" value="0" />
+                <label for="spine-stretch-neck" class="spine-region" title="The stretch gain in the neck region alone; it follows Stretch, all regions until it is moved">Neck <output id="spine-stretch-neck-value">off</output></label>
+                <input type="range" id="spine-stretch-neck" class="spine-region" min="0" max="10" step="0.1" value="0" />
                 <label for="spine-velocity">Damping <output id="spine-velocity-value">0.00</output></label>
                 <input type="range" id="spine-velocity" min="0" max="2" step="0.05" value="0" />
                 <label for="spine-setpoint">Set point <output id="spine-setpoint-value">0.00</output></label>
@@ -315,16 +325,18 @@
               </div>
               <p class="note">Stretch is the gain on a strain: how hard a muscle answers being
               longer than its set point, where 0.1 is a fibre a tenth longer than its own optimal
-              length. Damping is the gain on how fast it is being stretched, and is there to stop
+              length. Stretch, all regions sets every region below it; each region follows it
+              until its own slider is moved. Damping is the gain on how fast it is being stretched, and is there to stop
               the delayed loop ringing. Set point is the length the loop holds the fibre at; zero,
               its optimal length, keeps the cord quiet until something actually stretches.
               Reciprocal is how much a muscle's excitation inhibits its opposite. Conduction is
               the time to the cord and back, about thirty milliseconds in a leg, without which a
               modelled arc oscillates. The panel opens with the measured cord, the one the
               command-line trainer uses; every run, and every training run started here, takes the
-              cord these sliders show. Under the standing policy that shipped until 2026-09-27,
-              time upright levels off from a stretch of 8.5; see
-              docs/validation/reflex-gains.md.</p>
+              cord these sliders show. The measured cord is stiff in the trunk (8.5), gentler in
+              the arms and legs (3.5) and has no stretch of its own in the hands and neck, because
+              one stretch of 8.5 everywhere made the arms shake at nearly four times their tremor
+              with no cord; see docs/validation/reflex-gains.md.</p>
               <div id="spine-activity-wrap" hidden>
                 <canvas id="spine-activity" width="320" height="40"></canvas>
                 <p class="note live" id="spine-note"></p>

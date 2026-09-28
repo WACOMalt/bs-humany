@@ -135,7 +135,16 @@ export const PANEL_STATUS_SAMPLE = {
     trainingRunning: true,
     trainingStoppable: true,
     following: true,
-    reflex: { stretch: 2.5, velocity: 0.125, setPoint: 0.875, inhibition: 0.5, delaySeconds: 0.03 },
+    // Two regions with a stretch of their own and three following the base, so the reader is
+    // held to both: a named region's value, and the base for one that is not named.
+    reflex: {
+      stretch: 2.5,
+      velocity: 0.125,
+      setPoint: 0.875,
+      inhibition: 0.5,
+      delaySeconds: 0.03,
+      regionStretch: { Arm: 1.25, Leg: 6.5 },
+    },
     memory: 8,
     canStart: false,
     canStop: true,

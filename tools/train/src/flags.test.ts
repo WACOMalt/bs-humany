@@ -10,7 +10,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { REFLEX_FLAGS, describeClamp, formatHelp, parse, trainFlags } from '../bin/flags.mjs';
+import {
+  REFLEX_FLAGS,
+  REFLEX_REGION_FLAGS,
+  describeClamp,
+  formatHelp,
+  parse,
+  trainFlags,
+} from '../bin/flags.mjs';
 import * as recipe from './recipe.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
@@ -208,6 +215,21 @@ describe("train-nerves' flags", () => {
     const source = readFileSync(join(ROOT, 'tools/train/bin/train-nerves.mjs'), 'utf8');
     expect(source).toMatch(/parse\(process\.argv\.slice\(2\), TRAIN_FLAGS, \{ clamp: true \}\)/);
     expect(source).toMatch(/clamped\) \w+\(`train-nerves: \$\{describeClamp\(/);
+  });
+
+  it('gives each region of the cord one stretch flag, held to the stretch range', () => {
+    // `--reflex` is the stretch in every region; each region has a flag of its own beside it.
+    const regions = Object.values(REFLEX_REGION_FLAGS);
+    expect([...regions].sort()).toEqual([...recipe.REFLEX_REGIONS].sort());
+    const clamp = (argv: string[]) => parse(argv, TRAIN_FLAGS, { clamp: true });
+    const { max } = recipe.REFLEX_LIMITS.stretch;
+    for (const [flag, region] of Object.entries(REFLEX_REGION_FLAGS)) {
+      expect(flag).toBe(`reflex-stretch-${region.toLowerCase()}`);
+      expect(TRAIN_FLAGS.some((f) => f.name === flag)).toBe(true);
+      expect(clamp([`--${flag}`, '2']).values[flag]).toBe(2);
+      expect(clamp([`--${flag}`, String(max + 5)]).values[flag]).toBe(max);
+      expect(clamp([`--${flag}`, 'lots']).errors).toHaveLength(1);
+    }
   });
 
   it('gives each number of the cord one flag, and each flag one number', () => {

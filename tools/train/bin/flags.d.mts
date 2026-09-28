@@ -74,3 +74,5 @@ export function formatHelp(table: readonly FlagEntry[], header: string): string;
 export function trainFlags(recipe: typeof Recipe): readonly FlagEntry[];
 /** The cord's flags other than `--reflex`, each to the number of the cord it sets. */
 export const REFLEX_FLAGS: Readonly<Record<string, (typeof Recipe.REFLEX_FIELDS)[number]>>;
+/** The stretch gain's flags one region at a time, each to the region it sets. */
+export const REFLEX_REGION_FLAGS: Readonly<Record<string, (typeof Recipe.REFLEX_REGIONS)[number]>>;

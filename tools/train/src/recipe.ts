@@ -15,7 +15,7 @@
  */
 
 import type { Morphology } from '@bs-humany/hsdl';
-import type { SpinalGains } from '@bs-humany/modules-nerves';
+import type { SpinalGains, SpinalRegion } from '@bs-humany/modules-nerves';
 
 // The one value import, and a leaf: a plain script with no imports of its own, kept in JavaScript
 // so the Node scripts can read the name rule without a loader. Re-exported, so a caller of this
@@ -162,34 +162,132 @@ export const REFLEX_FIELDS = [
 ] as const satisfies readonly (keyof ReflexLevels)[];
 
 /**
+ * The parts of the body the stretch gain can differ between, in the order the Spine panel lists
+ * them: the spinal module's `SPINAL_REGIONS`, kept here as well because this module loads nothing
+ * that runs, and held to it by a test. A cord's `regionStretch` is keyed by these.
+ */
+export const REFLEX_REGIONS = [
+  'Arm',
+  'Hand',
+  'Leg',
+  'Trunk',
+  'Neck',
+] as const satisfies readonly SpinalRegion[];
+
+/**
+ * The stretch gain a unit of `region` answers with under `cord`: the region's own when the cord
+ * gives one, the base `stretch` when not. So a cord with only `stretch`, as every recipe,
+ * checkpoint and session before 2026-09-27 has, is that stretch everywhere.
+ */
+export function regionStretchOf(cord: ReflexLevels, region: SpinalRegion): number {
+  const own = cord.regionStretch?.[region];
+  return own !== undefined && Number.isFinite(own) ? own : cord.stretch;
+}
+
+/**
+ * Whether a cord is off: every stretch gain, the base and each region's, and the damping at
+ * zero. The spinal module's own test for it, in the words a recipe line uses.
+ */
+export function cordIsOff(cord: ReflexLevels): boolean {
+  return (
+    cord.velocity === 0 &&
+    cord.stretch === 0 &&
+    REFLEX_REGIONS.every((r) => regionStretchOf(cord, r) === 0)
+  );
+}
+
+/**
+ * The cord with every region's stretch written out, the base's where the cord gives none: the form
+ * two cords are compared in, so a file with only `stretch` and one with that stretch in every
+ * region read as the same cord, which they are.
+ */
+export function everyRegion(cord: ReflexLevels): ReflexLevels {
+  return {
+    ...cord,
+    regionStretch: Object.fromEntries(REFLEX_REGIONS.map((r) => [r, regionStretchOf(cord, r)])),
+  };
+}
+
+/** Whether a cord gives every region the same stretch, its base: one stretch everywhere. */
+export function isUniformStretch(cord: ReflexLevels): boolean {
+  return REFLEX_REGIONS.every((r) => regionStretchOf(cord, r) === cord.stretch);
+}
+
+/**
+ * A cord as two cords are compared, number by number. When both give every region the same
+ * stretch, the stretch is one number, as it always was, and a change to it is one change. When
+ * either differs by region, each region's stretch is written out, the base's where the cord names
+ * none, and the base itself is left out: it is only a region's gain where the region follows it,
+ * and that is in the region's number already. So a file with one stretch reads against a cord by
+ * region as the regions that moved, and a base that no region uses is no difference.
+ */
+export function comparableCord(cord: ReflexLevels, byRegion: boolean): Record<string, unknown> {
+  const { regionStretch: _, stretch, ...rest } = cord;
+  if (!byRegion) return { stretch, ...rest };
+  return { ...rest, regionStretch: everyRegion(cord).regionStretch };
+}
+
+/**
+ * The stretch in words: one number when every region has the same, otherwise each region's, as in
+ * `arm 2, hand 2, leg 8.5, trunk 8.5, neck 5`.
+ */
+export function describeStretch(cord: ReflexLevels): string {
+  const each = REFLEX_REGIONS.map((r) => regionStretchOf(cord, r));
+  if (each.every((v) => v === each[0])) return String(each[0]);
+  return REFLEX_REGIONS.map((r, i) => `${r.toLowerCase()} ${each[i]}`).join(', ');
+}
+
+/**
  * The cord a run gets unless it says otherwise. Every number is measured; see
  * `docs/validation/reflex-gains.md` for the tables and `SpinalGains` for what each one is.
  *
- * Under the standing policy committed until 2026-09-27, on the cord per side and per unit, this
- * cord is worth 0.95 s upright against 0.43 with no cord at all; the tables are to be measured
- * again under `balance`, which replaced it. The stretch gain is where the second sweep, from
- * 3.5 to 10, levelled off: 0.959 s at 9.5 and 10, and 8.5 the smallest gain within 1% of that
- * (0.953), which is also where fitness peaked. The first sweep stopped at 5 with time upright still
- * rising, and 3.5 stood until this one. The set of numbers before those was worth 0.46, which is to
- * say nothing, because the afferent it answered was normalised twice and read every muscle in the
- * body as hugely stretched at every instant.
+ * The stretch differs by region, the owner's decision of 2026-09-27, because one stretch of 8.5
+ * everywhere made the arms shake: on the default scene the arm joints' tremor was more than three
+ * times what it is with no cord. Each region's gain was chosen by one rule over a sweep of that
+ * region with the others at 5, on the default behaviour's scene: the smallest gain whose tremor,
+ * under `balance` and with no policy, stays within 20% of the region's tremor with its own cord
+ * off and whose time upright is within 2% of the region's best; and where no gain keeps both,
+ * the one inside the tremor bound that keeps the body up longest. So the trunk, where the cord
+ * makes no tremor and buys time upright, has 8.5; the arms and the legs, where it buys time
+ * upright and shakes them in proportion, have 3.5, the most they take within the tremor bound; the
+ * hands and the neck, where it buys nothing measurable either way, have none of their own spindle
+ * gain, and the damping still answers there. The base, 3.5, is what the Stretch slider for all
+ * regions opens on, and no region follows it: every region is named.
+ *
+ * Against 8.5 everywhere, the arms' tremor falls from 4.2 to 1.5 rad/s and the body is up 0.59 s
+ * under `balance` against 0.73 -- the legs' stiffness is what that costs, and whether to buy it
+ * back at the price of the legs' tremor is the owner's to decide (reflex-gains.md). Before regions
+ * the stretch was 8.5, the smallest gain within 1% of where time upright levelled off under the
+ * retired standing policy; before that, 3.5; and before that a set of numbers worth nothing,
+ * because the afferent it answered was normalised twice and read every muscle in the body as
+ * hugely stretched at every instant.
  */
 export const DEFAULT_REFLEX: ReflexLevels = {
-  stretch: 8.5,
+  stretch: 3.5,
   velocity: 0.25,
   setPoint: 0,
   inhibition: 0.3,
   forceCeiling: 1.2,
   forceInhibition: 0.5,
   delaySeconds: 0.03,
+  regionStretch: { Arm: 3.5, Hand: 0, Leg: 3.5, Trunk: 8.5, Neck: 0 },
 };
 
 /**
  * A body with the cord switched off: what the checkpoints before the reflexes were trained in.
  * The same numbers as the spinal module's own `DEFAULT_SPINAL_GAINS`, which is the module's off,
- * and a test holds the two together field by field.
+ * and a test holds the two together field by field. Written out rather than spread from the
+ * default, because the default's stretch by region would come with it and keep the cord on.
  */
-export const NO_REFLEX: ReflexLevels = { ...DEFAULT_REFLEX, stretch: 0, velocity: 0 };
+export const NO_REFLEX: ReflexLevels = {
+  stretch: 0,
+  velocity: 0,
+  setPoint: DEFAULT_REFLEX.setPoint,
+  inhibition: DEFAULT_REFLEX.inhibition,
+  forceCeiling: DEFAULT_REFLEX.forceCeiling,
+  forceInhibition: DEFAULT_REFLEX.forceInhibition,
+  delaySeconds: DEFAULT_REFLEX.delaySeconds,
+};
 
 /**
  * How far a request may set the cord. These are safety bounds, not advice -- the advice is
@@ -200,8 +298,9 @@ export const NO_REFLEX: ReflexLevels = { ...DEFAULT_REFLEX, stretch: 0, velocity
  * to eight.
  *
  * - `stretch` 0 to 10, the range of the studio's `#spine-stretch` slider and the headset's
- *   (`CONTROL_RANGES` in packages/scenarios/src/controls.ts). Time upright levels off from 8.5,
- *   the default, to 10; ten is the top of the sweep that found that, not a target.
+ *   (`CONTROL_RANGES` in packages/scenarios/src/controls.ts), and of each region's stretch, whose
+ *   sliders have the same bounds. Ten is the top of the sweeps that chose the defaults, not a
+ *   target.
  * - `velocity` 0 to 10. Past 2 a delayed length loop rings plainly, so the top of this is there
  *   to be measured, not used.
  * - `setPoint` half an optimal length either way: past that the loop either answers a body that
@@ -480,12 +579,20 @@ export type ReflexSource =
  */
 export function reflexWithFlags(
   recipeReflex: ReflexLevels | undefined,
-  flags: Partial<ReflexLevels> & { preset?: 'default' | 'none' },
+  flags: Partial<Record<(typeof REFLEX_FIELDS)[number], number>> & {
+    preset?: 'default' | 'none';
+    regions?: Partial<Record<SpinalRegion, number>>;
+  },
 ): { levels: ReflexLevels; source: ReflexSource } {
-  const { preset, ...fields } = flags;
+  const { preset, regions = {}, ...fields } = flags;
   for (const key of Object.keys(fields)) {
     if (!(REFLEX_FIELDS as readonly string[]).includes(key)) {
       throw new Error(`the cord has no setting called '${key}'`);
+    }
+  }
+  for (const key of Object.keys(regions)) {
+    if (!(REFLEX_REGIONS as readonly string[]).includes(key)) {
+      throw new Error(`the cord has no region called '${key}'`);
     }
   }
   const given = REFLEX_FIELDS.filter((k) => fields[k] !== undefined);
@@ -494,27 +601,40 @@ export function reflexWithFlags(
       throw new Error(`reflex ${k} must be a finite number, not ${String(fields[k])}`);
     }
   }
+  const regionsGiven = REFLEX_REGIONS.filter((r) => regions[r] !== undefined);
+  for (const r of regionsGiven) {
+    if (!Number.isFinite(regions[r])) {
+      throw new Error(`reflex stretch for ${r} must be a finite number, not ${String(regions[r])}`);
+    }
+  }
   const base =
     preset === 'default'
       ? DEFAULT_REFLEX
       : preset === 'none'
         ? NO_REFLEX
         : (recipeReflex ?? NO_REFLEX);
-  const levels = { ...base };
+  const { regionStretch: baseRegions, ...levels }: ReflexLevels = { ...base };
   for (const k of given) levels[k] = fields[k] as number;
+  // `--reflex` is the stretch everywhere, as the Spine panel's "all regions" slider is, so it
+  // clears the base cord's regions; a region flag then sets its own region over it.
+  const kept = fields.stretch === undefined ? baseRegions : undefined;
+  const merged: Partial<Record<SpinalRegion, number>> = { ...kept };
+  for (const r of regionsGiven) merged[r] = regions[r] as number;
+  const withRegions: ReflexLevels =
+    Object.keys(merged).length > 0 ? { ...levels, regionStretch: merged } : levels;
   const source: ReflexSource =
     preset === 'default'
       ? 'default, from --reflex default'
       : preset === 'none'
         ? 'flags over no cord'
-        : given.length === 0
+        : given.length === 0 && regionsGiven.length === 0
           ? recipeReflex
             ? 'recipe'
             : 'none: the recipe has no cord'
           : recipeReflex
             ? "flags over the recipe's cord"
             : 'flags over no cord';
-  return { levels, source };
+  return { levels: withRegions, source };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -585,8 +705,15 @@ export function checkRecipe(r: unknown): string[] {
   );
   optional(
     'reflex',
-    (v) => isObject(v) && REFLEX_FIELDS.every((k) => finite(v[k])),
-    `the cord's ${REFLEX_FIELDS.length} numbers`,
+    (v) =>
+      isObject(v) &&
+      REFLEX_FIELDS.every((k) => finite(v[k])) &&
+      (v.regionStretch === undefined ||
+        (isObject(v.regionStretch) &&
+          Object.entries(v.regionStretch).every(
+            ([k, n]) => (REFLEX_REGIONS as readonly string[]).includes(k) && finite(n),
+          ))),
+    `the cord's ${REFLEX_FIELDS.length} numbers, and a stretch by region of ${REFLEX_REGIONS.join(', ')} if any`,
   );
   optional('memory', finite, 'a number');
   return problems;
@@ -600,8 +727,9 @@ export interface RecipeChange {
 }
 
 /** The fields of a recipe that make it a different body or a different task, with the value an
- * old file that omits one was trained under. */
-function comparable(r: TrainingRecipe): Record<string, unknown> {
+ * old file that omits one was trained under; the cord by region when either side's is (see
+ * `comparableCord`). */
+function comparable(r: TrainingRecipe, byRegion: boolean): Record<string, unknown> {
   return {
     task: r.task,
     scenario: r.scenario,
@@ -613,7 +741,7 @@ function comparable(r: TrainingRecipe): Record<string, unknown> {
     feedforward: r.feedforward,
     authority: r.authority,
     noise: r.noise ?? DEFAULT_NOISE,
-    reflex: r.reflex ?? NO_REFLEX,
+    reflex: comparableCord(r.reflex ?? NO_REFLEX, byRegion),
     memory: r.memory ?? 0,
   };
 }
@@ -645,8 +773,9 @@ export function recipeChanges(
   if (!saved) return [];
   const before = new Map<string, unknown>();
   const after = new Map<string, unknown>();
-  leaves('', comparable(saved), before);
-  leaves('', comparable(now), after);
+  const byRegion = ![saved, now].every((r) => isUniformStretch(r.reflex ?? NO_REFLEX));
+  leaves('', comparable(saved, byRegion), before);
+  leaves('', comparable(now, byRegion), after);
   const changes: RecipeChange[] = [];
   for (const field of new Set([...before.keys(), ...after.keys()])) {
     const from = before.get(field);
@@ -685,10 +814,9 @@ export function describeRecipe(r: TrainingRecipe): string {
         ? "the scenario's script under the brain"
         : 'the brain alone';
   const reflex = r.reflex ?? NO_REFLEX;
-  const cord =
-    reflex.stretch === 0 && reflex.velocity === 0
-      ? 'no cord'
-      : `cord stretch ${reflex.stretch}, damping ${reflex.velocity}, ${Math.round(reflex.delaySeconds * 1000)} ms`;
+  const cord = cordIsOff(reflex)
+    ? 'no cord'
+    : `cord stretch ${describeStretch(reflex)}, damping ${reflex.velocity}, ${Math.round(reflex.delaySeconds * 1000)} ms`;
   const noise = r.noise ?? DEFAULT_NOISE;
   const memory = r.memory ?? 0;
   return [

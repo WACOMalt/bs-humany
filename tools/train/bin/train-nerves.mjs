@@ -8,6 +8,7 @@
  *   pnpm train:nerves --task stand                 # the default behaviour's body, scored on standing
  *   pnpm train:nerves --profile l1_standard        # a coarser body; L3, the reference, is the default
  *   pnpm train:nerves --reflex none                # no cord; `--reflex default` the measured one
+ *   pnpm train:nerves --reflex-stretch-arm 2       # one region's stretch; leg, hand, trunk, neck too
  *   pnpm train:nerves --recipe <data>/runs/<name>-recipe.json  # the studio's way (pnpm train:where prints <data>)
  *   pnpm train:nerves --help                       # every flag, and its default
  *
@@ -53,7 +54,14 @@ import { cpus } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJiti } from 'jiti';
-import { REFLEX_FLAGS, describeClamp, formatHelp, parse, trainFlags } from './flags.mjs';
+import {
+  REFLEX_FLAGS,
+  REFLEX_REGION_FLAGS,
+  describeClamp,
+  formatHelp,
+  parse,
+  trainFlags,
+} from './flags.mjs';
 import {
   dataHome,
   formerRunFile,
@@ -81,8 +89,16 @@ const refuse = (text) => {
 // is here before the flags are read, and a refused run is still refused at once.
 const jiti = createJiti(import.meta.url);
 const RECIPE = await jiti.import(join(ROOT, 'tools/train/src/recipe.ts'));
-const { rigOptionsFor, behaviourRecipe, checkRecipe, reflexWithFlags, DEFAULT_NOISE, NO_REFLEX } =
-  RECIPE;
+const {
+  rigOptionsFor,
+  behaviourRecipe,
+  checkRecipe,
+  reflexWithFlags,
+  cordIsOff,
+  describeStretch,
+  DEFAULT_NOISE,
+  NO_REFLEX,
+} = RECIPE;
 const TRAIN_FLAGS = trainFlags(RECIPE);
 
 /**
@@ -238,20 +254,32 @@ if (given.has('noise') || given.has('sense-noise') || given.has('noise-tau')) {
 /**
  * The cord under the brain, overridable the same way, one flag to one number of it.
  *
- * `--reflex` sets the stretch gain, or names a whole cord: `default` is the measured one, `none`
- * is the body every checkpoint before the spinal module was trained in. Any other cord flag
+ * `--reflex` sets the stretch gain in every region, or names a whole cord: `default` is the
+ * measured one, `none` is the body every checkpoint before the spinal module was trained in.
+ * `--reflex-stretch-arm` and its four siblings set one region's stretch over that. Any other cord flag
  * changes that one number of the recipe's cord, and a recipe without a cord has none -- the rule
  * is `reflexWithFlags` in the recipe module, the same one the rig reads a recipe by, rather than a
  * copy of it here that could come to disagree.
  */
-if (given.has('reflex') || Object.keys(REFLEX_FLAGS).some((f) => given.has(f))) {
+if (
+  given.has('reflex') ||
+  [...Object.keys(REFLEX_FLAGS), ...Object.keys(REFLEX_REGION_FLAGS)].some((f) => given.has(f))
+) {
   const fields = {};
   if (typeof flags.reflex === 'number') fields.stretch = flags.reflex;
   for (const [flag, field] of Object.entries(REFLEX_FLAGS)) {
     if (given.has(flag)) fields[field] = flags[flag];
   }
+  const regions = {};
+  for (const [flag, region] of Object.entries(REFLEX_REGION_FLAGS)) {
+    if (given.has(flag)) regions[region] = flags[flag];
+  }
   const preset = typeof flags.reflex === 'string' ? flags.reflex : undefined;
-  const cord = reflexWithFlags(recipe.reflex, { ...fields, ...(preset ? { preset } : {}) });
+  const cord = reflexWithFlags(recipe.reflex, {
+    ...fields,
+    regions,
+    ...(preset ? { preset } : {}),
+  });
   recipe.reflex = cord.levels;
   cordSource = cord.source;
 }
@@ -323,8 +351,8 @@ console.log(
 );
 const cord = recipe.reflex ?? NO_REFLEX;
 console.log(
-  cord.stretch > 0 || cord.velocity > 0
-    ? `  cord (${cordSource}): stretch ${cord.stretch.toFixed(3)}, damping ${cord.velocity.toFixed(2)}, ` +
+  !cordIsOff(cord)
+    ? `  cord (${cordSource}): stretch ${describeStretch(cord)}, damping ${cord.velocity.toFixed(2)}, ` +
         `set point ${cord.setPoint.toFixed(2)}, inhibition ${cord.inhibition.toFixed(2)}, ` +
         `${(cord.delaySeconds * 1000).toFixed(0)} ms down and back`
     : `  cord (${cordSource}): no reflexes; the brain is the only thing holding the body up`,

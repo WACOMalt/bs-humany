@@ -494,6 +494,16 @@ label.inline {
   gap: 2px 12px;
 }
 
+/* The Spine panel's stretch by region, set in under the Stretch for all regions it follows. */
+label.spine-region {
+  padding-left: 12px;
+}
+
+/* A region's stretch that is still following Stretch, all regions, until it is moved. */
+label.spine-region.follows output {
+  opacity: 0.6;
+}
+
 input[type="range"] {
   width: 100%;
   height: 3px;

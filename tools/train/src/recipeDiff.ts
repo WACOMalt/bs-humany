@@ -13,7 +13,13 @@
  * and the timescale follows from the profile, so it is reported as the profile.
  */
 
-import { DEFAULT_NOISE, NO_REFLEX } from './rig.js';
+import {
+  DEFAULT_NOISE,
+  NO_REFLEX,
+  type ReflexLevels,
+  comparableCord,
+  isUniformStretch,
+} from './rig.js';
 
 /**
  * The fields of a recipe that say what world a policy is trained in. Loose, so that the trainer's
@@ -84,7 +90,7 @@ function flatten(value: unknown, path: string, into: Map<string, Leaf>): void {
  * the same way here, and an old checkpoint resumed under the defaults it was trained in shows
  * no difference.
  */
-function worldOf(recipe: ComparableRecipe): Map<string, Leaf> {
+function worldOf(recipe: ComparableRecipe, byRegion: boolean): Map<string, Leaf> {
   const leaves = new Map<string, Leaf>();
   leaves.set('task', recipe.task);
   leaves.set('scenario', recipe.scenario);
@@ -96,8 +102,16 @@ function worldOf(recipe: ComparableRecipe): Map<string, Leaf> {
   leaves.set('authority', recipe.authority);
   flatten(recipe.noise ?? DEFAULT_NOISE, 'noise', leaves);
   leaves.set('memory', recipe.memory ?? 0);
-  flatten(recipe.reflex ?? NO_REFLEX, 'reflex', leaves);
+  // One stretch when both cords have one stretch everywhere, and every region's written out
+  // when either differs by region, so a cord saved with only `stretch` shows the regions a new
+  // cord changed and nothing where it is the same (`comparableCord`).
+  flatten(comparableCord(cordOf(recipe), byRegion), 'reflex', leaves);
   return leaves;
+}
+
+/** A recipe's cord, or none when it records none, as the rig reads it. */
+function cordOf(recipe: ComparableRecipe): ReflexLevels {
+  return (recipe.reflex as ReflexLevels | undefined) ?? NO_REFLEX;
 }
 
 function same(a: Leaf, b: Leaf): boolean {
@@ -115,8 +129,9 @@ export function recipeDifferences(
   now: ComparableRecipe,
 ): RecipeDifference[] {
   if (!saved) return [];
-  const was = worldOf(saved);
-  const is = worldOf(now);
+  const byRegion = ![saved, now].every((r) => isUniformStretch(cordOf(r)));
+  const was = worldOf(saved, byRegion);
+  const is = worldOf(now, byRegion);
   // A field only the saved recipe has -- a parameter the scenario no longer takes -- is listed
   // with the rest of its section, not after everything else.
   const section = (field: string) => SECTIONS.indexOf(field.split('.')[0] as string);

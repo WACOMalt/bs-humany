@@ -26,7 +26,7 @@
 //! and `render.rs` gives every texture a mip chain, so text read from across the room is averaged
 //! rather than shimmering.
 
-use crate::bridge::{Brain, ControlRange, Status};
+use crate::bridge::{Brain, ControlRange, Reflex, Status};
 
 /// Metres a point.
 pub const POINT_METRES: f32 = 0.001;
@@ -1508,8 +1508,30 @@ fn spine(ui: &mut egui::Ui, s: &Status, editing: &mut Editing, commands: &mut Ve
     note(ui, "The reflexes: a muscle pulled past its set point excites itself and inhibits its opposite. Needs no training, and it is most of what holds a body up. Stretch and Damping at zero is a body with no reflexes at all.");
     let b = &s.brain;
     let r = &b.reflex;
+    if let Some(v) = slider(ui, editing, s, "spine.stretch", "stretch, all regions", r.stretch, false) {
+        commands.push(Command::Brain { action: "reflexStretch", id: None, value: Some(v) });
+    }
+    // One stretch a region under the one for all of them, as the desktop has them, each on the
+    // same bounds: the legs and trunk can have the stiff cord that holds the body up without the
+    // arms and hands shaking. A region still following the one for all says so.
+    if let Some(range) = s.controls.get("spine.stretch").copied() {
+        for region in Reflex::REGIONS {
+            let key = format!("spine.stretch.{}", region.to_lowercase());
+            let label = if r.follows(region) {
+                format!("{}, as all", region.to_lowercase())
+            } else {
+                region.to_lowercase()
+            };
+            if let Some(v) = slider_in(ui, editing, &key, &label, r.stretch_in(region), range, false) {
+                commands.push(Command::Brain {
+                    action: "reflexRegionStretch",
+                    id: Some(region.to_string()),
+                    value: Some(v),
+                });
+            }
+        }
+    }
     for (key, label, value, action) in [
-        ("spine.stretch", "stretch", r.stretch, "reflexStretch"),
         ("spine.velocity", "damping", r.velocity, "reflexVelocity"),
         ("spine.setPoint", "set point", r.set_point, "reflexSetPoint"),
         ("spine.inhibition", "reciprocal", r.inhibition, "reflexInhibition"),
@@ -1945,7 +1967,9 @@ mod tests {
             // The second frame is laid out on the panel's own size; the first is egui's default.
             step(&mut panel, status, None, false, 0.0);
             if to_the_foot {
-                for _ in 0..30 {
+                // Enough pulls to reach the foot of the longest tab, the Muscles tab with its
+                // Spine's stretch for every region.
+                for _ in 0..60 {
                     step(&mut panel, status, Some(egui::pos2(400.0, 400.0)), false, -1.0);
                 }
             }
@@ -2028,7 +2052,14 @@ mod tests {
         // The cord's five gains moved from Brain to Muscles, as they did on the desktop, and the
         // training buttons to a Training tab: each sends from its new tab and from nowhere else.
         let status = fixture();
-        let spine = ["reflexStretch", "reflexVelocity", "reflexSetPoint", "reflexInhibition", "reflexDelay"];
+        let spine = [
+            "reflexStretch",
+            "reflexRegionStretch",
+            "reflexVelocity",
+            "reflexSetPoint",
+            "reflexInhibition",
+            "reflexDelay",
+        ];
         let training = ["memory", "trainStop", "follow"];
         // The Spine is at the foot of the Muscles tab, which is longer than the panel.
         let on_muscles = actions_clicked_on(Tab::Muscles, &status, true);
@@ -2050,6 +2081,33 @@ mod tests {
         off.muscles = false;
         let on_muscles_off = actions_clicked_on(Tab::Muscles, &off, false);
         assert!(on_muscles_off.contains(&"reflexStretch"), "{on_muscles_off:?}");
+    }
+
+    #[test]
+    fn each_regions_stretch_is_sent_with_the_region_it_is_for() {
+        // The Spine has a stretch for every region under the one for all of them, and each sends
+        // the region it sets as its id: the desktop moves that region's slider and no other.
+        let status = fixture();
+        let mut regions = std::collections::BTreeSet::new();
+        for y in (60..740).step_by(6) {
+            let mut panel = Panel::new(Kind::Properties);
+            panel.tab = Tab::Muscles;
+            step(&mut panel, &status, None, false, 0.0);
+            for _ in 0..60 {
+                step(&mut panel, &status, Some(egui::pos2(400.0, 400.0)), false, -1.0);
+            }
+            let at = Some(egui::pos2(400.0, y as f32));
+            step(&mut panel, &status, at, false, 0.0);
+            step(&mut panel, &status, at, true, 0.0);
+            for command in step(&mut panel, &status, at, false, 0.0).commands {
+                if let Command::Brain { action: "reflexRegionStretch", id, value } = command {
+                    assert!(value.is_some_and(|v| (0.0..=10.0).contains(&v)), "{value:?}");
+                    regions.insert(id.expect("a region"));
+                }
+            }
+        }
+        let all: std::collections::BTreeSet<String> = Reflex::REGIONS.iter().map(|r| r.to_string()).collect();
+        assert_eq!(regions, all);
     }
 
     #[test]

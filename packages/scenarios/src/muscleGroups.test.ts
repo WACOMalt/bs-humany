@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { SPINAL_REGIONS } from '@bs-humany/modules-nerves';
 import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import { describe, expect, it } from 'vitest';
 import { ANTAGONISTS, MUSCLE_GROUPS, reflexGroups, unitsOnSide } from './muscleGroups.js';
@@ -75,6 +76,19 @@ describe('the reflex groups', () => {
       // And the pairing is symmetric, side for side.
       expect(antagonist?.antagonist).toBe(group.id);
     }
+  });
+
+  it("carry their drive group's section, and the sections are the cord's regions", () => {
+    // The cord's stretch gain can differ by region (`SpinalGains.regionStretch`), and a reflex
+    // group's region is what picks the gain its units answer with. So every group carries its
+    // section, and the sections the table uses are exactly the regions the cord knows, in the same
+    // order: a section the cord did not know would quietly take the base gain.
+    const sectionOf = new Map(MUSCLE_GROUPS.map((g) => [g.id, g.section]));
+    for (const group of groups) {
+      expect(group.region, group.id).toBe(sectionOf.get(group.id.slice(0, -2)));
+    }
+    const used = [...new Set(MUSCLE_GROUPS.map((g) => g.section))];
+    expect(used).toEqual([...SPINAL_REGIONS]);
   });
 
   it('share their ids and units with the policy outputs, in the same order', () => {

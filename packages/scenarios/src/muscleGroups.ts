@@ -11,6 +11,10 @@
  * remembered them by name has to change.
  */
 
+/**
+ * The body sections the groups are listed under, and the regions the spinal cord's stretch gain can
+ * differ between (`SPINAL_REGIONS`, which a test holds this list to).
+ */
 export type DriveSection = 'Arm' | 'Hand' | 'Leg' | 'Trunk' | 'Neck';
 
 export interface DriveGroup {
@@ -418,6 +422,7 @@ export function reflexGroups(): readonly {
   readonly id: string;
   readonly units: readonly string[];
   readonly antagonist: string | undefined;
+  readonly region: DriveSection;
 }[] {
   return DRIVE_SIDES.flatMap((side) =>
     MUSCLE_GROUPS.map((g) => {
@@ -426,6 +431,9 @@ export function reflexGroups(): readonly {
         id: `${g.id}:${side}`,
         units: unitsOnSide(g, side),
         antagonist: opposite === undefined ? undefined : `${opposite}:${side}`,
+        // The section is the cord's region: a unit in an arm group answers its spindle with the
+        // arm's stretch gain when the cord has one (`SpinalGains.regionStretch`).
+        region: g.section,
       };
     }),
   );
