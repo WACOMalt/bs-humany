@@ -44,6 +44,12 @@ export interface Limit {
 export const TASKS = ['stand', 'balance'] as const;
 export type Task = (typeof TASKS)[number];
 
+/**
+ * What a run is scored on when nothing names a task: `balance`, the task of the one behaviour the
+ * studio ships (`DEFAULT_BEHAVIOUR`). Not `TASKS[0]`, which is only the order they are listed in.
+ */
+export const DEFAULT_TASK: Task = 'balance';
+
 /** Whether `t` is a task the rig scores. */
 export function isTask(t: unknown): t is Task {
   return typeof t === 'string' && (TASKS as readonly string[]).includes(t);
@@ -159,8 +165,9 @@ export const REFLEX_FIELDS = [
  * The cord a run gets unless it says otherwise. Every number is measured; see
  * `docs/validation/reflex-gains.md` for the tables and `SpinalGains` for what each one is.
  *
- * Under the committed standing policy, on the cord per side and per unit, this cord is worth
- * 0.95 s upright against 0.43 with no cord at all. The stretch gain is where the second sweep, from
+ * Under the standing policy committed until 2026-09-27, on the cord per side and per unit, this
+ * cord is worth 0.95 s upright against 0.43 with no cord at all; the tables are to be measured
+ * again under `balance`, which replaced it. The stretch gain is where the second sweep, from
  * 3.5 to 10, levelled off: 0.959 s at 9.5 and 10, and 8.5 the smallest gain within 1% of that
  * (0.953), which is also where fitness peaked. The first sweep stopped at 5 with time upright still
  * rising, and 3.5 stood until this one. The set of numbers before those was worth 0.46, which is to
@@ -347,11 +354,90 @@ export function rigOptionsFor(
 }
 
 /**
- * The recipe the old flags describe: the reference body, standing, with the quiet-standing clip
- * under it. A task the rig does not score is refused here rather than trained as a stand under
- * another name.
+ * The scenario a run is set in when nothing names one, and the studio's opening scenario:
+ * "Drop, standing" at a drop of 0 m, which is the reference body let go standing on the ground.
+ * The scenario package's `DEFAULT_SCENARIO` names the same one; this module imports nothing that
+ * runs, so it keeps the id itself, and a test holds the two together.
  */
-export function defaultRecipe(task: string, profile: string, authority: number): TrainingRecipe {
+export const DEFAULT_BEHAVIOUR_SCENARIO = 'drop-standing-collapse';
+export const DEFAULT_BEHAVIOUR_PARAMETERS: Readonly<Record<string, number>> = { clearance: 0 };
+
+/**
+ * Context units the default behaviour carries between control steps.
+ *
+ * Chosen, not measured. Some, because a policy with none answers only the instant it is shown and
+ * cannot integrate a sense that carries grain (`DEFAULT_NOISE.sense`), which is the reason memory
+ * was built (ADR-014). Eight, because each unit is a row and a column of weights -- eight add about
+ * five hundred to the reference body's network of twenty-seven thousand, two per cent of what the
+ * search moves -- and
+ * because the studio's Memory slider steps by four, so the form can show the recipe as it is.
+ */
+export const DEFAULT_BEHAVIOUR_MEMORY = 8;
+
+/**
+ * The body and loop of the default behaviour, scored on `task`: the reference body in the default
+ * scenario, "Drop, standing" at 0 m, with nothing under the brain, the measured cord, the tremor
+ * and the sense grain at their defaults, and `DEFAULT_BEHAVIOUR_MEMORY` context units. What
+ * `train:nerves` trains when no recipe is given, what the dashboard fills a request in with, and,
+ * for the task `balance` on the reference profile at the default authority, `DEFAULT_BEHAVIOUR`.
+ *
+ * Nothing under the brain, because the scenario drives no muscles of its own and the owner asked
+ * for the falling standing scenario as it is: every unit starts slack and the tone is the policy's
+ * and the cord's to find. The cord is `DEFAULT_REFLEX` by name, so a re-measured cord reaches the
+ * default behaviour by itself. A task the rig does not score is refused here rather than trained
+ * as a stand under another name.
+ */
+export function behaviourRecipe(task: string, profile: string, authority: number): TrainingRecipe {
+  if (!isTask(task)) {
+    throw new Error(`unknown task "${task}"; known tasks: ${TASKS.join(', ')}`);
+  }
+  return {
+    name: task,
+    task,
+    scenario: DEFAULT_BEHAVIOUR_SCENARIO,
+    parameters: { ...DEFAULT_BEHAVIOUR_PARAMETERS },
+    profile,
+    morphology: REFERENCE_MORPHOLOGY,
+    passive: true,
+    redistribute: true,
+    feedforward: { kind: 'none' },
+    authority,
+    noise: DEFAULT_NOISE,
+    reflex: DEFAULT_REFLEX,
+    memory: DEFAULT_BEHAVIOUR_MEMORY,
+  };
+}
+
+/**
+ * The one default behaviour, "balance": the recipe the studio's Training tab, the dashboard and
+ * `train:nerves` start from when nothing else is chosen, and the one checkpoint the studio ships,
+ * `packages/modules-nerves/policies/balance.json`, was trained on (the owner's decision of
+ * 2026-09-27, which retired the five checkpoints shipped before it).
+ *
+ * Every choice in it is a default of this module, with the reasons beside each: the reference
+ * profile and body, the default authority, the measured cord, the tremor and the grain, and the
+ * search's network, seeds and episode length (`SEARCH_DEFAULTS`). The two that are the behaviour's
+ * own are the scenario, which the owner named, and the memory, which the recipes before it did not
+ * have (`DEFAULT_BEHAVIOUR_MEMORY` says why eight).
+ */
+export const DEFAULT_BEHAVIOUR: TrainingRecipe = behaviourRecipe(
+  DEFAULT_TASK,
+  DEFAULT_PROFILE,
+  DEFAULT_AUTHORITY,
+);
+
+/**
+ * The reference stand: the reference body standing on the ground with the quiet-standing clip
+ * under it, and no memory. What the flags described before the default behaviour, kept because
+ * the tables in `docs/validation/reflex-gains.md` and the bench's rig rows were measured in it and
+ * reproduce only in it. A task the rig does not score is refused here rather than trained as a
+ * stand under another name.
+ */
+export function referenceStandRecipe(
+  task: string,
+  profile: string,
+  authority: number,
+): TrainingRecipe {
   if (!isTask(task)) {
     throw new Error(`unknown task "${task}"; known tasks: ${TASKS.join(', ')}`);
   }

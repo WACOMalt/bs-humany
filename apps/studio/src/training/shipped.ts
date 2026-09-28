@@ -6,6 +6,12 @@
  * policy to a body without first running a search. So the policy files in
  * `packages/modules-nerves/policies` are part of the bundle.
  *
+ * Since the owner's decision of 2026-09-27 there is one: `balance`, the default behaviour
+ * (`DEFAULT_BEHAVIOUR` in the training recipe module), trained in "Drop, standing" at 0 m just far
+ * enough to save a checkpoint, for the owner to train on. The five shipped before it -- stand,
+ * stand-l1, balance, balance2 and balance_tiltingfloor -- were trained before the current cord,
+ * the hand muscles and the sense fixes, and were retired rather than retrained.
+ *
  * Lazily, and cached after the first ask. Half a megabyte of weights is not worth loading to
  * draw a panel nobody has opened, and the panel asks for this list every few seconds.
  */
@@ -71,9 +77,9 @@ const HAND_DRIVES = new Set(MUSCLE_GROUPS.filter((g) => g.section === 'Hand').ma
  *
  * By when it was trained, where its file says, against the two commits above. A file that does
  * not say when is read by what it carries instead: no cord in its recipe, no hand drive among its
- * outputs. Nothing about the file is changed; the studio only says what it is. The owner has
- * chosen to retrain and recommit the shipped set, and a retrained file carries a date after both,
- * so the words go away on their own when that lands.
+ * outputs. Nothing about the file is changed; the studio only says what it is. The checkpoint
+ * shipped today is dated after both, so it says nothing; the words are for a checkpoint trained
+ * elsewhere and handed to this studio, and for any older file a person keeps.
  */
 export function trainedBefore(
   file: Pick<PolicyFile, 'trained' | 'recipe' | 'outputs'>,

@@ -5,11 +5,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_NOISE, StandRig, defaultRecipe, rigOptionsFor, twitchSchedule } from './rig.js';
+import {
+  DEFAULT_NOISE,
+  StandRig,
+  referenceStandRecipe,
+  rigOptionsFor,
+  twitchSchedule,
+} from './rig.js';
 
 describe('a training recipe', () => {
   it('turns into rig options, and the old flags into the reference recipe', () => {
-    const recipe = defaultRecipe('stand', 'l1_standard', 0.3);
+    const recipe = referenceStandRecipe('stand', 'l1_standard', 0.3);
     expect(recipe.feedforward).toEqual({ kind: 'clip', clip: 'quiet-standing' });
     expect(recipe.scenario).toBe('');
     const options = rigOptionsFor(

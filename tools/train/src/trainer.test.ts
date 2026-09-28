@@ -19,7 +19,7 @@ import {
   DEFAULT_REFLEX,
   NO_REFLEX,
   type TrainingRecipe,
-  defaultRecipe,
+  referenceStandRecipe,
 } from './rig.js';
 import {
   type CheckpointStore,
@@ -119,7 +119,7 @@ class MemoryStore implements CheckpointStore {
   }
 }
 
-const RECIPE: TrainingRecipe = defaultRecipe('stand', 'l3_anatomical', 0.3);
+const RECIPE: TrainingRecipe = referenceStandRecipe('stand', 'l3_anatomical', 0.3);
 
 function options(
   pool: EpisodePool,

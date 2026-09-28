@@ -29,6 +29,12 @@ deviation range; the body moved under it, and the second stretch sweep went past
 page was measured again rather than only the rows that were new. How much the body moved it is in
 the stretch section.
 
+*2026-09-27, later the same day:* every "trained" row on this page was measured under `stand.json`,
+the standing policy the owner retired that day with the four other shipped checkpoints, and before
+the sense fixes (the policy's frame rotation, its strain and foot-weight senses, and the one clamp
+on the summed drive); the numbers stand as measured, and the page is to be measured again, with
+`pnpm measure:reflex-gains`, under the shipped `balance` once it has been trained further.
+
 The delay, 0.03 s throughout, was not measured here and is not sourced either: it is
 `SPINAL_CONDUCTION_DELAY_S`, and OQ-031 in `docs/sources/open-questions.md` records that it and
 the gains are chosen rather than taken from a source.

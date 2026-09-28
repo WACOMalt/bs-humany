@@ -512,9 +512,9 @@ export function createSimPanel(host: SimPanelHost): SimPanel {
     option.textContent = d.title;
     ui.scenario.appendChild(option);
   }
-  // Standing, rather than the bare drop this opened with for the whole of phase one. A muscle
-  // module's front page should show muscles doing something, and the tone a quietly standing
-  // person holds is the one posture everybody already knows the look of.
+  // "Drop, standing" at 0 m, the scenario the one shipped behaviour, balance, is trained in (the
+  // owner's decision of 2026-09-27), so the studio opens on the body a Hand over expects. It opened
+  // on quiet standing before that, and on the bare drop for the whole of phase one.
   ui.scenario.value = DEFAULT_SCENARIO;
 
   const defaultsRow = must<HTMLElement>('#scenario-defaults-row');

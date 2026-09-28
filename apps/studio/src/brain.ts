@@ -34,6 +34,7 @@ import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
 // it imports nothing that runs, so it adds no body to the main thread.
 import {
   DEFAULT_AUTHORITY,
+  DEFAULT_BEHAVIOUR,
   DEFAULT_NOISE,
   DEFAULT_REFLEX,
   SEARCH_DEFAULTS,
@@ -619,6 +620,12 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   ui.noiseMotor.value = String(DEFAULT_NOISE.motor);
   ui.noiseSense.value = String(DEFAULT_NOISE.sense);
   ui.authority.value = String(DEFAULT_AUTHORITY);
+  // And on the default behaviour's own choices, which are not a search setting: balance, nothing
+  // under the brain, and its memory. The scenario is the Scene tab's, which opens on the one the
+  // behaviour trains in, so an untouched form is `DEFAULT_BEHAVIOUR` under a free name.
+  ui.task.value = DEFAULT_BEHAVIOUR.task;
+  ui.feedforward.value = DEFAULT_BEHAVIOUR.feedforward.kind;
+  ui.memory.value = String(DEFAULT_BEHAVIOUR.memory ?? 0);
 
   const readouts: [HTMLInputElement, string][] = [
     [ui.generations, '#train-generations-value'],
@@ -707,10 +714,10 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   // at the terminal -- which is how the panel used to open, with the cord off. The numbers come
   // from the recipe module rather than being typed into the page a second time, so the panel and
   // the trainer cannot drift apart. A checkpoint whose recipe records a cord puts that cord on
-  // these sliders through Set up as trained and Hand over. One whose recipe records none -- every
-  // policy shipped today -- leaves the sliders where they are, so it runs over the measured cord,
-  // not the no-cord body it learnt in, until it is retrained (the owner's Q4) or someone lowers
-  // the sliders.
+  // these sliders through Set up as trained and Hand over, as the one shipped today, balance, does.
+  // One whose recipe records none -- a checkpoint from before the cord -- leaves the sliders where
+  // they are, so it runs over the measured cord, not the no-cord body it learnt in, until someone
+  // lowers the sliders.
   ui.spineStretch.value = String(OPENING_CORD.stretch);
   ui.spineVelocity.value = String(OPENING_CORD.velocity);
   ui.spineSetPoint.value = String(OPENING_CORD.setPoint);
@@ -995,7 +1002,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       ui.policy.append(option);
     }
     // The same checkpoint in the new list, by name when its id is not there: a server that
-    // starts or stops swaps one list for the other, and `policies/stand.json` is `stand`. No
+    // starts or stops swaps one list for the other, and `policies/balance.json` is `balance`. No
     // 'change' is sent, because nothing was chosen.
     ui.policy.value = reselect(rows, chosen, chosenKey);
     chosenLost = chosenKey !== '' && ui.policy.value === '';
@@ -1833,7 +1840,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   /** The checkpoints this studio holds itself, in the shape the list draws. */
   async function localRows(): Promise<CheckpointRow[]> {
     // What this studio trained itself, and what it shipped with. A name trained here wins: a
-    // person who has retrained `stand` means the one they retrained.
+    // person who has retrained `balance` means the one they retrained.
     const listed = await listLocalCheckpoints();
     const held = listed.rows;
     skipped = listed.skipped;

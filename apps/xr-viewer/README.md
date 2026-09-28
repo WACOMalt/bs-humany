@@ -210,7 +210,9 @@ desktop's other developer's tab, Align, opens and saves files and is not drawn h
   delay, and the desktop's line on the cord as it is set. With muscles off the drive and the
   readout go and the Spine stays, as its gains are the next run's.
 - **Brain** -- the checkpoints the studio's Brain tab lists: the dashboard's while it runs,
-  otherwise the ones this studio trained or shipped with. `pnpm publish:pose` sends no brain, so
+  otherwise the ones this studio trained or shipped with. It ships one, `balance`, the default
+  behaviour, trained in Drop, standing at 0 m -- the scenario the studio opens on -- and only far
+  enough to save, so under it the body still falls. `pnpm publish:pose` sends no brain, so
   from it the list is empty. Choosing one only shows it, and the desktop's line under the list
   says how it was trained and what differs; Set up as trained puts that on the desktop's tabs,
   Authority included, and Undo set-up takes it back once. Neither asks anything on the desktop,

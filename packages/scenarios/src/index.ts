@@ -224,7 +224,7 @@ export {
   unitsNamedByClips,
 } from './activationClips.js';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
-import standPolicy from '@bs-humany/modules-nerves/policies/stand.json' with { type: 'json' };
+import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
 import { type CompiledClip, loadActivationClips, unitsNamedByClips } from './activationClips.js';
 import type { NervesSetup } from './nerves.js';
 import { PLATFORM_TOP, platformBox, tiltingFloor } from './tiltingFloor.js';
@@ -521,8 +521,13 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
   define({
     id: 'drop-standing-collapse',
     title: 'Drop, standing',
-    description: 'The rest pose released above the ground. It should buckle and settle.',
-    parameters: [param('clearance', 'Drop height', 0.3, 0, 1.5, 0.05)],
+    description:
+      'The rest pose let go standing on the ground, or dropped onto it from the drop height. With ' +
+      'nothing holding it up it buckles and settles; it is the scenario the shipped balance ' +
+      'behaviour is trained in, and the one the studio opens on.',
+    // 0 m since 2026-09-27, the owner's choice: the body let go standing, the scenario the default
+    // behaviour trains in. It was 0.3 m, a drop onto both feet, which is still a slider away.
+    parameters: [param('clearance', 'Drop height', 0, 0, 1.5, 0.05)],
     make: (v) => ({
       profileId: 'l1_standard',
       morphology: REFERENCE,
@@ -531,12 +536,13 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       ground: { height: 0 },
       passiveJoints: true,
       passiveSystem: true,
-      // Landing upright on two feet is the hardest impact of any scenario: 230 J leaves the
-      // ledger in a single 20 ms sample, the contact compresses about a centimetre, and the
-      // sample after it the contact spring returns a few joules of that as it pushes the body
-      // back out. The rise is 2% of the impact, it happens once, and the body settles
-      // immediately afterwards, so it is a soft contact behaving as designed rather than the
-      // runaway this check exists to catch.
+      // Landing upright on two feet from a drop is the hardest impact of any scenario: from the
+      // 0.3 m this defaulted to until 2026-09-27, 230 J leaves the ledger in a single 20 ms
+      // sample, the contact compresses about a centimetre, and the sample after it the contact
+      // spring returns a few joules of that as it pushes the body back out. The rise is 2% of
+      // the impact, it happens once, and the body settles immediately afterwards, so it is a
+      // soft contact behaving as designed rather than the runaway this check exists to catch.
+      // Kept for the drop height's slider, whatever the default.
       plausibility: { energyRisePerSample: 8 },
     }),
   }),
@@ -922,11 +928,12 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
     id: 'nerves-stand',
     title: 'Standing, with the nerves',
     description:
-      'The quiet-standing clip as feedforward and the trained standing policy on top of it: a ' +
-      'small network that reads the joints, the pelvis, the feet and the muscles a hundred ' +
-      'times a second and corrects the drive of every muscle group on each side. Trained by ' +
-      'evolution strategies on this simulation, with a twitch of a random group each episode so ' +
-      'it stands through a nudge. How long it stays up is the number the training log reports.',
+      'The shipped balance behaviour in charge of a body standing on the ground: a small network ' +
+      'that reads the joints, the pelvis, the head, the feet and the muscles a hundred times a ' +
+      'second and corrects the drive of every muscle group on each side. Trained by evolution ' +
+      'strategies on this simulation, with a twitch of a random group each episode so it stands ' +
+      'through a nudge. It was trained with nothing under it, so the studio holds the ' +
+      'quiet-standing clip back while it is in charge and plays it once the brain is released.',
     parameters: [
       param('authority', 'Nerve authority', 0.3, 0, 1, 0.05),
       param('gain', 'Clip gain', 1, 0, 3, 0.05, '\u00d7'),
@@ -943,7 +950,7 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
       golden: false,
       // It settles: standing, it sways by millijoules, and fallen it lies still (0.00 J).
       nerves: {
-        policy: standPolicy as unknown as PolicyFile,
+        policy: balancePolicy as unknown as PolicyFile,
         authority: v.authority as number,
         goal: 0,
       },
@@ -957,8 +964,14 @@ export const SCENARIO_DEFINITIONS: readonly ScenarioDefinition[] = [
  *
  * Named here rather than "the first definition", so that adding a scenario at the top of the list
  * does not silently change what every consumer opens with.
+ *
+ * "Drop, standing", at its default drop of 0 m, since the owner's decision of 2026-09-27: it is the
+ * scenario the one shipped behaviour, balance, is trained in, so the studio opens on the body that
+ * behaviour was brought up in. It was `quiet-standing`, the posture a muscle module's front page
+ * first showed. The training recipe module keeps the same id as `DEFAULT_BEHAVIOUR_SCENARIO`, and
+ * a test there holds the two together.
  */
-export const DEFAULT_SCENARIO = 'quiet-standing';
+export const DEFAULT_SCENARIO = 'drop-standing-collapse';
 
 /**
  * The committed scenario set: every definition at its default parameters (spec 13.5).

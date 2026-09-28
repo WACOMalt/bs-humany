@@ -15,17 +15,26 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
-import balance2Policy from '@bs-humany/modules-nerves/policies/balance2.json' with { type: 'json' };
 import { type NervesSetup, scenario } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Simulation, type SimulationOptions } from './simulation.js';
 
 const document = buildDocument();
-/** Trained with nothing under it: its recipe's feedforward is `none`. */
+/**
+ * The one shipped checkpoint. Trained with nothing under it -- its recipe's feedforward is `none`
+ * -- and it records the rate it was trained at: 1000 steps a second, every ten.
+ */
 const balance = balancePolicy as unknown as PolicyFile;
-/** Also `none`, and it records the rate it was trained at: 1000 steps a second, every ten. */
-const balance2 = balance2Policy as unknown as PolicyFile;
+/**
+ * A test-only copy of it trained, it says, over the scenario's own muscles and at no recorded
+ * rate: the same weights with the recipe taken off, which is what a checkpoint from before recipes
+ * is. The studio lets a scenario's script go on driving the muscles under such a policy.
+ */
+const unrecorded: PolicyFile = (() => {
+  const { recipe: _recipe, ...rest } = balance;
+  return rest;
+})();
 /** A unit quiet standing tones from its first tick, as the calf is toned in a person standing. */
 const TONED = 'soleus_r';
 
@@ -83,9 +92,17 @@ describe('the scenario’s muscle drive', () => {
     expect(trained.muscleDrive?.overrideFor(TONED)).toBeNull();
     trained.dispose();
 
-    // nerves-stand's own policy has no recipe, and its clip is what it was trained over.
+    // A policy with no recipe says nothing of what it was trained over, so the scenario's clip
+    // goes on under it.
+    const underClip = build('quiet-standing', {
+      nerves: { policy: unrecorded, authority: 0.3, goal: 0 },
+    });
+    expect(underClip.scriptDrivingMuscles).toBe(true);
+    underClip.dispose();
+    // nerves-stand hands the body to balance, which was trained with nothing under it, so its
+    // clip is held back from the first tick.
     const stand = build('nerves-stand');
-    expect(stand.scriptDrivingMuscles).toBe(true);
+    expect(stand.scriptDrivingMuscles).toBe(false);
     stand.dispose();
   }, 60_000);
 });
@@ -113,22 +130,25 @@ describe('the policy in the loop', () => {
 
 describe('the control rate', () => {
   it('keeps the period a policy was trained at, at the start of a run and on a live hand-over', async () => {
-    // nerves-stand's policy recorded no rate, so at 500 steps a second it is evaluated at a
-    // hundred hertz: every five ticks, where its old pinned ten would have been fifty.
-    const simulation = build('nerves-stand', { stepsPerSecond: 500 });
+    // A policy that recorded no rate is evaluated at a hundred hertz at 500 steps a second:
+    // every five ticks, where a pinned ten would have been fifty.
+    const simulation = build('quiet-standing', {
+      stepsPerSecond: 500,
+      nerves: { policy: unrecorded, authority: 0.3, goal: 0 },
+    });
     await simulation.start();
     expect(simulation.nerves?.divisor).toBe(5);
 
-    // balance2 ran every ten ticks at 1000: at 500 that period is five ticks.
-    const handed = simulation.handOver(balance2, 0.3);
+    // balance ran every ten ticks at 1000: at 500 that period is five ticks.
+    const handed = simulation.handOver(balance, 0.3);
     expect(simulation.nerves?.divisor).toBe(5);
     expect(handed.trainedRate).toBe(1000);
     expect(handed.rate).toBe(500);
 
     // A checkpoint that ran every twenty at 1000 -- fifty hertz -- is every ten here.
     const slower: PolicyFile = {
-      ...balance2,
-      recipe: { ...(balance2.recipe as NonNullable<PolicyFile['recipe']>), controlDivisor: 20 },
+      ...balance,
+      recipe: { ...(balance.recipe as NonNullable<PolicyFile['recipe']>), controlDivisor: 20 },
     };
     simulation.handOver(slower, 0.3);
     expect(simulation.nerves?.divisor).toBe(10);

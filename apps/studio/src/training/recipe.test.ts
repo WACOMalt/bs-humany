@@ -209,17 +209,14 @@ describe('what a server did with what it was sent', () => {
 });
 
 describe('the shipped checkpoints', () => {
-  it('are all listed as trained before the current cord and the hand muscles', async () => {
+  it('are one, balance, trained in the body as it is', async () => {
+    // The five shipped before 2026-09-27 were all trained before the current cord and the hand
+    // muscles; the owner retired them for one default behaviour trained after both.
     const shipped = await shippedCheckpoints();
-    expect(shipped.map((s) => s.name).sort()).toEqual([
-      'balance',
-      'balance2',
-      'balance_tiltingfloor',
-      'stand',
-      'stand-l1',
-    ]);
+    expect(shipped.map((s) => s.name)).toEqual(['balance']);
     for (const { name, file } of shipped) {
-      expect(trainedBefore(file), name).toBe('the current cord and the hand muscles');
+      expect(trainedBefore(file), name).toBeUndefined();
+      expect(file.task, name).toBe('balance');
     }
   });
 

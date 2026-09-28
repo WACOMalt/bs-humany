@@ -24,9 +24,11 @@ const jiti = createJiti(import.meta.url);
 const {
   AUTHORITY_LIMIT,
   DEFAULT_AUTHORITY,
+  DEFAULT_BEHAVIOUR,
   DEFAULT_NOISE,
   DEFAULT_PROFILE,
   DEFAULT_REFLEX,
+  DEFAULT_TASK,
   MEMORY_LIMIT,
   MORPHOLOGY_LIMITS,
   NOISE_LIMITS,
@@ -61,7 +63,10 @@ const numberIn = (v) =>
  * `{ recipe, clamped }`, where `clamped` lists every value the request sent that is not the value
  * the run will use, as `{ field, asked, used }`; or `{ status: 400, error }` for a request that
  * names no checkpoint or no task the rig can score. A field the request leaves out takes its
- * default silently, because nothing was asked.
+ * default silently, because nothing was asked -- the default behaviour's (`DEFAULT_BEHAVIOUR`):
+ * the task `balance`, "Drop, standing" at 0 m, and its memory. A scenario sent empty is the
+ * reference stand, as it always was; only a request that sends no scenario at all gets the
+ * default one, with its parameters unless the request sends its own.
  *
  * The cord is the one field whose absence means something other than its default. A recipe with no
  * `reflex` is a body with no cord -- that is how `rigOptionsFor` has always read one, and how every
@@ -71,7 +76,7 @@ const numberIn = (v) =>
  * 3.5 on a cord of guesses.
  */
 export function recipeFrom(body) {
-  const task = body.task === undefined || body.task === '' ? 'stand' : body.task;
+  const task = body.task === undefined || body.task === '' ? DEFAULT_TASK : body.task;
   if (!isTask(task)) {
     return {
       status: 400,
@@ -143,11 +148,20 @@ export function recipeFrom(body) {
       reflex[k] = bounded(`reflex.${k}`, r.reflex[k], DEFAULT_REFLEX[k], REFLEX_LIMITS[k]);
     }
   }
+  const scenario =
+    r.scenario === undefined
+      ? DEFAULT_BEHAVIOUR.scenario
+      : typeof r.scenario === 'string' && /^[\w-]{0,40}$/.test(r.scenario)
+        ? r.scenario
+        : '';
   const recipe = {
     name,
     task,
-    scenario: typeof r.scenario === 'string' && /^[\w-]{0,40}$/.test(r.scenario) ? r.scenario : '',
-    parameters,
+    scenario,
+    parameters:
+      r.scenario === undefined && r.parameters === undefined
+        ? { ...DEFAULT_BEHAVIOUR.parameters }
+        : parameters,
     profile,
     morphology: {
       ...morphology,
@@ -161,7 +175,7 @@ export function recipeFrom(body) {
     authority: bounded('authority', body.authority, DEFAULT_AUTHORITY, AUTHORITY_LIMIT),
     noise,
     ...(reflex ? { reflex } : {}),
-    memory: bounded('memory', r.memory, 0, MEMORY_LIMIT, true),
+    memory: bounded('memory', r.memory, DEFAULT_BEHAVIOUR.memory ?? 0, MEMORY_LIMIT, true),
   };
   return { recipe, clamped };
 }

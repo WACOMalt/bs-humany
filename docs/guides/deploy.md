@@ -121,5 +121,6 @@ opened by any other address is refused, dashboard or not.
 
 What does work in a served studio: training in the window, which runs its episodes in web
 workers inside the page, and checkpoints kept in the browser, which live in that browser's own
-storage for that address. Connecting the VR viewer is the desktop app's alone, because the page
+storage for that address. The checkpoint the studio ships in its bundle, `balance` (the default
+behaviour, trained in Drop, standing at 0 m), can be handed over with no dashboard at all. Connecting the VR viewer is the desktop app's alone, because the page
 cannot start the viewer or write the bridge it reads.
