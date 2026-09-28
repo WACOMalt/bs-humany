@@ -12,10 +12,13 @@
  * passing as a zero.
  *
  * Types from the contract and one table, the slider bounds, which is data every publisher sends
- * as it stands: the generator loads this with jiti, and nothing here may pull in the studio's
- * runtime, which needs a browser and Tauri. So a bound edited in the table reaches the fixture
- * when the fixture is regenerated, and the Rust side's slider test runs against the bounds the
- * headset will be sent.
+ * as it stands: the generator loads this with jiti, and nothing here may pull in a runtime that
+ * needs a browser or Tauri. So a bound edited in the table reaches the fixture when the fixture is
+ * regenerated, and the Rust side's slider test runs against the bounds the headset will be sent.
+ *
+ * It sits beside `publisherStatus.ts`, which builds the real status against the same contract. It
+ * used to sit in the studio's source, which put a generator in `tools/` inside the app; it is not
+ * in the package's exports, because the generator is the only reader and loads this file by path.
  */
 
 import type { PanelStatus } from '@bs-humany/pose-bridge/codec';
