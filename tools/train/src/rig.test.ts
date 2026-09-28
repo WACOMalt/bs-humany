@@ -5,41 +5,33 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_NOISE,
-  StandRig,
-  referenceStandRecipe,
-  rigOptionsFor,
-  twitchSchedule,
-} from './rig.js';
+import { DEFAULT_NOISE, StandRig, clipStandRecipe, rigOptionsFor, twitchSchedule } from './rig.js';
 
 describe('a training recipe', () => {
-  it('turns into rig options, and the old flags into the reference recipe', () => {
-    const recipe = referenceStandRecipe('stand', 'l1_standard', 0.3);
+  it('turns into rig options, and the old flags into the clip stand', () => {
+    const recipe = clipStandRecipe('stand', 'l1_standard', 0.3);
+    // The activation clip called quiet-standing, which stayed when the scenario of that name went.
     expect(recipe.feedforward).toEqual({ kind: 'clip', clip: 'quiet-standing' });
-    expect(recipe.scenario).toBe('');
+    // "Drop, standing" at 0 m, where the reference stand, which named no scenario, stood the body.
+    expect(recipe.scenario).toBe('drop-standing-collapse');
+    expect(recipe.parameters).toEqual({ clearance: 0 });
     const options = rigOptionsFor(
-      {
-        ...recipe,
-        scenario: 'drop-standing-collapse',
-        parameters: { clearance: 0 },
-        passive: false,
-      },
+      { ...recipe, scenario: 'tilting-floor', parameters: { seed: 3 }, passive: false },
       { hidden: [8], seconds: 2, poseBones: true },
     );
-    expect(options.scenario).toEqual({
-      id: 'drop-standing-collapse',
-      parameters: { clearance: 0 },
-    });
+    expect(options.scenario).toEqual({ id: 'tilting-floor', parameters: { seed: 3 } });
     expect(options.passiveJoints).toBe(false);
     expect(options.poseBones).toBe(true);
     expect(options.profileId).toBe('l1_standard');
-    expect(rigOptionsFor(recipe, { hidden: [8], seconds: 2 }).scenario).toBeUndefined();
+    expect(rigOptionsFor(recipe, { hidden: [8], seconds: 2 }).scenario).toEqual({
+      id: 'drop-standing-collapse',
+      parameters: { clearance: 0 },
+    });
   });
 });
 
 describe('a rig built from a scenario with the brain alone', () => {
-  it('stands the chosen body on the ground with every muscle slack, and plays a script only when asked', async () => {
+  it('stands the chosen body on the ground with every muscle slack, and plays a clip only when asked', async () => {
     const rig = await StandRig.build({
       profileId: 'l1_standard',
       hidden: [8],
@@ -63,16 +55,18 @@ describe('a rig built from a scenario with the brain alone', () => {
     expect(first.headHeight).toBeGreaterThan(1.3);
     expect(first.headHeight).toBeLessThan(1.6);
 
-    // The scenario's own muscle script drives nothing with the brain alone; asked for, it does.
-    const quiet = async (kind: 'none' | 'script') => {
+    // Nothing plays under the brain alone; the standing clip, asked for, tones the muscles. (This
+    // asked for the scenario's own muscle script until 2026-09-28, when the scenarios that had one
+    // were deleted; the clip is the feedforward that is left.)
+    const quiet = async (kind: 'none' | 'clip') => {
       const r = await StandRig.build({
         profileId: 'l1_standard',
         hidden: [8],
         seconds: 1,
         authority: 0.3,
-        feedforward: kind === 'script' ? { kind: 'script' } : { kind: 'none' },
-        scenario: { id: 'quiet-standing', parameters: { settle: 0 } },
-        // Silent, because what is measured here is the script gate and nothing else. A body
+        feedforward: kind === 'clip' ? { kind: 'clip', clip: 'quiet-standing' } : { kind: 'none' },
+        // No scenario named: the default one, "Drop, standing" at 0 m.
+        // Silent, because what is measured here is the feedforward gate and nothing else. A body
         // with its tremor on is not slack: a muscle cannot be pushed below rest, so a zero-mean
         // wander on a resting muscle comes out as a small tone. That is the muscles, not a bug,
         // and it is measured where it belongs, over in the noise tests.
@@ -89,10 +83,10 @@ describe('a rig built from a scenario with the brain alone', () => {
       r.dispose();
       return activation;
     };
-    // Not zero: the muscle model keeps a floor of activation; the script's tone is well above it.
+    // Not zero: the muscle model keeps a floor of activation; the clip's tone is well above it.
     const alone = await quiet('none');
     expect(alone).toBeLessThan(0.2);
-    expect(await quiet('script')).toBeGreaterThan(alone * 3);
+    expect(await quiet('clip')).toBeGreaterThan(alone * 3);
   }, 120_000);
 });
 

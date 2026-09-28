@@ -10,6 +10,12 @@ motivated it.
 The script writes only between the `bench:start` and `bench:end` markers below, and refuses to
 run if they are missing. Everything outside them is written by hand and kept as it is.
 
+2026-09-28: the `quiet-standing` and `clip-flail-arms` rows below are two of the seven scenarios
+the owner deleted that day, because scenarios no longer drive muscles. `pnpm bench` times the
+tilting floor in their place -- the one scenario left that carries the muscle set -- so the next
+run replaces both rows with a `tilting-floor` one; until then the region is the last measurement
+taken with them.
+
 <!-- bench:start -->
 
 Generated 2026-09-27 on linux-x64, Node v22.22.2.
@@ -155,8 +161,9 @@ time; compare rows within one run rather than across runs.
 
 Written 2026-09-27 by hand, not by `pnpm bench`, as the first answer to the studio running L3 at
 about 0.07x life speed and 1.5 frames a second. It measures the studio's own `Simulation` class,
-captures and all, which the bench's Studio row does not: the scenario the studio opens on
-(`quiet-standing`) at L3, 1000 Hz, with the muscles, the recipe module's default cord and the
+captures and all, which the bench's Studio row does not: the scenario the studio opened on then
+(`quiet-standing`, which it no longer opens on since 2026-09-27 and which was deleted on
+2026-09-28) at L3, 1000 Hz, with the muscles, the recipe module's default cord and the
 default 60 fps output, driven the way the frame loop drives it -- `advance` once a rendered frame,
 16.67 ticks each. After twenty warm-up frames, 180 frames (3000 ticks, three simulated seconds)
 were timed; five runs of each, the two versions alternating, Node v22.22.2 on linux-x64 with a

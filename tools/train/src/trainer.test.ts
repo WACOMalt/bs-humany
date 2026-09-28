@@ -19,7 +19,7 @@ import {
   DEFAULT_REFLEX,
   NO_REFLEX,
   type TrainingRecipe,
-  referenceStandRecipe,
+  clipStandRecipe,
 } from './rig.js';
 import {
   type CheckpointStore,
@@ -119,7 +119,7 @@ class MemoryStore implements CheckpointStore {
   }
 }
 
-const RECIPE: TrainingRecipe = referenceStandRecipe('stand', 'l3_anatomical', 0.3);
+const RECIPE: TrainingRecipe = clipStandRecipe('stand', 'l3_anatomical', 0.3);
 
 function options(
   pool: EpisodePool,
@@ -656,13 +656,26 @@ describe('recipeDifferences', () => {
       parameters: { height: 1 },
       authority: 1,
     };
+    // RECIPE is the clip stand, in "Drop, standing" at 0 m since 2026-09-28 (it named no scenario
+    // before), so its own drop height is one of the leaves that differ.
     const list = recipeDifferences(was, RECIPE);
-    expect(list.map((d) => d.field)).toEqual(['scenario', 'parameters.height', 'authority']);
-    const titles: Record<string, string> = { drop: 'Drop and collapse' };
+    expect(list.map((d) => d.field)).toEqual([
+      'scenario',
+      'parameters.clearance',
+      'parameters.height',
+      'authority',
+    ]);
+    const titles: Record<string, string> = {
+      drop: 'Drop and collapse',
+      'drop-standing-collapse': 'Drop, standing',
+    };
     const text = describeDifferences(list, (id) => titles[id] ?? id);
-    expect(text).toContain('in the reference stand (was Drop and collapse)');
+    expect(text).toContain('in Drop, standing (was Drop and collapse)');
     expect(text).toContain('parameters.height unset (was 1.00)');
+    expect(text).toContain('parameters.clearance 0.00 (was unset)');
     expect(text).toContain('authority 0.30 (was 1.00)');
+    // A checkpoint from before, which named no scenario, is the same world as the clip stand now.
+    expect(recipeDifferences({ ...RECIPE, scenario: '', parameters: {} }, RECIPE)).toEqual([]);
   });
 
   it('words a changed profile as the fitting a resume does', () => {

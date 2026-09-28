@@ -14,10 +14,11 @@
  * which nobody else had; this is the measurement, tracked, and it prints the page's tables.
  *
  * Every number is a `StandRig` -- the trainer's own body, built by `rigOptionsFor` from the
- * reference stand's recipe (`referenceStandRecipe`), so the noise, the clip under the brain and
- * the authority are training's own -- with the cord set to `DEFAULT_REFLEX` and the one number a
- * row is about changed. A rig is built per setting, because the rig settles its body with the cord
- * it was given before it takes the snapshot every episode starts from. "Trained" is the shipped
+ * clip stand's recipe (`clipStandRecipe`, the "reference stand" before 2026-09-28), so the noise,
+ * the clip under the brain and the authority are training's own -- with the cord set to
+ * `DEFAULT_REFLEX` and the one number a row is about changed. A rig is built per setting, because
+ * the rig settles its body with the cord it was given before it takes the snapshot every episode
+ * starts from. "Trained" is the shipped
  * policy, `packages/modules-nerves/policies/balance.json`, fitted to this body by the names of its
  * senses and drives with `MlpPolicy.fit`; "silent" is the same network with every weight zero, so
  * what stands is the body, the clip and the cord. Seconds upright and fitness are the means of
@@ -102,7 +103,7 @@ const {
   DEFAULT_AUTHORITY,
   NO_REFLEX,
   REFLEX_REGIONS,
-  referenceStandRecipe,
+  clipStandRecipe,
   rigOptionsFor,
 } = await jiti.import(join(ROOT, 'tools/train/src/rig.ts'));
 const { MlpPolicy } = await jiti.import(join(ROOT, 'packages/modules-nerves/src/index.ts'));
@@ -111,8 +112,12 @@ const { MUSCLE_STATE } = await jiti.import(join(ROOT, 'packages/modules-muscle/s
 const POLICY = JSON.parse(
   readFileSync(join(ROOT, 'packages/modules-nerves/policies/balance.json'), 'utf8'),
 );
-/** The reference stand the trainer runs without a recipe, on the body the policy was trained on. */
-const RECIPE = referenceStandRecipe('stand', 'l3_anatomical', DEFAULT_AUTHORITY);
+/**
+ * The clip stand, on the body the policy was trained on: "Drop, standing" at 0 m with the
+ * quiet-standing activation clip under the brain. It was the "reference stand", which named no
+ * scenario, until 2026-09-28; the body is where that put it, so the tables still reproduce.
+ */
+const RECIPE = clipStandRecipe('stand', 'l3_anatomical', DEFAULT_AUTHORITY);
 
 /**
  * The cord every row starts from, trained and silent: the defaults with the damper at a half.

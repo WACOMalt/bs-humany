@@ -30,7 +30,12 @@ import {
   compareCord,
   summariseDifferences,
 } from '@bs-humany/modules-nerves';
-import { type NervesSetup, SCENARIO_DEFINITIONS } from '@bs-humany/scenarios';
+import {
+  DEFAULT_SCENARIO,
+  type NervesSetup,
+  RETIRED_SCENARIOS,
+  SCENARIO_DEFINITIONS,
+} from '@bs-humany/scenarios';
 // The trainer's recipe module and nothing else of the trainer's, for the defaults and the rules:
 // it imports nothing that runs, so it adds no body to the main thread.
 import {
@@ -40,6 +45,7 @@ import {
   DEFAULT_REFLEX,
   REFLEX_REGIONS,
   SEARCH_DEFAULTS,
+  type TrainingRecipe as TrainerRecipe,
   UI_RUN_DEFAULTS,
   describeStretch,
   isTask,
@@ -232,10 +238,10 @@ export interface BrainHost {
    * about the body rather than guessing.
    *
    * `trainedRate` is the step rate the policy in the loop was trained at, when its file says, and
-   * `rate` the one the running body steps at; `scriptDrives` is whether the scenario's script is
-   * feeding muscles under it (`Simulation.scriptDrivingMuscles`). All three are about the policy
-   * actually in the loop, not the one chosen in the list, and a host that leaves any of them out
-   * leaves the panel silent about it.
+   * `rate` the one the running body steps at. Both are about the policy actually in the loop, not
+   * the one chosen in the list, and a host that leaves either out leaves the panel silent about
+   * it. (A third, whether the scenario's script fed muscles under it, went on 2026-09-28 with the
+   * scenarios that had a script to feed them.)
    */
   fit():
     | {
@@ -244,7 +250,6 @@ export interface BrainHost {
         outputs: number;
         trainedRate?: number | undefined;
         rate?: number | undefined;
-        scriptDrives?: boolean | undefined;
       }
     | undefined;
   /** Whether the run is currently following the bridge rather than its own. */
@@ -811,10 +816,15 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   }
   showSpine();
 
+  /**
+   * A recipe's scenario by its title. Empty is a checkpoint from before 2026-09-28 that named no
+   * scenario -- the body on the ground, which is "Drop, standing" at 0 m, and was called the
+   * reference stand -- and a scenario deleted that day is named as gone rather than passed off as
+   * one to choose.
+   */
   const scenarioTitle = (id: string) =>
-    id === ''
-      ? 'the reference stand'
-      : (SCENARIO_DEFINITIONS.find((d) => d.id === id)?.title ?? id);
+    SCENARIO_DEFINITIONS.find((d) => d.id === (id || DEFAULT_SCENARIO))?.title ??
+    (RETIRED_SCENARIOS.includes(id) ? `${id} (deleted)` : id);
   const describe = (row: CheckpointRow): string => {
     const t = row.trained;
     const where = row.profile ? row.profile.replace(/_.*/, '').toUpperCase() : 'body unknown';
@@ -834,7 +844,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
   };
 
   /** What Start would train: the tabs as they are and the form as it is, in the recipe's shape. */
-  const formRecipe = (): TrainingRecipe =>
+  const formRecipe = (): TrainerRecipe =>
     buildRecipe(host.recipe(), {
       name: ui.name.value,
       task: ui.task.value,
@@ -861,7 +871,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * checked by the server and not by the window, whose run trained whatever the box said, or the
    * task's name when the box was empty.
    */
-  const recipeFromUi = (): { readonly recipe: TrainingRecipe } | { readonly error: string } => {
+  const recipeFromUi = (): { readonly recipe: TrainerRecipe } | { readonly error: string } => {
     const recipe = formRecipe();
     const verdict = verdictOf(recipe);
     return nameAllowsStart(verdict.verdict)
@@ -1144,7 +1154,9 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     name: checkpointNameOf(row) ?? recipe.name,
     nameTouched: true,
     task: scorable(recipe.task) ? recipe.task : ui.task.value,
-    feedforward: recipe.feedforward.kind,
+    // The form's two choices. A checkpoint trained over "the scenario's own muscle script", which
+    // the form offered until 2026-09-28, is set up with nothing under it, as it now runs.
+    feedforward: recipe.feedforward.kind === 'clip' ? 'clip' : 'none',
     noiseMotor: String(recipe.noise?.motor ?? DEFAULT_NOISE.motor),
     noiseSense: String(recipe.noise?.sense ?? DEFAULT_NOISE.sense),
     memory: String(recipe.memory ?? 0),
@@ -1284,13 +1296,6 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
         ? ` It shipped with the studio, trained before ${handedRow.trainedBefore}; its fitness was scored in that body.`
         : '';
     const body = trainedBodyLine(fit.carried.body);
-    // A checkpoint trained with nothing under the brain runs with nothing under it: the host has
-    // stopped the scenario's tone, and the body standing less well than it did a moment ago is
-    // that rather than the policy failing.
-    const tone =
-      fit.scriptDrives === false
-        ? " The scenario's muscle tone is off: this checkpoint learnt with nothing under it."
-        : '';
     // The control period follows the policy on a hand-over; the timestep cannot, so a policy
     // handed into a run at another rate is evaluated as often as it was trained to be, on contacts
     // and muscle dynamics stepped differently from the ones it learnt on.
@@ -1303,7 +1308,6 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
       `In the loop: ${fit.carried.inputs} of ${fit.inputs} senses and ` +
       `${fit.carried.outputs} of ${fit.outputs} drives carried from the checkpoint.${shipped}` +
       (body ? ` ${body.line}` : '') +
-      tone +
       rate;
     ui.fitNote.title = body?.title ?? '';
   };
@@ -1678,7 +1682,7 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
    * Train in this window: no fetch, no server, nothing spawned. `recipe` is the one the resolver
    * gave, whose name has passed the rule; what is checked here is what only the store can say.
    */
-  async function startTrainingHere(recipe: TrainingRecipe): Promise<void> {
+  async function startTrainingHere(recipe: TrainerRecipe): Promise<void> {
     if (localRun) return;
     const wanted = recipe.name;
     // The same rules the server keeps, asked of the store itself rather than of the list, which

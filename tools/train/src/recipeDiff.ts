@@ -14,6 +14,8 @@
  */
 
 import {
+  DEFAULT_BEHAVIOUR_PARAMETERS,
+  DEFAULT_BEHAVIOUR_SCENARIO,
   DEFAULT_NOISE,
   NO_REFLEX,
   type ReflexLevels,
@@ -70,6 +72,7 @@ const SECTIONS = [
 /** What plays under the brain, as one value, so a changed clip is one difference and not two. */
 function feedforwardOf(f: ComparableRecipe['feedforward']): string {
   if (f.kind === 'clip') return `the ${f.clip ?? 'unnamed'} clip`;
+  // What a checkpoint from before 2026-09-28 may have been trained over; nothing offers it now.
   if (f.kind === 'script') return "the scenario's script";
   return 'nothing';
 }
@@ -88,13 +91,15 @@ function flatten(value: unknown, path: string, into: Map<string, Leaf>): void {
  * cord or the memory means what the rig means by omitting them -- the default noise, no cord and
  * no memory, as the checkpoints from before each of those were trained -- so they are filled in
  * the same way here, and an old checkpoint resumed under the defaults it was trained in shows
- * no difference.
+ * no difference. So is an empty scenario, which is the body on the ground that "Drop, standing"
+ * places at 0 m, and was the "reference stand" until 2026-09-28: the same world under its name.
  */
 function worldOf(recipe: ComparableRecipe, byRegion: boolean): Map<string, Leaf> {
   const leaves = new Map<string, Leaf>();
+  const bare = recipe.scenario === '';
   leaves.set('task', recipe.task);
-  leaves.set('scenario', recipe.scenario);
-  flatten(recipe.parameters ?? {}, 'parameters', leaves);
+  leaves.set('scenario', bare ? DEFAULT_BEHAVIOUR_SCENARIO : recipe.scenario);
+  flatten(bare ? DEFAULT_BEHAVIOUR_PARAMETERS : (recipe.parameters ?? {}), 'parameters', leaves);
   leaves.set('profile', recipe.profile);
   flatten(recipe.morphology ?? {}, 'morphology', leaves);
   leaves.set('passive', recipe.passive);
@@ -167,13 +172,13 @@ function profileName(id: Leaf): string {
 }
 
 function scenarioName(id: Leaf, names?: (id: string) => string): string {
-  if (id === '' || id === undefined) return 'the reference stand';
+  if (id === '' || id === undefined) return 'no scenario';
   return names ? names(String(id)) : String(id);
 }
 
 /**
- * The differences in words, for a note or a panel: `authority 0.30 (was 1.00), in Standing
- * quietly (was the reference stand)`. A changed profile is worded as what a resume does about
+ * The differences in words, for a note or a panel: `authority 0.30 (was 1.00), in Tilting floor
+ * (was Drop, standing)`. A changed profile is worded as what a resume does about
  * it -- the policy is fitted from the coarser body onto this one -- rather than as a setting.
  * `scenarioNames` turns a scenario id into its title where the caller knows the titles.
  */

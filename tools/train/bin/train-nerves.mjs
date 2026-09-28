@@ -18,8 +18,10 @@
  * with no value are refused before anything starts.
  *
  * A recipe names the checkpoint and says what it is trained in: the scenario and its parameter
- * values, the body, whether the joints resist, and what plays under the brain -- nothing, the
- * scenario's own muscle script, or an activation clip. The dashboard writes one from the
+ * values, the body, whether the joints resist, and what plays under the brain -- nothing, or an
+ * activation clip. A recipe from before 2026-09-28 that names a scenario deleted then, or the
+ * scenario's own muscle script under the brain, trains in what stands in for each (the default
+ * scenario at 0 m, and nothing), with a line saying so. The dashboard writes one from the
  * studio's Brain tab, as `<data>/runs/<name>-recipe.json`; without one, the flags describe the
  * default behaviour (`behaviourRecipe` in the recipe module): the reference body let go standing
  * on the ground in "Drop, standing" at 0 m, nothing under the brain, the measured cord and eight
@@ -93,6 +95,7 @@ const {
   rigOptionsFor,
   behaviourRecipe,
   checkRecipe,
+  upgradeRecipe,
   reflexWithFlags,
   cordIsOff,
   describeStretch,
@@ -238,6 +241,16 @@ if (flags.recipe !== undefined) {
   recipe = behaviourRecipe(flags.task, flags.profile, flags.authority);
   cordSource = 'default';
 }
+// A recipe file or a checkpoint's own recipe may be older than the scenarios it names: one of the
+// seven deleted on 2026-09-28, or the scenario's own muscle script under the brain. It trains in
+// what stands in for each, and each is said once, before anything starts -- on stderr with
+// --print-recipe, so the recipe printed is still a file. An empty scenario is read as the default
+// one silently, because that is the same body.
+{
+  const upgraded = upgradeRecipe(recipe);
+  recipe = { ...upgraded.recipe };
+  for (const note of upgraded.notes) say(`train-nerves: ${note}`);
+}
 
 // The noise, overridable from the command line whichever way the recipe arrived: a run that
 // wants a silent body for a comparison says `--noise 0 --sense-noise 0`. Any one of the three
@@ -330,18 +343,14 @@ const centrePath = runFile(name, 'centre');
 const options = rigOptionsFor(recipe, { hidden, seconds });
 
 const under =
-  recipe.feedforward.kind === 'clip'
-    ? `the ${recipe.feedforward.clip} clip`
-    : recipe.feedforward.kind === 'script'
-      ? "the scenario's script"
-      : 'nothing';
+  recipe.feedforward.kind === 'clip' ? `the ${recipe.feedforward.clip} clip` : 'nothing';
 
 console.log(
   `training ${name} (${task}): ${generations} generations, population ${population} x ${seedsPerCandidate} seeds, ` +
     `${seconds} s episodes on ${profileId}, ${workers} workers${resume ? ', resuming' : force && existsSync(out) ? ', replacing the checkpoint' : ''}`,
 );
 console.log(
-  `  in ${recipe.scenario || 'the reference stand'}${
+  `  in ${recipe.scenario}${
     Object.keys(recipe.parameters ?? {}).length ? ` ${JSON.stringify(recipe.parameters)}` : ''
   }, ${under} under the brain, authority ${recipe.authority}`,
 );

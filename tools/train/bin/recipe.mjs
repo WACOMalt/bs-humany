@@ -37,6 +37,7 @@ const {
   REFLEX_FIELDS,
   REFLEX_LIMITS,
   REFLEX_REGIONS,
+  RETIRED_SCENARIOS,
   SEARCH_DEFAULTS: searchDefaults,
   TASKS,
   UI_RUN_DEFAULTS: uiRunDefaults,
@@ -65,9 +66,17 @@ const numberIn = (v) =>
  * the run will use, as `{ field, asked, used }`; or `{ status: 400, error }` for a request that
  * names no checkpoint or no task the rig can score. A field the request leaves out takes its
  * default silently, because nothing was asked -- the default behaviour's (`DEFAULT_BEHAVIOUR`):
- * the task `balance`, "Drop, standing" at 0 m, and its memory. A scenario sent empty is the
- * reference stand, as it always was; only a request that sends no scenario at all gets the
- * default one, with its parameters unless the request sends its own.
+ * the task `balance`, "Drop, standing" at 0 m, and its memory. A request that sends no scenario at
+ * all gets the default one, with its parameters unless the request sends its own. One sent empty
+ * gets it at its defaults: empty was the "reference stand", the body on the ground with nothing
+ * round it, which is the body "Drop, standing" places at 0 m, so nothing about the run changes
+ * and nothing is said.
+ *
+ * Two things a request may still send have gone, and each is replaced and listed in `clamped`, as
+ * a value out of range is: a scenario deleted on 2026-09-28 (`RETIRED_SCENARIOS`) becomes the
+ * default one at its defaults, and "the scenario's own muscle script" under the brain, which went
+ * with them, becomes nothing. The studio has offered neither since, but a page left open, or a
+ * request somebody wrote, may still send them.
  *
  * The cord is the one field whose absence means something other than its default. A recipe with no
  * `reflex` is a body with no cord -- that is how `rigOptionsFor` has always read one, and how every
@@ -116,17 +125,16 @@ export function recipeFrom(body) {
     for (const [k, v] of Object.entries(r.morphology.proportions))
       if (/^\w{1,40}$/.test(k) && Number.isFinite(Number(v))) proportions[k] = Number(v);
   const kind = r.feedforward?.kind;
+  if (kind === 'script') clamped.push({ field: 'feedforward.kind', asked: 'script', used: 'none' });
   const feedforward =
-    kind === 'script'
-      ? { kind: 'script' }
-      : kind === 'clip'
-        ? {
-            kind: 'clip',
-            clip: /^[\w-]{1,40}$/.test(String(r.feedforward.clip))
-              ? String(r.feedforward.clip)
-              : 'quiet-standing',
-          }
-        : { kind: 'none' };
+    kind === 'clip'
+      ? {
+          kind: 'clip',
+          clip: /^[\w-]{1,40}$/.test(String(r.feedforward.clip))
+            ? String(r.feedforward.clip)
+            : 'quiet-standing',
+        }
+      : { kind: 'none' };
   const profile = PROFILES.includes(r.profile) ? r.profile : DEFAULT_PROFILE;
   if (r.profile !== undefined && profile !== r.profile) {
     clamped.push({ field: 'profile', asked: r.profile, used: profile });
@@ -170,18 +178,17 @@ export function recipeFrom(body) {
     }
     if (Object.keys(regionStretch).length > 0) reflex.regionStretch = regionStretch;
   }
-  const scenario =
-    r.scenario === undefined
-      ? DEFAULT_BEHAVIOUR.scenario
-      : typeof r.scenario === 'string' && /^[\w-]{0,40}$/.test(r.scenario)
-        ? r.scenario
-        : '';
+  const sent = typeof r.scenario === 'string' && /^[\w-]{0,40}$/.test(r.scenario) ? r.scenario : '';
+  const retired = RETIRED_SCENARIOS.includes(sent);
+  if (retired) clamped.push({ field: 'scenario', asked: sent, used: DEFAULT_BEHAVIOUR.scenario });
+  const scenario = sent === '' || retired ? DEFAULT_BEHAVIOUR.scenario : sent;
   const recipe = {
     name,
     task,
     scenario,
     parameters:
-      r.scenario === undefined && r.parameters === undefined
+      (r.scenario === undefined && r.parameters === undefined) ||
+      (r.scenario !== undefined && scenario !== sent)
         ? { ...DEFAULT_BEHAVIOUR.parameters }
         : parameters,
     profile,

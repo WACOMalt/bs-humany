@@ -8,8 +8,8 @@ import { type RunSettings, pendingChanges } from './pending.js';
 
 const BUILT: RunSettings = {
   profile: 'l3_anatomical',
-  scenario: 'quiet-standing',
-  scenarioParameters: { height: 0.2 },
+  scenario: 'drop-standing-collapse',
+  scenarioParameters: { clearance: 0.2 },
   passive: true,
   redistribute: true,
   muscles: true,
@@ -19,7 +19,7 @@ const BUILT: RunSettings = {
 
 describe('pendingChanges', () => {
   it('lists nothing when the settings are the ones the run was built with', () => {
-    expect(pendingChanges(BUILT, { ...BUILT, scenarioParameters: { height: 0.2 } })).toEqual([]);
+    expect(pendingChanges(BUILT, { ...BUILT, scenarioParameters: { clearance: 0.2 } })).toEqual([]);
   });
 
   it('names a change of profile', () => {
@@ -46,7 +46,7 @@ describe('pendingChanges', () => {
     expect(
       pendingChanges(BUILT, { ...BUILT, scenario: 'free-hang', scenarioParameters: {} }),
     ).toEqual(['Scenario']);
-    expect(pendingChanges(BUILT, { ...BUILT, scenarioParameters: { height: 0.4 } })).toEqual([
+    expect(pendingChanges(BUILT, { ...BUILT, scenarioParameters: { clearance: 0.4 } })).toEqual([
       'Scenario settings',
     ]);
   });

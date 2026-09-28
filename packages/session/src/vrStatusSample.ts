@@ -40,9 +40,9 @@ export const PANEL_STATUS_SAMPLE = {
   },
   scenarios: [
     {
-      id: 'quiet-standing',
-      title: 'Standing quietly',
-      description: 'The rest pose on the ground with the muscles at postural tone.',
+      id: 'tilting-floor',
+      title: 'Tilting floor',
+      description: 'The rest pose on a floor that pitches and rolls under it in small pulses.',
     },
     {
       id: 'drop-standing-collapse',

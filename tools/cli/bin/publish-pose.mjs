@@ -3,7 +3,7 @@
  * Run a scenario headlessly and publish its body pose for a renderer to pick up.
  *
  *   pnpm publish:pose                       # the default scenario, 144 poses a second
- *   pnpm publish:pose quiet-standing --fps 90 --profile l3_anatomical --seconds 30
+ *   pnpm publish:pose tilting-floor --fps 90 --profile l3_anatomical --seconds 30
  *
  * This is the simulation end of ADR-012. It ticks the simulation at its own pace -- life speed
  * when the machine can manage it, slower when it cannot -- and writes a pose to the bridge every
@@ -98,10 +98,16 @@ const {
   DEFAULT_SCENARIO,
   MUSCLE_GROUPS,
   applyDriveSliders,
+  replacementFor,
   CONTROL_RANGES,
   isControlKey,
   snapToControl,
 } = await jiti.import(join(ROOT, 'packages/scenarios/src/index.ts'));
+// A scenario named on the command line that was deleted on 2026-09-28 -- a script or a note
+// written before then -- runs the default one in its place, and says so once, rather than
+// stopping at a name nobody can choose any more.
+const standIn = scenarioArg ? replacementFor(scenarioArg) : undefined;
+if (standIn) console.log(`publish-pose: ${standIn.note}`);
 const {
   openPoseBridge,
   openMuscleBridge,
@@ -138,7 +144,7 @@ const PROFILE_IDS = PROFILES.map((p) => p.id);
  * `clearance` parameter, set with `scenario.clearance` like its others.
  */
 const settings = {
-  scenario: scenarioArg ?? DEFAULT_SCENARIO,
+  scenario: standIn?.id ?? scenarioArg ?? DEFAULT_SCENARIO,
   profile: profileId,
   muscles: null, // rebuild; null = as the scenario says
   sex: null, // rebuild, the morphology
@@ -207,7 +213,7 @@ async function build() {
     // the body, so this is not read; it is given the scenario's rather than a number of its own.
     dropHeight: chosen.clearance,
     groundHeight: chosen.ground.height,
-    // As the studio does: a scenario that drives muscles gets them whatever the box says.
+    // As the studio does: a scenario that asks for muscles gets them whatever the box says.
     muscles:
       settings.muscles === null
         ? chosen.muscles === true

@@ -55,11 +55,6 @@ export interface ScenarioApiParts {
   readonly position: ArrayLike<number>;
   /** A hand to grab with. Without one, `grab`, `moveGrab` and `release` do nothing. */
   readonly grab?: ScenarioGrab | undefined;
-  /**
-   * Where a script's muscle drive goes. Without it `drive` does nothing, which is what a run
-   * without muscles does: a script may ask without checking first.
-   */
-  readonly drive?: ((unit: string, level: number) => void) | undefined;
   /** Put a box of the scenery where the script asks, in the solver. */
   readonly moveStaticBox: (id: string, position: Vec3, rotation: Quat) => void;
   /** The runner's own copy of the scenery, to keep in step with the solver. */
@@ -82,7 +77,7 @@ function samePose(box: StaticBox, position: Vec3, rotation: Quat): boolean {
 
 /** A script's API over whatever the runner passes; see `ScenarioApiParts` for each part. */
 export function createScenarioApi(parts: ScenarioApiParts): ScenarioApi {
-  const { position, grab, drive, moveStaticBox, scenery } = parts;
+  const { position, grab, moveStaticBox, scenery } = parts;
   const index = new Map(parts.segmentIds.map((id, i) => [id, i]));
   return {
     segment: (id) => index.get(id) ?? -1,
@@ -94,7 +89,6 @@ export function createScenarioApi(parts: ScenarioApiParts): ScenarioApi {
     grab: (segment, local, target) => grab?.grab(segment, local, target),
     moveGrab: (target) => grab?.moveTo(target),
     release: () => grab?.release(),
-    drive: (unit, level) => drive?.(unit, level),
     moveStaticBox: (id, at, rotation) => {
       if (scenery) {
         const boxes = scenery.boxes;

@@ -16,11 +16,13 @@
  *   each profile and at that profile's own solver rate. It used to build its own kernel and lift
  *   the body by hand, which made it a fourth copy of the scenario assembly and one that nothing
  *   else ran; the runner is the copy the goldens and the plausibility suite use.
- * - Full body: the runner again on the two L3 muscle scenarios, and the training rig
- *   (`StandRig`) with the recipe module's default cord, with and without the posed bones and the
- *   swept bellies. Without them it is what the trainer and the dashboard run; with them it is
- *   what the studio and the showcase run. The rig is built from its own code rather than copied,
- *   so this is not a third hand-written registration list that can drift from the other two.
+ * - Full body: the runner again on the tilting floor, the one scenario that carries the muscle
+ *   set since the seven that drove muscles were deleted (2026-09-28; the rows were quiet standing
+ *   and the flailing clip before that), and the training rig (`StandRig`) with the recipe
+ *   module's default cord, with and without the posed bones and the swept bellies. Without them
+ *   it is what the trainer and the dashboard run; with them it is what the studio and the
+ *   showcase run. The rig is built from its own code rather than copied, so this is not a third
+ *   hand-written registration list that can drift from the other two.
  * - Where the time goes: every module's own `step`, timed inside every tick of every full-body
  *   row, so the breakdown is of the same run as the whole-tick figure beside it.
  * - Recompile and restore (M5.6, spec 14.5 item 9).
@@ -85,7 +87,7 @@ const { scenario, SCENARIO_DEFINITIONS } = await jiti.import(
 const dropStanding = () =>
   SCENARIO_DEFINITIONS.find((d) => d.id === 'drop-standing-collapse').build({ clearance: 0.3 });
 const { runScenario } = await jiti.import(join(ROOT, 'packages/testkit/src/index.ts'));
-const { StandRig, referenceStandRecipe, rigOptionsFor, DEFAULT_AUTHORITY } = await jiti.import(
+const { StandRig, clipStandRecipe, rigOptionsFor, DEFAULT_AUTHORITY } = await jiti.import(
   join(ROOT, 'tools/train/src/rig.ts'),
 );
 
@@ -177,7 +179,7 @@ async function runnerRow(label, built) {
 // The first body built in a process pays for loading MuJoCo's wasm and for the JIT's first look
 // at every module; a short throwaway run of each kind puts that cost where no row sees it.
 await runScenario(new MujocoBackend(), dropStanding(), { maxTicks: 200 });
-await runScenario(new MujocoBackend(), scenario('quiet-standing'), { maxTicks: 200 });
+await runScenario(new MujocoBackend(), scenario('tilting-floor'), { maxTicks: 200 });
 
 const skeletonRows = [];
 for (const profileId of PROFILES) {
@@ -198,12 +200,13 @@ for (const profileId of PROFILES) {
 const SECONDS = 2;
 
 /**
- * The rig as the trainer or the studio builds it, from the recipe module's reference stand
- * (`referenceStandRecipe`) -- which carries the measured cord, `DEFAULT_REFLEX`, and the
- * quiet-standing clip under the brain -- so the cord here is the one every run gets unless it asks
- * for another (owner decision of 2026-09-26: the measured cord everywhere). The reference stand
- * rather than the default behaviour, because it is what these rows have always timed; the clip
- * costs the tick almost nothing either way.
+ * The rig as the trainer or the studio builds it, from the recipe module's clip stand
+ * (`clipStandRecipe`: "Drop, standing" at 0 m, which is where the "reference stand" stood the body
+ * before 2026-09-28) -- which carries the measured cord, `DEFAULT_REFLEX`, and the quiet-standing
+ * activation clip under the brain -- so the cord here is the one every run gets unless it asks for
+ * another (owner decision of 2026-09-26: the measured cord everywhere). The clip stand rather than
+ * the default behaviour, because it is what these rows have always timed; the clip costs the tick
+ * almost nothing either way.
  *
  * The weights are zero, which is the studio's brain before one is handed over: the policy is
  * evaluated at its control rate like a trained one, so it costs what a trained one costs, but it
@@ -211,7 +214,7 @@ const SECONDS = 2;
  */
 async function rigRow(label, profileId, poseBones) {
   freshSlots();
-  const recipe = referenceStandRecipe('stand', profileId, DEFAULT_AUTHORITY);
+  const recipe = clipStandRecipe('stand', profileId, DEFAULT_AUTHORITY);
   const rig = await StandRig.build(
     rigOptionsFor(recipe, { hidden: [32, 32], seconds: SECONDS, poseBones }),
   );
@@ -246,8 +249,7 @@ const report = (row) => {
 };
 report(await rigRow('Studio', 'l3_anatomical', true));
 report(await rigRow('Trainer', 'l3_anatomical', false));
-report(await runnerRow('quiet-standing', scenario('quiet-standing')));
-report(await runnerRow('clip-flail-arms', scenario('clip-flail-arms')));
+report(await runnerRow('tilting-floor', scenario('tilting-floor')));
 report(await rigRow('Studio', 'l2_biomechanical', true));
 report(await rigRow('Studio', 'l1_standard', true));
 
@@ -340,7 +342,8 @@ const lines = [
   '`Studio` is the training rig with the bones posed and the bellies swept, as the studio and the',
   'showcase run it; `Trainer` is the same rig without them, as training and the dashboard run it.',
   "Both carry the recipe module's default cord and a zero policy under the quiet-standing clip.",
-  "The two scenario rows are the golden runner: muscles and the scenario's own script, no cord.",
+  'The scenario row is the golden runner on the tilting floor: the muscle set, slack, under a',
+  'moving platform, with no cord and nothing driving it.',
   '',
   '| Body | Profile | Rate (Hz) | Bodies | nv | Ticks | ms / tick | Real time |',
   '|---|---|---|---|---|---|---|---|',

@@ -66,7 +66,8 @@ Fixed, the length afferent is `fiberLength - 1`, and this is what the body actua
 | three seconds into a collapse | -0.437 | -0.136 | 0.147 | 0.324 |
 
 This and the next table are read with no cord at all, so they are the body's and neither cord's.
-The collapse is the script's: the reference stand, silent, no cord, seed 1.
+The collapse is the script's: the reference stand, silent, no cord, seed 1. (The reference stand
+is the clip stand since 2026-09-28, `clipStandRecipe`: the same body in "Drop, standing" at 0 m.)
 
 ## The set point, which decides whether it is a reflex at all
 

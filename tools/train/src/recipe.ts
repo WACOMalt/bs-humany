@@ -92,13 +92,16 @@ export const AUTHORITY_LIMIT: Limit = { min: 0, max: 1 };
 // The loop: what plays under the brain, how noisy it is, and the cord
 
 /**
- * What drives the muscles under the brain: a clip by id, the scenario's own script, or nothing.
- * The scenario's script always runs for what it does to the world -- a floor that tilts, a hand
- * that grabs -- and only its muscle drive is gated by this.
+ * What drives the muscles under the brain: an activation clip by id, or nothing. The scenario's
+ * script always runs for what it does to the world -- a floor that tilts, a hand that grabs --
+ * and drives no muscle.
+ *
+ * There was a third kind, `{kind: 'script'}`, "the scenario's own muscle script", for the
+ * scenarios that drove muscles. They were deleted on 2026-09-28, which left it nothing to play; a
+ * file that still says it reads as `none`, and says so (`upgradeRecipe`).
  */
 export type Feedforward =
   | { readonly kind: 'clip'; readonly clip: string }
-  | { readonly kind: 'script' }
   | { readonly kind: 'none' };
 
 /**
@@ -380,7 +383,11 @@ export interface TrainingRecipe {
    * list was checked still reads; `checkRecipe` says when it is not one.
    */
   readonly task: string;
-  /** A scenario id from `SCENARIO_DEFINITIONS`; empty for the reference stand on the ground. */
+  /**
+   * A scenario id from `SCENARIO_DEFINITIONS`. Empty in a file from before 2026-09-28, which
+   * meant the reference body let go standing on the ground with no scenario round it: the body
+   * "Drop, standing" places at 0 m, which is what an empty one is read as now (`upgradeRecipe`).
+   */
   readonly scenario: string;
   readonly parameters: Readonly<Record<string, number>>;
   readonly profile: string;
@@ -409,7 +416,10 @@ export interface RigOptions {
   readonly task?: string;
   /** What plays under the brain. */
   readonly feedforward: Feedforward;
-  /** The scenario the body starts in: placement, ground, scenery; the reference stand when absent. */
+  /**
+   * The scenario the body starts in: placement, ground, scenery. The default one,
+   * `DEFAULT_BEHAVIOUR_SCENARIO` at its defaults, when absent.
+   */
   readonly scenario?: {
     readonly id: string;
     readonly parameters?: Readonly<Record<string, number>>;
@@ -440,9 +450,10 @@ export function rigOptionsFor(
     authority: recipe.authority,
     task: recipe.task,
     feedforward: recipe.feedforward,
-    ...(recipe.scenario
-      ? { scenario: { id: recipe.scenario, parameters: recipe.parameters } }
-      : {}),
+    // An empty scenario is the body on the ground, which is the default scenario at its defaults.
+    scenario: recipe.scenario
+      ? { id: recipe.scenario, parameters: recipe.parameters }
+      : { id: DEFAULT_BEHAVIOUR_SCENARIO, parameters: { ...DEFAULT_BEHAVIOUR_PARAMETERS } },
     morphology: recipe.morphology,
     passiveJoints: recipe.passive,
     noise: recipe.noise ?? DEFAULT_NOISE,
@@ -460,6 +471,77 @@ export function rigOptionsFor(
  */
 export const DEFAULT_BEHAVIOUR_SCENARIO = 'drop-standing-collapse';
 export const DEFAULT_BEHAVIOUR_PARAMETERS: Readonly<Record<string, number>> = { clearance: 0 };
+
+/**
+ * The scenarios the owner deleted on 2026-09-28, every one of which drove muscles from its script:
+ * the scenario package's `RETIRED_SCENARIOS`, copied for the reason `DEFAULT_BEHAVIOUR_SCENARIO`
+ * is, and held to it by a test. One of them, `quiet-standing`, shares its id with an activation
+ * clip that stayed; a recipe's `feedforward.clip` is a clip id and is never read against this.
+ */
+export const RETIRED_SCENARIOS: readonly string[] = [
+  'quiet-standing',
+  'muscle-range-of-motion',
+  'arm-flail',
+  'clip-quiet-standing',
+  'clip-walk-normal',
+  'clip-flail-arms',
+  'nerves-stand',
+];
+
+/** The fields of a recipe `upgradeRecipe` reads, in the shape an old file may hold them. */
+interface UpgradableRecipe {
+  readonly scenario: string;
+  readonly parameters: Readonly<Record<string, number>>;
+  readonly feedforward: { readonly kind: string; readonly clip?: string | undefined };
+}
+
+/**
+ * A recipe from a file, read as a recipe of today, with one sentence for each thing that changed.
+ *
+ * Files outlive the code that wrote them -- a checkpoint's own recipe, a recipe the dashboard
+ * wrote, one somebody printed and edited -- and three things they may say have gone:
+ *
+ * - an empty scenario, the reference body on the ground with nothing round it, which is the body
+ *   "Drop, standing" places at 0 m and is read as that, silently, because nothing about the run
+ *   changes;
+ * - a scenario in `RETIRED_SCENARIOS`, which is replaced by the default one at its defaults, and
+ *   said, because the run it describes drove muscles and this one will not;
+ * - `{kind: 'script'}` under the brain, which has nothing left to play and is read as `none`, and
+ *   said.
+ *
+ * Every other field is returned as it came, so a caller keeps whatever else its type carries.
+ * Each note is a clause, for a caller to put in its own sentence: the trainer prints each on a
+ * line, the dashboard lists them with the values it changed, the studio says them once when it
+ * sets the tabs up from a checkpoint.
+ */
+export function upgradeRecipe<R extends UpgradableRecipe>(
+  r: R,
+): { readonly recipe: R; readonly notes: readonly string[] } {
+  const notes: string[] = [];
+  let scenario: string = r.scenario;
+  let parameters: Readonly<Record<string, number>> = r.parameters;
+  if (scenario === '' || RETIRED_SCENARIOS.includes(scenario)) {
+    if (scenario !== '') {
+      notes.push(
+        `the scenario ${scenario} was deleted on 2026-09-28 (scenarios no longer drive muscles), ` +
+          'so "Drop, standing" at 0 m is used in its place',
+      );
+    }
+    scenario = DEFAULT_BEHAVIOUR_SCENARIO;
+    parameters = { ...DEFAULT_BEHAVIOUR_PARAMETERS };
+  }
+  let feedforward: UpgradableRecipe['feedforward'] = r.feedforward;
+  if (feedforward.kind === 'script') {
+    notes.push(
+      "the scenario's own muscle script under the brain went with the scenarios that had one on " +
+        '2026-09-28, so nothing plays under the brain in its place',
+    );
+    feedforward = { kind: 'none' };
+  }
+  if (scenario === r.scenario && feedforward === r.feedforward) return { recipe: r, notes };
+  // The fields replaced have the types every recipe gives them, so the rest of `R` is as it came.
+  return { recipe: { ...r, scenario, parameters, feedforward } as R, notes };
+}
 
 /**
  * Context units the default behaviour carries between control steps.
@@ -526,25 +608,27 @@ export const DEFAULT_BEHAVIOUR: TrainingRecipe = behaviourRecipe(
 );
 
 /**
- * The reference stand: the reference body standing on the ground with the quiet-standing clip
- * under it, and no memory. What the flags described before the default behaviour, kept because
- * the tables in `docs/validation/reflex-gains.md` and the bench's rig rows were measured in it and
- * reproduce only in it. A task the rig does not score is refused here rather than trained as a
- * stand under another name.
+ * The clip stand: the reference body let go standing on the ground -- "Drop, standing" at 0 m --
+ * with the quiet-standing activation clip under the brain, and no memory. What the flags described
+ * before the default behaviour, kept because the tables in `docs/validation/reflex-gains.md` and
+ * the bench's rig rows were measured in it and reproduce only in it. A task the rig does not score
+ * is refused here rather than trained as a stand under another name.
+ *
+ * It was the "reference stand" until 2026-09-28, and named no scenario: an empty one put the body
+ * on the ground with nothing round it. That is exactly where "Drop, standing" at 0 m puts it, so
+ * it names that scenario now, and the body, the clip and every number measured in it are the
+ * same. The clip is the activation clip called `quiet-standing`, which stayed when the scenario
+ * of that name was deleted.
  */
-export function referenceStandRecipe(
-  task: string,
-  profile: string,
-  authority: number,
-): TrainingRecipe {
+export function clipStandRecipe(task: string, profile: string, authority: number): TrainingRecipe {
   if (!isTask(task)) {
     throw new Error(`unknown task "${task}"; known tasks: ${TASKS.join(', ')}`);
   }
   return {
     name: task,
     task,
-    scenario: '',
-    parameters: {},
+    scenario: DEFAULT_BEHAVIOUR_SCENARIO,
+    parameters: { ...DEFAULT_BEHAVIOUR_PARAMETERS },
     profile,
     morphology: REFERENCE_MORPHOLOGY,
     passive: true,
@@ -686,12 +770,14 @@ export function checkRecipe(r: unknown): string[] {
   );
   need('passive', boolean, 'true or false');
   need('redistribute', boolean, 'true or false');
+  // `{kind: 'script'}` still passes: files from before 2026-09-28 hold it, and they load, as
+  // `none` (`upgradeRecipe`). Only the two kinds there are now are offered.
   need(
     'feedforward',
     (v) =>
       isObject(v) &&
       (v.kind === 'none' || v.kind === 'script' || (v.kind === 'clip' && string(v.clip))),
-    "one of {kind: 'none'}, {kind: 'script'} or {kind: 'clip', clip}",
+    "one of {kind: 'none'} or {kind: 'clip', clip}",
   );
   need('authority', finite, 'a number');
   const optional = (field: string, ok: (v: unknown) => boolean, what: string) => {
@@ -719,6 +805,15 @@ export function checkRecipe(r: unknown): string[] {
   return problems;
 }
 
+/**
+ * A recipe as a file may hold it: one of today's, or one whose feedforward is `{kind: 'script'}`,
+ * which the trainer wrote until 2026-09-28. What `recipeChanges` compares, because the saved side
+ * of a resume is a file; a run is only ever trained in a `TrainingRecipe` (`upgradeRecipe`).
+ */
+export type SavedRecipe = Omit<TrainingRecipe, 'feedforward'> & {
+  readonly feedforward: Feedforward | { readonly kind: 'script' };
+};
+
 /** One way a recipe differs from the one a checkpoint was saved with. */
 export interface RecipeChange {
   readonly field: string;
@@ -729,11 +824,15 @@ export interface RecipeChange {
 /** The fields of a recipe that make it a different body or a different task, with the value an
  * old file that omits one was trained under; the cord by region when either side's is (see
  * `comparableCord`). */
-function comparable(r: TrainingRecipe, byRegion: boolean): Record<string, unknown> {
+function comparable(r: SavedRecipe, byRegion: boolean): Record<string, unknown> {
+  // An empty scenario is compared as the default one at its defaults, which is the same body: a
+  // checkpoint from before 2026-09-28 resumed in "Drop, standing" at 0 m has not moved. A deleted
+  // scenario is not, because it drove muscles and the one in its place does not.
+  const bare = r.scenario === '';
   return {
     task: r.task,
-    scenario: r.scenario,
-    parameters: r.parameters,
+    scenario: bare ? DEFAULT_BEHAVIOUR_SCENARIO : r.scenario,
+    parameters: bare ? DEFAULT_BEHAVIOUR_PARAMETERS : r.parameters,
     profile: r.profile,
     morphology: r.morphology,
     passive: r.passive,
@@ -766,10 +865,7 @@ function leaves(prefix: string, value: unknown, out: Map<string, unknown>): void
  * which the trainer writes from the profile rather than being asked for. A field an old recipe
  * omits compares as the value it was trained under: `DEFAULT_NOISE`, `NO_REFLEX`, no memory.
  */
-export function recipeChanges(
-  saved: TrainingRecipe | undefined,
-  now: TrainingRecipe,
-): RecipeChange[] {
+export function recipeChanges(saved: SavedRecipe | undefined, now: SavedRecipe): RecipeChange[] {
   if (!saved) return [];
   const before = new Map<string, unknown>();
   const after = new Map<string, unknown>();
@@ -806,13 +902,11 @@ export function formatRecipeChanges(changes: readonly RecipeChange[]): string {
  * recipe that omits them was trained under, so an old checkpoint is described as it was.
  */
 export function describeRecipe(r: TrainingRecipe): string {
-  const where = r.scenario || 'reference stand';
+  const where = r.scenario || DEFAULT_BEHAVIOUR_SCENARIO;
   const under =
     r.feedforward.kind === 'clip'
       ? `the ${r.feedforward.clip} clip under the brain`
-      : r.feedforward.kind === 'script'
-        ? "the scenario's script under the brain"
-        : 'the brain alone';
+      : 'the brain alone';
   const reflex = r.reflex ?? NO_REFLEX;
   const cord = cordIsOff(reflex)
     ? 'no cord'

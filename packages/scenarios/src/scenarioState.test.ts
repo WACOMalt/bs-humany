@@ -11,7 +11,15 @@
 
 import { type Vec3, vec3 } from '@bs-humany/frames';
 import { describe, expect, it } from 'vitest';
-import { SCENARIOS, SCENARIO_DEFINITIONS, type ScenarioApi, scenario } from './index.js';
+import {
+  DEFAULT_SCENARIO,
+  RETIRED_SCENARIOS,
+  SCENARIOS,
+  SCENARIO_DEFINITIONS,
+  type ScenarioApi,
+  replacementFor,
+  scenario,
+} from './index.js';
 
 interface Recorded {
   readonly grabs: { segment: number; target: Vec3 }[];
@@ -27,7 +35,6 @@ function fakeApi(at: { head: Vec3 }): { api: ScenarioApi; recorded: Recorded } {
     grab: (segment, _local, target) => recorded.grabs.push({ segment, target: { ...target } }),
     moveGrab: (target) => recorded.moves.push({ ...target }),
     release: () => {},
-    drive: () => {},
     moveStaticBox: () => {},
   };
   return { api, recorded };
@@ -96,5 +103,27 @@ describe('scenario(id)', () => {
     expect(SCENARIOS.map((s) => [s.id, s.title])).toEqual(
       SCENARIO_DEFINITIONS.map((d) => [d.id, d.title]),
     );
+  });
+});
+
+describe('a scenario an old file names', () => {
+  it('is the default scenario, said once, when it is one of the seven deleted on 2026-09-28', () => {
+    expect(RETIRED_SCENARIOS).toHaveLength(7);
+    for (const id of RETIRED_SCENARIOS) {
+      // Gone from the set: nothing lists it, builds it or pins a golden for it.
+      expect(SCENARIO_DEFINITIONS.some((d) => d.id === id)).toBe(false);
+      expect(() => scenario(id)).toThrow(`No scenario '${id}'.`);
+      const stand = replacementFor(id);
+      expect(stand?.id).toBe(DEFAULT_SCENARIO);
+      expect(stand?.note).toContain(`the scenario ${id} was deleted on 2026-09-28`);
+    }
+    // The one that stands in is one that exists, at its defaults a drop of 0 m.
+    expect(scenario(DEFAULT_SCENARIO).clearance).toBe(0);
+  });
+
+  it('is nothing for a scenario that exists, or one no studio ever had', () => {
+    expect(replacementFor('tilting-floor')).toBeUndefined();
+    expect(replacementFor(DEFAULT_SCENARIO)).toBeUndefined();
+    expect(replacementFor('no-such-scenario')).toBeUndefined();
   });
 });

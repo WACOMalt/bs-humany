@@ -55,7 +55,7 @@ describe('createScenarioApi', () => {
     expect(api.segmentPosition(api.segment('tail'))).toEqual(vec3(0, 0, 0));
   });
 
-  it('passes grabs and drives to the hand and the muscles it was given', () => {
+  it('passes grabs to the hand it was given', () => {
     const calls: string[] = [];
     const api = createScenarioApi({
       segmentIds: ['hand_r'],
@@ -65,17 +65,15 @@ describe('createScenarioApi', () => {
         moveTo: (target) => calls.push(`move ${target.z}`),
         release: () => calls.push('release'),
       },
-      drive: (unit, level) => calls.push(`drive ${unit} ${level}`),
       moveStaticBox: () => {},
     });
     api.grab(0, vec3(0.5, 0, 0), vec3(0, 1.2, 0));
     api.moveGrab(vec3(0, 0, 0.3));
     api.release();
-    api.drive('biceps_r', 0.4);
-    expect(calls).toEqual(['grab 0 0.5 1.2', 'move 0.3', 'release', 'drive biceps_r 0.4']);
+    expect(calls).toEqual(['grab 0 0.5 1.2', 'move 0.3', 'release']);
   });
 
-  it('ignores grabs and drives when there is no hand and no muscle set', () => {
+  it('ignores grabs when there is no hand', () => {
     const api = createScenarioApi({
       segmentIds: ['hand_r'],
       position: new Float64Array(3),
@@ -85,7 +83,6 @@ describe('createScenarioApi', () => {
       api.grab(0, vec3(0, 0, 0), vec3(0, 1, 0));
       api.moveGrab(vec3(0, 1, 0));
       api.release();
-      api.drive('biceps_r', 1);
     }).not.toThrow();
   });
 

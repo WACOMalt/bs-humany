@@ -343,7 +343,7 @@ Two terminals. The simulation, headless, publishing a pose every output frame:
 
 ```bash
 pnpm publish:pose                                   # default scenario, L1, 144 poses a second
-pnpm publish:pose quiet-standing --profile l3_anatomical --fps 90
+pnpm publish:pose tilting-floor --profile l3_anatomical --fps 90
 ```
 
 And the viewer, reading them:

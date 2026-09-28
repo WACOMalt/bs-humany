@@ -17,25 +17,32 @@
 import {
   DEFAULT_NOISE,
   type Feedforward,
+  type TrainingRecipe as TrainerRecipe,
   checkpointNameProblem,
   formatRecipeChanges,
   recipeChanges,
 } from '@bs-humany/train/recipe';
 import type { CheckpointRow, RecipeInput, TrainingRecipe } from '../brain.js';
 
-/** The clip the "quiet-standing clip" choice plays under the brain: the one the first checkpoints were trained over. */
+/**
+ * The clip the "quiet-standing clip" choice plays under the brain: the one the first checkpoints
+ * were trained over. An activation clip, not the scenario of the same name, which was deleted on
+ * 2026-09-28; the clip stayed.
+ */
 export const STANDING_CLIP = 'quiet-standing';
 
-/** What plays under the brain, from the form's choice: `none`, `script` or `clip`. */
+/**
+ * What plays under the brain, from the form's choice: `none` or `clip`. Anything else is nothing,
+ * `script` among it -- "the scenario's own muscle script", which the form offered until the
+ * scenarios that had one were deleted on 2026-09-28.
+ */
 export function feedforwardFrom(kind: string): Feedforward {
-  if (kind === 'script') return { kind: 'script' };
   if (kind === 'clip') return { kind: 'clip', clip: STANDING_CLIP };
   return { kind: 'none' };
 }
 
 /** The same choice in the words the recipe note uses. */
 export function feedforwardPhrase(kind: string): string {
-  if (kind === 'script') return "with the scenario's script under it";
   if (kind === 'clip') return 'over the quiet-standing clip';
   return 'alone';
 }
@@ -44,7 +51,7 @@ export function feedforwardPhrase(kind: string): string {
 export interface RecipeForm {
   readonly name: string;
   readonly task: string;
-  /** The form's choice of what plays under the brain: `none`, `script` or `clip`. */
+  /** The form's choice of what plays under the brain: `none` or `clip`. */
   readonly feedforward: string;
   readonly authority: number;
   readonly noise: { readonly motor: number; readonly sense: number };
@@ -60,8 +67,12 @@ export interface RecipeForm {
  *
  * The tremor's correlation time has no control on the form, so it is the trainer's default here
  * and in no other place in the studio.
+ *
+ * The trainer's own recipe type rather than the checkpoint file's: a file may still say what plays
+ * under the brain is "the scenario's own muscle script", retired on 2026-09-28, and a recipe Start
+ * sends never can.
  */
-export function buildRecipe(input: RecipeInput, form: RecipeForm): TrainingRecipe {
+export function buildRecipe(input: RecipeInput, form: RecipeForm): TrainerRecipe {
   return {
     ...input,
     name: form.name.trim(),

@@ -25,6 +25,7 @@ import {
   serializeSnapshot,
   sessionFormatOf,
   usesNativeFilePickers,
+  withoutRetiredScenario,
 } from './session.js';
 import { sameCord } from './training/setUp.js';
 import type { BodyPanel } from './ui/bodyPanel.js';
@@ -125,7 +126,7 @@ export interface SessionWiring {
    * Put a whole set of settings on the panels, and restart a running body with them.
    *
    * The order matters in two places. The Muscles box goes before the scenario, because a scenario
-   * that drives muscles ticks it. Passive and Redistribute go after it, because choosing a
+   * that asks for muscles ticks it. Passive and Redistribute go after it, because choosing a
    * scenario sets Passive to the one the scenario is tuned with -- and a saved or recipe value
    * applied before that was quietly overwritten, so a session saved with Passive off ran with it
    * on, and its snapshot, which had no passive module, then refused to restore.
@@ -462,7 +463,11 @@ export function createSessionWiring(host: SessionHost): SessionWiring {
       }
       // The saved run decides its own rate and muscles; its step and channel ids are all that is
       // read of it here, so it is decoded once, when it is restored.
-      const settings = normaliseSettings(parsed.settings, parsed.simulation?.snapshot);
+      // A scenario deleted on 2026-09-28 is replaced here, before anything below checks it, and
+      // said once the load has said everything else.
+      const { settings, note: retired } = withoutRetiredScenario(
+        normaliseSettings(parsed.settings, parsed.simulation?.snapshot),
+      );
       // Named, rather than left for the select to fall back to its first option or to nothing: a
       // session that ran on a profile or a scenario this studio lacks cannot be the session it was.
       if (![...ui.profile.options].some((o) => o.value === settings.profile)) {
@@ -499,6 +504,7 @@ export function createSessionWiring(host: SessionHost): SessionWiring {
             'the rest of the session was applied.',
         );
       }
+      if (retired !== undefined) status.announceAlongside(`In this session, ${retired}.`);
     } catch (error) {
       console.error('The session failed to load.', error);
       status.announce(`The session failed to load: ${messageOf(error)}`, { error: true });

@@ -20,7 +20,7 @@ import {
   REFLEX_FIELDS,
   REFLEX_REGIONS,
   type TrainingRecipe,
-  referenceStandRecipe,
+  clipStandRecipe,
 } from './recipe.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
@@ -164,20 +164,45 @@ describe('the name and the task of a dashboard run', () => {
     expect(built({ name: 'c1', task: '' }).recipe).toMatchObject({ name: 'c1', task: 'balance' });
   });
 
-  it("sets a request that names no scenario in the default behaviour's, and keeps one sent empty", () => {
+  it("sets a request that names no scenario, or an empty one, in the default behaviour's", () => {
     expect(built({}).recipe).toMatchObject({
       scenario: DEFAULT_BEHAVIOUR.scenario,
       parameters: DEFAULT_BEHAVIOUR.parameters,
     });
-    // Empty is the reference stand, as it always was, and parameters sent are the request's.
-    expect(built({ recipe: { scenario: '' } }).recipe).toMatchObject({
-      scenario: '',
-      parameters: {},
+    // Empty was the reference stand, the body on the ground with no scenario round it, which is
+    // "Drop, standing" at 0 m: the same body, so it is not listed as changed.
+    const empty = recipeFrom({ recipe: { scenario: '', parameters: {} } });
+    expect(empty).toMatchObject({
+      recipe: { scenario: DEFAULT_BEHAVIOUR.scenario, parameters: DEFAULT_BEHAVIOUR.parameters },
+      clamped: [],
     });
     expect(
       built({ recipe: { scenario: 'drop-standing-collapse', parameters: { clearance: 0.4 } } })
         .recipe.parameters,
     ).toEqual({ clearance: 0.4 });
+  });
+
+  it('sets a scenario deleted on 2026-09-28 in the default one, and says what it replaced', () => {
+    const result = recipeFrom({
+      recipe: { scenario: 'nerves-stand', parameters: { authority: 0.3, gain: 1 } },
+    });
+    expect(result).toMatchObject({
+      recipe: { scenario: DEFAULT_BEHAVIOUR.scenario, parameters: DEFAULT_BEHAVIOUR.parameters },
+      clamped: [{ field: 'scenario', asked: 'nerves-stand', used: DEFAULT_BEHAVIOUR.scenario }],
+    });
+  });
+
+  it("plays nothing under the brain for the scenario's own script, and says so", () => {
+    const result = recipeFrom({ recipe: { feedforward: { kind: 'script' } } });
+    expect(result).toMatchObject({
+      recipe: { feedforward: { kind: 'none' } },
+      clamped: [{ field: 'feedforward.kind', asked: 'script', used: 'none' }],
+    });
+    // The clip is untouched: it is the one feedforward left, and quiet-standing is its name.
+    expect(
+      built({ recipe: { feedforward: { kind: 'clip', clip: 'quiet-standing' } } }).recipe
+        .feedforward,
+    ).toEqual({ kind: 'clip', clip: 'quiet-standing' });
   });
 
   it('refuses a name that is not one rather than training another', () => {
@@ -198,7 +223,8 @@ describe('the name and the task of a dashboard run', () => {
 });
 
 describe('a Resume from the dashboard', () => {
-  // The reference stand, as a stand checkpoint from before the default behaviour was trained in.
+  // The clip stand's body, as a stand checkpoint from before the default behaviour was trained in:
+  // sent with the empty scenario it named then, which is "Drop, standing" at 0 m.
   const recipe = built({
     name: 'stand',
     task: 'stand',
@@ -206,7 +232,7 @@ describe('a Resume from the dashboard', () => {
   }).recipe;
   /** A saved recipe as an old file has it: no cord. */
   const old: TrainingRecipe = (() => {
-    const { reflex: _r, ...rest } = referenceStandRecipe('stand', 'l3_anatomical', 0.3);
+    const { reflex: _r, ...rest } = clipStandRecipe('stand', 'l3_anatomical', 0.3);
     return { ...rest, feedforward: { kind: 'none' } };
   })();
 

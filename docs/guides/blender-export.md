@@ -16,7 +16,7 @@ exact simulated time, and a second of simulated time is a second of Blender time
      three are written into the folder you choose.
    - The `.pc2` is written only when the run had muscles. Without them there are two files.
    - The files are named `bs-humany-<scenario>-<profile>-<rate>hz-<fps>fps`, with `.glb`, `.pc2`
-     and `.py` after it: for example `bs-humany-quiet-standing-l3_anatomical-1000hz-60fps.py`.
+     and `.py` after it: for example `bs-humany-drop-standing-collapse-l3_anatomical-1000hz-60fps.py`.
 3. Keep the three files together in one folder. The script looks for the `.glb` beside itself,
    and for the `.pc2` beside the `.glb`.
 4. In Blender, open the Scripting workspace, load the `.py` and run it, or run
