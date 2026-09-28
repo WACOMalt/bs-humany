@@ -94,3 +94,49 @@ export function paintYield(): Promise<void> {
     setTimeout(go, 100);
   });
 }
+
+/**
+ * Ask a yes-or-no question in a modal dialog the page draws itself.
+ *
+ * The browser path used `window.confirm`, and a browser that does not show dialogs (an embedded
+ * pane, a kiosk, some automation) answers it "no" at once without showing anything. A Reset that
+ * asked first then did nothing and said nothing. A `<dialog>` of the page's own is shown wherever
+ * the page is. The cautious answer is the default: the `no` button has the focus, and Escape
+ * answers no.
+ */
+export function askInPage(message: string, yes: string, no: string): Promise<boolean> {
+  const dialog = window.document.createElement('dialog');
+  dialog.className = 'ask';
+  const text = window.document.createElement('p');
+  text.textContent = message;
+  const row = window.document.createElement('div');
+  row.className = 'buttons';
+  const keep = window.document.createElement('button');
+  keep.type = 'button';
+  keep.textContent = no;
+  const go = window.document.createElement('button');
+  go.type = 'button';
+  go.className = 'danger';
+  go.textContent = yes;
+  row.append(keep, go);
+  dialog.append(text, row);
+  window.document.body.append(dialog);
+  return new Promise((resolve) => {
+    let answered = false;
+    const answer = (value: boolean): void => {
+      if (answered) return;
+      answered = true;
+      dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    keep.addEventListener('click', () => answer(false));
+    go.addEventListener('click', () => answer(true));
+    dialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      answer(false);
+    });
+    dialog.showModal();
+    keep.focus();
+  });
+}

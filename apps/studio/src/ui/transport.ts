@@ -11,7 +11,7 @@ import type { Simulation } from '@bs-humany/session';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { StudioRuns } from '../runController.js';
 import { keyOwnedByTarget } from '../shortcuts.js';
-import { blurAfterMouse, messageOf, must, setText } from './dom.js';
+import { askInPage, blurAfterMouse, messageOf, must, setText } from './dom.js';
 
 // ---------------------------------------------------------------------------------------------
 // The status bar
@@ -228,13 +228,12 @@ export function discardQuestion(what: string, seconds: number): string {
 }
 
 /**
- * Ask whether to throw away a long recording, in a native dialog in the desktop shell and the
- * browser's own in a tab.
+ * Ask whether to throw away a long recording, in a native dialog in the desktop shell and in a
+ * dialog of the page's own in a tab (`askInPage`: a browser may not show `window.confirm` at all).
  *
  * The shell's dialog is the dialog plugin's, the one its Save and Load dialogs come from, behind a
  * command of the shell's own (`confirm_discard`) because the plugin's own commands are not open to
- * the page. What a web view does with `window.confirm` is the web view's business rather than the
- * shell's, so in the shell it is only the fallback for a command that could not be reached.
+ * the page. The page's own dialog is only the fallback, for a command that could not be reached.
  *
  * Only a person at the desktop is ever asked. Every command from the headset reaches the run
  * through a path that does not come here, because a dialog on a screen the person in the headset
@@ -248,7 +247,7 @@ async function askToDiscard(message: string): Promise<boolean> {
       console.error('The native dialog could not be shown; asking in the page instead.', error);
     }
   }
-  return window.confirm(message);
+  return askInPage(message, 'Throw it away', 'Keep the run');
 }
 
 /** Write a button's label and title, only when they change: this runs every frame. */
@@ -516,6 +515,7 @@ export function createTransport(host: TransportHost): Transport {
     blurAfterMouse(event);
     void confirmDiscard('Reset').then((go) => {
       if (go) runs.reset();
+      else host.status.announce('Reset cancelled: the run and its recording are kept.');
     });
   });
   // Straight to a new run, not through the toggle, which carries a paused run on: the point here
@@ -525,6 +525,7 @@ export function createTransport(host: TransportHost): Transport {
     blurAfterMouse(event);
     void confirmDiscard('Restarting with the current settings').then((go) => {
       if (go) void runs.start();
+      else host.status.announce('Restart cancelled: the run and its recording are kept.');
     });
   });
 

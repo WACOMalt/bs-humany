@@ -80,6 +80,7 @@ import {
   listLocalCheckpoints,
   readLocalCheckpoint,
 } from './training/store.js';
+import { askInPage } from './ui/dom.js';
 
 export const DEFAULT_DASHBOARD_URL = 'http://localhost:5280';
 
@@ -944,9 +945,11 @@ export function createBrainPanel(host: BrainHost, dashboard = DEFAULT_DASHBOARD_
     showForget();
     if (ui.forget.disabled || ui.forget.hidden) return;
     if (
-      !window.confirm(
+      !(await askInPage(
         `Forget ${name}? Its record, its search centre and its history are deleted from this browser, and a Resume cannot continue it.`,
-      )
+        'Forget it',
+        'Keep it',
+      ))
     ) {
       return;
     }

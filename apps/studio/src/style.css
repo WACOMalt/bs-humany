@@ -1007,3 +1007,30 @@ input[type="search"]:focus-visible {
 .sparkline {
   vertical-align: middle;
 }
+
+/* A question the page asks itself (askInPage): a browser may not show window.confirm at all. */
+dialog.ask {
+  max-width: 28rem;
+  padding: 16px 18px;
+  color: var(--ink);
+  background: var(--panel-raised);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+dialog.ask::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+dialog.ask p {
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+dialog.ask .buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+dialog.ask button.danger {
+  color: var(--bg);
+  background: var(--warn);
+  border-color: var(--warn);
+}
