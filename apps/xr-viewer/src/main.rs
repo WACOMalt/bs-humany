@@ -29,8 +29,16 @@
 //! and answered that it is (the measurements are in the README) before becoming the renderer.
 
 mod bridge;
+mod follow;
+mod geometry;
+mod gpu;
+mod grab;
+mod input;
+mod locomotion;
+mod math;
 mod pack;
 mod panel;
+mod panel_gpu;
 mod render;
 mod tissue;
 mod xr;
