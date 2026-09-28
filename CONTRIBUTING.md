@@ -224,6 +224,10 @@ reads the names off `package.json`, so adding a generator is adding the script.
 A script under one of those prefixes must honour `--check`: compare, exit non-zero on a
 difference, and write nothing. `check:generated` fingerprints the working tree around each target
 and fails one that changes it, so a script that ignores the flag is caught rather than trusted.
+The one exception is a measurement that only prints its tables and writes nothing
+(`measure:dataset-gap` and `measure:reflex-gains`, the `PRINT_ONLY` list in
+`tools/cli/lib/targets.mjs`): with no file to compare there is nothing to check, so it takes no
+`--check` and `check:generated` leaves it out rather than spend half an hour comparing nothing.
 Format generated JSON and TypeScript the way `pnpm lint` will (the schema and source-sites
 generators pipe theirs through Biome), so that a fresh write and the committed file are the same
 bytes.
