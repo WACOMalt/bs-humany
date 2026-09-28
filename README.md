@@ -45,6 +45,9 @@ core
   packages/scenarios/          scenario definitions, activation clips, muscle groups, and the
                                joint-sweep and inertia-audit reports (spec 13.5)
   packages/testkit/            scenario runner, plausibility assertions, trajectory hashing
+  packages/session/            the simulation session, with no DOM: one placed body with its
+                               kernel and modules, the restore points, the captures and the
+                               recording, and what a publisher says about it
 
 anatomy and mass
   packages/skeleton/           bone taxonomy, landmarks, segmentation profiles

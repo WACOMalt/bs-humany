@@ -7,9 +7,10 @@
  * saved and loaded; the Align tab's reference models; and, instead of a run of its own, a run
  * followed off the pose bridge. The Tauri shell adds the VR viewer, driven from the same controls.
  *
- * This file only puts the page together and starts it. The simulation is `simulation.ts`, and the
- * rest is one module a concern, each made by a `create*` function from a host that hands it what
- * it needs of the others:
+ * This file only puts the page together and starts it. The simulation is the `Simulation` of
+ * `@bs-humany/session` (packages/session), the same one `publish-pose` runs headless, and the rest
+ * is one module a concern, each made by a `create*` function from a host that hands it what it
+ * needs of the others:
  *
  * - `scene.ts`: the renderer, camera, lights, grid and scenery, and a run as it is drawn.
  * - `runController.ts`: which run is going, its playhead, and every start, restart and pause.
@@ -29,6 +30,7 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { morphologyKey } from '@bs-humany/compiler';
+import { Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { createAlign } from './alignHost.js';
 import { buildBlenderExport } from './blenderExport.js';
@@ -47,7 +49,6 @@ import {
   serializeSnapshot,
 } from './session.js';
 import { BACKEND, createSessionWiring, findControls } from './sessionWiring.js';
-import { Simulation } from './simulation.js';
 import type { SkinnedSkeleton } from './skinning.js';
 import { createBodyPanel } from './ui/bodyPanel.js';
 import { blurAfterMouse, must, paintYield } from './ui/dom.js';

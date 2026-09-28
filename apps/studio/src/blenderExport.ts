@@ -23,18 +23,18 @@ import {
 } from '@bs-humany/export-gltf';
 import { IDENTITY_TRANSFORM, type Transform, compose, transformPoint } from '@bs-humany/frames';
 import { type HsdlDocument, evaluate, param } from '@bs-humany/hsdl';
-import { computeWorldTransforms } from '@bs-humany/skeleton';
-import { sweepRings } from './ringSweep.js';
-import type { Simulation } from './simulation.js';
 import {
   BEAD_RADIUS,
   DISC_HEIGHT,
   DISC_RADIUS,
+  type Simulation,
   barMesh,
   cylinderMesh,
   sphereMesh,
   tissueOf,
-} from './tissue.js';
+} from '@bs-humany/session';
+import { computeWorldTransforms } from '@bs-humany/skeleton';
+import { sweepRings } from './ringSweep.js';
 
 export interface BlenderExport {
   readonly glb: Uint8Array;

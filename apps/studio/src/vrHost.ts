@@ -11,6 +11,7 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { HsdlDocument } from '@bs-humany/hsdl';
 import { CONTROL_RANGES, MUSCLE_GROUPS } from '@bs-humany/scenarios';
+import { type Simulation, tissueTable } from '@bs-humany/session';
 import { computeWorldTransforms } from '@bs-humany/skeleton';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { BrainPanel } from './brain.js';
@@ -19,8 +20,6 @@ import { Playback } from './playback.js';
 import type { StudioRuns } from './runController.js';
 import type { DrawnFrame, RunView } from './scene.js';
 import type { Controls } from './sessionWiring.js';
-import type { Simulation } from './simulation.js';
-import { tissueTable } from './tissue.js';
 import type { BodyPanel } from './ui/bodyPanel.js';
 import { messageOf, must, setFromPanel } from './ui/dom.js';
 import { type MusclePanel, muscleReadoutText } from './ui/musclePanel.js';

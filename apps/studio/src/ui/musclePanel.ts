@@ -20,7 +20,7 @@ import {
   applyDriveSliders,
   driveForSlider,
 } from '@bs-humany/scenarios';
-import type { Simulation } from '../simulation.js';
+import type { Simulation } from '@bs-humany/session';
 import { must, setText } from './dom.js';
 
 /**

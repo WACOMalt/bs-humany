@@ -8,8 +8,8 @@ import type { ResolvedMorphology } from '@bs-humany/anthropometry';
 import { compileArticulation } from '@bs-humany/compiler';
 import type { HsdlDocument } from '@bs-humany/hsdl';
 import { type ReportNote, groupReportNotes, inertiaAudit, jointSweep } from '@bs-humany/scenarios';
+import type { Simulation } from '@bs-humany/session';
 import { modelLimitations } from '@bs-humany/skeleton';
-import type { Simulation } from '../simulation.js';
 import { escapeHtml, messageOf, must, setText } from './dom.js';
 
 export interface HealthPanelHost {

@@ -10,9 +10,9 @@
  */
 
 import { readBridge, readMuscleBridge } from '@bs-humany/pose-bridge/codec';
+import type { Simulation } from '@bs-humany/session';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeFollower } from './follow.js';
-import type { Simulation } from './simulation.js';
 import { type VrHost, VrLink, type VrStatus } from './vrLink.js';
 
 interface Call {

@@ -13,9 +13,9 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { DEFAULT_SPINAL_GAINS } from '@bs-humany/modules-nerves';
+import { Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
-import { Simulation } from './simulation.js';
 import { spineNote, stretchLabel } from './training/buttons.js';
 
 const document = buildDocument();

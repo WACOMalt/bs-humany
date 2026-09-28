@@ -24,7 +24,7 @@ Two licence tiers, and a third for tooling that is never distributed.
    - in `packages/`: `anthropometry`, `backend-mujoco`, `compiler`, `export-gltf`, `frames`,
      `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves` (all but its
      trained policies), `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`,
-     `pose-bridge`, `render-three`, `scenarios` (all but its fixtures) and `testkit`;
+     `pose-bridge`, `render-three`, `scenarios` (all but its fixtures), `session` and `testkit`;
    - in `apps/`: `studio`, with its `src-tauri` desktop shell, and `xr-viewer` (all but its
      pose-bridge fixture);
    - in `tools/`: `blender`, `cli`, `ingest` and `train`;

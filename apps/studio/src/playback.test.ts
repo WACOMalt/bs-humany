@@ -13,10 +13,10 @@ import { fileURLToPath } from 'node:url';
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { loadSkeletonAssetsFromDisk } from '@bs-humany/assets-anatomical';
 import { DEFAULT_UPDATE_HZ } from '@bs-humany/modules-muscle';
+import { Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Playback } from './playback.js';
-import { Simulation } from './simulation.js';
 
 const document = buildDocument();
 const assets = await loadSkeletonAssetsFromDisk(

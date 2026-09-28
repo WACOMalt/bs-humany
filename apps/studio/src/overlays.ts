@@ -8,6 +8,7 @@
  */
 
 import type { CompiledArticulation } from '@bs-humany/compiler';
+import { BEAD_RADIUS, DISC_HEIGHT, DISC_RADIUS, tissueOf } from '@bs-humany/session';
 import {
   BoxGeometry,
   BufferAttribute,
@@ -31,7 +32,6 @@ import {
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { segmentComs, wholeBodyCom } from './bodyCom.js';
 import { BAR_COLOUR, COUPLING_COLOUR, DISC_COLOUR, MUSCLE_SLACK, MUSCLE_TAUT } from './palette.js';
-import { BEAD_RADIUS, DISC_HEIGHT, DISC_RADIUS, tissueOf } from './tissue.js';
 
 export interface OverlayChannels {
   readonly position: Float64Array;

@@ -35,12 +35,12 @@ import {
   skeletonBounds,
   toSkeletonGeometry,
 } from '@bs-humany/render-three';
+import type { Simulation } from '@bs-humany/session';
 import { Quaternion, Raycaster, Vector2, Vector3 } from 'three';
 import type { BridgeFollower } from '../follow.js';
 import type { StudioRuns } from '../runController.js';
 import { ALIGNED_TINT, type StudioScene, selectionTint } from '../scene.js';
 import type { Controls } from '../sessionWiring.js';
-import type { Simulation } from '../simulation.js';
 import { type SkinnedSkeleton, createSkinnedSkeleton } from '../skinning.js';
 import { escapeHtml, messageOf, must } from './dom.js';
 import type { HealthPanel } from './healthPanel.js';

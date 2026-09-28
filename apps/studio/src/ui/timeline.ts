@@ -7,9 +7,9 @@
  * is at the live edge, is the run controller's; this draws it and hands it the clicks.
  */
 
+import type { Simulation } from '@bs-humany/session';
 import { Playback } from '../playback.js';
 import type { StudioRuns } from '../runController.js';
-import type { Simulation } from '../simulation.js';
 import { blurAfterMouse, must, setText } from './dom.js';
 
 /**

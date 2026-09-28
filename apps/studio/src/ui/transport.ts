@@ -7,10 +7,10 @@
  * look and what they say, and how a run that stopped itself is told.
  */
 
+import type { Simulation } from '@bs-humany/session';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { StudioRuns } from '../runController.js';
 import { keyOwnedByTarget } from '../shortcuts.js';
-import type { Simulation } from '../simulation.js';
 import { blurAfterMouse, messageOf, must, setText } from './dom.js';
 
 // ---------------------------------------------------------------------------------------------

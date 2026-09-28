@@ -45,8 +45,11 @@ Read this file before your first change. It is short on purpose.
    scenario pass. Outside a test run the audit is off unless a host passes `KernelOptions.audit`.
 7. **Do not use `Math.random`, `Date.now`, or `performance.now` in simulation code.** A seeded PRNG
    arrives via `ModuleInitContext`. Simulation time is `tick * dt`, never accumulated.
-8. **Do not put three.js or React types in** `kernel`, `hsdl`, `frames`, `anthropometry`, or any
-   backend. The kernel must run headless in Node and in a Worker.
+8. **Do not put three.js or React types in** `kernel`, `hsdl`, `frames`, `anthropometry`,
+   `session`, or any backend. The kernel must run headless in Node and in a Worker, and so must the
+   session that hosts it: `publish-pose` runs it in Node, and the studio's next step is a Worker.
+   Its `tsconfig` has no DOM library, which holds it to that; the studio keeps the drawing, the
+   panels and the input.
 9. **Do not allocate in `step`**, or in anything `step` calls every tick. All buffers, scratch
    objects and result objects are preallocated and reused. GC pauses in the simulation loop are
    unacceptable and very hard to diagnose after the fact. A library function a step calls every
@@ -76,7 +79,7 @@ Where a value cannot be found in a compatible source, record it in
 
 | Tier | Packages | Licence | May draw on |
 |---|---|---|---|
-| Code | `packages/`: `anthropometry`, `backend-mujoco`, `compiler`, `export-gltf`, `frames`, `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves` (all but its `policies/`), `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`, `pose-bridge`, `render-three`, `scenarios` (all but its `data/` fixtures), `testkit`. `apps/`: `studio` (with `src-tauri`), `xr-viewer` (all but its pose-bridge fixture). `tools/`: `blender`, `cli`, `ingest`, `train`. The repository root. | Apache-2.0 | Permissive software only. Not a derivative of the data it loads. |
+| Code | `packages/`: `anthropometry`, `backend-mujoco`, `compiler`, `export-gltf`, `frames`, `hsdl`, `kernel`, `modules-mechanics`, `modules-muscle`, `modules-nerves` (all but its `policies/`), `modules-sensing`, `muscle-model`, `muscle-path`, `muscle-volume`, `pose-bridge`, `render-three`, `scenarios` (all but its `data/` fixtures), `session`, `testkit`. `apps/`: `studio` (with `src-tauri`), `xr-viewer` (all but its pose-bridge fixture). `tools/`: `blender`, `cli`, `ingest`, `train`. The repository root. | Apache-2.0 | Permissive software only. Not a derivative of the data it loads. |
 | Data | `skeleton`, `assets-anatomical` (the data under `data/`), `muscle-data`, the `scenarios` fixtures under `packages/scenarios/data/`, the trained policies under `packages/modules-nerves/policies/`, and the pose-bridge fixture `apps/xr-viewer/fixtures/pose-bridge.bin` (with its sidecar and muscle file) | **CC BY-SA 4.0** | Z-Anatomy / BodyParts3D (BY-SA), Rajagopal 2016, MyoSuite (Apache-2.0), Seth 2019 (CC BY), de Leva, ANSUR II, ISB. **Not MyoSkeleton** -- licence incompatibility, see §11. |
 | Validation tooling | `tools/validate-external`, developer-local, never published | n/a | MyoSkeleton as a behavioural oracle. Compare; never transcribe. |
 
