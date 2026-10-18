@@ -22,13 +22,14 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { MujocoBackend } from '@bs-humany/backend-mujoco';
 import { BODY_JOINT_STATE, BODY_POSE } from '@bs-humany/modules-mechanics';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { TILTING_PLATFORM, scenario } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 import { runScenario, trajectoryHash } from '@bs-humany/testkit';
 import { describe, expect, it } from 'vitest';
 import { Simulation } from './simulation.js';
 
-const document = buildDocument();
+const document = withMuscles(buildDocument());
 
 /** The studio's run of a scenario, sampled where and as the runner samples it. */
 async function studioRun(id: string, ticks: number) {

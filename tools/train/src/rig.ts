@@ -58,7 +58,7 @@ import {
   MuscleVolumeModule,
   RENDER_MUSCLE_MESH,
   type RingBuffers,
-  compileMuscleSet,
+  compileDocumentMuscles,
   extractMuscleRings,
   ringBuffers,
 } from '@bs-humany/modules-muscle';
@@ -71,7 +71,7 @@ import {
   feetOf,
   seededUniform,
 } from '@bs-humany/modules-nerves';
-import { ALL_MUSCLES } from '@bs-humany/muscle-data';
+import { withMuscles } from '@bs-humany/muscle-data';
 import {
   type CompiledClip,
   DEFAULT_SCENARIO,
@@ -325,7 +325,8 @@ export class StandRig {
     if (!isTask(task)) {
       throw new Error(`unknown task "${task}"; known tasks: ${TASKS.join(', ')}`);
     }
-    const document = buildDocument();
+    // The reference body, carrying the whole-body muscle set the policy drives.
+    const document = withMuscles(buildDocument());
     const profile = document.segmentation.find((p) => p.id === options.profileId);
     if (!profile) throw new Error(`No profile '${options.profileId}'.`);
     // The scenario: where the body starts and what it stands on. The default one at its defaults
@@ -381,13 +382,7 @@ export class StandRig {
       kernel.register(pose);
       boneOrder = pose.plan.bones;
     }
-    const muscles = compileMuscleSet(
-      [...ALL_MUSCLES],
-      document.attachmentSites,
-      articulation,
-      morphology.context,
-      document.wrappingSurfaces ?? [],
-    );
+    const muscles = compileDocumentMuscles(document, articulation, morphology.context);
     const drive = new MuscleTestDriveModule(muscles, [
       { units: 'all', pattern: { kind: 'constant', level: 0 } },
     ]);

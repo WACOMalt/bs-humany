@@ -16,12 +16,13 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
+import { withMuscles } from '@bs-humany/muscle-data';
 import { DEFAULT_SCENARIO, scenario } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Simulation, type SimulationOptions } from './simulation.js';
 
-const document = buildDocument();
+const document = withMuscles(buildDocument());
 /**
  * The one shipped checkpoint. Trained with nothing under it -- its recipe's feedforward is `none`
  * -- and it records the rate it was trained at: 1000 steps a second, every ten.

@@ -93,6 +93,7 @@ const { loadSkeletonAssetsFromDisk } = await jiti.import(
   join(ROOT, 'packages/assets-anatomical/src/index.ts'),
 );
 const { evaluate, param } = await jiti.import(join(ROOT, 'packages/hsdl/src/index.ts'));
+const { withMuscles } = await jiti.import(join(ROOT, 'packages/muscle-data/src/index.ts'));
 const {
   SCENARIO_DEFINITIONS,
   DEFAULT_SCENARIO,
@@ -121,7 +122,9 @@ const {
 // The codec states where the bridge lives, once; this only lets --path say otherwise.
 const path = flag('path', DEFAULT_PATH);
 
-const document = buildDocument();
+// The whole-body muscle set travels inside the document, as the studio's does; a run with muscles
+// compiles the set its document carries and refuses one that carries none.
+const document = withMuscles(buildDocument());
 const assets = await loadSkeletonAssetsFromDisk(join(ROOT, 'packages/assets-anatomical/data'));
 
 /**

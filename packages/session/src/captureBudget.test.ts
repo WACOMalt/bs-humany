@@ -9,11 +9,12 @@
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Simulation } from './simulation.js';
 
-const document = buildDocument();
+const document = withMuscles(buildDocument());
 
 async function running(captureBudgetBytes?: number): Promise<Simulation> {
   const simulation = new Simulation(

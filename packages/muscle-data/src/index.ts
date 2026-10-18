@@ -3,10 +3,12 @@
  *
  * The schema is here rather than in `@bs-humany/hsdl` on purpose: muscle data is an extension
  * namespace, so a build without this package still reads and round-trips a document that carries
- * it (base spec 14.5 obligation 3).
+ * it (base spec 14.5 obligation 3). `withMuscles` and `readMuscles` put a set into a document and
+ * take it back out; a run compiles the set its document carries.
  */
 
 export * from './ankle.js';
+export * from './document.js';
 export * from './elbow.js';
 export * from './forearm.js';
 export * from './girdle.js';

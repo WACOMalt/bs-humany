@@ -20,11 +20,22 @@
  */
 
 import type { CompiledArticulation, CompiledSegment } from '@bs-humany/compiler';
-import type { AttachmentSiteDef, ExprContext, WrappingSurfaceDef } from '@bs-humany/hsdl';
+import type {
+  AttachmentSiteDef,
+  ExprContext,
+  HsdlDocument,
+  WrappingSurfaceDef,
+} from '@bs-humany/hsdl';
 import { evaluate } from '@bs-humany/hsdl';
 import type { ScalarExpr } from '@bs-humany/hsdl';
 import type { MtuParameters, MuscleGroup } from '@bs-humany/muscle-data';
-import { muscleLengthRange, sourceMuscleTravel } from '@bs-humany/muscle-data';
+import {
+  MUSCLE_NAMESPACE,
+  muscleLengthRange,
+  readMuscles,
+  sourceMuscleTravel,
+  validateMuscleExtension,
+} from '@bs-humany/muscle-data';
 import {
   DEFAULT_ACTIVATION_PARAMETERS,
   DEFAULT_FIBER_DAMPING,
@@ -129,6 +140,54 @@ function sitePosition(site: AttachmentSiteDef, context: ExprContext): Vec3 {
     y: evaluate(site.position.y, context),
     z: evaluate(site.position.z, context),
   };
+}
+
+/** How many reference problems a refusal lists before it says how many more there are. */
+const PROBLEMS_SHOWN = 10;
+
+/**
+ * Compile the muscle set a document carries -- the way a run gets its muscles.
+ *
+ * The set comes out of the document's `ext` map, not from beside it, so a document that defines
+ * its own muscles is simulated with them (muscle spec 10.3; base spec 14.5 obligation 3, which N3.5
+ * found defined and never used). A document that carries none is refused rather than quietly
+ * given the built-in set: a run asked for muscles, and silently substituting someone else's would
+ * be the same fault the extension exists to remove. `withMuscles` from `@bs-humany/muscle-data`
+ * is how a document gets a set.
+ *
+ * Every reference is checked before anything is compiled, so a set that names a site the
+ * document lacks is refused with the muscle that named it, rather than failing one unit at a time.
+ */
+export function compileDocumentMuscles(
+  document: Pick<HsdlDocument, 'ext' | 'attachmentSites' | 'wrappingSurfaces'>,
+  articulation: CompiledArticulation,
+  context: ExprContext,
+): CompiledMuscleSet {
+  const extension = readMuscles(document);
+  if (extension === undefined) {
+    throw new Error(
+      `This document carries no muscle set: there is nothing under ext['${MUSCLE_NAMESPACE}']. ` +
+        'Add one with withMuscles(document) from @bs-humany/muscle-data.',
+    );
+  }
+  const { problems } = validateMuscleExtension(document, extension);
+  if (problems.length > 0) {
+    const shown = problems
+      .slice(0, PROBLEMS_SHOWN)
+      .map((p) => `  ${p.group} / ${p.unit}: ${p.message}`);
+    const more =
+      problems.length > PROBLEMS_SHOWN ? [`  and ${problems.length - PROBLEMS_SHOWN} more`] : [];
+    throw new Error(
+      `This document's muscle set names things the document does not carry:\n${[...shown, ...more].join('\n')}`,
+    );
+  }
+  return compileMuscleSet(
+    extension.groups,
+    document.attachmentSites,
+    articulation,
+    context,
+    document.wrappingSurfaces ?? [],
+  );
 }
 
 /**

@@ -9,6 +9,7 @@
  */
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
@@ -25,7 +26,7 @@ function worst(a: ArrayLike<number>, b: ArrayLike<number>): number {
 describe('sweeping rings back into bellies', () => {
   it('reproduces the simulation’s swept mesh from a captured ring frame', async () => {
     const simulation = new Simulation(
-      buildDocument(),
+      withMuscles(buildDocument()),
       resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 }),
       {
         profileId: 'l3_anatomical',

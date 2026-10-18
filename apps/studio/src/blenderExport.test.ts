@@ -18,12 +18,13 @@ import { resolveMorphology } from '@bs-humany/anthropometry';
 import { loadSkeletonAssetsFromDisk } from '@bs-humany/assets-anatomical';
 import { PC2_HEADER_BYTES, readGlb } from '@bs-humany/export-gltf';
 import { DEFAULT_UPDATE_HZ } from '@bs-humany/modules-muscle';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { MAX_TICKS_PER_ADVANCE, Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { buildBlenderExport, exportStride, sampleCount } from './blenderExport.js';
 
-const document = buildDocument();
+const document = withMuscles(buildDocument());
 const assets = await loadSkeletonAssetsFromDisk(
   fileURLToPath(new URL('../../../packages/assets-anatomical/data', import.meta.url)),
 );

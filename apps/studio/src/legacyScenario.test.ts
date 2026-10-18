@@ -13,6 +13,7 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { DEFAULT_SCENARIO, RETIRED_SCENARIOS, scenario } from '@bs-humany/scenarios';
 import { Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -61,7 +62,7 @@ describe('a session saved in a deleted scenario', () => {
     // And the run the studio builds from it goes.
     const chosen = scenario(settings.scenario);
     const simulation = new Simulation(
-      buildDocument(),
+      withMuscles(buildDocument()),
       resolveMorphology({ sex: settings.sex, stature: settings.stature, mass: settings.mass }),
       {
         profileId: settings.profile,

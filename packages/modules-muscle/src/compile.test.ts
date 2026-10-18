@@ -5,8 +5,10 @@ import type { WrappingSurfaceDef } from '@bs-humany/hsdl';
 import {
   ELBOW_MUSCLES,
   ELBOW_UNITS,
+  MUSCLE_NAMESPACE,
   muscleLengthRange,
   sourceMuscleTravel,
+  withMuscles,
 } from '@bs-humany/muscle-data';
 import type { MuscleGroup } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -19,6 +21,7 @@ import {
   TENDON_FIT_FIBER_FLOOR,
   TRANSLATION_LIMIT,
   articulationBoneResolver,
+  compileDocumentMuscles,
   compileMuscleSet,
   fittedTendonSlack,
   wrapSurfaceId,
@@ -446,5 +449,48 @@ describe('compiling wrap surfaces', () => {
     for (const surface of set.surfaces) {
       expect(set.resolver.bodyOf(surface.bone), surface.id).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('compileDocumentMuscles', () => {
+  // Muscle spec N3.5: the set a run compiles is the one its document carries.
+  it('compiles exactly what compileMuscleSet does for the set the document carries', () => {
+    const fromDocument = compileDocumentMuscles(
+      withMuscles(document, ELBOW_MUSCLES),
+      L3,
+      morphology.context,
+    );
+    const beside = set();
+    expect(fromDocument.units.map((u) => u.id)).toEqual(beside.units.map((u) => u.id));
+    expect(fromDocument.units.map((u) => u.parameters)).toEqual(
+      beside.units.map((u) => u.parameters),
+    );
+    expect(fromDocument.paths).toEqual(beside.paths);
+  });
+
+  it('takes the document’s set rather than the built-in one', () => {
+    // The point of the change: a document defining fewer muscles gets fewer muscles. Before N3.5
+    // every run compiled the whole body whatever its document said.
+    const one = ELBOW_MUSCLES.slice(0, 1);
+    const compiled = compileDocumentMuscles(withMuscles(document, one), L3, morphology.context);
+    expect(compiled.units.map((u) => u.id)).toEqual(one.flatMap((g) => g.units.map((u) => u.id)));
+  });
+
+  it('refuses a document with no muscle set, and says where one goes', () => {
+    expect(() => compileDocumentMuscles(document, L3, morphology.context)).toThrow(
+      MUSCLE_NAMESPACE,
+    );
+  });
+
+  it('refuses a set naming a site the document lacks, naming the muscle that did', () => {
+    const [group] = ELBOW_MUSCLES;
+    const [unit] = group?.units ?? [];
+    if (!group || !unit) throw new Error('no elbow muscle');
+    const broken: MuscleGroup[] = [
+      { ...group, units: [{ ...unit, origin: 'no_such_site' }, ...group.units.slice(1)] },
+    ];
+    expect(() =>
+      compileDocumentMuscles(withMuscles(document, broken), L3, morphology.context),
+    ).toThrow(new RegExp(`${unit.id}.*no_such_site`));
   });
 });

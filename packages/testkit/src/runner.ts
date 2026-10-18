@@ -36,9 +36,9 @@ import {
   MuscleDynamicsModule,
   MusclePathModule,
   MuscleTestDriveModule,
-  compileMuscleSet,
+  compileDocumentMuscles,
 } from '@bs-humany/modules-muscle';
-import { ALL_MUSCLES } from '@bs-humany/muscle-data';
+import { withMuscles } from '@bs-humany/muscle-data';
 import {
   type Scenario,
   createScenarioApi,
@@ -107,7 +107,10 @@ export async function runScenario(
   scenario: Scenario,
   options: RunOptions = {},
 ): Promise<Trajectory> {
-  const document = options.document ?? buildDocument();
+  // The reference document, carrying the whole-body muscle set as an extension; a caller's own
+  // document carries whatever muscles it defines, and a scenario that wants muscles from one that
+  // defines none is refused when they are compiled.
+  const document = options.document ?? withMuscles(buildDocument());
   const profile = document.segmentation.find((p) => p.id === scenario.profileId);
   if (!profile) throw new Error(`No profile '${scenario.profileId}'.`);
   const morphology = resolveMorphology(scenario.morphology);
@@ -152,13 +155,7 @@ export async function runScenario(
   // of their own -- were deleted on 2026-09-28, and with no slider to move it the drive stays at
   // the zero it is built with.
   if (scenario.muscles) {
-    const muscles = compileMuscleSet(
-      [...ALL_MUSCLES],
-      document.attachmentSites,
-      articulation,
-      morphology.context,
-      document.wrappingSurfaces ?? [],
-    );
+    const muscles = compileDocumentMuscles(document, articulation, morphology.context);
     kernel.register(
       new MuscleTestDriveModule(muscles, [
         { units: 'all', pattern: { kind: 'constant', level: 0 } },

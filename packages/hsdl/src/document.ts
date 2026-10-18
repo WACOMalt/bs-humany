@@ -74,7 +74,10 @@ export const HsdlDocumentSchema = z
     constraints: z.array(ConstraintDefSchema),
     morphology: MorphologySpecSchema,
 
-    /** Reserved for the Phase 3 muscle module. Nothing in Phase 1 reads these. See section 14.2. */
+    /**
+     * Where muscles attach and wrap. Reserved in Phase 1 for the muscle module (section 14.2),
+     * which now reads both: its muscle set, carried under `ext`, names these by id.
+     */
     attachmentSites: z.array(AttachmentSiteDefSchema),
     wrappingSurfaces: z.array(WrappingSurfaceDefSchema).optional(),
 

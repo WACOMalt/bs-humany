@@ -14,11 +14,12 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { BODY_JOINT_STATE, BODY_POSE } from '@bs-humany/modules-mechanics';
 import { DEFAULT_UPDATE_HZ, rateDivisorFor } from '@bs-humany/modules-muscle';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Simulation, type SimulationOptions } from './simulation.js';
 
-const document = buildDocument();
+const document = withMuscles(buildDocument());
 
 /** L1 at its own 500 Hz, which runs the whole muscle set at a fraction of L3's cost. */
 function build(extra: Partial<SimulationOptions> = {}, stature = 1.7): Simulation {

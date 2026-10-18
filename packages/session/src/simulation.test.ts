@@ -12,12 +12,13 @@
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import type { PolicyFile } from '@bs-humany/modules-nerves';
 import balancePolicy from '@bs-humany/modules-nerves/policies/balance.json' with { type: 'json' };
+import { withMuscles } from '@bs-humany/muscle-data';
 import { DEFAULT_SCENARIO } from '@bs-humany/scenarios';
 import { buildDocument } from '@bs-humany/skeleton';
 import { describe, expect, it } from 'vitest';
 import { Simulation, type SimulationOptions } from './simulation.js';
 
-const document = buildDocument();
+const document = withMuscles(buildDocument());
 
 function build(extra: Partial<SimulationOptions> = {}): Simulation {
   return new Simulation(document, resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 }), {

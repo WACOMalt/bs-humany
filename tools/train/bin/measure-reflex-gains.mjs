@@ -532,6 +532,7 @@ const TREMOR_TO = 3;
 const session = await jiti.import(join(ROOT, 'packages/session/src/index.ts'));
 const { resolveMorphology } = await jiti.import(join(ROOT, 'packages/anthropometry/src/index.ts'));
 const { buildDocument } = await jiti.import(join(ROOT, 'packages/skeleton/src/index.ts'));
+const { withMuscles } = await jiti.import(join(ROOT, 'packages/muscle-data/src/index.ts'));
 let skeleton;
 
 /**
@@ -552,7 +553,8 @@ async function tremor(reflex) {
 }
 
 async function tremorRun(reflex, trained) {
-  skeleton ??= buildDocument();
+  // The muscle set rides in the document; the session compiles the set its document carries.
+  skeleton ??= withMuscles(buildDocument());
   const behaviour = DEFAULT_BEHAVIOUR;
   const chosen = session.scenarioDefinition(behaviour.scenario).build({ ...behaviour.parameters });
   const morphology = resolveMorphology(

@@ -31,10 +31,12 @@ import { describe, expect, it } from 'vitest';
 // declares no workspace dependency but the session, and the point is to resolve exactly what
 // jiti resolves.
 import { resolveMorphology } from '../../../packages/anthropometry/src/index.ts';
+import { withMuscles } from '../../../packages/muscle-data/src/index.ts';
 import { SCENARIOS } from '../../../packages/scenarios/src/index.ts';
 import { buildDocument } from '../../../packages/skeleton/src/index.ts';
 
-const document = buildDocument();
+// As publish-pose builds it: the muscle set rides in the document.
+const document = withMuscles(buildDocument());
 
 describe('the session surface the headless tools import', () => {
   it('exports what publish-pose and the showcase load by name', () => {

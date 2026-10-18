@@ -30,6 +30,7 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { morphologyKey } from '@bs-humany/compiler';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { createAlign } from './alignHost.js';
@@ -69,8 +70,9 @@ const BACKEND_NAME = 'MuJoCo';
 function boot(): void {
   // The document is built once. Measured placement only: the procedural recipes remain as the
   // internal fallback for bones the dataset lacks (the ossicles, OQ-004) and as a future
-  // low-detail LOD; they are not a user option.
-  const document_ = buildDocument();
+  // low-detail LOD; they are not a user option. The whole-body muscle set travels inside it, as
+  // the muscle extension, and is what a run with muscles compiles.
+  const document_ = withMuscles(buildDocument());
   const status = createStatusLine();
   const controls = findControls();
   const follower = new BridgeFollower();

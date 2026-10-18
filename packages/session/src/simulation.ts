@@ -54,7 +54,7 @@ import {
   MuscleTestDriveModule,
   MuscleVolumeModule,
   RENDER_MUSCLE_MESH,
-  compileMuscleSet,
+  compileDocumentMuscles,
   extractMuscleRings,
 } from '@bs-humany/modules-muscle';
 import {
@@ -65,7 +65,6 @@ import {
   type SpinalGains,
   SpinalModule,
 } from '@bs-humany/modules-nerves';
-import { ALL_MUSCLES } from '@bs-humany/muscle-data';
 import {
   GOAL_SIZE,
   type NervesSetup,
@@ -118,10 +117,12 @@ export interface SimulationOptions {
    *
    * Off unless asked for, because every unit costs a solve per tick and plenty of what the studio
    * is used for has nothing to do with muscles -- though the studio now asks for them by default,
-   * because a muscle module should open showing muscles. What is wired up is every region in
-   * `ALL_MUSCLES` (packages/muscle-data/src/wholeBody.ts), the hand's extrinsic digit muscles --
-   * the long tendons from the forearm -- included. The hand's intrinsics, the lumbricals, the
-   * interossei and the thenar and hypothenar groups, are not modelled yet (hand.ts says why).
+   * because a muscle module should open showing muscles. What is wired up is the set the
+   * document carries, under its muscle extension; a document with none is refused when this is
+   * on. The studio's document carries every region in `ALL_MUSCLES`
+   * (packages/muscle-data/src/wholeBody.ts), the hand's extrinsic digit muscles -- the long
+   * tendons from the forearm -- included. The hand's intrinsics, the lumbricals, the interossei
+   * and the thenar and hypothenar groups, are not modelled yet (hand.ts says why).
    */
   readonly muscles?: boolean | undefined;
   /**
@@ -417,15 +418,10 @@ export class Simulation {
       this.kernel.register(this.passive);
     }
     if (options.muscles) {
-      // The muscle set is resolved against this articulation, so it follows the fidelity profile
-      // and the morphology without being re-authored: bone ids are the stable interface.
-      this.muscles = compileMuscleSet(
-        [...ALL_MUSCLES],
-        document.attachmentSites,
-        this.articulation,
-        morphology.context,
-        document.wrappingSurfaces ?? [],
-      );
+      // The set is the document's own (muscle spec 10.3), resolved against this articulation, so
+      // it follows the fidelity profile and the morphology without being re-authored: bone ids
+      // are the stable interface.
+      this.muscles = compileDocumentMuscles(document, this.articulation, morphology.context);
       // Every unit starts relaxed. The drive is a live override the panel writes to, rather than
       // a pattern, because what this is for is turning a muscle on and watching what happens.
       this.muscleDrive = new MuscleTestDriveModule(this.muscles, [

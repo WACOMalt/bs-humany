@@ -9,6 +9,7 @@
 
 import { resolveMorphology } from '@bs-humany/anthropometry';
 import { PASSIVE_JOINT_MODULE_ID } from '@bs-humany/modules-mechanics';
+import { withMuscles } from '@bs-humany/muscle-data';
 import { DEFAULT_OUTPUT_FRAMERATE, Simulation } from '@bs-humany/session';
 import { buildDocument } from '@bs-humany/skeleton';
 import { REFLEX_REGIONS } from '@bs-humany/train/recipe';
@@ -234,7 +235,7 @@ describe('restoreMismatch', () => {
 
 describe('a session saved from a run', () => {
   it('goes back into a fresh run built from its own settings, at its rate, with its muscles', async () => {
-    const document = buildDocument();
+    const document = withMuscles(buildDocument());
     const morphology = resolveMorphology({ sex: 0.5, stature: 1.7, mass: 70 });
     const options = {
       profileId: 'l1_standard',
