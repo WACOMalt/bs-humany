@@ -39,7 +39,7 @@ import type {
 } from '@bs-humany/compiler';
 import { GRAB_FORCE_FRACTION, GRAB_LEASH, ROOT_NQ, ROOT_NV, emitMjcf } from '@bs-humany/compiler';
 import type { Quat, Transform, Vec3 } from '@bs-humany/frames';
-import type { MainModule, MjData, MjModel } from '@mujoco/mujoco';
+import type { DoubleBuffer, MainModule, MjData, MjModel } from '@mujoco/mujoco';
 import loadMujoco from '@mujoco/mujoco';
 
 /**
@@ -150,6 +150,20 @@ export class MujocoBackend implements IPhysicsBackend {
   private realized = new Float64Array(0);
   private motors: (MotorTarget | null)[] = [];
   private wrench = new Float64Array(0);
+  /**
+   * Generalized force the body wrenches produced on the last substep, in MuJoCo DoF order.
+   *
+   * MuJoCo takes body wrenches through `xfrc_applied` and folds them into the dynamics without
+   * ever writing them to `qfrc_applied`, so the realized readout cannot see them unless they are
+   * projected here. Every muscle force arrives as a body wrench (muscle spec M-ADR-003), so
+   * without this a muscle-driven joint reads as carrying no actuation at all.
+   */
+  private wrenchDof = new Float64Array(0);
+  /** Heap memory `mj_applyFT` writes into, which a JS array cannot be. Freed with the model. */
+  private wrenchDofHeap: DoubleBuffer | undefined;
+  private readonly ftForce = new Float64Array(3);
+  private readonly ftTorque = new Float64Array(3);
+  private readonly ftPoint = new Float64Array(3);
   private grabs = new Set<MujocoGrab>();
   private substepTimestep = 0;
   /**
@@ -230,6 +244,9 @@ export class MujocoBackend implements IPhysicsBackend {
     this.realized = new Float64Array(model.nv);
     this.motors = model.dofs.map(() => null);
     this.wrench = new Float64Array(6 * model.segments.length);
+    this.wrenchDof = new Float64Array(model.nv);
+    this.wrenchDofHeap?.delete();
+    this.wrenchDofHeap = new mujoco.DoubleBuffer(model.nv);
     this.grabs.clear();
     this.refreshViews();
     mujoco.mj_forward(mjModel, mjData);
@@ -298,8 +315,10 @@ export class MujocoBackend implements IPhysicsBackend {
   private disposeModel(): void {
     this.mjData?.delete();
     this.mjModel?.delete();
+    this.wrenchDofHeap?.delete();
     this.mjData = undefined;
     this.mjModel = undefined;
+    this.wrenchDofHeap = undefined;
     this.views = undefined;
     this.grabs.clear();
   }
@@ -330,6 +349,9 @@ export class MujocoBackend implements IPhysicsBackend {
     const t0 = mjData.time;
     for (let s = 0; s < n; s++) {
       this.applyForces();
+      // Before the step, so the projection is taken at the pose the wrench is applied at: the
+      // last substep, which is also the one the constraint forces in the readout come from.
+      if (s === n - 1) this.projectBodyWrenches();
       mujoco.mj_step(mjModel, mjData);
     }
     if (Math.abs(mjData.time - (t0 + n * dt)) > dt / 2) this.resets += 1;
@@ -342,6 +364,62 @@ export class MujocoBackend implements IPhysicsBackend {
     // efc_force after the step belongs to the last substep; leave the applied forces in place
     // for the realized readout, they are rewritten next step.
     this.wrench.fill(0);
+  }
+
+  /**
+   * Fold this substep's body wrenches into generalized forces, for the realized readout.
+   *
+   * `mj_applyFT` is MuJoCo's own Jacobian-transpose projection -- the one `mj_step` applies to
+   * `xfrc_applied` internally -- so the readout and the dynamics cannot disagree about what a
+   * wrench does to a joint. It accumulates into its target, which lets every body share one.
+   * Grab springs travel the same way and so are reported too, which is right: they are applied
+   * forces like any other.
+   */
+  private projectBodyWrenches(): void {
+    const mujoco = this.mujoco;
+    const mjModel = this.mjModel;
+    const mjData = this.mjData;
+    const heap = this.wrenchDofHeap;
+    if (!mujoco || !mjModel || !mjData || !heap) return;
+    (heap.GetView() as Float64Array).fill(0);
+    const nbody = mjModel.nbody;
+    // Body 0 is the world, which nothing pushes on.
+    for (let b = 1; b < nbody; b++) {
+      // Re-read the views each body: the call copies its inputs onto the heap, and a heap that
+      // grows to take them detaches every view taken before.
+      const v = this.live();
+      const xfrc = v.xfrc_applied;
+      const o = 6 * b;
+      if (
+        xfrc[o] === 0 &&
+        xfrc[o + 1] === 0 &&
+        xfrc[o + 2] === 0 &&
+        xfrc[o + 3] === 0 &&
+        xfrc[o + 4] === 0 &&
+        xfrc[o + 5] === 0
+      ) {
+        continue;
+      }
+      // `xfrc_applied` acts at the body's centre of mass.
+      for (let k = 0; k < 3; k++) {
+        this.ftForce[k] = xfrc[o + k] as number;
+        this.ftTorque[k] = xfrc[o + 3 + k] as number;
+        this.ftPoint[k] = v.xipos[3 * b + k] as number;
+      }
+      // The binding types these as `number[]` but takes any typed array, copying it in; reusing
+      // three preallocated ones keeps the step free of allocation.
+      mujoco.mj_applyFT(
+        mjModel,
+        mjData,
+        this.ftForce as unknown as number[],
+        this.ftTorque as unknown as number[],
+        this.ftPoint as unknown as number[],
+        b,
+        heap,
+      );
+    }
+    // A fresh view for the same reason as above.
+    this.wrenchDof.set(heap.GetView() as Float64Array);
   }
 
   /** Commanded generalized forces, emulated motors, grab springs and body wrenches. */
@@ -542,7 +620,8 @@ export class MujocoBackend implements IPhysicsBackend {
       out.force[i] =
         (v.qfrc_applied[i] as number) +
         (v.qfrc_constraint[i] as number) +
-        (v.qfrc_passive[i] as number);
+        (v.qfrc_passive[i] as number) +
+        (this.wrenchDof[i] as number);
     }
     for (let i = 0; i < model.dofs.length; i++) {
       const qa = this.qposAdr[i] as number;
@@ -552,7 +631,8 @@ export class MujocoBackend implements IPhysicsBackend {
       out.force[ROOT_NV + i] =
         (v.qfrc_applied[da] as number) +
         (v.qfrc_constraint[da] as number) +
-        (v.qfrc_passive[da] as number);
+        (v.qfrc_passive[da] as number) +
+        (this.wrenchDof[da] as number);
     }
   }
 
