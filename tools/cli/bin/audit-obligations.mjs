@@ -151,6 +151,16 @@ function heldOpen(found, allowed, emptyDetail) {
   return out;
 }
 
+/**
+ * Every place a run compiles muscles. Each must take the set from its document (obligation 3), so
+ * a caller that went back to handing the compiler a set from beside the document fails here.
+ */
+const MUSCLE_RUN_PATHS = Object.freeze([
+  'packages/session/src/simulation.ts',
+  'packages/testkit/src/runner.ts',
+  'tools/train/src/rig.ts',
+]);
+
 const OBLIGATIONS = [
   {
     n: 1,
@@ -231,6 +241,19 @@ const OBLIGATIONS = [
         existsSync(join(ROOT, 'docs/guides/hsdl-extensions.md'))
           ? { ok: true, detail: '`docs/guides/hsdl-extensions.md` documents the convention' }
           : { ok: false, detail: 'the extension guide is missing' },
+        // The muscle module, the first real consumer (muscle spec 10.3, N3.5): its set travels in
+        // the document and every run compiles it from there.
+        namedTest('packages/muscle-data/src/document.test.ts', 'round trip through HSDL alone'),
+        namedTest('packages/modules-muscle/src/compile.test.ts', 'rather than the built-in one'),
+        ...MUSCLE_RUN_PATHS.map((f) => {
+          const text = read(f);
+          return /\bcompileDocumentMuscles\(/.test(text) && !/\bcompileMuscleSet\(/.test(text)
+            ? { ok: true, detail: `\`${f}\` compiles the muscle set its document carries` }
+            : {
+                ok: false,
+                detail: `\`${f}\` compiles muscles from beside the document, not from inside it`,
+              };
+        }),
       ];
     },
   },
@@ -251,6 +274,10 @@ const OBLIGATIONS = [
           : { ok: false, detail: 'the joint state buffer has no realized force field' },
         namedTest('packages/testkit/src/realizedForce.test.ts', 'motor torque that holds'),
         namedTest('packages/testkit/src/realizedForce.test.ts', 'constraint torque natively'),
+        // Body wrenches too, which is how every muscle force arrives (muscle spec M-ADR-003);
+        // N3.5 found them missing from the readout.
+        namedTest('packages/testkit/src/realizedForce.test.ts', 'torque a body wrench produces'),
+        namedTest('packages/testkit/src/muscleTorque.test.ts', 'tension times its moment arm'),
       ];
     },
   },
@@ -311,6 +338,9 @@ const OBLIGATIONS = [
           ? { ok: true, detail: '`actuation.bodyWrench` is an accumulator' }
           : { ok: false, detail: '`actuation.bodyWrench` is not an accumulator' },
         namedTest('packages/kernel/src/kernel.test.ts', 'two writers'),
+        // The muscles' side of it (N3.5): their wrenches add to another writer's on the same bones,
+        // whichever runs first, rather than replacing them.
+        namedTest('packages/modules-muscle/src/muscleModules.test.ts', 'sums with another writer'),
       ];
     },
   },

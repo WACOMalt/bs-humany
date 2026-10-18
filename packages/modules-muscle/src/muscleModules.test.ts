@@ -7,7 +7,12 @@ import {
   type ModuleManifest,
   type SimModule,
 } from '@bs-humany/kernel';
-import { ACTUATION_BODY_WRENCH, BODY_POSE, PhysicsModule } from '@bs-humany/modules-mechanics';
+import {
+  ACTUATION_BODY_WRENCH,
+  BODY_POSE,
+  CHANNEL_VERSION,
+  PhysicsModule,
+} from '@bs-humany/modules-mechanics';
 import { ELBOW_MUSCLES } from '@bs-humany/muscle-data';
 import { DIFFERENCE_STEP, momentArmByDifference } from '@bs-humany/muscle-path';
 import { buildDocument } from '@bs-humany/skeleton';
@@ -170,6 +175,88 @@ class HeldLengthPath implements SimModule {
   }
 }
 
+/**
+ * A second writer of `actuation.bodyWrench`: a fixed, distinct wrench on every segment.
+ *
+ * Stands in for whatever else pushes on a bone in the same tick as the muscles -- a grab, an
+ * external load, the soft-tissue layer of N4.3. Each segment gets a different value so a write
+ * that landed on the wrong segment, or twice, would show.
+ */
+class ConstantWrench implements SimModule {
+  static readonly ID = 'test.constant-wrench';
+  readonly manifest: ModuleManifest;
+  private force: Float64Array | undefined;
+  private torque: Float64Array | undefined;
+
+  /**
+   * `order` places it in the phase. Registration order cannot: the kernel resolves the run order
+   * from the manifests alone (ADR-004), by dependency, then `order`, then id.
+   */
+  constructor(order: number) {
+    this.manifest = {
+      id: ConstantWrench.ID,
+      version: '1.0.0',
+      phase: 'actuate',
+      order,
+      dependsOn: [],
+      reads: [],
+      writes: [],
+      accumulates: [{ id: ACTUATION_BODY_WRENCH, version: CHANNEL_VERSION }],
+      gives: [],
+    };
+  }
+
+  static value(segment: number, component: number): number {
+    return 1 + component + 0.5 * segment;
+  }
+
+  init(ctx: ModuleInitContext): void {
+    const fields = ctx.accumulate(ACTUATION_BODY_WRENCH).fields;
+    this.force = fields.force as Float64Array;
+    this.torque = fields.torque as Float64Array;
+  }
+
+  step(): void {
+    const force = this.force;
+    const torque = this.torque;
+    if (!force || !torque) return;
+    for (let i = 0; i < force.length; i++) {
+      const segment = Math.floor(i / 3);
+      force[i] = (force[i] as number) + ConstantWrench.value(segment, i % 3);
+      torque[i] = (torque[i] as number) - ConstantWrench.value(segment, i % 3);
+    }
+  }
+}
+
+/**
+ * One tick of the elbow muscles under full drive, with a second wrench writer that runs before
+ * them, after them, or not at all. Returns the wrench channel as the solver would read it, and
+ * whether the second writer really ran on the side asked for.
+ */
+async function wrenchWithSecondWriter(side: 'none' | 'before' | 'after') {
+  const kernel = new Kernel({ rateHz: 500, seed: 1 });
+  kernel.register(new PhysicsModule(new MujocoBackend(), articulation, { ground: { height: 0 } }));
+  kernel.register(
+    new MuscleTestDriveModule(muscles, [{ units: 'all', pattern: { kind: 'constant', level: 1 } }]),
+  );
+  kernel.register(new MusclePathModule(articulation, muscles));
+  const dynamics = new MuscleDynamicsModule(articulation, muscles);
+  kernel.register(dynamics);
+  if (side !== 'none') kernel.register(new ConstantWrench(side === 'before' ? -1 : 1));
+  await kernel.init();
+  const run = kernel.order();
+  const ranBefore = run.indexOf(ConstantWrench.ID) < run.indexOf(dynamics.manifest.id);
+  kernel.step();
+  const fields = kernel.channels.storage(ACTUATION_BODY_WRENCH).fields;
+  const out = {
+    force: Float64Array.from(fields.force as Float64Array),
+    torque: Float64Array.from(fields.torque as Float64Array),
+    ranBefore,
+  };
+  kernel.dispose();
+  return out;
+}
+
 /** The dynamics module alone, on a path held at whatever length each unit is given. */
 async function heldAt(set: CompiledMuscleSet, lengthOf: (unit: number) => number, level = 0) {
   const kernel = new Kernel({ rateHz: 500, seed: 1 });
@@ -295,6 +382,40 @@ describe('MuscleDynamicsModule', () => {
     expect(s.dynamics.manifest.accumulates.map((c) => c.id)).toEqual([ACTUATION_BODY_WRENCH]);
     expect(s.dynamics.manifest.writes.map((c) => c.id)).toEqual([MUSCLE_STATE]);
     s.kernel.dispose();
+  });
+
+  it('sums with another writer on the same bones, whether it runs before or after them', async () => {
+    // Muscle spec N3.5, base spec 14.5 item 8 as the muscle module consumes it. The declaration
+    // above is what the kernel checks; this is the behaviour behind it. A module that assigned its
+    // wrench instead of adding it would erase every writer that ran before it in the tick, and
+    // nothing would say so -- the muscles alone would look exactly right.
+    const alone = await wrenchWithSecondWriter('none');
+    let pushed = 0;
+    for (let i = 0; i < alone.force.length; i++) if (alone.force[i] !== 0) pushed++;
+    expect(
+      pushed,
+      'the muscles must push on something for the sum to mean anything',
+    ).toBeGreaterThan(0);
+
+    for (const order of ['before', 'after'] as const) {
+      const both = await wrenchWithSecondWriter(order);
+      // Checked rather than assumed: a writer that only ever ran last would pass even against a
+      // module that assigned, since nothing would come before it to be erased.
+      expect(both.ranBefore, `second writer should run ${order} the muscles`).toBe(
+        order === 'before',
+      );
+      for (let i = 0; i < alone.force.length; i++) {
+        const extra = ConstantWrench.value(Math.floor(i / 3), i % 3);
+        expect(both.force[i], `force ${i}, second writer ${order}`).toBeCloseTo(
+          (alone.force[i] as number) + extra,
+          9,
+        );
+        expect(both.torque[i], `torque ${i}, second writer ${order}`).toBeCloseTo(
+          (alone.torque[i] as number) - extra,
+          9,
+        );
+      }
+    }
   });
 
   it('starts each fiber in equilibrium, so nothing twitches at t = 0', async () => {

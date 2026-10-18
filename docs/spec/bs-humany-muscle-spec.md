@@ -622,7 +622,7 @@ packages/
 `N3.2` `muscle.dynamics` module with `actuation.bodyWrench` accumulation, including wrap reaction forces. ✅ b91b401. The wrap reactions came with N1.4 (d4151cf).
 `N3.3` `MuscleTestDriveModule` with constant, sine, step and scripted patterns. ✅ b91b401.
 `N3.4` `muscle.moment` diagnostics module. ✅ 4bb9578, `MuscleMomentModule`.
-`N3.5` Confirm the five base spec section 14.5 obligations listed in section 10.3.
+`N3.5` Confirm the five base spec section 14.5 obligations listed in section 10.3. ✅ Items 2, 8 and 10 held. Two did not, and were fixed in the base as section 10.3 directs. Item 4: the realized per-DoF force left out body wrenches, which MuJoCo takes through `xfrc_applied`, so it could not see a muscle at all; it now matches each unit's tension times its moment arm at the elbow to 1e-6. Item 3: the `muscle.*` extension was defined and never used, every run compiling a set handed in beside the document; the set now travels in the document's `ext` map and runs compile it from there (`withMuscles`, `compileDocumentMuscles`). The muscle-side evidence for all five is in `docs/validation/obligations.md`, which CI checks.
 `N3.6` Tier selection and live switching.
 `N3.7` **First muscle-driven motion.** Drive the elbow flexors and watch the forearm lift. *The demo milestone.* ✅ b2d7bb9: driving the elbow flexors flexes the right forearm, live in the studio.
 `N3.8` Golden trajectories and plausibility assertions.

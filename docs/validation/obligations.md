@@ -11,7 +11,7 @@ thing, by importing the package rather than grepping for a word. Where it is beh
 evidence is a named test, and the check confirms that test still exists by that name; whether
 it passes is the test suite's business, and CI runs both.
 
-Generated 2026-09-27. 10 of 10 obligations met.
+Generated 2026-10-18. 10 of 10 obligations met.
 
 ## 1. DelayLine primitive built and tested, unused.
 
@@ -38,6 +38,11 @@ Generated 2026-09-27. 10 of 10 obligations met.
 - a value written under `bsums.xyz.bs-humany.audit` reads back
 - 636 collision proxies carry their provenance this way
 - `docs/guides/hsdl-extensions.md` documents the convention
+- `packages/muscle-data/src/document.test.ts`: "survives a round trip through HSDL alone, which knows nothing of muscles"
+- `packages/modules-muscle/src/compile.test.ts`: "takes the document’s set rather than the built-in one"
+- `packages/session/src/simulation.ts` compiles the muscle set its document carries
+- `packages/testkit/src/runner.ts` compiles the muscle set its document carries
+- `tools/train/src/rig.ts` compiles the muscle set its document carries
 
 ## 4. Realized (not just commanded) per-DoF force readable from both backends.
 
@@ -47,6 +52,8 @@ Generated 2026-09-27. 10 of 10 obligations met.
 - `JointStateBuffer.force` carries it, filled by `readJointState`
 - `packages/testkit/src/realizedForce.test.ts`: "mujoco reports the motor torque that holds the arm against gravity"
 - `packages/testkit/src/realizedForce.test.ts`: "mujoco reports the stop’s constraint torque natively"
+- `packages/testkit/src/realizedForce.test.ts`: "mujoco reports the joint torque a body wrench produces"
+- `packages/testkit/src/muscleTorque.test.ts`: "equal each unit’s tension times its moment arm, summed, at every free joint"
 
 ## 5. contact.manifolds published with per-contact impulse from Phase 1.
 
@@ -80,6 +87,7 @@ Generated 2026-09-27. 10 of 10 obligations met.
 - `actuation.jointTorque` is an accumulator
 - `actuation.bodyWrench` is an accumulator
 - `packages/kernel/src/kernel.test.ts`: "zeroes accumulators each tick and sums contributions from two writers"
+- `packages/modules-muscle/src/muscleModules.test.ts`: "sums with another writer on the same bones, whether it runs before or after them"
 
 ## 9. Articulation recompile-and-restore is lossless and benchmarked.
 
