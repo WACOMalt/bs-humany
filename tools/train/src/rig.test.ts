@@ -339,9 +339,9 @@ describe('the base the reward holds the mass over', () => {
       look.addFoot(look.rightFeet);
       const old = { x: look.baseX / look.baseCount, z: look.baseZ / look.baseCount };
 
-      const { position } = rig.segments();
+      const { position, ids } = rig.segments();
       const at = (id: string) => {
-        const i = rig.segmentIds.indexOf(id);
+        const i = ids.indexOf(id);
         return { x: position[3 * i] as number, z: position[3 * i + 2] as number };
       };
       const mid = (a: string, b: string) => ({
