@@ -219,17 +219,21 @@ describe('the rig, pinned', () => {
   // last digit. The second episode of each was re-pinned on 2026-09-27, on purpose, when a
   // contact's impulse became its whole normal impulse rather than one edge of the friction
   // pyramid: a foot touching down on a contact whose first edge carried nothing now reads as a
-  // foot on the ground, and in that episode it scored a little more for it.
+  // foot on the ground, and in that episode it scored a little more for it. Every score was
+  // re-pinned on 2026-10-18, on purpose, when the base the reward holds the mass over became the
+  // middle of the loaded feet rather than the mean of their segments: the scores moved in the
+  // third decimal and nothing else did -- the seconds up, the poses and the tick it fell on are
+  // the same to the bit, because the reward reads the body and never moves it.
   const EPISODES = {
     stand: [
-      [1.0489139069589684, 0.48],
-      [0.8160889521542368, 0.38],
-      [1.0705944539440073, 0.49],
+      [1.053343510622216, 0.48],
+      [0.8193773397599995, 0.38],
+      [1.0748242596329325, 0.49],
     ],
     balance: [
-      [0.5224579271787515, 0.48],
-      [0.3441297963963935, 0.38],
-      [0.4464036873674729, 0.49],
+      [0.5268875308419991, 0.48],
+      [0.3474181840021561, 0.38],
+      [0.45063349305639855, 0.49],
     ],
   } as const;
   const TICKED = [
@@ -294,6 +298,66 @@ describe('the feet the rig stands on', () => {
       // Well past AIRBORNE_GRACE, and scored: time is only counted while a foot is down.
       expect(result.aliveSeconds).toBeGreaterThan(0.2);
       expect(result.fitness).toBeGreaterThan(0);
+    } finally {
+      rig.dispose();
+    }
+  }, 180_000);
+});
+
+describe('the base the reward holds the mass over', () => {
+  it('is the middle of the loaded feet, not the toe-heavy mean of their segments', async () => {
+    // At L3 a foot is eighteen segments, fourteen of them toe bones, and the reward's support
+    // point used to be the mean of their origins: near the ball of the foot, so the body was paid
+    // to lean onto the front edge of its base. Measured in the foot's own frame, heel to big toe,
+    // so it holds whichever way a scenario faces the body.
+    const rig = await StandRig.build({
+      profileId: 'l3_anatomical',
+      hidden: [8],
+      seconds: 1,
+      authority: 0.3,
+      feedforward: { kind: 'none' },
+    });
+    try {
+      rig.begin(new Float32Array(rig.parameterCount), 1);
+      for (let i = 0; i < 30; i++) rig.tick();
+      const look = rig as unknown as {
+        overFeet(): number;
+        baseX: number;
+        baseZ: number;
+        baseCount: number;
+        addFoot(list: Int32Array): void;
+        leftFeet: Int32Array;
+        rightFeet: Int32Array;
+      };
+      look.overFeet();
+      expect(look.baseCount, 'both feet bear on the floor').toBe(2);
+      const base = { x: look.baseX / 2, z: look.baseZ / 2 };
+      look.baseX = 0;
+      look.baseZ = 0;
+      look.baseCount = 0;
+      look.addFoot(look.leftFeet);
+      look.addFoot(look.rightFeet);
+      const old = { x: look.baseX / look.baseCount, z: look.baseZ / look.baseCount };
+
+      const { position, ids } = rig.segments();
+      const at = (id: string) => {
+        const i = ids.indexOf(id);
+        return { x: position[3 * i] as number, z: position[3 * i + 2] as number };
+      };
+      const mid = (a: string, b: string) => ({
+        x: (at(a).x + at(b).x) / 2,
+        z: (at(a).z + at(b).z) / 2,
+      });
+      const heel = mid('calcaneus_l', 'calcaneus_r');
+      const toe = mid('phalanx_pedis_distal_1_l', 'phalanx_pedis_distal_1_r');
+      const along = (p: { x: number; z: number }) =>
+        ((p.x - heel.x) * (toe.x - heel.x) + (p.z - heel.z) * (toe.z - heel.z)) /
+        ((toe.x - heel.x) ** 2 + (toe.z - heel.z) ** 2);
+      // Heel to big toe is 0 to 1. The middle of the base is in the middle third; the old mean
+      // was three quarters of the way to the toe.
+      expect(along(base)).toBeGreaterThan(0.2);
+      expect(along(base)).toBeLessThan(0.55);
+      expect(along(old)).toBeGreaterThan(0.65);
     } finally {
       rig.dispose();
     }

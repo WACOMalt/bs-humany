@@ -232,7 +232,15 @@ export class StandRig {
   private baseX = 0;
   private baseZ = 0;
   private baseCount = 0;
-  private readonly contacts: { count: number; pair: Int32Array; impulse: Float64Array };
+  private readonly contacts: {
+    count: number;
+    pair: Int32Array;
+    impulse: Float64Array;
+    point: Float64Array;
+  };
+  /** One foot's support centre along the floor, written by `footSupport`. */
+  private footX = 0;
+  private footZ = 0;
   /** The body's mass distribution, for the centre of mass the support reward is measured from. */
   private readonly segmentMass: Float64Array;
   private readonly segmentCom: Float64Array;
@@ -289,6 +297,7 @@ export class StandRig {
       },
       pair: contacts.fields.pair as Int32Array,
       impulse: contacts.fields.impulse as Float64Array,
+      point: contacts.fields.point as Float64Array,
     };
     // Segment masses and their local centres, for the whole body's centre of mass: the quantity
     // balance is actually about, and the one the reward needs if it is to tell a body leaning
@@ -486,12 +495,21 @@ export class StandRig {
    * rank transform is ranking noise -- there is nothing in the score that says one of them
    * nearly stood and the other went straight over.
    *
-   * The support point is the unweighted mean of every foot segment's origin, both feet, loaded
-   * or not. Contact does not enter into it, so a body standing on one leg, or with all its
-   * weight shifted onto one foot, is scored against the midpoint of the two feet rather than
-   * against the foot it is actually on. The margin is scaled by a quarter of a metre, which is
-   * about a foot's length: at the edge of the base the term is near zero, and well inside it is
-   * near one.
+   * The support point is where the feet actually bear: each foot that is loaded on the ground
+   * contributes the middle of its contacts -- the midpoint of the two farthest apart, heel and
+   * toe when it is flat -- and the feet that are down are averaged. A body on one foot is scored
+   * against that foot.
+   *
+   * It used to be the unweighted mean of every foot segment's origin, both feet, loaded or not.
+   * At L3 a foot is eighteen segments, fourteen of them toe bones, so that mean sat 111 mm ahead
+   * of the ankle, near the ball of the foot, while the foot bears from 33 mm behind the ankle to
+   * 129 mm ahead of it. The reward was paying the body to lean onto the front edge of its base;
+   * the middle of the base, 48 mm ahead of the ankle, is also where a standing person's centre
+   * of mass is. Measured 2026-10-18 on "Drop, standing" at 0 m. The old mean is still the
+   * fallback for a moment with no foot loaded, when there is no base to be over anyway.
+   *
+   * The margin is scaled by a quarter of a metre, which is about a foot's length: at the edge of
+   * the base the term is near zero, and well inside it is near one.
    */
   private overFeet(): number {
     let mx = 0;
@@ -519,16 +537,84 @@ export class StandRig {
     const comX = mx / this.totalMass;
     const comZ = mz / this.totalMass;
 
-    // The base: every segment of both feet, left then right, whether it is on the ground or not.
+    // The base: the middle of each loaded foot's contacts, averaged over the feet that are down.
     this.baseX = 0;
     this.baseZ = 0;
     this.baseCount = 0;
-    this.addFoot(this.leftFeet);
-    this.addFoot(this.rightFeet);
+    this.addFootSupport(this.leftFeet);
+    this.addFootSupport(this.rightFeet);
+    // No foot loaded: every segment of both feet, as the base was before contact entered into it.
+    if (this.baseCount === 0) {
+      this.addFoot(this.leftFeet);
+      this.addFoot(this.rightFeet);
+    }
     if (this.baseCount === 0) return 0;
     const dx = comX - this.baseX / this.baseCount;
     const dz = comZ - this.baseZ / this.baseCount;
     return 1 - Math.min(1, Math.sqrt(dx * dx + dz * dz) / 0.25);
+  }
+
+  /**
+   * The middle of one foot's loaded ground contacts, into `footX` and `footZ`; false when the
+   * foot bears nothing.
+   *
+   * The midpoint of the two contacts farthest apart along the floor rather than their mean,
+   * because a contact count says nothing about area: a heel resting on one hull face and a
+   * forefoot on three would otherwise pull the middle toward the toes. Allocation-free, and a
+   * foot has a handful of contacts, so the pairwise search costs nothing worth measuring.
+   */
+  private footSupport(list: Int32Array): boolean {
+    const c = this.contacts;
+    const n = Math.min(c.count, c.impulse.length, c.pair.length >> 1, (c.point.length / 3) | 0);
+    // The first loaded contact, where the pairwise search starts, and the farthest pair so far.
+    let first = -1;
+    let a = -1;
+    let b = -1;
+    let best = -1;
+    for (let i = 0; i < n; i++) {
+      if (!this.onGround(list, i)) continue;
+      if (first < 0) {
+        first = i;
+        a = i;
+        b = i;
+        best = 0;
+        continue;
+      }
+      const ix = c.point[3 * i] as number;
+      const iz = c.point[3 * i + 2] as number;
+      for (let j = first; j < i; j++) {
+        if (!this.onGround(list, j)) continue;
+        const dx = ix - (c.point[3 * j] as number);
+        const dz = iz - (c.point[3 * j + 2] as number);
+        const d = dx * dx + dz * dz;
+        if (d > best) {
+          best = d;
+          a = j;
+          b = i;
+        }
+      }
+    }
+    if (first < 0) return false;
+    this.footX = ((c.point[3 * a] as number) + (c.point[3 * b] as number)) / 2;
+    this.footZ = ((c.point[3 * a + 2] as number) + (c.point[3 * b + 2] as number)) / 2;
+    return true;
+  }
+
+  /** Add one foot's support centre to the base `overFeet` is summing, when the foot is loaded. */
+  private addFootSupport(list: Int32Array): void {
+    if (!this.footSupport(list)) return;
+    this.baseX += this.footX;
+    this.baseZ += this.footZ;
+    this.baseCount += 1;
+  }
+
+  /** Whether contact `i` is one of these foot segments bearing on the ground. */
+  private onGround(list: Int32Array, i: number): boolean {
+    const c = this.contacts;
+    if (!((c.impulse[i] as number) > 0)) return false;
+    const a = c.pair[2 * i] as number;
+    const b = c.pair[2 * i + 1] as number;
+    return (b === -1 && list.includes(a)) || (a === -1 && list.includes(b));
   }
 
   /**
